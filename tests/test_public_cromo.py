@@ -381,7 +381,7 @@ class CromoMotionTests(unittest.TestCase):
                 if "infinite" in decl or decl.strip() == "none":
                     continue  # looping ambience (float, roll, spin, pulse) keeps its own cadence
                 stripped = re.sub(r"var\([^)]*\)", "", decl)
-                self.assertNotRegex(stripped, r"\b\d*\.?\d+m?s\b", path + ": " + decl)
+                self.assertNotRegex(re.sub(r"\b0m?s\b", "", stripped), r"\b\d*\.?\d+m?s\b", path + ": " + decl)  # a literal 0s (no delay) is fine
                 self.assertNotRegex(stripped, r"cubic-bezier|\bease\b", path + ": " + decl)
 
     def test_motion_tokens_exist_and_match_the_scale(self) -> None:
@@ -416,6 +416,45 @@ class CromoMotionTests(unittest.TestCase):
         for rule in re.findall(r"([^{}]+)\{[^{}]*#b6ff00[^{}]*\}", self.HOME):
             self.assertIn("cr-glitch", rule)
         self.assertNotIn("innerHTML", self.JS)
+
+
+class CromoBannersTests(unittest.TestCase):
+    """The banners managed in DISCADMIN (Slider Manager) live in the Cromo home, with the site's motion."""
+
+    JS = (ROOT / "js/public-cromo-home.js").read_text(encoding="utf-8")
+    CSS = (ROOT / "css/public-cromo-home.css").read_text(encoding="utf-8")
+
+    def test_banners_come_from_the_managed_endpoint_and_never_block_the_home(self) -> None:
+        self.assertIn("/api/hero-slider.php", self.JS)
+        self.assertIn(".catch(() => null)", self.JS)  # optional: the home mounts without them
+        self.assertIn("buildBanners(slider)", self.JS)
+        order = re.search(r"el\('main', \{ id: 'cromo-top' \}, ([^)]*)\)", self.JS)
+        parts = [p.strip() for p in order.group(1).split(",")]
+        self.assertLess(parts.index("band"), parts.index("banners"))
+        self.assertLess(parts.index("banners"), parts.index("nights"))
+
+    def test_banner_options_of_the_editor_are_honoured_safely(self) -> None:
+        for needle in ("cfg.autoplay", "cfg.interval", "slide.transition", "slide.mobileSrc", "layer.mobileX",
+                       "layer.hiddenMobile", "layer.animation", "layer.delay", "layer.duration", "slide.overlay"):
+            self.assertIn(needle, self.JS)
+        self.assertIn("safeUrl(layer.url)", self.JS)
+        self.assertIn("safeUrl(slide.ctaUrl)", self.JS)
+        self.assertNotIn("innerHTML", self.JS)
+
+    def test_banners_are_an_accessible_carousel_with_a_pause_control(self) -> None:
+        for needle in ("aria-roledescription': 'carousel'", "aria-roledescription': 'slide'",
+                       "Pausar los banners", "Reanudar los banners", "Banner anterior", "Banner siguiente",
+                       "matchMedia('(prefers-reduced-motion: reduce)')", "document.hidden"):
+            self.assertIn(needle, self.JS)
+        self.assertIn("min-width:44px;min-height:44px", self.CSS)
+
+    def test_banners_keep_the_site_motion_and_a_reduced_motion_fallback(self) -> None:
+        self.assertIn("cromo:beat", self.JS)            # the frame pulses with the sound loop
+        self.assertIn("u glitch", self.JS)              # legacy-copy titles get the green glitch
+        for anim in ("fade", "slide-up", "slide-left", "zoom"):
+            self.assertIn("cr-bn-a-" + anim, self.CSS)
+        block = self.CSS[self.CSS.rindex("prefers-reduced-motion"):]
+        self.assertIn("cr-bn-layer{animation:none", block.replace(" ", ""))
 
 
 if __name__ == "__main__":

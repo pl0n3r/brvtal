@@ -281,3 +281,71 @@ html.cromo-home body>*:not(#cromo-home):not(#cromoGL):not(script):not(style):not
 @media(prefers-reduced-motion:reduce){
   #cromo-home .cr-glitch::before,#cromo-home .cr-glitch::after{animation:none}
 }
+
+/* ---------- Destacados: los banners que se gestionan en DISCADMIN, dentro del marco Cromo ---------- */
+#cromo-home .cr-sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+#cromo-home .cr-bn{padding-top:clamp(40px,8vh,96px);padding-bottom:clamp(24px,5vh,64px)}
+#cromo-home .cr-bn-stage{position:relative;aspect-ratio:16/8;min-height:340px;max-height:78vh;overflow:hidden;background:#07080b;box-shadow:12px 12px 0 var(--red);transition:box-shadow var(--duration-quick) var(--ease-out)}
+#cromo-home .cr-bn-stage.cr-beat{box-shadow:12px 12px 0 var(--red),0 0 0 4px rgba(242,239,232,.55)}
+#cromo-home .cr-bn-slide{position:absolute;inset:0;opacity:0;visibility:hidden;
+  transition:opacity var(--duration-slow) var(--ease-in-out),transform var(--duration-slow) var(--ease-smooth-out),visibility 0s linear var(--duration-slow)}
+#cromo-home .cr-bn-slide.cr-bn-t-slide{transform:translateX(3%)}
+#cromo-home .cr-bn-slide.cr-bn-t-zoom{transform:scale(1.04)}
+#cromo-home .cr-bn-slide.cr-is-active{opacity:1;visibility:visible;transform:none;transition-delay:0s}
+#cromo-home .cr-bn-media{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+#cromo-home .cr-bn-slide picture{display:contents}
+#cromo-home .cr-bn-ov{position:absolute;inset:0;background:linear-gradient(0deg,rgba(3,3,3,calc(var(--ov,.35) + .25)),rgba(3,3,3,var(--ov,.35)) 55%,rgba(3,3,3,calc(var(--ov,.35)*.6)))}
+
+/* Layers: positioned from the center point the editor defines (percent of the stage), mobile overrides included. */
+#cromo-home .cr-bn-layer{position:absolute;left:var(--x,12%);top:var(--y,50%);width:var(--w,50%);transform:translate(-50%,-50%);color:#fff;z-index:2;word-break:break-word}
+#cromo-home .cr-bn-al-left{text-align:left}
+#cromo-home .cr-bn-al-center{text-align:center}
+#cromo-home .cr-bn-al-right{text-align:right}
+#cromo-home .cr-bn-text{font:400 clamp(26px,4.6vw,84px)/.92 var(--disp);text-transform:uppercase;-webkit-text-stroke:.05em #030303;paint-order:stroke fill;text-shadow:0 .05em 0 var(--red)}
+#cromo-home .cr-bn-image img,#cromo-home .cr-bn-logo img{display:block;width:100%;height:auto;object-fit:contain}
+#cromo-home .cr-bn-cta{width:auto;white-space:nowrap}
+#cromo-home .cr-bn-layer.cr-btn{min-height:48px}
+@keyframes cromo-bn-fade{from{opacity:0;filter:blur(var(--blur-medium))}to{opacity:1;filter:blur(0)}}
+@keyframes cromo-bn-up{from{opacity:0;filter:blur(var(--blur-medium));transform:translate(-50%,calc(-50% + var(--distance-medium)*2))}to{opacity:1;filter:blur(0);transform:translate(-50%,-50%)}}
+@keyframes cromo-bn-left{from{opacity:0;filter:blur(var(--blur-medium));transform:translate(calc(-50% - var(--distance-medium)*2),-50%)}to{opacity:1;filter:blur(0);transform:translate(-50%,-50%)}}
+@keyframes cromo-bn-zoom{from{opacity:0;filter:blur(var(--blur-medium));transform:translate(-50%,-50%) scale(.88)}to{opacity:1;filter:blur(0);transform:translate(-50%,-50%) scale(1)}}
+#cromo-home .cr-bn-slide.cr-is-active .cr-bn-a-fade{animation:cromo-bn-fade var(--t,650ms) var(--ease-in-out) both;animation-delay:var(--d,0ms)}
+#cromo-home .cr-bn-slide.cr-is-active .cr-bn-a-slide-up{animation:cromo-bn-up var(--t,650ms) var(--ease-smooth-out) both;animation-delay:var(--d,0ms)}
+#cromo-home .cr-bn-slide.cr-is-active .cr-bn-a-slide-left{animation:cromo-bn-left var(--t,650ms) var(--ease-smooth-out) both;animation-delay:var(--d,0ms)}
+#cromo-home .cr-bn-slide.cr-is-active .cr-bn-a-zoom{animation:cromo-bn-zoom var(--t,650ms) var(--ease-smooth-out) both;animation-delay:var(--d,0ms)}
+
+/* Slides without layers: the classic kicker, title, text and button. */
+#cromo-home .cr-bn-copy{position:absolute;left:clamp(20px,5vw,72px);right:clamp(20px,5vw,72px);bottom:clamp(70px,12%,110px);z-index:2;display:grid;gap:14px;max-width:44em}
+#cromo-home .cr-bn-copy.cr-bn-al-center{margin:0 auto;justify-items:center}
+#cromo-home .cr-bn-copy.cr-bn-al-right{margin-left:auto;justify-items:end}
+#cromo-home .cr-bn-copy .cr-k{margin:0;font:700 18px/1 var(--body);letter-spacing:.14em;text-transform:uppercase;color:var(--red)}
+#cromo-home .cr-bn-copy h3{margin:0;font-size:min(11vw,140px);color:#fff;-webkit-text-stroke:.06em #030303;paint-order:stroke fill;text-shadow:0 .05em 0 var(--red)}
+#cromo-home .cr-bn-body{margin:0;font:500 clamp(21px,1.8vw,26px)/1.35 var(--body);color:#e6e9f0}
+#cromo-home .cr-bn-copy .cr-btn{justify-self:start}
+#cromo-home .cr-bn-al-center .cr-btn{justify-self:center}
+#cromo-home .cr-bn-al-right .cr-btn{justify-self:end}
+
+#cromo-home .cr-bn-ctl{position:absolute;right:16px;bottom:16px;z-index:5;display:flex;align-items:center;gap:8px;padding:6px;background:rgba(3,3,3,.9);border:2px solid var(--bone)}
+#cromo-home .cr-bn-nav,#cromo-home .cr-bn-pp{min-width:44px;min-height:44px;padding:0 12px;background:none;color:var(--bone);border:0;cursor:pointer;font:700 20px/1 var(--body);text-transform:uppercase;letter-spacing:.04em;
+  transition:background-color var(--duration-quick) var(--ease-in-out),color var(--duration-quick) var(--ease-in-out)}
+#cromo-home .cr-bn-nav:hover,#cromo-home .cr-bn-pp:hover{background:var(--bone);color:var(--ink)}
+#cromo-home .cr-bn-pp[aria-pressed="true"]{background:var(--red);color:#fff}
+#cromo-home .cr-bn-dots{display:flex;gap:2px}
+#cromo-home .cr-bn-dot{position:relative;width:44px;height:44px;background:none;border:0;cursor:pointer}
+#cromo-home .cr-bn-dot::before{content:"";position:absolute;left:12px;right:12px;top:50%;height:6px;margin-top:-3px;background:rgba(242,239,232,.4);
+  transition:background-color var(--duration-fast) var(--ease-smooth-out),left var(--duration-fast) var(--ease-smooth-out),right var(--duration-fast) var(--ease-smooth-out)}
+#cromo-home .cr-bn-dot[aria-current="true"]::before{background:var(--red);left:6px;right:6px}
+#cromo-home .cr-bn-nav:focus-visible,#cromo-home .cr-bn-pp:focus-visible,#cromo-home .cr-bn-dot:focus-visible{outline:3px solid var(--red);outline-offset:-3px}
+
+@media(max-width:700px){
+  #cromo-home .cr-bn-stage{aspect-ratio:4/5;max-height:none;box-shadow:8px 8px 0 var(--red)}
+  #cromo-home .cr-bn-layer{left:var(--mx,var(--x,12%));top:var(--my,var(--y,50%));width:var(--mw,var(--w,50%))}
+  #cromo-home .cr-bn-layer.cr-bn-hm{display:none}
+  #cromo-home .cr-bn-text{font-size:clamp(22px,9vw,52px)}
+  #cromo-home .cr-bn-ctl{right:10px;left:10px;bottom:10px;justify-content:space-between}
+}
+@media(prefers-reduced-motion:reduce){
+  #cromo-home .cr-bn-slide,#cromo-home .cr-bn-stage,#cromo-home .cr-bn-nav,#cromo-home .cr-bn-pp,#cromo-home .cr-bn-dot::before{transition:none !important}
+  #cromo-home .cr-bn-slide.cr-bn-t-slide,#cromo-home .cr-bn-slide.cr-bn-t-zoom{transform:none}
+  #cromo-home .cr-bn-layer{animation:none !important}
+}

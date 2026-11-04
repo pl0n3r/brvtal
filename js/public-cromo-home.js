@@ -435,7 +435,144 @@
     return section;
   };
 
-  const build = (data) => {
+  const buildBanners = (cfg) => {
+    // --- Destacados: the slides managed in DISCADMIN (Banners). Same data and options as before
+    // (autoplay, interval, fade/slide/zoom, positioned layers with mobile overrides, video), shown in the
+    // Cromo frame. Every string is inserted as text; URLs go through safeUrl.
+    const list = (Array.isArray(cfg.slides) ? cfg.slides : []).filter((slide) => safeUrl(slide.desktopSrc));
+    if (!cfg.enabled || !list.length) return null;
+    const mobile = window.matchMedia('(max-width: 700px)');
+    const pct = (value) => (value === null || value === undefined || value === '' || !Number.isFinite(Number(value)) ? '' : Number(value) + '%');
+    const align = (value) => (['left', 'center', 'right'].includes(value) ? value : 'left');
+
+    const mediaNode = (slide, first) => {
+      const desktop = safeUrl(slide.desktopSrc);
+      const small = safeUrl(slide.mobileSrc);
+      if (slide.mediaType === 'video') {
+        const video = el('video', { class: 'bn-media', loop: true, playsinline: true, preload: 'metadata', poster: safeUrl(slide.poster) || false, 'aria-hidden': 'true' });
+        video.muted = true;
+        video.append(el('source', { src: mobile.matches && small ? small : desktop }));
+        return video;
+      }
+      const picture = document.createElement('picture');
+      if (small) {
+        const source = document.createElement('source');
+        source.media = '(max-width: 700px)';
+        source.srcset = small;
+        picture.append(source);
+      }
+      picture.append(el('img', { class: 'bn-media', src: desktop, alt: '', decoding: 'async', loading: first ? 'eager' : 'lazy' }));
+      return picture;
+    };
+
+    const layerNode = (layer) => {
+      const vars = ['--x:' + pct(layer.x), '--y:' + pct(layer.y), '--w:' + pct(layer.width),
+        pct(layer.mobileX) ? '--mx:' + pct(layer.mobileX) : '', pct(layer.mobileY) ? '--my:' + pct(layer.mobileY) : '',
+        pct(layer.mobileWidth) ? '--mw:' + pct(layer.mobileWidth) : '',
+        '--d:' + (Number(layer.delay) || 0) + 'ms', '--t:' + (Number(layer.duration) || 650) + 'ms'].filter((v) => v.length > 4).join(';');
+      const animation = ['none', 'fade', 'slide-up', 'slide-left', 'zoom'].includes(layer.animation) ? layer.animation : 'fade';
+      const cls = 'bn-layer bn-' + (['text', 'image', 'logo', 'cta'].includes(layer.type) ? layer.type : 'text') + ' bn-a-' + animation + ' bn-al-' + align(layer.align) + (layer.hiddenMobile ? ' bn-hm' : '');
+      if (layer.type === 'image' || layer.type === 'logo') {
+        const desktop = safeUrl(layer.src);
+        if (!desktop) return null;
+        const picture = document.createElement('picture');
+        const small = safeUrl(layer.mobileSrc);
+        if (small) { const source = document.createElement('source'); source.media = '(max-width: 700px)'; source.srcset = small; picture.append(source); }
+        picture.append(el('img', { src: desktop, alt: '', decoding: 'async', loading: 'lazy' }));
+        return el('div', { class: cls, style: vars }, picture);
+      }
+      if (layer.type === 'cta') {
+        const href = safeUrl(layer.url);
+        return el(href ? 'a' : 'span', { class: cls + ' btn r', href: href || false, style: vars, text: text(layer.text, 80) });
+      }
+      return el('div', { class: cls, style: vars, text: text(layer.text, 220) });
+    };
+
+    const legacyCopy = (slide) => {
+      const href = safeUrl(slide.ctaUrl);
+      const title = text(slide.title, 140);
+      if (!slide.kicker && !title && !slide.body && !(href && slide.ctaLabel)) return [];
+      return [el('div', { class: 'bn-copy bn-al-' + align(slide.contentAlign) },
+        slide.kicker ? el('p', { class: 'k', text: text(slide.kicker, 120) }) : null,
+        title ? el('h3', { class: 'u glitch', 'data-text': title, text: title }) : null,
+        slide.body ? el('p', { class: 'bn-body', text: text(slide.body, 320) }) : null,
+        href && slide.ctaLabel ? el('a', { class: 'btn r', href, text: text(slide.ctaLabel, 80) }) : null)];
+    };
+
+    const nodes = list.map((slide, i) => {
+      const transition = ['fade', 'slide', 'zoom'].includes(slide.transition) ? slide.transition : 'fade';
+      const layers = (Array.isArray(slide.layers) ? slide.layers : []).map(layerNode).filter(Boolean);
+      const overlay = Math.max(0, Math.min(85, Number(slide.overlay) || 0)) / 100;
+      return el('div', { class: 'bn-slide bn-t-' + transition + (i === 0 ? ' is-active' : ''), role: 'group', 'aria-roledescription': 'slide',
+        'aria-label': (i + 1) + ' de ' + list.length, 'aria-hidden': i === 0 ? false : 'true', style: '--ov:' + overlay },
+        mediaNode(slide, i === 0), el('div', { class: 'bn-ov' }), layers.length ? layers : legacyCopy(slide));
+    });
+    // The class helper prefixes everything with cr-, including state classes.
+    nodes.forEach((node, i) => { node.classList.remove('is-active'); if (i === 0) node.classList.add('cr-is-active'); });
+
+    const stage = el('div', { class: 'bn-stage chrome-b' }, nodes);
+    const section = el('section', { class: 'sec bn', id: 'destacados', 'aria-roledescription': 'carousel', 'aria-label': 'Destacados' },
+      el('h2', { class: 'sr', text: 'Destacados' }), stage);
+    if (list.length < 2) return section;
+
+    let index = 0;
+    let paused = false;
+    let timer = null;
+    const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const dots = list.map((slide, i) => el('button', { class: 'bn-dot', type: 'button', 'aria-label': 'Ir al banner ' + (i + 1), 'aria-current': i === 0 ? 'true' : false }));
+    const playPause = el('button', { class: 'bn-pp', type: 'button', 'aria-pressed': 'false', 'aria-label': 'Pausar los banners', text: 'Pausa' });
+    const prev = el('button', { class: 'bn-nav', type: 'button', 'aria-label': 'Banner anterior', text: '←' });
+    const next = el('button', { class: 'bn-nav', type: 'button', 'aria-label': 'Banner siguiente', text: '→' });
+    const controls = el('div', { class: 'bn-ctl' }, prev, el('div', { class: 'bn-dots' }, dots), next, playPause);
+    stage.append(controls);
+
+    const schedule = () => {
+      clearTimeout(timer);
+      if (!cfg.autoplay || paused || reduced() || document.hidden) return;
+      timer = setTimeout(() => show(index + 1), Math.max(2500, Number(cfg.interval) || 7000));
+    };
+    const show = (to) => {
+      const target = (to + nodes.length) % nodes.length;
+      if (target === index) { schedule(); return; }
+      nodes[index].classList.remove('cr-is-active');
+      nodes[index].setAttribute('aria-hidden', 'true');
+      const outgoing = nodes[index].querySelector('video');
+      if (outgoing) outgoing.pause();
+      dots[index].removeAttribute('aria-current');
+      index = target;
+      nodes[index].classList.add('cr-is-active');
+      nodes[index].removeAttribute('aria-hidden');
+      const incoming = nodes[index].querySelector('video');
+      if (incoming) { const played = incoming.play(); if (played && played.catch) played.catch(() => {}); }
+      dots[index].setAttribute('aria-current', 'true');
+      schedule();
+    };
+    prev.addEventListener('click', () => show(index - 1));
+    next.addEventListener('click', () => show(index + 1));
+    dots.forEach((dot, i) => dot.addEventListener('click', () => show(i)));
+    playPause.addEventListener('click', () => {
+      paused = !paused;
+      playPause.setAttribute('aria-pressed', String(paused));
+      playPause.setAttribute('aria-label', paused ? 'Reanudar los banners' : 'Pausar los banners');
+      playPause.textContent = paused ? 'Seguir' : 'Pausa';
+      schedule();
+    });
+    stage.addEventListener('mouseenter', () => clearTimeout(timer));
+    stage.addEventListener('mouseleave', schedule);
+    stage.addEventListener('focusin', () => clearTimeout(timer));
+    stage.addEventListener('focusout', (event) => { if (!stage.contains(event.relatedTarget)) schedule(); });
+    document.addEventListener('visibilitychange', schedule);
+    // The site's own pulse: the frame flashes on each kick of the sound loop.
+    window.addEventListener('cromo:beat', () => {
+      if (reduced()) return;
+      stage.classList.add('cr-beat');
+      setTimeout(() => stage.classList.remove('cr-beat'), ms('--duration-quick') || 150);
+    });
+    schedule();
+    return section;
+  };
+
+  const build = (data, slider) => {
     const events = Array.isArray(data.events) ? data.events : [];
     const artists = Array.isArray(data.artists) ? data.artists : [];
     const sets = Array.isArray(data.sets) ? data.sets : [];
@@ -457,12 +594,13 @@
       el('div', { style: 'display:flex;gap:10px;align-items:center' }, snd, ticketsLink));
 
     // --- Hero
-    const { word, hero, band } = buildHero(next, artists);
+    const { word, hero: heroSec, band } = buildHero(next, artists);
 
     // --- Noches
     const nights = buildNights(upcoming, next, artists);
     const experience = buildExperience(next, artists, data.relations || {});
     const connected = buildConnected(data);
+    const banners = slider ? buildBanners(slider) : null;
 
     // --- Artistas
     const artistsSec = buildArtists(artists);
@@ -494,12 +632,12 @@
     if (cookieBtn) cookieBtn.addEventListener('click', () => cookiePrefs.click());
 
     home.append(el('a', { class: 'skip', href: '#noches', text: 'Saltar al contenido' }), header,
-      el('main', { id: 'cromo-top' }, hero, band, nights, artistsSec, experience, sound, setsSec, memoriesSec, journalSec, connected, end), footer);
+      el('main', { id: 'cromo-top' }, heroSec, band, banners, nights, artistsSec, experience, sound, setsSec, memoriesSec, journalSec, connected, end), footer);
     return { home, snd, snd2, nav, loadChallenge, word };
   };
 
-  const mount = (data) => {
-    const parts = build(data);
+  const mount = (data, slider) => {
+    const parts = build(data, slider);
     window.BRVTAL_CROMO_ACCENT = [1, .17, .05];
     // Section titles carry a green glitch layer (same idea as the old Genesis title): the layer
     // copies the text through data-text, so the heading itself stays plain text for assistive tech.
@@ -543,9 +681,12 @@
   const start = () => {
     // Preserve legacy archive deep links without showing the archive on the new home.
     if (['#events', '#archive'].includes(window.location.hash)) return;
-    fetch('/api/public.php', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('http'))))
-      .then((payload) => { if (payload && payload.data && !document.getElementById('cromo-home')) mount(payload.data); })
+    const json = (url) => fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('http'))));
+    // The banners are optional: if their endpoint fails the home still mounts without them.
+    const banners = json('/api/hero-slider.php').then((payload) => (payload && payload.ok === true ? payload.data : null)).catch(() => null);
+    Promise.all([json('/api/public.php'), banners])
+      .then(([payload, slider]) => { if (payload && payload.data && !document.getElementById('cromo-home')) mount(payload.data, slider); })
       .catch(() => { /* keep the Concept 05 home */ });
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });
