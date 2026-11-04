@@ -175,7 +175,7 @@ class CromoLayerTests(unittest.TestCase):
         self.assertIn('html.cromo [data-concept="05"] .home-phase-a-hero .hero-title{', mobile)
         for rule in (
             "width:100%", "max-width:100%", "min-width:0",
-            "font-size:clamp(104px,41vw,190px)", "word-break:normal",
+            "font-size:clamp(110px,46vw,260px)", "word-break:normal",
             "overflow-wrap:normal", "white-space:nowrap",
         ):
             self.assertIn(rule, mobile)

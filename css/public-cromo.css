@@ -88,7 +88,7 @@ html.cromo main#top section.scene h2{
     width:100%;
     max-width:100%;
     min-width:0;
-    font-size:clamp(104px,41vw,190px);
+    font-size:clamp(110px,46vw,260px);
     line-height:.85;
     letter-spacing:-.012em;
     overflow-wrap:normal;
