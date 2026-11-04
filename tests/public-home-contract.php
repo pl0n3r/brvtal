@@ -42,10 +42,10 @@ $section = substr($rendered, $start, $end - $start);
 
 public_home_expect(str_contains($section, 'data-scene="EXPERIENCE"'), 'Next Experience scene must no longer identify itself as legacy Genesis');
 public_home_expect(str_contains($section, 'data-text="TENSION &amp; NOISE"') && str_contains($section, '>TENSION &amp; NOISE</h2>'), 'Event title must come from CMS data and be escaped');
-public_home_expect(str_contains($section, 'TICKETS AVAILABLE.'), 'Public lifecycle status must drive the event tag when useful');
+public_home_expect(str_contains($section, 'ENTRADAS DISPONIBLES.'), 'Public lifecycle status must drive the event tag when useful');
 public_home_expect(
-    str_contains($section, 'data-c5-fact="date" data-label="DATE">12.12.2026</span>')
-    && str_contains($section, 'data-c5-fact="time" data-label="TIME">23:00</span>'),
+    str_contains($section, 'data-c5-fact="date" data-label="FECHA">12.12.2026</span>')
+    && str_contains($section, 'data-c5-fact="time" data-label="HORA">23:00</span>'),
     'Event date and time must render from CMS data with authored fact hooks'
 );
 public_home_expect(str_contains($section, 'MEDELLÍN / CLUB X'), 'Event city and venue must render from CMS data');
@@ -53,7 +53,7 @@ public_home_expect(str_contains($section, 'href="/events/tension-midnight"'), 'N
 public_home_expect(
     str_contains($section, 'data-c5-experience-artwork')
     && str_contains($section, 'src="/uploads/media/tension.webp"')
-    && str_contains($section, 'alt="TENSION &amp; NOISE event artwork"'),
+    && str_contains($section, 'alt="TENSION &amp; NOISE de evento"'),
     'Next Experience artwork must use canonical Event media with meaningful fallback semantics'
 );
 public_home_expect(str_contains($section, 'class="c5-experience-authored"') || str_contains($section, ' c5-experience-authored'), 'Next Experience must expose the authored Concept 05 surface');
@@ -111,15 +111,15 @@ $fallbackStart = strpos($fallback, '<section class="genesis scene');
 $fallbackEnd = $fallbackStart === false ? false : strpos($fallback, '</section>', $fallbackStart);
 public_home_expect($fallbackStart !== false && $fallbackEnd !== false, 'Fallback Next Experience section must remain present');
 $fallbackSection = substr($fallback, $fallbackStart, $fallbackEnd - $fallbackStart);
-public_home_expect(str_contains($fallbackSection, '>NEXT SIGNAL</h2>'), 'No eligible event must render a neutral Next Experience fallback');
-public_home_expect(str_contains($fallbackSection, 'NEW DATE TO BE ANNOUNCED.'), 'Neutral fallback must not advertise legacy event copy');
+public_home_expect(str_contains($fallbackSection, '>PRÓXIMA SEÑAL</h2>'), 'No eligible event must render a neutral Next Experience fallback');
+public_home_expect(str_contains($fallbackSection, 'NUEVA FECHA POR ANUNCIAR.'), 'Neutral fallback must not advertise legacy event copy');
 public_home_expect(
-    str_contains($fallbackSection, 'data-c5-fact="date" data-label="DATE">DATE TBA</span>')
-    && str_contains($fallbackSection, 'data-c5-fact="time" data-label="TIME">TIME TBA</span>')
-    && str_contains($fallbackSection, 'data-c5-fact="location" data-label="LOCATION">LOCATION TBA</span>'),
+    str_contains($fallbackSection, 'data-c5-fact="date" data-label="FECHA">FECHA POR ANUNCIAR</span>')
+    && str_contains($fallbackSection, 'data-c5-fact="time" data-label="HORA">HORA POR ANUNCIAR</span>')
+    && str_contains($fallbackSection, 'data-c5-fact="location" data-label="LUGAR">LUGAR POR ANUNCIAR</span>'),
     'Neutral fallback must not reuse legacy date/location data'
 );
-public_home_expect(str_contains($fallbackSection, 'VIEW EVENTS'), 'Neutral fallback must keep a useful Events CTA');
+public_home_expect(str_contains($fallbackSection, 'VER EVENTOS'), 'Neutral fallback must keep a useful Events CTA');
 public_home_expect(
     str_contains($fallbackSection, 'class="genesis-bg c5-experience-artwork"')
     && str_contains($fallbackSection, 'data-c5-experience-artwork')
