@@ -212,3 +212,90 @@ test('Social & Contact filters malformed and unsafe values, supports legacy keys
   await expect(links).toHaveAttribute('target', '_blank');
   await noOverflow(page);
 });
+
+
+// #1520 — exercise the real Cromo CMS mount at the viewport edges, without
+// replacing content hooks, desktop layout, or Concept 05 fallback.
+test('Experiencia Cromo apila poster y ficha en 375/390/430/900, conserva escritorio y funciona sin portada', async ({ page }) => {
+  await page.route('**/fixtures/cromo-experience-cover.svg', route => route.fulfill({
+    contentType: 'image/svg+xml',
+    body: '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"><rect width="800" height="600" fill="#23131b"/></svg>',
+  }));
+  const longTitle = 'CEREMONIA INDUSTRIAL PSICOTICA DE VELOCIDAD Y DISTORSION CON NOMBRE EXTREMADAMENTE LARGO';
+  const fullEvent = {
+    ...event, title: longTitle, cover_image: '/fixtures/cromo-experience-cover.svg',
+    ticket_url: 'https://tickets.example.org/genesis', venue: 'UN ALMACEN INDUSTRIAL CON UBICACION EXTREMADAMENTE LARGA',
+    description: 'Experiencia editorial para probar márgenes y legibilidad sin mutar información de CMS.',
+  };
+  for (const width of [375, 390, 430, 900, 1440]) {
+    for (const cover of [true, false]) {
+      await mount(page, {
+        width, reduced: width === 390,
+        payload: { ...data, events: [{ ...fullEvent, cover_image: cover ? fullEvent.cover_image : '' }] },
+        banners: { enabled: false, slides: [] },
+      });
+      const card = page.locator('#experiencia .cr-xp');
+      await expect(card).toBeVisible();
+      await expect(card.locator('.cr-xp-body h3')).toHaveText(longTitle);
+      await expect(card.locator('.cr-xp-fly')).toHaveCount(cover ? 1 : 0);
+      const metrics = await card.evaluate(node => {
+        const rect = element => element ? element.getBoundingClientRect().toJSON() : null;
+        const panel = node.querySelector('.cr-xp-body');
+        const flyer = node.querySelector('.cr-xp-fly');
+        const header = document.querySelector('#cromo-home .cr-top');
+        const brand = header.querySelector('a.cr-u');
+        const sound = header.querySelector('button.cr-snd');
+        const tickets = header.querySelector('a.cr-tickets');
+        const facts = node.querySelector('.cr-xp-facts');
+        const title = node.querySelector('h3');
+        return {
+          columns: getComputedStyle(node).gridTemplateColumns.trim().split(/\\s+/).length,
+          card: rect(node), panel: rect(panel), flyer: rect(flyer),
+          panelPadding: parseFloat(getComputedStyle(panel).paddingLeft),
+          factsColumns: getComputedStyle(facts).gridTemplateColumns.trim().split(/\\s+/).length,
+          title: rect(title), brand: rect(brand), sound: rect(sound), tickets: rect(tickets),
+          ctas: [...node.querySelectorAll('.cr-xp-cta a')].map(rect),
+          header: rect(header),
+          documentWidth: document.documentElement.clientWidth,
+          scrollWidth: document.documentElement.scrollWidth,
+        };
+      });
+      expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.documentWidth + 1);
+      expect(metrics.title.left).toBeGreaterThanOrEqual(metrics.panel.left + 20);
+      expect(metrics.title.right).toBeLessThanOrEqual(metrics.panel.right - 20);
+      for (const cta of metrics.ctas) {
+        expect(cta.height).toBeGreaterThanOrEqual(44);
+        expect(cta.width).toBeGreaterThanOrEqual(44);
+        expect(cta.right).toBeLessThanOrEqual(metrics.panel.right + 1);
+      }
+      if (width <= 900) {
+        expect(metrics.columns).toBe(1);
+        expect(metrics.panelPadding).toBeGreaterThanOrEqual(24);
+        expect(metrics.factsColumns).toBe(2);
+        if (cover) {
+          expect(metrics.flyer.width).toBeGreaterThanOrEqual(metrics.panel.width - 2);
+          expect(metrics.flyer.bottom).toBeLessThanOrEqual(metrics.panel.top + 2);
+          expect(metrics.flyer.height).toBeGreaterThan(150);
+        }
+      } else if (cover) {
+        expect(metrics.columns).toBe(2);
+        expect(metrics.flyer.top).toBeLessThanOrEqual(metrics.panel.top + 2);
+      } else {
+        expect(metrics.columns).toBe(1);
+      }
+      if (width <= 430) {
+        expect(metrics.brand.right).toBeLessThanOrEqual(metrics.sound.left + 1);
+        expect(metrics.sound.right).toBeLessThanOrEqual(metrics.tickets.left + 1);
+        expect(metrics.sound.width).toBeGreaterThanOrEqual(44);
+        expect(metrics.tickets.height).toBeGreaterThanOrEqual(44);
+        for (const cta of metrics.ctas) expect(cta.width).toBeGreaterThanOrEqual(metrics.panel.width - metrics.panelPadding * 2 - 2);
+      }
+      if (width === 390 && cover) {
+        const img = card.locator('.cr-xp-fly img');
+        await expect(img).toBeVisible();
+        expect(await img.evaluate(el => getComputedStyle(el).transitionDuration)).toBe('0s');
+      }
+      await noOverflow(page);
+    }
+  }
+});
