@@ -175,7 +175,13 @@ test('Social & Contact shows five CMS links after contact form at 390 and 1440',
     }
     await links.first().focus();
     await expect(links.first()).toBeFocused();
-    expect(await links.first().evaluate(n => getComputedStyle(n).outlineStyle)).toBe('solid');
+    const socialRing = await links.first().evaluate(n => {
+      const style = getComputedStyle(n);
+      return { kind: style.outlineStyle, width: parseFloat(style.outlineWidth), color: style.outlineColor };
+    });
+    expect(socialRing.kind).toBe('solid');
+    expect(socialRing.width).toBeGreaterThanOrEqual(3);
+    expect(socialRing.color).not.toBe('rgba(0, 0, 0, 0)');
     await noOverflow(page);
   }
 });
@@ -211,4 +217,140 @@ test('Social & Contact filters malformed and unsafe values, supports legacy keys
   await expect(page.locator('#contacto .cr-social img')).toHaveCount(0);
   await expect(links).toHaveAttribute('target', '_blank');
   await noOverflow(page);
+});
+
+
+// #1520 — exercise the real Cromo CMS mount at the viewport edges, without
+// replacing content hooks, desktop layout, or Concept 05 fallback.
+test('Experiencia Cromo apila poster y ficha en 375/390/430/900, conserva escritorio y funciona sin portada', async ({ page }) => {
+  test.setTimeout(120_000); // Ten real CMS mounts across five viewports.
+  await page.route('**/fixtures/cromo-experience-cover.svg', route => route.fulfill({
+    contentType: 'image/svg+xml',
+    body: '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"><rect width="800" height="600" fill="#23131b"/></svg>',
+  }));
+  const longTitle = 'CEREMONIA INDUSTRIAL PSICOTICA DE VELOCIDAD Y DISTORSION CON NOMBRE EXTREMADAMENTE LARGO';
+  const fullEvent = {
+    ...event, title: longTitle, cover_image: '/fixtures/cromo-experience-cover.svg',
+    ticket_url: 'https://tickets.example.org/genesis', venue: 'UN ALMACEN INDUSTRIAL CON UBICACION EXTREMADAMENTE LARGA',
+    description: 'Experiencia editorial para probar márgenes y legibilidad sin mutar información de CMS.',
+  };
+  for (const width of [375, 390, 430, 900, 1440]) {
+    for (const cover of [true, false]) {
+      await mount(page, {
+        width, reduced: width === 390,
+        payload: { ...data, events: [{ ...fullEvent, cover_image: cover ? fullEvent.cover_image : '' }] },
+        banners: { enabled: false, slides: [] },
+      });
+      const card = page.locator('#experiencia .cr-xp');
+      await expect(card).toBeVisible();
+      await expect(card.locator('.cr-xp-body h3')).toHaveText(longTitle);
+      await expect(page.locator('#cromo-home .cr-top .cr-snd')).toHaveAccessibleName(/Activar sonido|Apagar el pulso/);
+      await expect(card.locator('.cr-xp-fly')).toHaveCount(cover ? 1 : 0);
+      const metrics = await card.evaluate(node => {
+        const rect = element => element ? element.getBoundingClientRect().toJSON() : null;
+        const panel = node.querySelector('.cr-xp-body');
+        const flyer = node.querySelector('.cr-xp-fly');
+        const header = document.querySelector('#cromo-home .cr-top');
+        const brand = header.querySelector('a.cr-u');
+        const sound = header.querySelector('button.cr-snd');
+        const tickets = header.querySelector('a.cr-tickets');
+        const facts = node.querySelector('.cr-xp-facts');
+        const title = node.querySelector('h3');
+        return {
+          columns: getComputedStyle(node).gridTemplateColumns.trim().split(/\s+/).length,
+          card: rect(node), panel: rect(panel), flyer: rect(flyer),
+          panelPadding: parseFloat(getComputedStyle(panel).paddingLeft),
+          panelContentWidth: panel.clientWidth - parseFloat(getComputedStyle(panel).paddingLeft) - parseFloat(getComputedStyle(panel).paddingRight),
+          factsColumns: getComputedStyle(facts).gridTemplateColumns.trim().split(/\s+/).length,
+          title: rect(title), brand: rect(brand), sound: rect(sound), tickets: rect(tickets),
+          ctas: [...node.querySelectorAll('.cr-xp-cta a')].map(rect),
+          header: rect(header),
+          documentWidth: document.documentElement.clientWidth,
+          scrollWidth: document.documentElement.scrollWidth,
+        };
+      });
+      expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.documentWidth + 1);
+      expect(metrics.title.left).toBeGreaterThanOrEqual(metrics.panel.left + 20);
+      expect(metrics.title.right).toBeLessThanOrEqual(metrics.panel.right - 20);
+      for (const cta of metrics.ctas) {
+        expect(cta.height).toBeGreaterThanOrEqual(44);
+        expect(cta.width).toBeGreaterThanOrEqual(44);
+        expect(cta.right).toBeLessThanOrEqual(metrics.panel.right + 1);
+      }
+      if (width <= 900) {
+        expect(metrics.brand.right).toBeLessThanOrEqual(metrics.sound.left + 1);
+        expect(metrics.sound.right).toBeLessThanOrEqual(metrics.tickets.left + 1);
+        expect(metrics.columns).toBe(1);
+        expect(metrics.panelPadding).toBeGreaterThanOrEqual(24);
+        expect(metrics.factsColumns).toBe(2);
+        if (cover) {
+          expect(metrics.flyer.width).toBeGreaterThanOrEqual(metrics.panel.width - 2);
+          expect(metrics.flyer.bottom).toBeLessThanOrEqual(metrics.panel.top + 2);
+          expect(metrics.flyer.height).toBeGreaterThan(150);
+        }
+      } else if (cover) {
+        expect(metrics.columns).toBe(2);
+        expect(metrics.flyer.top).toBeLessThanOrEqual(metrics.panel.top + 2);
+        const [flyerTrack, panelTrack] = await card.evaluate(node =>
+          getComputedStyle(node).gridTemplateColumns.trim().split(/\s+/).map(parseFloat));
+        expect(flyerTrack / panelTrack).toBeCloseTo(5 / 7, 1);
+      } else {
+        expect(metrics.columns).toBe(1);
+      }
+      if (width <= 430) {
+        expect(metrics.brand.right).toBeLessThanOrEqual(metrics.sound.left + 1);
+        expect(metrics.sound.right).toBeLessThanOrEqual(metrics.tickets.left + 1);
+        expect(metrics.sound.width).toBeGreaterThanOrEqual(44);
+        expect(metrics.tickets.height).toBeGreaterThanOrEqual(44);
+        for (const cta of metrics.ctas) expect(cta.width).toBeGreaterThanOrEqual(metrics.panelContentWidth - 1);
+      }
+      if (width === 390 && cover) {
+        const ticketControl = page.locator('#cromo-home .cr-top .cr-tickets');
+        await ticketControl.focus();
+        const ticketRing = await ticketControl.evaluate(el => {
+          const style = getComputedStyle(el);
+          return { kind: style.outlineStyle, width: parseFloat(style.outlineWidth), color: style.outlineColor };
+        });
+        expect(ticketRing.kind).toBe('solid');
+        expect(ticketRing.width).toBeGreaterThanOrEqual(4);
+        expect(ticketRing.color).toBe('rgb(255, 59, 31)');
+        const img = card.locator('.cr-xp-fly img');
+        await expect(img).toBeVisible();
+        expect(await img.evaluate(el => getComputedStyle(el).transitionDuration)).toBe('0s');
+      }
+      await noOverflow(page);
+    }
+  }
+});
+
+test('Cromo keeps all section links accessible in the 821–900px header', async ({ page }) => {
+  for (const width of [821, 850, 900]) {
+    await mount(page, { width });
+    const nav = page.locator('#cromo-home .cr-top nav');
+    await expect(nav).toBeVisible();
+    const positions = await nav.evaluate(node => {
+      const rect = el => el.getBoundingClientRect().toJSON();
+      const header = node.parentElement;
+      return {
+        brand: rect(header.querySelector('a.cr-u')),
+        nav: rect(node),
+        actions: rect(header.querySelector('div')),
+        links: [...node.querySelectorAll('a')].map(rect),
+      };
+    });
+    expect(positions.brand.right).toBeLessThanOrEqual(positions.nav.left + 1);
+    expect(positions.nav.right).toBeLessThanOrEqual(positions.actions.left + 1);
+    expect(positions.actions.right).toBeLessThanOrEqual(width + 1);
+    for (const link of positions.links) {
+      expect(link.left).toBeGreaterThanOrEqual(positions.nav.left - 1);
+      expect(link.right).toBeLessThanOrEqual(positions.nav.right + 1);
+      expect(link.height).toBeGreaterThanOrEqual(44);
+      expect(link.width).toBeGreaterThanOrEqual(44);
+    }
+    await nav.locator('a[href="#artistas"]').click();
+    await expect(page).toHaveURL(/#artistas$/);
+    await nav.locator('a[href="#journal"]').click();
+    await expect(page).toHaveURL(/#journal$/);
+    await noOverflow(page);
+  }
 });
