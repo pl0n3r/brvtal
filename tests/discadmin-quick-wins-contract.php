@@ -99,6 +99,8 @@ $appearance = strpos($navSource, '>APPEARANCE</button>');
 $banners = strpos($navSource, '>BANNERS</button>');
 $theme = strpos($navSource, '>THEME STUDIO</button>');
 $seo = strpos($navSource, '>SEO</button>');
+$settings = strpos($navSource, 'data-admin-nav="settings"');
+$system = strpos($navSource, 'data-admin-nav="system"');
 quick_win_assert(
     $orderedNavigation
         && !str_contains($navSource, 'SITE / EDITORIAL')
@@ -107,13 +109,21 @@ quick_win_assert(
         && $banners !== false
         && $theme !== false
         && $seo !== false
+        && $settings !== false
+        && $system !== false
         && $appearance < $banners
         && $banners < $theme
         && $theme < $seo
+        && $seo < $settings
+        && $settings < $system
         && str_contains($navSource, 'data-admin-nav="appearance"')
         && str_contains($navSource, 'data-admin-nav="hero-slider"')
         && str_contains($navSource, 'data-admin-nav="theme"'),
     'canonical shell must render the approved WordPress-like navigation before enhancements boot'
+);
+quick_win_assert(
+    preg_match('/<div class="nav">\\s*\\$\\{navHtml\\}\\s*<\\/div>/', $indexCore) === 1,
+    'canonical sidebar must render approved links inside the .nav container'
 );
 quick_win_assert(
     !str_contains($indexCore, '<span class="status"><i></i>ONLINE</span>'),
