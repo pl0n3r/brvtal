@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import unittest
 from pathlib import Path
@@ -153,6 +154,51 @@ echo json_encode([
         self.assertIn('Escape', js)
         self.assertNotIn('localStorage', js)
         run(['node', '--check', 'js/cookie-consent.js'])
+
+    def test_cromo_cookie_visual_contract(self) -> None:
+        """#1502: Cromo palette, accessible controls and responsive consent panel."""
+        css = (ROOT / "css/cookie-consent.css").read_text(encoding="utf-8")
+        for token in ("--cookie-ink:#030303", "--cookie-bone:#f2efe8",
+                      "--cookie-red:#ff2a1a"):
+            self.assertIn(token, css)
+        for old_color in ("#b6ff00", "#c9ff63", "#ddffa1"):
+            self.assertNotIn(old_color, css.lower())
+        self.assertRegex(css, r'\.brvtal-cookie-heading h2\s*\{[^}]*font-family:"Broken Glass"')
+        self.assertIn('font-family:"Barlow Condensed","Archivo",sans-serif', css)
+        self.assertIn("box-shadow:8px 8px 0 var(--cookie-red)", css)
+        self.assertIn("box-shadow:5px 5px 0 var(--cookie-red)", css)
+        self.assertIn("grid-template-columns:repeat(2,minmax(0,1fr))", css)
+        self.assertIn(".brvtal-cookie-actions button{width:100%;min-width:0;min-height:48px}", css)
+        self.assertIn("min-width:44px", css)
+        self.assertIn("min-height:44px", css)
+        self.assertIn(".brvtal-cookie-banner a{display:inline-flex", css)
+        self.assertIn(".brvtal-cookie-banner button:focus-visible", css)
+        self.assertIn(".brvtal-cookie-preferences:focus-visible", css)
+        self.assertIn(".brvtal-cookie-banner a:focus-visible", css)
+        self.assertIn("outline-offset:3px", css)
+        self.assertIn("overflow-wrap:anywhere", css)
+        self.assertIn("@media(max-width:480px)", css)
+        self.assertIn("width:calc(100vw - 24px)", css)
+        self.assertIn("@media(prefers-reduced-motion:reduce)", css)
+        self.assertIn(".brvtal-cookie-banner button,.brvtal-cookie-banner a,.brvtal-cookie-preferences{", css)
+        self.assertIn("animation:none", css)
+        self.assertIn("transition:none", css)
+        self.assertIn(".brvtal-cookie-banner button.brvtal-cookie-close{", css)
+        self.assertEqual(css.count("!important"), 1, "only the hidden attribute requires !important")
+        self.assertRegex(css, r'\.brvtal-cookie-banner\[hidden\],\.brvtal-cookie-preferences\[hidden\]\{display:none!important\}')
+
+        def luminance(hex_color: str) -> float:
+            rgb = [int(hex_color[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+            channels = [v / 12.92 if v <= 0.04045 else ((v + 0.055) / 1.055) ** 2.4 for v in rgb]
+            return sum(weight * value for weight, value in zip((0.2126, 0.7152, 0.0722), channels))
+
+        for fore, back in (("#f2efe8", "#030303"),
+                           ("#030303", "#f2efe8"),
+                           ("#ff2a1a", "#030303"),
+                           ("#030303", "#ff2a1a")):
+            bright, dark = sorted((luminance(fore), luminance(back)), reverse=True)
+            self.assertGreaterEqual((bright + 0.05) / (dark + 0.05), 4.5,
+                                    f"WCAG AA contrast {fore} / {back}")
 
     def test_shared_public_routes(self) -> None:
         """All public branches already use the shared server-side analytics slot."""
