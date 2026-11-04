@@ -114,7 +114,7 @@ test('E2E admin relates a curated Memory and the public boundary exposes the exp
     const eventPage = await page.request.get(`${baseUrl}/index.php?type=events&slug=${encodeURIComponent(eventSlug)}`);
     expect(eventPage.ok()).toBeTruthy();
     const eventHtml = await eventPage.text();
-    expect(eventHtml).toContain('MEMORIES / 01');
+    expect(eventHtml).toContain('MEMORIAS / 01');
     expect(eventHtml).toContain(memoryTitle);
 
     await page.goto(`${baseUrl}/#events`, {waitUntil:'domcontentloaded'});
