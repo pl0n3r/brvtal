@@ -31,7 +31,7 @@ def selectors(css: str) -> list[str]:
         prelude = match.group(1).strip()
         at_rule = re.match(r"(media|keyframes)\b", prelude)
         if prelude and not at_rule and not re.fullmatch(r"(from|to|\d+%)", prelude):
-            found.extend(part.strip() for part in prelude.split(","))
+            found.extend(part.strip() for part in re.split(r",(?![^(]*\))", prelude))
     return found
 
 
@@ -179,6 +179,57 @@ class CromoLayerTests(unittest.TestCase):
             "overflow-wrap:normal", "white-space:nowrap",
         ):
             self.assertIn(rule, mobile)
+
+REDESIGN = (ROOT / "css/public-cromo-redesign.css").read_text(encoding="utf-8")
+SOUND = (ROOT / "js/public-cromo-sound.js").read_text(encoding="utf-8")
+
+
+class CromoRedesignTests(unittest.TestCase):
+    def test_every_redesign_rule_is_gated_by_the_cromo_class(self) -> None:
+        for selector in selectors(REDESIGN):
+            self.assertTrue(selector.startswith("html.cromo"), f"ungated selector: {selector}")
+
+    def test_palette_is_one_red_with_readable_contrast(self) -> None:
+        self.assertIn("--cromo-red:#e12e34", REDESIGN)
+        for variable in ("--acid:", "--signal:", "--c5-signal-green:"):
+            self.assertIn(variable, REDESIGN)
+
+    def test_hero_animation_never_hides_text(self) -> None:
+        self.assertNotIn("opacity:0", REDESIGN)
+        self.assertNotIn("visibility:hidden", REDESIGN)
+        self.assertNotIn("clip-path", REDESIGN)
+        self.assertIn("cromo-l", REDESIGN)
+        self.assertIn("aria-label", JS)
+        self.assertIn("reduceMotion.matches", JS)
+
+    def test_sound_only_starts_after_a_click_and_is_accessible(self) -> None:
+        self.assertIn("addEventListener('click', toggle)", SOUND)
+        self.assertIn("aria-pressed", SOUND)
+        self.assertIn("Activar sonido", SOUND)
+        self.assertIn("Apagar el pulso", SOUND)
+        self.assertIn("visibilitychange", SOUND)
+        self.assertIn("clearInterval", SOUND)
+        code = re.sub(r"/\*.*?\*/", "", SOUND, flags=re.S)
+        self.assertNotIn("autoplay", code.lower())
+        # The audio context is created inside start(), never at load.
+        self.assertLess(SOUND.index("const start"), SOUND.index("new AudioCtx()") + 200)
+        self.assertNotRegex(SOUND, r"^\s*start\(\);", re.M)
+
+    def test_sound_button_meets_touch_target_and_nav_hook(self) -> None:
+        self.assertRegex(REDESIGN, r"\.cromo-sound\{[^}]*min-height:44px")
+        self.assertIn("header.nav .nav-right", SOUND)
+
+    def test_redesign_assets_are_injected_on_home_and_contact(self) -> None:
+        contact = (ROOT / "config/public_contact_page.php").read_text(encoding="utf-8")
+        self.assertIn("css/public-cromo-redesign.css", HOME)
+        self.assertIn("js/public-cromo-sound.js", HOME)
+        self.assertIn("public-cromo-redesign.css", contact)
+        self.assertIn("public-cromo.js", contact)
+
+    def test_beat_bridge_between_sound_and_backdrop(self) -> None:
+        self.assertIn("cromo:beat", SOUND)
+        self.assertIn("cromo:beat", JS)
+
 
 if __name__ == "__main__":
     unittest.main()
