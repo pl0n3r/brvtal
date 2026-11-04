@@ -332,6 +332,86 @@ test('v2 admin keeps explicit diagnostics after a transient Settings recovery', 
   });
 });
 
+test('v2 admin defers Media until Settings resolves and keeps picker asynchronous', async ({ page }) => {
+  await openAdminUidHarness(page, {
+    mediaItems:[{id:13,type:'image',title:'Banners asset',file_path:'/uploads/ci/banner-pressure.jpg'}],
+  });
+  expect(await page.evaluate(() => window.go('dashboard'))).toBe(true);
+  await page.evaluate(() => {
+    const originalRequest = window.req;
+    window.__heroBootstrapCalls = [];
+    window.__heroReleaseSettingsRead = null;
+    window.req = async (path, options = {}) => {
+      if (path === '/settings?key=home.hero.slider') {
+        window.__heroBootstrapCalls.push('settings:start');
+        await new Promise(resolve => { window.__heroReleaseSettingsRead = resolve; });
+        window.__heroBootstrapCalls.push('settings:resolved');
+      }
+      if (path === '/media?view=hero-picker') window.__heroBootstrapCalls.push('media:start');
+      return originalRequest(path, options);
+    };
+    window.__heroDeferredBannersOpen = window.go('hero-slider');
+  });
+  await expect.poll(() => page.evaluate(() => window.__heroBootstrapCalls)).toEqual(['settings:start']);
+  await expect(page.locator('.hero-slider-loading')).toBeVisible();
+  expect(await page.evaluate(() => window.__heroBootstrapCalls.includes('media:start'))).toBe(false);
+  await page.evaluate(() => window.__heroReleaseSettingsRead());
+  expect(await page.evaluate(() => window.__heroDeferredBannersOpen)).toBe(true);
+  await expect.poll(() => page.evaluate(() => window.__heroBootstrapCalls))
+    .toEqual(['settings:start','settings:resolved','media:start']);
+  await expect(page.locator('.hero-manager')).toBeVisible();
+  await page.locator('[data-add-slide]').click();
+  await expect(page.locator('[data-media-picker="desktopSrc"] option[value="/uploads/ci/banner-pressure.jpg"]'))
+    .toHaveCount(1);
+  await expect(page.locator('[data-save-slider]')).toBeEnabled();
+});
+
+test('v2 admin never requests Media when the Settings bootstrap fails', async ({ page }) => {
+  await openAdminUidHarness(page);
+  expect(await page.evaluate(() => window.go('dashboard'))).toBe(true);
+  await page.evaluate(() => {
+    const originalRequest = window.req;
+    window.__heroBootstrapCalls = [];
+    window.__heroSettingsReadFailure = 'RATE_LIMITED';
+    window.req = async (path, options = {}) => {
+      if (path === '/settings?key=home.hero.slider') window.__heroBootstrapCalls.push('settings:start');
+      if (path === '/media?view=hero-picker') window.__heroBootstrapCalls.push('media:start');
+      return originalRequest(path, options);
+    };
+  });
+  expect(await page.evaluate(() => window.go('hero-slider'))).toBe(false);
+  expect(await page.evaluate(() => window.__heroBootstrapCalls)).toEqual(['settings:start']);
+  await expect(page.locator('.hero-slider-error')).toContainText('RATE_LIMITED');
+  expect(await page.evaluate(() => window.BRVTALHeroSliderDiagnostics.lastLoad()))
+    .toMatchObject({status:'failed',settingsAttempts:1,code:'RATE_LIMITED'});
+});
+
+test('v2 admin drops stale Settings completion without starting Media or rewriting Dashboard', async ({ page }) => {
+  await openAdminUidHarness(page);
+  expect(await page.evaluate(() => window.go('dashboard'))).toBe(true);
+  await page.evaluate(() => {
+    const originalRequest = window.req;
+    window.__heroBootstrapCalls = [];
+    window.__heroReleaseSettingsRead = null;
+    window.req = async (path, options = {}) => {
+      if (path === '/settings?key=home.hero.slider') {
+        window.__heroBootstrapCalls.push('settings:start');
+        await new Promise(resolve => { window.__heroReleaseSettingsRead = resolve; });
+      }
+      if (path === '/media?view=hero-picker') window.__heroBootstrapCalls.push('media:start');
+      return originalRequest(path, options);
+    };
+    window.__heroDeferredBannersOpen = window.go('hero-slider');
+  });
+  await expect.poll(() => page.evaluate(() => window.__heroBootstrapCalls)).toEqual(['settings:start']);
+  expect(await page.evaluate(() => window.go('dashboard'))).toBe(true);
+  await page.evaluate(() => window.__heroReleaseSettingsRead());
+  expect(await page.evaluate(() => window.__heroDeferredBannersOpen)).toBe(false);
+  expect(await page.evaluate(() => window.__heroBootstrapCalls)).toEqual(['settings:start']);
+  expect(await page.evaluate(() => window.state.section)).toBe('dashboard');
+  await expect(page.locator('.hero-manager')).toHaveCount(0);
+});
+
 test('v2 admin recreates a removed Hero host while Banners remains the active workspace', async ({ page }) => {
   await openAdminUidHarness(page);
 

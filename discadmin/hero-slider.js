@@ -539,11 +539,7 @@
     media = [];
     mediaReady = false;
     mediaLoadError = '';
-
-    const mediaPromise = request(MEDIA_PICKER_PATH,{cache:'no-store'}).then(
-      response => ({ok:true,response,error:null}),
-      error => ({ok:false,response:null,error})
-    );
+    let mediaPromise = null;
 
     try {
       const settingsResponse = await readSettingsWithRetry(diagnostics);
@@ -571,9 +567,21 @@
       markConfigClean(config);
       normalizeSelection();
       await loadHeroDraftRecovery(serverRevisionSource);
+      // Draft recovery is async; do not render or fetch Media after navigation changes.
+      if (revision !== loadRevision || window.state?.section !== 'hero-slider' || !root()) {
+        diagnostics.status = 'aborted';
+        diagnostics.reason = 'stale-revision';
+        return false;
+      }
       renderManager();
       diagnostics.status = 'loaded';
       diagnostics.reason = '';
+      // Resolve Settings before opening the second DB-backed GET.
+      // Media stays asynchronous; errors degrade its controls rather than Banners.
+      mediaPromise = request(MEDIA_PICKER_PATH,{cache:'no-store'}).then(
+        response => ({ok:true,response,error:null}),
+        error => ({ok:false,response:null,error})
+      );
       void mediaPromise
         .then(result => applyMediaLoad(result, revision))
         .catch(error => {
@@ -582,6 +590,7 @@
           mediaReady = false;
           mediaLoadError = String(error?.message || 'MEDIA_RENDER_FAILED');
           console.warn('[BRVTAL] Hero Slider media controls degraded.', error);
+          syncMediaControls(root());
         });
       return true;
     } catch (error) {
@@ -596,7 +605,7 @@
         errorNode.textContent = `Unable to load Banners: ${diagnostics.error}`;
         errorHost.appendChild(errorNode);
       }
-      void mediaPromise.then(() => {});
+      if (mediaPromise) void mediaPromise.then(() => {});
       return false;
     }
   }
