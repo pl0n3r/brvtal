@@ -9,8 +9,17 @@ function admin_session_contract_assert(bool $condition, string $message): void
 }
 
 $auth = (string)file_get_contents(__DIR__ . '/../config/admin_auth.php');
+$bootstrap = (string)file_get_contents(__DIR__ . '/../config/bootstrap.php');
+$dbRecovery = (string)file_get_contents(__DIR__ . '/../config/db_connect_recovery.php');
 $revalidation = (string)file_get_contents(__DIR__ . '/../config/admin_session_revalidation.php');
 $api = (string)file_get_contents(__DIR__ . '/../api/index.php');
+
+admin_session_contract_assert(str_contains($bootstrap, 'brvtal_db_connect_with_recovery(')
+    && str_contains($dbRecovery, 'brvtal_db_transient_connect_failure('),
+    'database retry remains strictly isolated to the initial PDO connection boundary');
+admin_session_contract_assert(!str_contains($dbRecovery, '->query(') && !str_contains($dbRecovery, '->execute(')
+    && !str_contains($dbRecovery, '->prepare('),
+    'connection recovery must never run or retry SQL');
 
 admin_session_contract_assert(
     str_contains($auth, "require_once __DIR__ . '/admin_session_revalidation.php';"),
