@@ -85,7 +85,10 @@
       var source = safeMediaUrl(artist.dataset.image);
       if (source) {
         var image = document.createElement('img');
+        // Deliberately decorative: its parent is aria-hidden and the artist name is adjacent.
         image.alt = '';
+        image.width = 640;
+        image.height = 640;
         image.loading = 'lazy';
         image.decoding = 'async';
         image.src = source;
@@ -189,8 +192,12 @@
       if (photo) {
         var image = document.createElement('img');
         image.src = photo;
-        image.alt = String(event.title || '');
+        image.alt = 'Portada de ' + (String(event.title || '').trim() || 'evento BRVTAL');
+        // Reserve the event-card media slot, even before the lazy image loads.
+        image.width = 800;
+        image.height = 1000;
         image.loading = 'lazy';
+        image.decoding = 'async';
         media.appendChild(image);
       }
       var info = document.createElement('div');
