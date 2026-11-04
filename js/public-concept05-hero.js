@@ -201,8 +201,8 @@
       image.removeAttribute('sizes');
       image.dataset.c5WebpActive = candidates.length ? '1' : '0';
       if (candidates.length) {
-        image.srcset = candidates.map(candidate => candidate.src + ' ' + candidate.width + 'w').join(', ');
         image.sizes = sizes;
+        image.srcset = candidates.map(candidate => candidate.src + ' ' + candidate.width + 'w').join(', ');
         if (dimensions) {
           image.width = Number(manifest[original].width);
           image.height = Number(manifest[original].height);

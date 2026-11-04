@@ -141,6 +141,23 @@ const source = {settings:{site:{
 
 
 class PublicHomeImageDeliveryTests(unittest.TestCase):
+    def test_unavailable_sidecar_keeps_original_and_accessible_alt(self):
+        # This executes the PHP renderer without a CMS, network or fake WebP proof.
+        snippet = (
+            "require 'config/public_assets.php';"
+            "echo brvtal_public_optimize_home_images("
+            "'<img src=\\\"/uploads/media/unavailable.png\\\" alt=\\\"Archive poster\\\">');"
+        )
+        result = subprocess.run(
+            ["php", "-r", snippet], cwd=ROOT, capture_output=True,
+            text=True, timeout=10, check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('src="/uploads/media/unavailable.png"', result.stdout)
+        self.assertIn('alt="Archive poster"', result.stdout)
+        self.assertIn('loading="lazy"', result.stdout)
+        self.assertNotIn('srcset=', result.stdout)
+
     def test_live_runtime_uses_webp_before_png_and_defers_offscreen(self):
         result = subprocess.run(
             ["node", "-e", HARNESS],

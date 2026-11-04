@@ -272,8 +272,14 @@ function brvtal_public_optimize_home_images(string $html): string
             if ((!$hasWidth || !$hasHeight) && preg_match('~\bsrc\s*=\s*(["\'])(.*?)\1~i', $tag, $srcMatch) === 1) {
                 $dimensions = brvtal_public_local_image_dimensions((string)$srcMatch[2]);
                 if (is_array($dimensions)) {
-                    if (!$hasWidth) $attributes[] = 'width="' . $dimensions['width'] . '"';
-                    if (!$hasHeight) $attributes[] = 'height="' . $dimensions['height'] . '"';
+                    if (!$hasWidth) {
+                        $attributes[] = 'width="' . $dimensions['width'] . '"';
+                        $hasWidth = true;
+                    }
+                    if (!$hasHeight) {
+                        $attributes[] = 'height="' . $dimensions['height'] . '"';
+                        $hasHeight = true;
+                    }
                 }
             }
 
