@@ -77,7 +77,7 @@ const factory = new Function(
 );
 const state = { root: null };
 const mount = factory(
-  state, () => {}, (selector, node) => node.querySelector(selector), document,
+  state, () => {}, (selector, node = document) => node.querySelector(selector), document,
 );
 const section = mount();
 assert.equal(section.name, 'section');
