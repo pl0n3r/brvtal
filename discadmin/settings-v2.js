@@ -405,6 +405,26 @@
     return value.length <= limit && !/[<>\u0000-\u001F\u007F]/.test(value);
   }
 
+  function validPrivacyEmail(value) {
+    const at = value.indexOf('@');
+    if (at < 1 || at !== value.lastIndexOf('@') || at >= value.length - 1) return false;
+    const domain = value.slice(at + 1);
+    if (!domain.includes('.') || domain.startsWith('.') || domain.endsWith('.')) return false;
+    return ![...value].some(character => /\s/.test(character));
+  }
+
+  async function persistPrivacyFields(fields,index=0) {
+    if (index >= fields.length) return;
+    const [key,value] = fields[index];
+    if (String(row(key)?.setting_value ?? '').trim() !== value) {
+      await req('/settings', {
+        method:'POST',
+        body:JSON.stringify({setting_key:key,setting_value:value,is_json:0})
+      });
+    }
+    return persistPrivacyFields(fields,index + 1);
+  }
+
   async function savePrivacy() {
     const fields = [
       ['privacy.controller_name',read('privacy_controller_name'),160],
@@ -416,17 +436,11 @@
         throw new Error('Privacy fields must contain plain text within the allowed length.');
       }
       if (key === 'privacy.controller_email' && value
-        && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+        && !validPrivacyEmail(value)) {
         throw new Error('A valid privacy contact email is required.');
       }
     }
-    for (const [key,value] of fields) {
-      if (String(row(key)?.setting_value ?? '').trim() === value) continue;
-      await req('/settings', {
-        method:'POST',
-        body:JSON.stringify({setting_key:key,setting_value:value,is_json:0})
-      });
-    }
+    await persistPrivacyFields(fields);
     const response = await req('/settings');
     state.rows = response.data || [];
     render();
