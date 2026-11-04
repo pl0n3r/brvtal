@@ -283,20 +283,6 @@
       el('div', { class: fly ? 'xp' : 'xp xp-solo' }, fly, body));
   };
 
-  const EDGES = [
-    ['event_artist', 'Eventos', 'Artistas'], ['event_set', 'Eventos', 'Sonido'], ['artist_set', 'Artistas', 'Sonido'],
-    ['artist_release', 'Artistas', 'Discos'], ['event_memory', 'Eventos', 'Memorias'], ['artist_memory', 'Artistas', 'Memorias'],
-    ['set_memory', 'Sonido', 'Memorias'], ['release_memory', 'Discos', 'Memorias'],
-  ];
-  // What each kind of link means, in plain words (shown under every relation).
-  const NOTE = {
-    event_artist: 'Artistas que tocan en cada noche', event_set: 'Sets grabados en cada noche',
-    artist_set: 'Sets de cada artista', artist_release: 'Discos de cada artista',
-    event_memory: 'Memorias de cada noche', artist_memory: 'Memorias donde aparece cada artista',
-    set_memory: 'Memorias de cada set', release_memory: 'Memorias de cada disco',
-  };
-  const SECTION = { Eventos: '#noches', Artistas: '#artistas', Sonido: '#sonido', Discos: '#discos', Memorias: '#memorias' };
-
   // Motion timing is read from the shared tokens (css/public-cromo-home.css), never hardcoded here.
   const ms = (name) => parseFloat(getComputedStyle(document.getElementById('cromo-home') || root).getPropertyValue(name)) || 0;
   const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -330,248 +316,205 @@
     }, Math.max(ms('--text-soft-dur'), ms('--text-soft-resize-dur')) + 40);
   };
 
-  // The real items behind each category, so choosing "Artistas" shows the artists themselves.
-  const itemsOf = (name, data) => {
-    const list = (key) => (Array.isArray(data[key]) ? data[key] : []);
-    const link = (route, slug) => (slug ? '/' + route + '/' + encodeURIComponent(slug) : '');
-    switch (name) {
-      case 'Eventos':
-        return list('events').map((e) => {
-          const when = parseDate(e.event_date);
-          return { label: text(e.title, 60), sub: [when ? two(when.getDate()) + ' ' + MONTHS[when.getMonth()] + ' ' + when.getFullYear() : '', text(e.city)].filter(Boolean).join(' · '), href: link('events', e.slug) };
-        });
-      case 'Artistas':
-        return list('artists').map((a) => ({ label: text(a.name, 60), sub: a.is_collective_member ? 'Colectivo' : 'Colaborador', href: link('artists', a.slug) }));
-      case 'Sonido':
-        return list('sets').map((x) => ({ label: text(x.title, 60), sub: text(x.artist_name || x.platform, 40), href: link('sets', x.slug) }));
-      case 'Discos':
-        return list('releases').map((r) => ({ label: text(r.title, 60), sub: text(r.release_type, 30), href: link('releases', r.slug) }));
-      case 'Memorias':
-        return list('memories').map((m) => ({ label: text(m.title, 60), sub: text(m.context, 50), href: '#memorias' }));
-      default:
-        return [];
-    }
-  };
-
-  // Fixed layouts (viewBox units): the five categories on an ellipse, one for wide and one for narrow screens.
-  const GRAPH = {
-    wide: { w: 1000, h: 560, cx: 500, cy: 292, rx: 290, ry: 165, scale: 1, outward: true },
-    tall: { w: 600, h: 700, cx: 300, cy: 360, rx: 170, ry: 235, scale: .74, outward: false },
-  };
   const SVG_NS = 'http://www.w3.org/2000/svg';
-  const svgNode = (tag, attrs) => {
-    const node = document.createElementNS(SVG_NS, tag);
-    Object.entries(attrs || {}).forEach(([key, value]) => node.setAttribute(key, String(value)));
-    return node;
-  };
 
   const buildConnected = (data) => {
-    // --- Conectado: a relationship graph. Node size = how many items the category has; edge width =
-    // how many verified links join two categories. Only counts the CMS certifies are drawn; nothing is
-    // invented. The side panel is the text/table view of the same numbers and the way to act on them.
-    const raw = ((data.relations || {}).counts) || {};
-    const count = (key) => (Number.isSafeInteger(raw[key]) && raw[key] > 0 ? raw[key] : 0);
-    const len = (list) => (Array.isArray(list) ? list.length : 0);
-    const nodes = [['Eventos', len(data.events)], ['Artistas', len(data.artists)], ['Sonido', len(data.sets)],
-      ['Discos', len(data.releases)], ['Memorias', len(data.memories)]];
-    const edges = EDGES.map(([key, a, b]) => [a, b, count(key), key]).filter((e) => e[2] > 0);
-    const sumOf = (list) => list.reduce((sum, e) => sum + e[2], 0);
-    const plural = (n) => n + (n === 1 ? ' vínculo' : ' vínculos');
+    // --- Conectado: an explorer of real connections. Three columns (noches, artistas, sonido) list the
+    // actual items; choosing one highlights what it is linked to, draws the links and says it in a sentence.
+    // Only relations the CMS publishes are used; nothing is invented.
+    const list = (key) => (Array.isArray(data[key]) ? data[key] : []);
+    const rel = data.relations || {};
+    const entities = new Map();
+    const columns = { noches: [], artistas: [], sonido: [] };
+    const route = (path, slug) => (slug ? '/' + path + '/' + encodeURIComponent(slug) : '');
+    const add = (column, key, kind, label, sub, href) => {
+      if (!label) return;
+      const entity = { key, column, kind, label, sub, href };
+      entities.set(key, entity);
+      columns[column].push(entity);
+    };
+    list('events').slice().sort((a, b) => String(a.event_date).localeCompare(String(b.event_date))).forEach((e) => {
+      const when = parseDate(e.event_date);
+      add('noches', 'e' + e.id, 'noche', text(e.title, 60),
+        [when ? two(when.getDate()) + ' ' + MONTHS[when.getMonth()] + ' ' + when.getFullYear() : '', text(e.city)].filter(Boolean).join(' · '), route('events', e.slug));
+    });
+    list('artists').slice().sort((a, b) => (b.is_collective_member ? 1 : 0) - (a.is_collective_member ? 1 : 0)).forEach((a) =>
+      add('artistas', 'a' + a.id, 'artista', text(a.name, 60), a.is_collective_member ? 'Colectivo' : 'Colaborador', route('artists', a.slug)));
+    list('sets').forEach((x) => add('sonido', 's' + x.id, 'set', text(x.title, 60), 'Set' + (x.artist_name ? ' · ' + text(x.artist_name, 30) : ''), route('sets', x.slug)));
+    list('releases').forEach((r) => add('sonido', 'r' + r.id, 'disco', text(r.title, 60), 'Disco' + (r.release_type ? ' · ' + text(r.release_type, 20) : ''), route('releases', r.slug)));
+
+    const adjacency = new Map();
+    const join = (a, b) => {
+      if (!entities.has(a) || !entities.has(b) || a === b) return;
+      if (!adjacency.has(a)) adjacency.set(a, new Set());
+      if (!adjacency.has(b)) adjacency.set(b, new Set());
+      adjacency.get(a).add(b);
+      adjacency.get(b).add(a);
+    };
+    const ids = (value) => (Array.isArray(value) ? value : (value === null || value === undefined ? [] : [value]));
+    const entries = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? Object.entries(value) : []);
+    entries(rel.events).forEach(([id, r]) => { ids(r && r.artists).forEach((x) => join('e' + id, 'a' + x)); ids(r && r.sets).forEach((x) => join('e' + id, 's' + x)); });
+    entries(rel.artists).forEach(([id, r]) => {
+      ids(r && r.events).forEach((x) => join('a' + id, 'e' + x));
+      ids(r && r.sets).forEach((x) => join('a' + id, 's' + x));
+      ids(r && r.releases).forEach((x) => join('a' + id, 'r' + x));
+    });
+    entries(rel.sets).forEach(([id, r]) => { ids(r && r.artist).forEach((x) => join('s' + id, 'a' + x)); ids(r && r.event).forEach((x) => join('s' + id, 'e' + x)); });
+    entries(rel.releases).forEach(([id, r]) => { ids(r && (r.artist || r.artists)).forEach((x) => join('r' + id, 'a' + x)); ids(r && r.event).forEach((x) => join('r' + id, 'e' + x)); });
+
+    const related = (key) => [...(adjacency.get(key) || [])].map((k) => entities.get(k)).filter(Boolean);
+    const labels = (items) => joinNames(items.map((x) => x.label));
+    const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+    const sentenceOf = (entity) => {
+      const around = related(entity.key);
+      const nights = around.filter((x) => x.kind === 'noche');
+      const artists = around.filter((x) => x.kind === 'artista');
+      const sounds = around.filter((x) => x.column === 'sonido');
+      if (!around.length) return entity.label + ' todavía no tiene conexiones publicadas.';
+      if (entity.kind === 'noche') {
+        return [artists.length ? 'Tocan ' + labels(artists) + '.' : 'Aún no tiene artistas enlazados.',
+          sounds.length ? 'Quedó registrada en ' + plural(sounds.length, 'pieza de sonido', 'piezas de sonido') + ': ' + labels(sounds) + '.' : ''].filter(Boolean).join(' ');
+      }
+      if (entity.kind === 'artista') {
+        return [nights.length ? entity.label + ' toca en ' + labels(nights) + '.' : entity.label + ' aún no tiene noches publicadas.',
+          sounds.length ? 'Puedes escuchar ' + labels(sounds) + '.' : ''].filter(Boolean).join(' ');
+      }
+      return [artists.length ? 'Lo hace ' + labels(artists) + '.' : '', nights.length ? 'Se grabó en ' + labels(nights) + '.' : ''].filter(Boolean).join(' ') || entity.label + '.';
+    };
+    const actionOf = (entity) => ({ noche: 'Ver la noche', artista: 'Ver el artista', set: 'Escuchar el set', disco: 'Ver el disco' }[entity.kind]);
 
     let selected = null;
     let hovered = null;
-    let layoutKey = null;
+    const items = new Map();
     const narrow = window.matchMedia('(max-width: 700px)');
-    const stage = el('div', { class: 'cn-stage plate chrome-b', role: 'group',
-      'aria-label': 'Grafo de relaciones del archivo: elige una categoría para ver con qué se conecta' });
-    const registry = { nodes: new Map(), edges: [] };
+    const TITLES = { noches: 'Noches', artistas: 'Artistas', sonido: 'Sonido' };
+    const LIMIT = 6;
+    const board = el('div', { class: 'cn2-board' });
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('class', 'cr-cn2-lines');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('focusable', 'false');
 
-    const geometry = (layout) => {
-      const pos = new Map();
-      nodes.forEach(([name, n], i) => {
-        const angle = (-90 + 72 * i) * Math.PI / 180;
-        const radius = (56 + 10 * Math.sqrt(n)) * layout.scale;
-        pos.set(name, { x: layout.cx + layout.rx * Math.cos(angle), y: layout.cy + layout.ry * Math.sin(angle), r: radius, n, ox: layout.outward ? Math.cos(angle) : 0, oy: layout.outward ? Math.sin(angle) : (i === 0 ? -1 : 1) });
-      });
-      return pos;
-    };
-
-    const focusName = () => hovered || selected;
-    const paint = () => {
-      const focus = focusName();
-      registry.nodes.forEach((node, name) => {
-        const linked = focus && name !== focus && edges.some((e) => (e[0] === focus && e[1] === name) || (e[1] === focus && e[0] === name));
-        node.setAttribute('aria-pressed', String(name === selected));
-        node.classList.toggle('cr-is-focus', name === focus);
-        node.classList.toggle('cr-is-linked', Boolean(linked));
-        node.classList.toggle('cr-is-dim', Boolean(focus) && name !== focus && !linked);
-      });
-      registry.edges.forEach(({ group, a, b }) => {
-        const on = focus && (a === focus || b === focus);
-        group.classList.toggle('cr-is-on', Boolean(on));
-        group.classList.toggle('cr-is-dim', Boolean(focus) && !on);
-      });
-    };
-
-    const place = (key) => {
-      layoutKey = key;
-      const layout = GRAPH[key];
-      const pos = geometry(layout);
-      const svg = svgNode('svg', { viewBox: '0 0 ' + layout.w + ' ' + layout.h, class: 'cr-cn-svg', 'aria-hidden': 'true', focusable: 'false' });
-      registry.edges = [];
-      registry.nodes.clear();
-      edges.forEach(([a, b, n, relation], i) => {
-        const from = pos.get(a);
-        const to = pos.get(b);
-        const group = svgNode('g', { class: 'cr-cn-edge-g', style: '--i:' + i });
-        const width = (3 + 2.2 * n) * layout.scale;
-        group.append(
-          svgNode('line', { x1: from.x, y1: from.y, x2: to.x, y2: to.y, class: 'cr-cn-line', 'stroke-width': width, pathLength: 1 }),
-          svgNode('line', { x1: from.x, y1: from.y, x2: to.x, y2: to.y, class: 'cr-cn-hit', 'stroke-width': Math.max(30, width + 14) }));
-        // The count tag sits on the line, moved along it until it clears every circle and name plate.
-        const clears = (x, y) => [...pos.values()].every((q) => {
-          const labelX = q.x + q.ox * (q.r + 18 * layout.scale);
-          const labelY = q.y + q.oy * (q.r + 18 * layout.scale);
-          const inCircle = Math.hypot(x - q.x, y - q.y) < q.r + 26 * layout.scale;
-          const inLabel = Math.abs(x - labelX) < 70 * layout.scale && Math.abs(y - labelY) < 30 * layout.scale;
-          return !inCircle && !inLabel;
-        });
-        const t = [.5, .42, .58, .35, .65, .3, .7].find((value) => clears(from.x + (to.x - from.x) * value, from.y + (to.y - from.y) * value)) || .5;
-        const mx = from.x + (to.x - from.x) * t;
-        const my = from.y + (to.y - from.y) * t;
-        const tag = svgNode('g', { class: 'cr-cn-tag', transform: 'translate(' + mx + ' ' + my + ')' });
-        tag.append(svgNode('rect', { x: -20 * layout.scale, y: -15 * layout.scale, width: 40 * layout.scale, height: 30 * layout.scale, class: 'cr-cn-tag-bg' }));
-        const label = svgNode('text', { class: 'cr-cn-tag-t', 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': 24 * layout.scale });
-        label.textContent = String(n);
-        tag.append(label);
-        const title = svgNode('title', {});
-        title.textContent = a + ' ↔ ' + b + ': ' + plural(n) + '. ' + NOTE[relation];
-        group.append(tag, title);
-        group.addEventListener('pointerenter', () => { hovered = null; });
-        svg.append(group);
-        registry.edges.push({ group, a, b });
-      });
-
-      const holder = el('div', { class: 'cn-nodes' });
-      nodes.forEach(([name, n]) => {
-        const p = pos.get(name);
-        const button = el('button', { class: 'cn-node', type: 'button', 'aria-pressed': 'false', 'data-node': name,
-          style: '--px:' + (p.x / layout.w * 100).toFixed(3) + ';--py:' + (p.y / layout.h * 100).toFixed(3) + ';--d:' + (p.r * 2 / layout.w * 100).toFixed(3) + ';--ox:' + p.ox.toFixed(3) + ';--oy:' + p.oy.toFixed(3) + ';--i:' + registry.nodes.size,
-          'aria-label': name + ': ' + n + (n === 1 ? ' elemento' : ' elementos') + '. Ver sus conexiones' },
-          el('span', { class: 'cn-n u', text: String(n) }), el('span', { class: 'cn-name', text: name }));
-        button.addEventListener('pointerenter', () => { hovered = name; paint(); });
+    const columnNodes = Object.keys(columns).filter((name) => columns[name].length).map((name) => {
+      const ul = el('ul', { class: 'cn2-list' });
+      const more = columns[name].length > LIMIT ? el('button', { class: 'cn2-more', type: 'button', 'aria-expanded': 'false', text: 'Ver todos (' + columns[name].length + ')' }) : null;
+      columns[name].forEach((entity, i) => {
+        const button = el('button', { class: 'cn2-item', type: 'button', 'aria-pressed': 'false', 'data-key': entity.key },
+          el('strong', { text: entity.label }), entity.sub ? el('small', { text: entity.sub }) : null);
+        if (i >= LIMIT) button.classList.add('cr-is-extra');
+        items.set(entity.key, button);
+        button.addEventListener('pointerenter', () => { hovered = entity.key; paint(); });
         button.addEventListener('pointerleave', () => { hovered = null; paint(); });
-        button.addEventListener('focus', () => { hovered = name; paint(); });
+        button.addEventListener('focus', () => { hovered = entity.key; paint(); });
         button.addEventListener('blur', () => { hovered = null; paint(); });
-        button.addEventListener('click', () => choose(name));
-        registry.nodes.set(name, button);
-        holder.append(button);
+        button.addEventListener('click', () => choose(entity.key));
+        ul.append(el('li', {}, button));
       });
-      stage.replaceChildren(svg, holder);
-      stage.style.setProperty('--ar', layout.w + ' / ' + layout.h);
-      paint();
-    };
+      const column = el('div', { class: 'cn2-col', 'data-col': name }, el('h3', { class: 'u', text: TITLES[name] }), ul, more);
+      if (more) more.addEventListener('click', () => {
+        const open = column.classList.toggle('cr-is-open');
+        more.setAttribute('aria-expanded', String(open));
+        more.textContent = open ? 'Ver menos' : 'Ver todos (' + columns[name].length + ')';
+        window.requestAnimationFrame(drawLines);
+      });
+      return column;
+    });
+    board.append(svg, ...columnNodes);
 
-    const heading = el('p', { class: 'cn-sel u' });
+    const heading = el('p', { class: 'cn2-sel u' });
     const headingText = document.createElement('span');
     headingText.className = 't-text-soft';
-    headingText.textContent = 'Todo el archivo';
     heading.append(headingText);
-    const lead = el('p', { class: 'cn-lead' });
-    const leadText = document.createElement('span');
-    leadText.className = 't-text-soft';
-    lead.append(leadText);
-    const items = el('ul', { class: 'cn-items' });
-    const relHead = el('p', { class: 'cn-h u', text: 'Se conecta con', hidden: true });
-    const list = el('ul', { class: 'cn-edges', 'aria-live': 'polite' });
-    const totalNode = el('p', { class: 'cn-total' });
-    const totalText = document.createElement('span');
-    totalText.className = 't-text-soft';
-    totalNode.append(totalText);
-    const go = el('a', { class: 'btn', href: '#memorias', text: 'Explorar el archivo' });
-    const reset = el('button', { class: 'btn r', type: 'button', text: 'Ver todo', hidden: true });
+    const sentence = el('p', { class: 'cn2-sentence' });
+    const sentenceText = document.createElement('span');
+    sentenceText.className = 't-text-soft';
+    sentence.append(sentenceText);
+    const open = el('a', { class: 'btn r', href: '#', hidden: true });
+    const clear = el('button', { class: 'btn', type: 'button', text: 'Quitar selección', hidden: true });
+    const intro = el('p', { class: 'cn2-intro', text: 'Toca una noche, un artista o un set y mira con qué se conecta.' });
 
-    const visible = () => (selected ? edges.filter((e) => e[0] === selected || e[1] === selected) : edges);
-    const leadLabel = () => {
-      if (!selected) return 'Cada línea une dos categorías y su grosor es el número de vínculos. Elige un círculo para ver sus elementos y con qué se conecta.';
-      const n = (nodes.find((x) => x[0] === selected) || [0, 0])[1];
-      return n ? n + (n === 1 ? ' elemento publicado.' : ' elementos publicados.') : 'Todavía no hay elementos publicados.';
-    };
-    const totalLabel = () => {
-      const shown = visible();
-      if (!shown.length) return selected ? selected + ' todavía no tiene vínculos publicados.' : 'Sin vínculos publicados aún.';
-      return selected ? plural(sumOf(shown)) + ' de ' + selected + ' con otras categorías.' : sumOf(shown) + ' vínculos verificados en el archivo público.';
-    };
-    const rows = () => {
-      const shown = visible();
-      if (!shown.length) return [el('li', { class: 'cn-empty', text: 'Todavía no hay relaciones publicadas.' })];
-      return shown.map(([a, b, n, key], i) => {
-        const other = selected ? (a === selected ? b : a) : b;
-        const main = selected ? other : a + ' y ' + b;
-        return el('li', { style: '--i:' + i }, el('a', { class: 'cn-edge', href: SECTION[other], 'aria-label': main + ': ' + plural(n) + '. ' + NOTE[key] + '. Ir a ' + other },
-          el('span', { class: 'cn-e-t' }, el('strong', { text: main }), el('small', { text: NOTE[key] })),
-          el('b', {}, el('span', { class: 'u', text: String(n) }), el('em', { text: n === 1 ? 'vínculo' : 'vínculos' })),
-          el('i', { 'aria-hidden': 'true', text: 'Ver' })));
+    const focusKey = () => hovered || selected;
+    const visibleEl = (button) => button && button.offsetParent !== null;
+    function drawLines() {
+      svg.replaceChildren();
+      const key = focusKey();
+      if (!key || narrow.matches) return;
+      const from = items.get(key);
+      if (!visibleEl(from)) return;
+      const area = board.getBoundingClientRect();
+      const a = from.getBoundingClientRect();
+      const order = Object.keys(columns).filter((name) => columns[name].length);
+      const fromIndex = order.indexOf(entities.get(key).column);
+      related(key).forEach((other, i) => {
+        const target = items.get(other.key);
+        const toIndex = order.indexOf(other.column);
+        if (!visibleEl(target) || toIndex === fromIndex) return;
+        const b = target.getBoundingClientRect();
+        const forward = toIndex > fromIndex;
+        const x1 = (forward ? a.right : a.left) - area.left;
+        const x2 = (forward ? b.left : b.right) - area.left;
+        const y1 = a.top + a.height / 2 - area.top;
+        const y2 = b.top + b.height / 2 - area.top;
+        const bend = (x2 - x1) / 2;
+        const path = document.createElementNS(SVG_NS, 'path');
+        path.setAttribute('d', 'M' + x1 + ' ' + y1 + ' C' + (x1 + bend) + ' ' + y1 + ' ' + (x2 - bend) + ' ' + y2 + ' ' + x2 + ' ' + y2);
+        path.setAttribute('pathLength', '1');
+        path.setAttribute('class', 'cr-cn2-path');
+        path.style.setProperty('--i', String(i));
+        svg.append(path);
       });
-    };
-    const itemNodes = () => {
-      if (!selected) return [];
-      const all = itemsOf(selected, data).filter((item) => item.label);
-      const shown = all.slice(0, 12).map((item, i) => el('li', { style: '--i:' + i },
-        el(item.href ? 'a' : 'span', { class: 'cn-item', href: item.href || false },
-          el('strong', { text: item.label }), item.sub ? el('small', { text: item.sub }) : null)));
-      if (all.length > 12) shown.push(el('li', {}, el('a', { class: 'cn-item cn-more', href: SECTION[selected], text: 'y ' + (all.length - 12) + ' más' })));
-      return shown;
-    };
-    const paintList = (animate) => {
-      const swap = () => {
-        items.replaceChildren(...itemNodes());
-        list.replaceChildren(...rows());
-        relHead.hidden = !selected || !visible().length;
-        list.classList.remove('cr-is-leaving');
-        items.classList.remove('cr-is-leaving');
-      };
-      if (!animate || reduced()) { swap(); return; }
-      list.classList.add('cr-is-leaving');
-      items.classList.add('cr-is-leaving');
-      setTimeout(swap, ms('--duration-quick'));
-    };
-
-    const choose = (name) => {
-      selected = selected === name ? null : name;
-      paint();
-      softSwap(headingText, selected || 'Todo el archivo');
-      softSwap(leadText, leadLabel());
-      softSwap(totalText, totalLabel());
-      go.textContent = selected ? 'Ir a ' + selected : 'Explorar el archivo';
-      go.setAttribute('href', selected ? SECTION[selected] : '#memorias');
-      reset.hidden = !selected;
-      paintList(true);
-    };
-    reset.addEventListener('click', () => choose(selected));
-
-    leadText.textContent = leadLabel();
-    leadText.dataset.text = leadText.textContent;
-    totalText.textContent = totalLabel();
-    totalText.dataset.text = totalText.textContent;
-    headingText.dataset.text = 'Todo el archivo';
-    paintList(false);
-    place(narrow.matches ? 'tall' : 'wide');
-    narrow.addEventListener('change', () => { const key = narrow.matches ? 'tall' : 'wide'; if (key !== layoutKey) place(key); });
-
-    // One authored moment: the lines draw in and the circles settle when the graph first scrolls into view.
-    const reveal = () => stage.classList.add('cr-is-in');
-    if (reduced() || !('IntersectionObserver' in window)) reveal();
-    else {
-      const io = new IntersectionObserver((entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) { reveal(); io.disconnect(); }
-      }, { threshold: .25 });
-      io.observe(stage);
+      svg.setAttribute('width', area.width);
+      svg.setAttribute('height', area.height);
+    }
+    function paint() {
+      const key = focusKey();
+      const around = key ? new Set((adjacency.get(key) || [])) : new Set();
+      items.forEach((button, k) => {
+        button.setAttribute('aria-pressed', String(k === selected));
+        button.classList.toggle('cr-is-focus', k === key);
+        button.classList.toggle('cr-is-linked', around.has(k));
+        button.classList.toggle('cr-is-dim', Boolean(key) && k !== key && !around.has(k));
+      });
+      window.requestAnimationFrame(drawLines);
     }
 
-    const section = el('section', { class: 'sec', id: 'conectado' }, el('h2', { class: 'u', text: 'Conectado' }),
-      el('div', { class: 'cn' }, stage,
-        el('div', { class: 'cn-side plate chrome-b' }, heading, lead, items, relHead, list, totalNode, el('div', { class: 'cn-actions' }, go, reset))));
+    function choose(key) {
+      selected = selected === key ? null : key;
+      const entity = selected ? entities.get(selected) : null;
+      if (entity) {
+        // A hidden (collapsed) item becomes visible when chosen from a link or the keyboard.
+        const column = board.querySelector('[data-col="' + entity.column + '"]');
+        if (column && items.get(key).classList.contains('cr-is-extra')) { column.classList.add('cr-is-open'); const more = column.querySelector('.cr-cn2-more'); if (more) { more.setAttribute('aria-expanded', 'true'); more.textContent = 'Ver menos'; } }
+      }
+      softSwap(headingText, entity ? entity.label : 'Elige un punto de partida');
+      softSwap(sentenceText, entity ? sentenceOf(entity) : 'Cada noche enlaza a sus artistas y cada artista a su música. Elige uno y míralo.');
+      open.hidden = !entity || !entity.href;
+      if (entity && entity.href) { open.setAttribute('href', entity.href); open.textContent = actionOf(entity); }
+      clear.hidden = !entity;
+      paint();
+    }
+    clear.addEventListener('click', () => choose(selected));
+
+    headingText.textContent = 'Elige un punto de partida';
+    headingText.dataset.text = headingText.textContent;
+    sentenceText.textContent = 'Cada noche enlaza a sus artistas y cada artista a su música. Elige uno y míralo.';
+    sentenceText.dataset.text = sentenceText.textContent;
+    window.addEventListener('resize', () => window.requestAnimationFrame(drawLines), { passive: true });
+    narrow.addEventListener('change', drawLines);
+
+    // Start with a real example so the section says something before any click: the next night.
+    const first = columns.noches[0] || columns.artistas[0] || columns.sonido[0];
+    const section = el('section', { class: 'sec', id: 'conectado' }, el('h2', { class: 'u', text: 'Conectado' }), intro, board,
+      el('div', { class: 'cn2-sum plate chrome-b' }, heading, sentence, el('div', { class: 'cn2-actions' }, open, clear)));
+    if (first) choose(first.key);
+
+    // One authored moment: the lines draw in the first time the explorer scrolls into view.
+    const reveal = () => { board.classList.add('cr-is-in'); window.requestAnimationFrame(drawLines); };
+    if (reduced() || !('IntersectionObserver' in window)) reveal();
+    else {
+      const io = new IntersectionObserver((entriesSeen) => { if (entriesSeen.some((x) => x.isIntersecting)) { reveal(); io.disconnect(); } }, { threshold: .2 });
+      io.observe(board);
+    }
     section.addEventListener('keydown', (event) => { if (event.key === 'Escape' && selected) choose(selected); });
     return section;
   };
@@ -626,7 +569,8 @@
         const href = safeUrl(layer.url);
         return el(href ? 'a' : 'span', { class: cls + ' btn r', href: href || false, style: vars, text: text(layer.text, 80) });
       }
-      return el('div', { class: cls, style: vars, text: text(layer.text, 220) });
+      // The text sits on a plate (like a subtitle) so it reads over any artwork, including flyers that carry their own text.
+      return el('div', { class: cls, style: vars }, el('span', { class: 'bn-t', text: text(layer.text, 220) }));
     };
 
     const legacyCopy = (slide) => {

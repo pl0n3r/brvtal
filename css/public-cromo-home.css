@@ -175,34 +175,7 @@ html.cromo-home body>*:not(#cromo-home):not(#cromoGL):not(script):not(style):not
 #cromo-home .cr-xp-line{margin:0;font:600 22px/1.3 var(--body)}
 #cromo-home .cr-xp-line span{font:700 16px/1 var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--steel);margin-right:10px}
 #cromo-home .cr-xp-cta{display:flex;flex-wrap:wrap;gap:14px;margin-top:auto;padding-top:6px}
-
-#cromo-home .cr-cn{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:28px;align-items:start}
-#cromo-home .cr-cn-side{padding:clamp(20px,2.4vw,34px);display:flex;flex-direction:column;gap:18px}
-#cromo-home .cr-cn-sel{margin:0;font-size:clamp(44px,4.4vw,72px);color:#fff;-webkit-text-stroke:.05em #030303;paint-order:stroke fill;text-shadow:0 .05em 0 var(--red)}
-#cromo-home .cr-cn-edges{list-style:none;margin:0;padding:0;display:grid;gap:0;transition:opacity var(--duration-quick) var(--ease-in-out),filter var(--duration-quick) var(--ease-in-out)}
-#cromo-home .cr-cn-edges.cr-is-leaving{opacity:0;filter:blur(var(--blur-small))}
-#cromo-home .cr-cn-edges li{animation:cromo-cn-in var(--duration-very-slow) var(--ease-in-out) backwards;animation-delay:calc(var(--i,0)*var(--duration-stagger))}
 @keyframes cromo-cn-in{from{opacity:0;filter:blur(var(--blur-medium));transform:translateY(var(--distance-medium))}to{opacity:1;filter:blur(0);transform:none}}
-#cromo-home .cr-cn-edge{display:flex;align-items:center;gap:16px;padding:14px 0;border-top:2px solid rgba(242,239,232,.22);
-  transition:background-color var(--duration-quick) var(--ease-in-out),color var(--duration-quick) var(--ease-in-out),padding var(--duration-fast) var(--ease-smooth-out)}
-#cromo-home .cr-cn-e-t{flex:1;display:grid;gap:4px;min-width:0}
-#cromo-home .cr-cn-e-t strong{font:700 26px/1 var(--body);text-transform:uppercase;letter-spacing:.01em}
-#cromo-home .cr-cn-e-t small{font:500 19px/1.25 var(--body);color:#c3c9d4;transition:color var(--duration-quick) var(--ease-in-out)}
-#cromo-home .cr-cn-edge b{display:grid;justify-items:end;font-weight:400;line-height:1;transition:color var(--duration-quick) var(--ease-in-out)}
-#cromo-home .cr-cn-edge b .cr-u{font-size:40px;color:var(--red)}
-#cromo-home .cr-cn-edge b em{font:700 14px/1 var(--body);font-style:normal;letter-spacing:.12em;text-transform:uppercase;color:var(--steel)}
-#cromo-home .cr-cn-edge i{font:700 16px/1 var(--body);font-style:normal;letter-spacing:.12em;text-transform:uppercase;color:var(--steel);opacity:0;transform:translateX(calc(var(--distance-medium)*-1));transition:opacity var(--duration-fast) var(--ease-smooth-out),transform var(--duration-fast) var(--ease-smooth-out)}
-#cromo-home .cr-cn-edge:hover,#cromo-home .cr-cn-edge:focus-visible{background:var(--bone);color:var(--ink);padding-left:14px;padding-right:14px}
-#cromo-home .cr-cn-edge:hover small,#cromo-home .cr-cn-edge:focus-visible small{color:#3b4150}
-#cromo-home .cr-cn-edge:hover b em,#cromo-home .cr-cn-edge:focus-visible b em{color:#3b4150}
-#cromo-home .cr-cn-edge:hover i,#cromo-home .cr-cn-edge:focus-visible i{opacity:1;transform:none;color:var(--ink)}
-#cromo-home .cr-cn-edge:focus-visible{outline:3px solid var(--red);outline-offset:2px}
-#cromo-home .cr-cn-lead{margin:0;font:500 clamp(20px,1.6vw,23px)/1.4 var(--body);color:#d7dbe4;min-height:2.8em}
-#cromo-home .cr-cn-edges li:last-child .cr-cn-edge{border-bottom:2px solid rgba(242,239,232,.22)}
-#cromo-home .cr-cn-empty{padding:12px 0;font:600 21px/1.3 var(--body);color:#d7dbe4}
-#cromo-home .cr-cn-total{margin:0;font:700 22px/1.3 var(--body);color:var(--bone);min-height:1.3em}
-#cromo-home .cr-cn-actions{display:flex;flex-wrap:wrap;gap:14px}
-#cromo-home .cr-cn-side .cr-btn{align-self:flex-start}
 
 /* transitions.dev "text swap soft": both texts share one cell and cross-blur in place; the width eases. */
 #cromo-home{--text-soft-dur:200ms;--text-soft-blur:2px;--text-soft-ease:ease-in-out;--text-soft-resize-dur:240ms;--text-soft-resize-ease:cubic-bezier(.22,1,.36,1)}
@@ -213,15 +186,11 @@ html.cromo-home body>*:not(#cromo-home):not(#cromoGL):not(script):not(style):not
 #cromo-home .t-text-soft.is-swapping .t-text-soft-new{opacity:1;filter:blur(0)}
 
 @media(max-width:900px){
-  #cromo-home .cr-xp,#cromo-home .cr-cn{grid-template-columns:1fr}
   #cromo-home .cr-xp-fly{min-height:320px;box-shadow:8px 8px 0 var(--red)}
   #cromo-home .cr-xp-facts{grid-template-columns:1fr 1fr}
   #cromo-home .cr-xp-body h3{font-size:min(18vw,110px)}
 }
 @media(prefers-reduced-motion:reduce){
-  #cromo-home .cr-cn-node,#cromo-home .cr-cn-edges,#cromo-home .cr-cn-edge,#cromo-home .cr-cn-edge i,#cromo-home .cr-cn-edge b,#cromo-home .t-text-soft,#cromo-home .t-text-soft>span{transition:none !important}
-  #cromo-home .cr-cn-edges li{animation:none}
-  #cromo-home .cr-cn-node:hover{transform:none;box-shadow:none}
   #cromo-home .cr-xp-fly img{transition:none}
   #cromo-home .cr-xp-fly:hover img{transform:none}
 }
@@ -229,19 +198,19 @@ html.cromo-home body>*:not(#cromo-home):not(#cromoGL):not(script):not(style):not
 /* The hidden attribute must win over component display rules (e.g. the "Ver todo" button). */
 #cromo-home [hidden]{display:none !important}
 
-/* ---------- Glitch verde de los títulos (como el de Genesis): dos capas con corte y ráfagas cortas ---------- */
+/* ---------- Glitch rojo de los títulos: dos capas con cortes anchos, desplazamientos grandes y sacudida del título ---------- */
 @keyframes cromo-glitch-a{
-  0%,86%,100%{transform:translate(-3px,0);clip-path:inset(46% 0 42% 0)}
-  88%{transform:translate(-9px,-2px);clip-path:inset(12% 0 70% 0)}
-  91%{transform:translate(6px,2px);clip-path:inset(62% 0 14% 0)}
-  94%{transform:translate(-5px,0);clip-path:inset(30% 0 52% 0)}
-  97%{transform:translate(-3px,0);clip-path:inset(46% 0 42% 0)}
+  0%,89%,100%{transform:translate(-3px,0);clip-path:inset(47% 0 45% 0)}
+  90%{transform:translate(-11px,-1px);clip-path:inset(16% 0 74% 0)}
+  92%{transform:translate(9px,1px);clip-path:inset(64% 0 24% 0)}
+  94%{transform:translate(-7px,0);clip-path:inset(36% 0 54% 0)}
+  96%{transform:translate(-3px,0);clip-path:inset(47% 0 45% 0)}
 }
 @keyframes cromo-glitch-b{
-  0%,86%,100%{transform:translate(3px,0);clip-path:inset(20% 0 66% 0)}
-  89%{transform:translate(9px,1px);clip-path:inset(70% 0 8% 0)}
-  92%{transform:translate(-6px,-1px);clip-path:inset(8% 0 76% 0)}
-  96%{transform:translate(3px,0);clip-path:inset(20% 0 66% 0)}
+  0%,90%,100%{transform:translate(3px,0);clip-path:inset(22% 0 72% 0)}
+  91%{transform:translate(10px,1px);clip-path:inset(70% 0 18% 0)}
+  93%{transform:translate(-8px,-1px);clip-path:inset(10% 0 80% 0)}
+  95%{transform:translate(3px,0);clip-path:inset(22% 0 72% 0)}
 }
 #cromo-home .cr-glitch{position:relative}
 #cromo-home .cr-glitch::before,
@@ -253,8 +222,8 @@ html.cromo-home body>*:not(#cromo-home):not(#cromoGL):not(script):not(style):not
   text-shadow:none;
   white-space:inherit;
 }
-#cromo-home .cr-glitch::before{color:#b6ff00;opacity:.9;transform:translate(-3px,0);clip-path:inset(46% 0 42% 0);animation:cromo-glitch-a 3.8s steps(1) infinite}
-#cromo-home .cr-glitch::after{color:#b6ff00;opacity:.55;transform:translate(3px,0);clip-path:inset(20% 0 66% 0);animation:cromo-glitch-b 3.8s steps(1) infinite;animation-delay:-1.1s}
+#cromo-home .cr-glitch::before{color:var(--red);opacity:1;transform:translate(-3px,0);clip-path:inset(47% 0 45% 0);animation:cromo-glitch-a 5.4s steps(1) infinite}
+#cromo-home .cr-glitch::after{color:var(--bone);opacity:.55;transform:translate(3px,0);clip-path:inset(22% 0 72% 0);animation:cromo-glitch-b 5.4s steps(1) infinite}
 @media(prefers-reduced-motion:reduce){
   #cromo-home .cr-glitch::before,#cromo-home .cr-glitch::after{animation:none}
 }
@@ -271,14 +240,15 @@ html.cromo-home body>*:not(#cromo-home):not(#cromoGL):not(script):not(style):not
 #cromo-home .cr-bn-slide.cr-is-active{opacity:1;visibility:visible;transform:none;transition-delay:0s}
 #cromo-home .cr-bn-media{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
 #cromo-home .cr-bn-slide picture{display:contents}
-#cromo-home .cr-bn-ov{position:absolute;inset:0;background:linear-gradient(0deg,rgba(3,3,3,calc(var(--ov,.35) + .25)),rgba(3,3,3,var(--ov,.35)) 55%,rgba(3,3,3,calc(var(--ov,.35)*.6)))}
+#cromo-home .cr-bn-ov{position:absolute;inset:0;background:linear-gradient(90deg,rgba(3,3,3,calc(var(--ov,.35) + .4)) 0%,rgba(3,3,3,var(--ov,.35)) 48%,rgba(3,3,3,calc(var(--ov,.35)*.4)) 100%),linear-gradient(0deg,rgba(3,3,3,.55),transparent 38%)}
 
 /* Layers: positioned from the center point the editor defines (percent of the stage), mobile overrides included. */
 #cromo-home .cr-bn-layer{position:absolute;left:var(--x,12%);top:var(--y,50%);width:var(--w,50%);transform:translate(-50%,-50%);color:#fff;z-index:2;word-break:break-word}
 #cromo-home .cr-bn-al-left{text-align:left}
 #cromo-home .cr-bn-al-center{text-align:center}
 #cromo-home .cr-bn-al-right{text-align:right}
-#cromo-home .cr-bn-text{font:400 clamp(26px,4.6vw,84px)/.92 var(--disp);text-transform:uppercase;-webkit-text-stroke:.05em #030303;paint-order:stroke fill;text-shadow:0 .05em 0 var(--red)}
+#cromo-home .cr-bn-text{font:400 clamp(26px,4.6vw,84px)/1.12 var(--disp);text-transform:uppercase}
+#cromo-home .cr-bn-t{padding:.04em .28em;background:rgba(3,3,3,.9);color:#fff;box-decoration-break:clone;-webkit-box-decoration-break:clone;box-shadow:.12em .12em 0 var(--red)}
 #cromo-home .cr-bn-image img,#cromo-home .cr-bn-logo img{display:block;width:100%;height:auto;object-fit:contain}
 #cromo-home .cr-bn-cta{width:auto;white-space:nowrap}
 #cromo-home .cr-bn-layer.cr-btn{min-height:48px}
@@ -329,64 +299,49 @@ html.cromo-home body>*:not(#cromo-home):not(#cromoGL):not(script):not(style):not
 
 
 /* ---------- Conectado como grafo: círculos (tamaño = elementos) y líneas (grosor = vínculos) ---------- */
-#cromo-home .cr-cn-stage{position:relative;aspect-ratio:var(--ar,1000 / 560);container-type:inline-size;padding:0}
-#cromo-home .cr-cn-svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
-#cromo-home .cr-cn-line{stroke:var(--bone);stroke-opacity:.5;stroke-linecap:round;fill:none;
-  stroke-dasharray:1;stroke-dashoffset:1;
-  transition:stroke var(--duration-fast) var(--ease-smooth-out),stroke-opacity var(--duration-fast) var(--ease-in-out)}
-#cromo-home .cr-cn-hit{stroke:transparent;stroke-linecap:round;fill:none;cursor:default}
-#cromo-home .cr-cn-stage.cr-is-in .cr-cn-line{stroke-dashoffset:0;transition:stroke-dashoffset var(--duration-very-slow) var(--ease-smooth-out),stroke var(--duration-fast) var(--ease-smooth-out),stroke-opacity var(--duration-fast) var(--ease-in-out);transition-delay:calc(var(--i,0)*var(--duration-stagger)),0s,0s}
-#cromo-home .cr-cn-edge-g.cr-is-on .cr-cn-line,#cromo-home .cr-cn-edge-g:hover .cr-cn-line{stroke:var(--red);stroke-opacity:1}
-#cromo-home .cr-cn-edge-g.cr-is-dim .cr-cn-line{stroke-opacity:.14}
-#cromo-home .cr-cn-tag{opacity:0;transition:opacity var(--duration-fast) var(--ease-in-out);pointer-events:none}
-#cromo-home .cr-cn-stage.cr-is-in .cr-cn-tag{opacity:1;transition-delay:calc(var(--duration-very-slow) + var(--duration-stagger)*2)}
-#cromo-home .cr-cn-edge-g.cr-is-dim .cr-cn-tag{opacity:.18}
-#cromo-home .cr-cn-tag-bg{fill:#030303;stroke:var(--bone);stroke-width:2}
-#cromo-home .cr-cn-edge-g.cr-is-on .cr-cn-tag-bg{fill:var(--red);stroke:var(--red)}
-#cromo-home .cr-cn-tag-t{fill:#fff;font-family:var(--body);font-weight:700}
-
-#cromo-home .cr-cn-nodes{position:absolute;inset:0}
-#cromo-home .cr-cn-node{
-  position:absolute;left:calc(var(--px)*1%);top:calc(var(--py)*1%);width:calc(var(--d)*1%);aspect-ratio:1;transform:translate(-50%,-50%);
-  border-radius:50%;border:0;padding:0;cursor:pointer;color:#fff;display:grid;place-items:center;
-  background:radial-gradient(circle at 32% 28%,#fff 0 6%,#cfd8e6 14%,#3a4252 46%,#07080b 70%);
-  box-shadow:0 0 0 2px rgba(242,239,232,.55),0 10px 22px rgba(0,0,0,.55);
-  opacity:0;
-  transition:transform var(--duration-fast) var(--ease-smooth-out),box-shadow var(--duration-fast) var(--ease-smooth-out),opacity var(--duration-fast) var(--ease-in-out),background var(--duration-fast) var(--ease-in-out)}
-#cromo-home .cr-cn-stage.cr-is-in .cr-cn-node{opacity:1;animation:cromo-cn-pop var(--duration-very-slow) var(--ease-smooth-out) backwards;animation-delay:calc(var(--i,0)*var(--duration-stagger)*2)}
 @keyframes cromo-cn-pop{from{opacity:0;filter:blur(var(--blur-medium));transform:translate(-50%,-50%) scale(.82)}to{opacity:1;filter:blur(0);transform:translate(-50%,-50%) scale(1)}}
-#cromo-home .cr-cn-node:hover,#cromo-home .cr-cn-node.cr-is-focus{transform:translate(-50%,-50%) scale(1.06);box-shadow:0 0 0 3px var(--bone),0 14px 28px rgba(0,0,0,.6)}
-#cromo-home .cr-cn-node[aria-pressed="true"]{background:radial-gradient(circle at 60% 30%,#fff 0 5%,#ffd2c8 12%,#ff3b1f 44%,#120303 72%);box-shadow:0 0 0 3px var(--bone),0 14px 28px rgba(0,0,0,.6)}
-#cromo-home .cr-cn-node.cr-is-linked{box-shadow:0 0 0 3px var(--red),0 10px 22px rgba(0,0,0,.55)}
-#cromo-home .cr-cn-node.cr-is-dim{opacity:.38}
-#cromo-home .cr-cn-node:focus-visible{outline:3px solid var(--bone);outline-offset:4px}
-#cromo-home .cr-cn-n{font-size:calc(var(--d)*.0043*100cqw);line-height:1;-webkit-text-stroke:.06em #030303;paint-order:stroke fill;text-shadow:0 .05em 0 #030303}
-#cromo-home .cr-cn-name{position:absolute;left:calc(50% + var(--ox,0)*(50% + 12px));top:calc(50% + var(--oy,1)*(50% + 12px));transform:translate(calc(-50% + var(--ox,0)*50%),calc(-50% + var(--oy,1)*50%));padding:5px 10px;background:#030303;border:2px solid var(--bone);
-  font:700 clamp(15px,1.7cqw,22px)/1 var(--body);letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;pointer-events:none}
-#cromo-home .cr-cn-node[aria-pressed="true"] .cr-cn-name{background:var(--red);border-color:var(--red)}
 @media(prefers-reduced-motion:reduce){
-  #cromo-home .cr-cn-line,#cromo-home .cr-cn-tag,#cromo-home .cr-cn-node{transition:none !important}
-  #cromo-home .cr-cn-line{stroke-dashoffset:0}
-  #cromo-home .cr-cn-tag{opacity:1}
-  #cromo-home .cr-cn-node{opacity:1;animation:none !important}
-  #cromo-home .cr-cn-node:hover,#cromo-home .cr-cn-node.cr-is-focus{transform:translate(-50%,-50%)}
 }
 
 /* Elementos reales de la categoría elegida (los artistas, las noches, los sets...). */
-#cromo-home .cr-cn-h{margin:6px 0 -4px;font-size:clamp(26px,2.4vw,34px);color:var(--bone)}
-#cromo-home .cr-cn-items{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:10px;transition:opacity var(--duration-quick) var(--ease-in-out),filter var(--duration-quick) var(--ease-in-out)}
-#cromo-home .cr-cn-items.cr-is-leaving{opacity:0;filter:blur(var(--blur-small))}
-#cromo-home .cr-cn-items li{animation:cromo-cn-in var(--duration-very-slow) var(--ease-in-out) backwards;animation-delay:calc(var(--i,0)*var(--duration-stagger))}
-#cromo-home .cr-cn-item{display:grid;gap:2px;min-height:44px;padding:9px 14px;background:#030303;border:2px solid var(--bone);color:var(--bone);
-  transition:background-color var(--duration-quick) var(--ease-in-out),color var(--duration-quick) var(--ease-in-out),transform var(--duration-fast) var(--ease-smooth-out)}
-#cromo-home .cr-cn-item strong{font:700 21px/1.05 var(--body);text-transform:uppercase}
-#cromo-home .cr-cn-item small{font:500 16px/1.1 var(--body);color:#c3c9d4;transition:color var(--duration-quick) var(--ease-in-out)}
-#cromo-home a.cr-cn-item:hover,#cromo-home a.cr-cn-item:focus-visible{background:var(--bone);color:var(--ink);transform:translate(-3px,-3px)}
-#cromo-home a.cr-cn-item:hover small,#cromo-home a.cr-cn-item:focus-visible small{color:#3b4150}
-#cromo-home a.cr-cn-item:focus-visible{outline:3px solid var(--red);outline-offset:2px}
-#cromo-home .cr-cn-more{align-content:center;font:700 19px/1 var(--body);text-transform:uppercase;color:var(--red)}
 @media(prefers-reduced-motion:reduce){
-  #cromo-home .cr-cn-items,#cromo-home .cr-cn-item{transition:none !important}
-  #cromo-home .cr-cn-items li{animation:none}
-  #cromo-home a.cr-cn-item:hover{transform:none}
+}
+
+
+/* ---------- Conectado: explorador de conexiones reales (noches, artistas, sonido) ---------- */
+#cromo-home .cr-cn2-intro{margin:0 0 20px;width:fit-content;max-width:34em;padding:8px 14px;background:rgba(3,3,3,.92);font:600 clamp(22px,2vw,28px)/1.3 var(--body);color:#f2efe8}
+#cromo-home .cr-cn2-board{position:relative;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:clamp(36px,8vw,120px);padding:clamp(18px,2.4vw,32px);background:rgba(3,3,3,.9);border:1px solid rgba(242,239,232,.22);border-top:3px solid var(--red)}
+#cromo-home .cr-cn2-lines{position:absolute;left:0;top:0;pointer-events:none;overflow:visible;z-index:1}
+#cromo-home .cr-cn2-path{fill:none;stroke:var(--red);stroke-width:4;stroke-linecap:round;stroke-dasharray:1;stroke-dashoffset:1}
+#cromo-home .cr-cn2-board.cr-is-in .cr-cn2-path{stroke-dashoffset:0;transition:stroke-dashoffset var(--duration-slow) var(--ease-smooth-out);transition-delay:calc(var(--i,0)*var(--duration-stagger))}
+#cromo-home .cr-cn2-col{position:relative;z-index:2;display:grid;align-content:start;gap:14px;min-width:0}
+#cromo-home .cr-cn2-col h3{margin:0;font-size:clamp(34px,3.4vw,54px);color:#fff;-webkit-text-stroke:.05em #030303;paint-order:stroke fill;text-shadow:0 .05em 0 var(--red)}
+#cromo-home .cr-cn2-list{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+#cromo-home .cr-cn2-item{position:relative;display:grid;gap:3px;width:100%;min-height:56px;padding:10px 14px;text-align:left;cursor:pointer;color:var(--bone);background:#030303;border:2px solid rgba(242,239,232,.5);font:inherit;
+  transition:transform var(--duration-fast) var(--ease-smooth-out),background-color var(--duration-quick) var(--ease-in-out),color var(--duration-quick) var(--ease-in-out),border-color var(--duration-quick) var(--ease-in-out),opacity var(--duration-fast) var(--ease-in-out)}
+#cromo-home .cr-cn2-item strong{font:700 clamp(20px,1.7vw,24px)/1.05 var(--body);text-transform:uppercase;overflow-wrap:anywhere}
+#cromo-home .cr-cn2-item small{font:500 17px/1.1 var(--body);color:#c3c9d4;transition:color var(--duration-quick) var(--ease-in-out)}
+#cromo-home .cr-cn2-item:hover{transform:translate(-3px,-3px);border-color:var(--bone)}
+#cromo-home .cr-cn2-item[aria-pressed="true"]{background:var(--red);border-color:var(--red);color:#fff}
+#cromo-home .cr-cn2-item[aria-pressed="true"] small{color:#fff}
+#cromo-home .cr-cn2-item.cr-is-linked{border-color:var(--red);background:#14090a}
+#cromo-home .cr-cn2-item.cr-is-dim{opacity:.38}
+#cromo-home .cr-cn2-item:focus-visible{outline:3px solid var(--bone);outline-offset:3px}
+#cromo-home .cr-cn2-item.cr-is-extra{display:none}
+#cromo-home .cr-cn2-col.cr-is-open .cr-cn2-item.cr-is-extra{display:grid}
+#cromo-home .cr-cn2-more{justify-self:start;min-height:44px;padding:0 4px;background:none;border:0;color:var(--steel);cursor:pointer;font:700 18px/1 var(--body);letter-spacing:.08em;text-transform:uppercase;text-decoration:underline;text-underline-offset:.25em;transition:color var(--duration-quick) var(--ease-in-out)}
+#cromo-home .cr-cn2-more:hover,#cromo-home .cr-cn2-more:focus-visible{color:var(--bone)}
+#cromo-home .cr-cn2-sum{margin-top:20px;padding:clamp(20px,2.4vw,34px);display:grid;gap:14px}
+#cromo-home .cr-cn2-sel{margin:0;font-size:clamp(40px,4.4vw,72px);color:#fff;-webkit-text-stroke:.05em #030303;paint-order:stroke fill;text-shadow:0 .05em 0 var(--red);overflow-wrap:anywhere}
+#cromo-home .cr-cn2-sentence{margin:0;max-width:44em;font:500 clamp(22px,1.9vw,27px)/1.4 var(--body);color:#e6e9f0;min-height:2.8em}
+#cromo-home .cr-cn2-actions{display:flex;flex-wrap:wrap;gap:14px}
+
+@media(max-width:700px){
+  #cromo-home .cr-cn2-board{grid-template-columns:1fr;gap:26px}
+  #cromo-home .cr-cn2-lines{display:none}
+}
+@media(prefers-reduced-motion:reduce){
+  #cromo-home .cr-cn2-item,#cromo-home .cr-cn2-more,#cromo-home .cr-cn2-path,#cromo-home .t-text-soft,#cromo-home .t-text-soft>span{transition:none !important}
+  #cromo-home .cr-cn2-path{stroke-dashoffset:0}
+  #cromo-home .cr-cn2-item:hover{transform:none}
 }

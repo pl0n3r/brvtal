@@ -2,7 +2,7 @@
  * BRVTAL — Cromo theme for the interior public pages: entity pages (events, artists, sets,
  * releases, blog, pages), privacy, 404 and "unavailable". Same palette and type as the home
  * (docs/design/CROMO.md): black, bone white and ONE red; Broken Glass for titles, Barlow
- * Condensed for text; the titles keep a green glitch layer (as the Genesis title did). Everything is scoped to `body.cromo-page`, so nothing else changes.
+ * Condensed for text; the titles keep a red glitch layer (as the Genesis title did). Everything is scoped to `body.cromo-page`, so nothing else changes.
  * The WebGL chrome (js/public-cromo.js) is progressive: without it the page keeps a flat
  * black background and stays fully readable.
  */
@@ -92,28 +92,28 @@ body.cromo-page main h1{
   overflow-wrap:anywhere;
   text-wrap:balance;
 }
-/* Green glitch layers (same idea as the old Genesis title) built from data-text. */
+/* Red glitch layers (same idea as the home titles): wide cuts, big shifts and a shaking title. */
 @keyframes cromo-glitch-a{
-  0%,86%,100%{transform:translate(-3px,0);clip-path:inset(46% 0 42% 0)}
-  88%{transform:translate(-9px,-2px);clip-path:inset(12% 0 70% 0)}
-  91%{transform:translate(6px,2px);clip-path:inset(62% 0 14% 0)}
-  94%{transform:translate(-5px,0);clip-path:inset(30% 0 52% 0)}
-  97%{transform:translate(-3px,0);clip-path:inset(46% 0 42% 0)}
+  0%,89%,100%{transform:translate(-3px,0);clip-path:inset(47% 0 45% 0)}
+  90%{transform:translate(-11px,-1px);clip-path:inset(16% 0 74% 0)}
+  92%{transform:translate(9px,1px);clip-path:inset(64% 0 24% 0)}
+  94%{transform:translate(-7px,0);clip-path:inset(36% 0 54% 0)}
+  96%{transform:translate(-3px,0);clip-path:inset(47% 0 45% 0)}
 }
 @keyframes cromo-glitch-b{
-  0%,86%,100%{transform:translate(3px,0);clip-path:inset(20% 0 66% 0)}
-  89%{transform:translate(9px,1px);clip-path:inset(70% 0 8% 0)}
-  92%{transform:translate(-6px,-1px);clip-path:inset(8% 0 76% 0)}
-  96%{transform:translate(3px,0);clip-path:inset(20% 0 66% 0)}
+  0%,90%,100%{transform:translate(3px,0);clip-path:inset(22% 0 72% 0)}
+  91%{transform:translate(10px,1px);clip-path:inset(70% 0 18% 0)}
+  93%{transform:translate(-8px,-1px);clip-path:inset(10% 0 80% 0)}
+  95%{transform:translate(3px,0);clip-path:inset(22% 0 72% 0)}
 }
 body.cromo-page main h1[data-text]{position:relative}
 body.cromo-page main h1[data-text]::before,
 body.cromo-page main h1[data-text]::after{
   content:attr(data-text);display:block;position:absolute;inset:0;pointer-events:none;
-  -webkit-text-stroke:0;text-shadow:none;color:#b6ff00;
+  -webkit-text-stroke:0;text-shadow:none;
 }
-body.cromo-page main h1[data-text]::before{opacity:.9;transform:translate(-3px,0);clip-path:inset(46% 0 42% 0);animation:cromo-glitch-a 3.8s steps(1) infinite}
-body.cromo-page main h1[data-text]::after{opacity:.55;transform:translate(3px,0);clip-path:inset(20% 0 66% 0);animation:cromo-glitch-b 3.8s steps(1) infinite;animation-delay:-1.1s}
+body.cromo-page main h1[data-text]::before{color:var(--cromo-red);transform:translate(-3px,0);clip-path:inset(47% 0 45% 0);animation:cromo-glitch-a 5.4s steps(1) infinite}
+body.cromo-page main h1[data-text]::after{color:var(--cromo-bone);opacity:.55;transform:translate(3px,0);clip-path:inset(22% 0 72% 0);animation:cromo-glitch-b 5.4s steps(1) infinite}
 body.cromo-page .entity-copy{padding:clamp(16px,3vw,40px)}
 body.cromo-page .entity-kicker,
 body.cromo-page .entity-section-label{

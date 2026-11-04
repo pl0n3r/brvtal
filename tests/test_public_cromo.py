@@ -351,19 +351,20 @@ class CromoHomeKeepsEverySectionTests(unittest.TestCase):
                               ("journalSec", "connected"), ("connected", "end")):
             self.assertLess(parts.index(before), parts.index(after), parts)
 
-    def test_both_sections_are_spanish_and_only_use_certified_relation_counts(self) -> None:
-        for phrase in ("Próxima experiencia", "Comprar tickets", "Ver la noche", "Cada línea une dos categorías",
-                       "vínculos verificados en el archivo público", "Eventos", "Artistas", "Memorias"):
+    def test_both_sections_are_spanish_and_only_use_published_relations(self) -> None:
+        for phrase in ("Próxima experiencia", "Comprar tickets", "Ver la noche", "Toca una noche, un artista o un set",
+                       "Noches", "Artistas", "Sonido", "Quitar selección"):
             self.assertIn(phrase, self.JS)
         self.assertNotRegex(self.JS, r"NEXT EXPERIENCE|VERIFIED RELATIONAL|ENTER EXPERIENCE")
-        self.assertIn("Number.isSafeInteger(raw[key])", self.JS)
+        self.assertIn("adjacency", self.JS)          # links come from the published relations, never invented
+        self.assertIn("entities.has(a)", self.JS)    # and only between items that are actually published
         self.assertNotIn("innerHTML", self.JS)
-
     def test_section_styles_are_scoped_and_have_a_mobile_layout(self) -> None:
         for sel in selectors(self.CSS):
-            if "-xp" in sel or "-cn" in sel:
+            if "-xp" in sel or "-cn2" in sel:
                 self.assertTrue(sel.strip().startswith("#cromo-home"), sel)
-        self.assertRegex(self.CSS, r"@media\(max-width:900px\)\{[^@]*cr-xp[^@]*cr-cn")
+        self.assertRegex(self.CSS, r"@media\(max-width:900px\)\{[^@]*cr-xp")
+        self.assertRegex(self.CSS, r"@media\(max-width:700px\)\{[^@]*cr-cn2-board\{grid-template-columns:1fr")
         self.assertIn("prefers-reduced-motion", self.CSS)
 
 
@@ -390,34 +391,34 @@ class CromoMotionTests(unittest.TestCase):
                              ("--ease-smooth-out", "cubic-bezier(.22,1,.36,1)")):
             self.assertIn(token + ":" + value, self.HOME.replace(" ", ""), token)
 
-    def test_connected_graph_is_interactive_and_accessible(self) -> None:
+    def test_connected_explorer_is_interactive_and_accessible(self) -> None:
         self.assertIn("'aria-pressed'", self.JS)
-        self.assertIn("class: 'cn-node', type: 'button'", self.JS)
-        self.assertIn("createElementNS(SVG_NS", self.JS)       # a real node-link graph, not cards
-        self.assertIn("'stroke-width': width", self.JS)        # edge width encodes the number of links
-        self.assertIn("Math.sqrt(n)", self.JS)                 # node size encodes the number of items
+        self.assertIn("class: 'cn2-item', type: 'button'", self.JS)   # every item is a real button
         self.assertIn("softSwap(headingText", self.JS)
-        self.assertIn("softSwap(totalText", self.JS)
+        self.assertIn("softSwap(sentenceText", self.JS)
         self.assertIn("event.key === 'Escape'", self.JS)
         self.assertIn("matchMedia('(prefers-reduced-motion: reduce)')", self.JS)
-        self.assertIn("ms('--duration-quick')", self.JS)
-        for destination in ("#noches", "#artistas", "#sonido", "#discos", "#memorias"):
-            self.assertIn(destination, self.JS)
+        self.assertIn("createElementNS(SVG_NS", self.JS)               # the lines are drawn, not faked with images
         self.assertNotIn("innerHTML", self.JS)
-
-    def test_graph_and_swap_have_reduced_motion_fallbacks(self) -> None:
+    def test_explorer_and_swap_have_reduced_motion_fallbacks(self) -> None:
         block = "".join(self.HOME[m.start():] for m in re.finditer("prefers-reduced-motion", self.HOME))
-        for needle in ("cr-cn-node", "cr-cn-line", "t-text-soft", "cr-cn-edges li{animation:none}"):
+        for needle in ("cr-cn2-item", "cr-cn2-path", "t-text-soft"):
             self.assertIn(needle, block)
-
-
-    def test_titles_get_the_green_glitch_only_through_data_text_layers(self) -> None:
+    def test_titles_get_the_red_glitch_only_through_data_text_layers(self) -> None:
         self.assertIn("setAttribute('data-text'", self.JS)
         self.assertIn("cr-glitch", self.JS)
-        self.assertRegex(self.HOME, r"\.cr-glitch::before\{[^}]*content:attr\(data-text\)|content:attr\(data-text\)")
-        # The green exists only on the glitch layers; the rest of the home stays red, bone and black.
-        for rule in re.findall(r"([^{}]+)\{[^{}]*#b6ff00[^{}]*\}", self.HOME):
-            self.assertIn("cr-glitch", rule)
+        self.assertIn("content:attr(data-text)", self.HOME.replace(" ", ""))
+        # The glitch is the site's red (never the old lime): a short burst on a long cycle that never hides the text.
+        self.assertNotIn("#b6ff00", self.HOME)
+        self.assertRegex(self.HOME, r"\.cr-glitch::before\{color:var\(--red\)")
+        for name in ("cromo-glitch-a", "cromo-glitch-b"):
+            self.assertIn("@keyframes " + name, self.HOME)
+        self.assertNotIn("cromo-glitch-base", self.HOME)                      # the title itself never shakes
+        self.assertNotIn("skewX(", self.HOME)
+        shifts = [abs(int(v)) for v in re.findall(r"translate\((-?\d+)px", self.HOME[self.HOME.index("@keyframes cromo-glitch-a"):])]
+        self.assertTrue(shifts and max(shifts) <= 12, shifts)                 # shifts stay small enough to read through
+        self.assertRegex(self.HOME, r"cromo-glitch-a 5\.\d+s steps\(1\) infinite")   # one burst every ~5s, not constant
+        self.assertIn("cr-glitch::before,#cromo-home .cr-glitch::after{animation:none", self.HOME.replace("\n", "").replace("  ", ""))
         self.assertNotIn("innerHTML", self.JS)
 
 
@@ -460,23 +461,20 @@ class CromoBannersTests(unittest.TestCase):
         self.assertIn("cr-bn-layer{animation:none", blocks.replace(" ", ""))
 
 
-    def test_graph_has_no_card_template_and_keeps_an_accessible_text_view(self) -> None:
-        # No eyebrow above the heading and no big-number/small-label cards: the circle holds the count.
+    def test_explorer_has_no_card_template_and_names_real_items(self) -> None:
+        # No eyebrow above the heading, no big-number/small-label cards: columns of the real items instead.
         self.assertNotIn("Conexiones del archivo", self.JS)
-        self.assertNotRegex(HOME_CSS, r"cr-cn-nodes\s*\{[^}]*grid-template-columns")
-        self.assertIn("aria-label': 'Grafo de relaciones del archivo", self.JS)
-        self.assertIn("title.textContent = a + ' ↔ '", self.JS)   # each line is described for assistive tech
-        self.assertIn("list.replaceChildren(...rows())", self.JS)  # the side list is the table view of the same data
-        self.assertIn("IntersectionObserver", self.JS)             # the draw-in plays once, when first seen
-        self.assertRegex(HOME_CSS, r"cr-cn-stage\.cr-is-in \.cr-cn-line\{stroke-dashoffset:0")
-
-
-    def test_choosing_a_category_lists_its_real_items_with_links(self) -> None:
-        self.assertIn("itemsOf(selected, data)", self.JS)
-        for route in ("link('events', e.slug)", "link('artists', a.slug)", "link('sets', x.slug)", "link('releases', r.slug)"):
+        self.assertIn("cn2-col", self.JS)
+        self.assertIn("aria-hidden', 'true'", self.JS)             # the drawn lines are decorative; the sentence says it
+        self.assertIn("IntersectionObserver", self.JS)             # the lines draw in once, when first seen
+        self.assertRegex(HOME_CSS, r"cr-cn2-board\.cr-is-in \.cr-cn2-path\{stroke-dashoffset:0")
+    def test_choosing_an_item_shows_what_it_is_linked_to_in_plain_words(self) -> None:
+        for route in ("route('events', e.slug)", "route('artists', a.slug)", "route('sets', x.slug)", "route('releases', r.slug)"):
             self.assertIn(route, self.JS)
         self.assertIn("encodeURIComponent(slug)", self.JS)   # slugs from the CMS never build a raw URL
-        self.assertIn("all.length - 12", self.JS)            # long categories are capped with a link to the section
+        for phrase in ("Tocan ", "toca en ", "Puedes escuchar ", "todavía no tiene conexiones publicadas"):
+            self.assertIn(phrase, self.JS)
+        self.assertIn("LIMIT", self.JS)                      # long columns are capped with a "Ver todos" toggle
         self.assertNotIn("innerHTML", self.JS)
 
 
