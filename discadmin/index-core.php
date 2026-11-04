@@ -976,29 +976,32 @@ function render(){
  }
  const previousSide=root.querySelector('.side');
  document.body.classList.remove('admin-nav-open');
- const visibleSection=['theme','security'].includes(state.section)?'settings':state.section;
+ const visibleSection=state.section==='security'?'settings':state.section;
  const editorialSections=[
   ['dashboard','DASHBOARD'],
-  ['hero-slider','BANNERS'],
+  ['pages','PAGES'],
+  ['blog','BLOG'],
+  ['media','MEDIA'],
   ['events','EVENTS'],
   ['artists','ARTISTS'],
   ['releases','RELEASES'],
-  ['sets','SETS'],
-  ['media','MEDIA'],
-  ['pages','PAGES'],
-  ['blog','BLOG']
+  ['sets','SETS']
  ];
  const editorialNav=editorialSections.map(([key,label])=>{
   const active=visibleSection===key?'active':'';
   return `<button class="${active}" data-admin-nav="${key}" onclick="go('${key}')">${label}</button>`;
  }).join('');
+ const appearanceActive=['hero-slider','theme'].includes(state.section);
  const settingsActive=visibleSection==='settings'?'active':'';
  const systemActive=state.section==='system'?'active':'';
  const navHtml=[
-  '<div class="navgroup">SITE / EDITORIAL</div>',
   editorialNav,
-  '<div class="navgroup">CONFIGURATION / TECHNICAL</div>',
-  `<button class="${settingsActive}" data-admin-nav="settings" onclick="go('settings')">SETTINGS</button>`
+  `<button type="button" data-admin-nav="appearance" aria-expanded="${appearanceActive}" aria-controls="brvtal-nav-banners brvtal-nav-theme" class="${appearanceActive?'active':''}">APPEARANCE</button>`,
+  `<button id="brvtal-nav-banners" class="${state.section==='hero-slider'?'active':''}" data-ia-subnav="1" data-admin-nav="hero-slider" onclick="go('hero-slider')" ${appearanceActive?'':'hidden'}>BANNERS</button>`,
+  `<button id="brvtal-nav-theme" class="${state.section==='theme'?'active':''}" data-ia-subnav="1" data-admin-nav="theme" onclick="go('theme')" ${appearanceActive?'':'hidden'}>THEME STUDIO</button>`,
+  `<button class="${visibleSection==='seo'?'active':''}" data-admin-nav="seo" onclick="go('seo')">SEO</button>`,
+  `<button class="${settingsActive}" data-admin-nav="settings" onclick="go('settings')">SETTINGS</button>`,
+  `<button class="${systemActive}" data-admin-nav="system" onclick="tech('system')">SYSTEM STATUS</button>`
  ].join('');
  const moduleTitle=state.section==='content-core'
   ?'CONTENT CORE'
@@ -1023,7 +1026,6 @@ function render(){
   <div class="sub">DISCADMIN / CONTROL</div>
   <div class="nav">
    ${navHtml}
-   <button class="${systemActive}" data-admin-nav="system" onclick="tech('system')">SYSTEM STATUS</button>
   </div>
   <div class="sidefoot">
    <div class="brvtal-admin-release">

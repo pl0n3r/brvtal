@@ -70,11 +70,50 @@ quick_win_assert(
 );
 
 $indexCore = (string)file_get_contents(__DIR__ . '/../discadmin/index-core.php');
+$navItems = [
+    "['dashboard','DASHBOARD']",
+    "['pages','PAGES']",
+    "['blog','BLOG']",
+    "['media','MEDIA']",
+    "['events','EVENTS']",
+    "['artists','ARTISTS']",
+    "['releases','RELEASES']",
+    "['sets','SETS']",
+];
+$navStart = strpos($indexCore, ' const editorialSections=[');
+$navEnd = strpos($indexCore, ' const moduleTitle=state.section');
+$navSource = $navStart !== false && $navEnd !== false && $navEnd > $navStart
+    ? substr($indexCore, $navStart, $navEnd - $navStart)
+    : '';
+$lastPosition = -1;
+$orderedNavigation = true;
+foreach ($navItems as $item) {
+    $position = strpos($navSource, $item);
+    if ($position === false || $position <= $lastPosition) {
+        $orderedNavigation = false;
+        break;
+    }
+    $lastPosition = $position;
+}
+$appearance = strpos($navSource, '>APPEARANCE</button>');
+$banners = strpos($navSource, '>BANNERS</button>');
+$theme = strpos($navSource, '>THEME STUDIO</button>');
+$seo = strpos($navSource, '>SEO</button>');
 quick_win_assert(
-    str_contains($indexCore, 'SITE / EDITORIAL')
-        && str_contains($indexCore, 'CONFIGURATION / TECHNICAL')
-        && str_contains($indexCore, "['hero-slider','BANNERS']"),
-    'canonical shell must render the task-based navigation hierarchy before enhancements boot'
+    $orderedNavigation
+        && !str_contains($navSource, 'SITE / EDITORIAL')
+        && !str_contains($navSource, 'CONFIGURATION / TECHNICAL')
+        && $appearance !== false
+        && $banners !== false
+        && $theme !== false
+        && $seo !== false
+        && $appearance < $banners
+        && $banners < $theme
+        && $theme < $seo
+        && str_contains($navSource, 'data-admin-nav="appearance"')
+        && str_contains($navSource, 'data-admin-nav="hero-slider"')
+        && str_contains($navSource, 'data-admin-nav="theme"'),
+    'canonical shell must render the approved WordPress-like navigation before enhancements boot'
 );
 quick_win_assert(
     !str_contains($indexCore, '<span class="status"><i></i>ONLINE</span>'),
