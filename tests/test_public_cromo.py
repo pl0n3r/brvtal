@@ -285,6 +285,10 @@ class CromoHomeTests(unittest.TestCase):
         self.assertIn("Los próximos sets aparecerán aquí cuando estén publicados.", HOME_JS)
         self.assertIn("id: 'discos'", HOME_JS)
 
+    def test_legacy_archive_hash_preserves_the_original_archive_route(self) -> None:
+        self.assertIn("['#events', '#archive']", HOME_JS)
+        self.assertIn("window.location.hash", HOME_JS)
+
     def test_home_respects_reduced_motion(self) -> None:
         self.assertIn("prefers-reduced-motion:reduce", HOME_CSS)
         self.assertIn("reduce.matches", HOME_JS)

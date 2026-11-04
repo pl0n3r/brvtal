@@ -63,6 +63,121 @@
     return joinNames(names);
   };
 
+  const buildSets = (sets) => {
+    // --- Sets
+    let setsSec = el('section', { class: 'sec', id: 'discos' },
+      el('h2', { class: 'u', text: 'Sets' }),
+      el('p', { class: 'm', text: 'Los próximos sets aparecerán aquí cuando estén publicados.' }));
+    if (sets.length) {
+      const [first, ...rest] = sets;
+      const firstUrl = safeUrl(first.external_url);
+      const featBody = el('div', { style: 'position:relative' }, el('p', { text: 'Último set publicado' }), el('h3', { text: text(first.title) }),
+        el('p', { style: 'margin-top:12px', text: [text(first.artist_name), first.event_title ? 'en ' + text(first.event_title) : ''].filter(Boolean).join(', ') + '.' }));
+      const listen = el('a', Object.assign({ class: 'btn r', text: 'Escuchar' + (first.platform ? ' en ' + titleCase(text(first.platform)) : ''), href: firstUrl || '/sets/' + encodeURIComponent(first.slug) }, firstUrl ? { target: '_blank', rel: 'noopener noreferrer' } : {}));
+      const feat = el('article', { class: 'feat plate chrome-b' }, el('div', { class: 'disc', 'aria-hidden': 'true' }), featBody, el('div', { style: 'position:relative' }, listen));
+      const list = el('div', { class: 'sl' }, rest.slice(0, 4).map((s) => {
+        const url = safeUrl(s.external_url);
+        return el('a', Object.assign({ class: 'plate chrome-b', href: url || '/sets/' + encodeURIComponent(s.slug) }, url ? { target: '_blank', rel: 'noopener noreferrer' } : {}),
+          el('span', {}, el('b', { text: text(s.title) }), el('small', { text: text(s.artist_name) })), el('span', { class: 'pl', text: 'Escuchar' }));
+      }));
+      setsSec = el('section', { class: 'sec', id: 'discos' }, el('h2', { class: 'u', text: 'Sets' }), el('div', { class: 'sets' }, feat, list));
+    }
+
+    return setsSec;
+  };
+
+  const buildMemories = (memories) => {
+    // --- Memorias
+    const tiles = memories.slice(0, 9).map((m, index) => {
+      const url = safeUrl(m.file_path);
+      const isImage = m.type === 'image' && url;
+      const tile = el('a', Object.assign({ class: 't chrome-b' + (isImage ? ' has-img' : ''), href: url || '#memorias', 'data-type': m.type || 'image', style: (index === 0 ? 'grid-column:span 2;grid-row:span 2;' : '') + '--a:' + ((index * 90 + 20) % 360) + 'deg' + (isImage ? ';--img:url("' + url.replace(/["()\\]/g, '') + '")' : '') }, url ? { target: '_blank', rel: 'noopener noreferrer' } : {}), el('span', { text: text(m.title) }));
+      return tile;
+    });
+    const chipDefs = [['Todo', ''], ['Imágenes', 'image'], ['Video', 'video'], ['Audio', 'audio']];
+    const chips = el('div', { class: 'chips', role: 'group', 'aria-label': 'Filtrar medios' }, chipDefs.map(([label, type], i) => {
+      const chip = el('button', { class: 'chip' + (i === 0 ? ' on' : ''), type: 'button', 'aria-pressed': i === 0 ? 'true' : 'false', text: label });
+      chip.addEventListener('click', () => {
+        chips.querySelectorAll('.cr-chip').forEach((c) => { c.classList.toggle('cr-on', c === chip); c.setAttribute('aria-pressed', c === chip ? 'true' : 'false'); });
+        tiles.forEach((tile) => { tile.hidden = !!type && tile.dataset.type !== type; });
+      });
+      return chip;
+    }));
+    const memoriesSec = el('section', { class: 'sec', id: 'memorias' }, el('h2', { class: 'u', text: 'Memorias' }), chips,
+      tiles.length ? el('div', { class: 'mem' }, tiles) : el('p', { style: 'background:#030303;display:inline-block;padding:10px 16px;font:600 22px/1.4 var(--body)', text: 'Aquí irán las fotos y videos reales de cada noche.' }));
+
+    return memoriesSec;
+  };
+
+  const buildContact = () => {
+    // --- Contacto
+    const status = el('p', { class: 'form-status', role: 'status', 'aria-live': 'polite', 'data-state': 'idle' });
+    const captchaLabel = el('label', { for: 'cromo-c', text: 'Cargando…' });
+    const token = el('input', { type: 'hidden', name: 'captcha_token' });
+    const submit = el('button', { class: 'btn r', type: 'submit', text: 'Enviar mensaje' });
+    const field = (id, label, control, name) => el('div', {}, el('label', { for: id, text: label }), control, el('span', { class: 'form-err', 'data-error-for': name }));
+    const form = el('form', { class: 'form plate chrome-b', novalidate: true },
+      field('cromo-n', 'Nombre', el('input', { id: 'cromo-n', name: 'name', type: 'text', autocomplete: 'name', maxlength: '100', required: true }), 'name'),
+      field('cromo-e', 'Correo', el('input', { id: 'cromo-e', name: 'email', type: 'email', autocomplete: 'email', maxlength: '190', required: true }), 'email'),
+      field('cromo-m', 'Mensaje', el('textarea', { id: 'cromo-m', name: 'message', rows: '4', maxlength: '5000', required: true }), 'message'),
+      el('div', { class: 'hp', 'aria-hidden': 'true' }, el('input', { name: 'website', tabindex: '-1', autocomplete: 'off' })),
+      token,
+      el('div', { style: 'display:grid;grid-template-columns:140px 1fr;gap:14px;align-items:end' },
+        el('div', {}, captchaLabel, el('input', { id: 'cromo-c', name: 'captcha_answer', type: 'text', inputmode: 'numeric', pattern: '[0-9]*', required: true, autocomplete: 'off' }), el('span', { class: 'form-err', 'data-error-for': 'captcha' })),
+        submit),
+      status);
+    const setStatus = (msg, state) => { status.textContent = msg; status.dataset.state = state; };
+    const loadChallenge = async () => {
+      captchaLabel.textContent = 'Cargando…';
+      token.value = '';
+      form.elements.captcha_answer.value = '';
+      try {
+        const res = await fetch('/api/contact.php', { credentials: 'same-origin', headers: { Accept: 'application/json' }, cache: 'no-store' });
+        const payload = await res.json();
+        if (!res.ok || !payload.data || !payload.data.token) throw new Error('captcha');
+        captchaLabel.textContent = text(payload.data.question).replace(/\?\s*$/, '');
+        token.value = String(payload.data.token);
+      } catch (error) {
+        captchaLabel.textContent = 'Control anti-bot';
+        setStatus('El control anti-bot no está disponible. Intenta más tarde.', 'error');
+      }
+    };
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      form.querySelectorAll('[aria-invalid]').forEach((n) => n.removeAttribute('aria-invalid'));
+      form.querySelectorAll('.cr-form-err').forEach((n) => { n.textContent = ''; });
+      const body = Object.fromEntries(new FormData(form).entries());
+      body.subject = 'Contacto desde el home';
+      submit.disabled = true;
+      setStatus('Enviando…', 'idle');
+      try {
+        const res = await fetch('/api/contact.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(body) });
+        const payload = await res.json().catch(() => ({}));
+        if (res.ok && payload.ok !== false) { form.reset(); setStatus('Mensaje enviado. Gracias, te respondemos pronto.', 'success'); await loadChallenge(); return; }
+        if (res.status === 422) {
+          Object.keys(payload.fields || {}).forEach((name) => {
+            const key = name === 'form' ? 'captcha' : name;
+            const control = form.elements[key === 'captcha' ? 'captcha_answer' : key];
+            const slot = form.querySelector('[data-error-for="' + key + '"]');
+            if (slot) slot.textContent = 'Revisa este campo.';
+            if (control) control.setAttribute('aria-invalid', 'true');
+          });
+          setStatus('Revisa los campos marcados.', 'error');
+          if (payload.fields && payload.fields.captcha) await loadChallenge();
+          return;
+        }
+        setStatus(res.status === 429 ? 'Demasiados intentos. Espera un momento e inténtalo de nuevo.' : 'No pudimos enviar el mensaje. Inténtalo de nuevo.', 'error');
+      } catch (error) {
+        setStatus('No pudimos enviar el mensaje. Revisa tu conexión.', 'error');
+      } finally {
+        submit.disabled = false;
+      }
+    });
+    const end = el('section', { class: 'end', id: 'contacto' }, el('a', { class: 'u', href: '#contacto', text: 'Hablemos' }), form);
+
+    return { end, loadChallenge };
+  };
+
   const build = (data) => {
     const events = Array.isArray(data.events) ? data.events : [];
     const artists = Array.isArray(data.artists) ? data.artists : [];
@@ -138,42 +253,10 @@
       el('p', { text: 'Enciende el pulso y el metal líquido late con la pista.' }), el('div', {}, snd2));
 
     // --- Sets
-    let setsSec = el('section', { class: 'sec', id: 'discos' },
-      el('h2', { class: 'u', text: 'Sets' }),
-      el('p', { class: 'm', text: 'Los próximos sets aparecerán aquí cuando estén publicados.' }));
-    if (sets.length) {
-      const [first, ...rest] = sets;
-      const firstUrl = safeUrl(first.external_url);
-      const featBody = el('div', { style: 'position:relative' }, el('p', { text: 'Último set publicado' }), el('h3', { text: text(first.title) }),
-        el('p', { style: 'margin-top:12px', text: [text(first.artist_name), first.event_title ? 'en ' + text(first.event_title) : ''].filter(Boolean).join(', ') + '.' }));
-      const listen = el('a', Object.assign({ class: 'btn r', text: 'Escuchar' + (first.platform ? ' en ' + titleCase(text(first.platform)) : ''), href: firstUrl || '/sets/' + encodeURIComponent(first.slug) }, firstUrl ? { target: '_blank', rel: 'noopener noreferrer' } : {}));
-      const feat = el('article', { class: 'feat plate chrome-b' }, el('div', { class: 'disc', 'aria-hidden': 'true' }), featBody, el('div', { style: 'position:relative' }, listen));
-      const list = el('div', { class: 'sl' }, rest.slice(0, 4).map((s) => {
-        const url = safeUrl(s.external_url);
-        return el('a', Object.assign({ class: 'plate chrome-b', href: url || '/sets/' + encodeURIComponent(s.slug) }, url ? { target: '_blank', rel: 'noopener noreferrer' } : {}),
-          el('span', {}, el('b', { text: text(s.title) }), el('small', { text: text(s.artist_name) })), el('span', { class: 'pl', text: 'Escuchar' }));
-      }));
-      setsSec = el('section', { class: 'sec', id: 'discos' }, el('h2', { class: 'u', text: 'Sets' }), el('div', { class: 'sets' }, feat, list));
-    }
+    const setsSec = buildSets(sets);
 
     // --- Memorias
-    const tiles = memories.slice(0, 9).map((m, index) => {
-      const url = safeUrl(m.file_path);
-      const isImage = m.type === 'image' && url;
-      const tile = el('a', Object.assign({ class: 't chrome-b' + (isImage ? ' has-img' : ''), href: url || '#memorias', 'data-type': m.type || 'image', style: (index === 0 ? 'grid-column:span 2;grid-row:span 2;' : '') + '--a:' + ((index * 90 + 20) % 360) + 'deg' + (isImage ? ';--img:url("' + url.replace(/["()\\]/g, '') + '")' : '') }, url ? { target: '_blank', rel: 'noopener noreferrer' } : {}), el('span', { text: text(m.title) }));
-      return tile;
-    });
-    const chipDefs = [['Todo', ''], ['Imágenes', 'image'], ['Video', 'video'], ['Audio', 'audio']];
-    const chips = el('div', { class: 'chips', role: 'group', 'aria-label': 'Filtrar medios' }, chipDefs.map(([label, type], i) => {
-      const chip = el('button', { class: 'chip' + (i === 0 ? ' on' : ''), type: 'button', 'aria-pressed': i === 0 ? 'true' : 'false', text: label });
-      chip.addEventListener('click', () => {
-        chips.querySelectorAll('.cr-chip').forEach((c) => { c.classList.toggle('cr-on', c === chip); c.setAttribute('aria-pressed', c === chip ? 'true' : 'false'); });
-        tiles.forEach((tile) => { tile.hidden = !!type && tile.dataset.type !== type; });
-      });
-      return chip;
-    }));
-    const memoriesSec = el('section', { class: 'sec', id: 'memorias' }, el('h2', { class: 'u', text: 'Memorias' }), chips,
-      tiles.length ? el('div', { class: 'mem' }, tiles) : el('p', { style: 'background:#030303;display:inline-block;padding:10px 16px;font:600 22px/1.4 var(--body)', text: 'Aquí irán las fotos y videos reales de cada noche.' }));
+    const memoriesSec = buildMemories(memories);
 
     // --- Journal
     const post = posts[0];
@@ -191,69 +274,7 @@
     const journalSec = el('section', { class: 'sec', id: 'journal' }, el('h2', { class: 'u', text: 'Journal' }), el('div', { class: 'journal' }, cards));
 
     // --- Contacto
-    const status = el('p', { class: 'form-status', role: 'status', 'aria-live': 'polite', 'data-state': 'idle' });
-    const captchaLabel = el('label', { for: 'cromo-c', text: 'Cargando…' });
-    const token = el('input', { type: 'hidden', name: 'captcha_token' });
-    const submit = el('button', { class: 'btn r', type: 'submit', text: 'Enviar mensaje' });
-    const field = (id, label, control, name) => el('div', {}, el('label', { for: id, text: label }), control, el('span', { class: 'form-err', 'data-error-for': name }));
-    const form = el('form', { class: 'form plate chrome-b', novalidate: true },
-      field('cromo-n', 'Nombre', el('input', { id: 'cromo-n', name: 'name', type: 'text', autocomplete: 'name', maxlength: '100', required: true }), 'name'),
-      field('cromo-e', 'Correo', el('input', { id: 'cromo-e', name: 'email', type: 'email', autocomplete: 'email', maxlength: '190', required: true }), 'email'),
-      field('cromo-m', 'Mensaje', el('textarea', { id: 'cromo-m', name: 'message', rows: '4', maxlength: '5000', required: true }), 'message'),
-      el('div', { class: 'hp', 'aria-hidden': 'true' }, el('input', { name: 'website', tabindex: '-1', autocomplete: 'off' })),
-      token,
-      el('div', { style: 'display:grid;grid-template-columns:140px 1fr;gap:14px;align-items:end' },
-        el('div', {}, captchaLabel, el('input', { id: 'cromo-c', name: 'captcha_answer', type: 'text', inputmode: 'numeric', pattern: '[0-9]*', required: true, autocomplete: 'off' }), el('span', { class: 'form-err', 'data-error-for': 'captcha' })),
-        submit),
-      status);
-    const setStatus = (msg, state) => { status.textContent = msg; status.dataset.state = state; };
-    const loadChallenge = async () => {
-      captchaLabel.textContent = 'Cargando…';
-      token.value = '';
-      form.elements.captcha_answer.value = '';
-      try {
-        const res = await fetch('/api/contact.php', { credentials: 'same-origin', headers: { Accept: 'application/json' }, cache: 'no-store' });
-        const payload = await res.json();
-        if (!res.ok || !payload.data || !payload.data.token) throw new Error('captcha');
-        captchaLabel.textContent = text(payload.data.question).replace(/\?\s*$/, '');
-        token.value = String(payload.data.token);
-      } catch (error) {
-        captchaLabel.textContent = 'Control anti-bot';
-        setStatus('El control anti-bot no está disponible. Intenta más tarde.', 'error');
-      }
-    };
-    form.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      form.querySelectorAll('[aria-invalid]').forEach((n) => n.removeAttribute('aria-invalid'));
-      form.querySelectorAll('.cr-form-err').forEach((n) => { n.textContent = ''; });
-      const body = Object.fromEntries(new FormData(form).entries());
-      body.subject = 'Contacto desde el home';
-      submit.disabled = true;
-      setStatus('Enviando…', 'idle');
-      try {
-        const res = await fetch('/api/contact.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(body) });
-        const payload = await res.json().catch(() => ({}));
-        if (res.ok && payload.ok !== false) { form.reset(); setStatus('Mensaje enviado. Gracias, te respondemos pronto.', 'success'); await loadChallenge(); return; }
-        if (res.status === 422) {
-          Object.keys(payload.fields || {}).forEach((name) => {
-            const key = name === 'form' ? 'captcha' : name;
-            const control = form.elements[key === 'captcha' ? 'captcha_answer' : key];
-            const slot = form.querySelector('[data-error-for="' + key + '"]');
-            if (slot) slot.textContent = 'Revisa este campo.';
-            if (control) control.setAttribute('aria-invalid', 'true');
-          });
-          setStatus('Revisa los campos marcados.', 'error');
-          if (payload.fields && payload.fields.captcha) await loadChallenge();
-          return;
-        }
-        setStatus(res.status === 429 ? 'Demasiados intentos. Espera un momento e inténtalo de nuevo.' : 'No pudimos enviar el mensaje. Inténtalo de nuevo.', 'error');
-      } catch (error) {
-        setStatus('No pudimos enviar el mensaje. Revisa tu conexión.', 'error');
-      } finally {
-        submit.disabled = false;
-      }
-    });
-    const end = el('section', { class: 'end', id: 'contacto' }, el('a', { class: 'u', href: '#contacto', text: 'Hablemos' }), form);
+    const { end, loadChallenge } = buildContact();
 
     // --- Footer
     const cookiePrefs = document.querySelector('.brvtal-cookie-preferences');
@@ -304,6 +325,8 @@
   };
 
   const start = () => {
+    // Preserve legacy archive deep links without showing the archive on the new home.
+    if (['#events', '#archive'].includes(window.location.hash)) return;
     fetch('/api/public.php', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error('http'))))
       .then((payload) => { if (payload && payload.data && !document.getElementById('cromo-home')) mount(payload.data); })
