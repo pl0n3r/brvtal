@@ -249,10 +249,10 @@ test('Experiencia Cromo apila poster y ficha en 375/390/430/900, conserva escrit
         const facts = node.querySelector('.cr-xp-facts');
         const title = node.querySelector('h3');
         return {
-          columns: getComputedStyle(node).gridTemplateColumns.trim().split(/\\s+/).length,
+          columns: getComputedStyle(node).gridTemplateColumns.trim().split(/\s+/).length,
           card: rect(node), panel: rect(panel), flyer: rect(flyer),
           panelPadding: parseFloat(getComputedStyle(panel).paddingLeft),
-          factsColumns: getComputedStyle(facts).gridTemplateColumns.trim().split(/\\s+/).length,
+          factsColumns: getComputedStyle(facts).gridTemplateColumns.trim().split(/\s+/).length,
           title: rect(title), brand: rect(brand), sound: rect(sound), tickets: rect(tickets),
           ctas: [...node.querySelectorAll('.cr-xp-cta a')].map(rect),
           header: rect(header),
