@@ -194,6 +194,29 @@ class ProductionSmokeDiagnosticsTests(unittest.TestCase):
         self.assertIn("if (evidence.blockedMutations.length)", source)
 
 
+    def test_full_discadmin_coverage_is_read_only_and_fail_closed(self):
+        source = SMOKE.read_text(encoding="utf-8")
+        self.assertIn("adminCoverage: { sections: [], features: [] }", source)
+        self.assertIn("await auditRemainingDiscAdmin(page, context);", source)
+        self.assertIn("if (!item.pass) throw new Error(", source)
+        for section in ("pages", "artists", "releases", "blog", "media",
+                        "memories", "seo", "themeStudio", "settings", "systemStatus"):
+            self.assertIn("'" + section + "'", source)
+        for feature in ("bulkActions", "analyticsPrivacy", "twoFactorUI",
+                        "backups", "globalSearch", "contentHealth", "adminActivity"):
+            self.assertIn("'" + feature + "'", source)
+        self.assertIn("await page.route(totpRoute,async route=>", source)
+        self.assertIn("await page.unroute(totpRoute);", source)
+        self.assertIn("backendVerified:false,enrollmentInvoked:false", source)
+        self.assertIn("valuesCaptured:false,saveInvoked:false", source)
+        self.assertIn("createInvoked:false,restoreInvoked:false", source)
+        self.assertIn("if (evidence.serverErrors.length)", source)
+        self.assertIn("if (evidence.blockedMutations.length)", source)
+        self.assertIn("if (evidence.authentication.http401.length)", source)
+        self.assertNotIn("context.request.put(", source)
+        self.assertNotIn("context.request.patch(", source)
+        self.assertNotIn("context.request.delete(", source)
+
     def test_dashboard_checkpoint_has_no_stale_server_errors_binding(self):
         source = SMOKE.read_text(encoding="utf-8")
         self.assertNotIn("    serverErrors,\n", source)
