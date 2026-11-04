@@ -288,6 +288,13 @@
     ['artist_release', 'Artistas', 'Discos'], ['event_memory', 'Eventos', 'Memorias'], ['artist_memory', 'Artistas', 'Memorias'],
     ['set_memory', 'Sonido', 'Memorias'], ['release_memory', 'Discos', 'Memorias'],
   ];
+  // What each kind of link means, in plain words (shown under every relation).
+  const NOTE = {
+    event_artist: 'Artistas que tocan en cada noche', event_set: 'Sets grabados en cada noche',
+    artist_set: 'Sets de cada artista', artist_release: 'Discos de cada artista',
+    event_memory: 'Memorias de cada noche', artist_memory: 'Memorias donde aparece cada artista',
+    set_memory: 'Memorias de cada set', release_memory: 'Memorias de cada disco',
+  };
   const SECTION = { Eventos: '#noches', Artistas: '#artistas', Sonido: '#sonido', Discos: '#discos', Memorias: '#memorias' };
 
   // Motion timing is read from the shared tokens (css/public-cromo-home.css), never hardcoded here.
@@ -331,7 +338,7 @@
     const len = (list) => (Array.isArray(list) ? list.length : 0);
     const nodes = [['Eventos', len(data.events)], ['Artistas', len(data.artists)], ['Sonido', len(data.sets)],
       ['Discos', len(data.releases)], ['Memorias', len(data.memories)]];
-    const edges = EDGES.map(([key, a, b]) => [a, b, count(key)]).filter((e) => e[2] > 0);
+    const edges = EDGES.map(([key, a, b]) => [a, b, count(key), key]).filter((e) => e[2] > 0);
     const sumOf = (list) => list.reduce((sum, e) => sum + e[2], 0);
 
     let selected = null;
@@ -344,11 +351,16 @@
       grid.append(el('li', {}, button));
     });
 
+    const kicker = el('p', { class: 'cn-k', text: 'Conexiones del archivo' });
     const heading = el('p', { class: 'cn-sel u' });
     const headingText = document.createElement('span');
     headingText.className = 't-text-soft';
     headingText.textContent = 'Todo el archivo';
     heading.append(headingText);
+    const lead = el('p', { class: 'cn-lead' });
+    const leadText = document.createElement('span');
+    leadText.className = 't-text-soft';
+    lead.append(leadText);
     const list = el('ul', { class: 'cn-edges', 'aria-live': 'polite' });
     const totalNode = el('p', { class: 'cn-total' });
     const totalText = document.createElement('span');
@@ -359,18 +371,27 @@
     const reset = el('button', { class: 'btn r', type: 'button', text: 'Ver todo', hidden: true });
 
     const visible = () => (selected ? edges.filter((e) => e[0] === selected || e[1] === selected) : edges);
+    const plural = (n) => n + (n === 1 ? ' vínculo' : ' vínculos');
+    const leadLabel = () => {
+      if (!selected) return 'Un vínculo une dos piezas del archivo, por ejemplo un set con el artista que lo tocó. Elige una categoría para ver con qué se conecta.';
+      const n = (nodes.find((x) => x[0] === selected) || [0, 0])[1];
+      return n + ' en el archivo público. Esto es lo que la conecta con otras categorías:';
+    };
     const totalLabel = () => {
       const shown = visible();
-      if (!shown.length) return selected ? selected + ' aún no tiene vínculos publicados.' : 'Sin vínculos publicados aún.';
-      return sumOf(shown) + (selected ? ' vínculos verificados de ' + selected + '.' : ' vínculos verificados en el archivo público.');
+      if (!shown.length) return selected ? selected + ' todavía no tiene vínculos publicados.' : 'Sin vínculos publicados aún.';
+      return selected ? plural(sumOf(shown)) + ' de ' + selected + ' con otras categorías.' : sumOf(shown) + ' vínculos verificados en el archivo público.';
     };
     const rows = () => {
       const shown = visible();
       if (!shown.length) return [el('li', { class: 'cn-empty', text: 'Todavía no hay relaciones publicadas.' })];
-      return shown.map(([a, b, n], i) => {
+      return shown.map(([a, b, n, key], i) => {
         const other = selected ? (a === selected ? b : a) : b;
-        return el('li', { style: '--i:' + i }, el('a', { class: 'cn-edge', href: SECTION[other], 'aria-label': a + ' con ' + b + ': ' + n + '. Ir a ' + other },
-          el('span', { text: a + ' ↔ ' + b }), el('b', { text: String(n) }), el('i', { 'aria-hidden': 'true', text: 'Ver' })));
+        const main = selected ? other : a + ' y ' + b;
+        return el('li', { style: '--i:' + i }, el('a', { class: 'cn-edge', href: SECTION[other], 'aria-label': main + ': ' + plural(n) + '. ' + NOTE[key] + '. Ir a ' + other },
+          el('span', { class: 'cn-e-t' }, el('strong', { text: main }), el('small', { text: NOTE[key] })),
+          el('b', {}, el('span', { class: 'u', text: String(n) }), el('em', { text: n === 1 ? 'vínculo' : 'vínculos' })),
+          el('i', { 'aria-hidden': 'true', text: 'Ver' })));
       });
     };
     const paintList = (animate) => {
@@ -388,7 +409,9 @@
         button.classList.toggle('cr-is-linked', Boolean(linked));
       });
       grid.classList.toggle('cr-has-selection', Boolean(selected));
-      softSwap(headingText, selected ? selected + ' conecta con' : 'Todo el archivo');
+      softSwap(headingText, selected || 'Todo el archivo');
+      softSwap(leadText, leadLabel());
+      tagline.hidden = Boolean(selected);
       softSwap(totalText, totalLabel());
       go.textContent = selected ? 'Ir a ' + selected : 'Explorar el archivo';
       go.setAttribute('href', selected ? SECTION[selected] : '#memorias');
@@ -399,13 +422,15 @@
     reset.addEventListener('click', () => choose(selected));
 
     headingText.dataset.text = 'Todo el archivo';
+    leadText.textContent = leadLabel();
+    leadText.dataset.text = leadText.textContent;
     totalText.textContent = totalLabel();
     totalText.dataset.text = totalText.textContent;
     paintList(false);
 
     const section = el('section', { class: 'sec', id: 'conectado' }, el('h2', { class: 'u', text: 'Conectado' }),
       el('div', { class: 'cn' }, grid,
-        el('div', { class: 'cn-side plate chrome-b' }, heading, list, totalNode, tagline, el('div', { class: 'cn-actions' }, go, reset))));
+        el('div', { class: 'cn-side plate chrome-b' }, kicker, heading, lead, list, totalNode, tagline, el('div', { class: 'cn-actions' }, go, reset))));
     section.addEventListener('keydown', (event) => { if (event.key === 'Escape' && selected) choose(selected); });
     return section;
   };
@@ -476,6 +501,12 @@
   const mount = (data) => {
     const parts = build(data);
     window.BRVTAL_CROMO_ACCENT = [1, .17, .05];
+    // Section titles carry a green glitch layer (same idea as the old Genesis title): the layer
+    // copies the text through data-text, so the heading itself stays plain text for assistive tech.
+    parts.home.querySelectorAll('h2.cr-u, .cr-end > a.cr-u').forEach((title) => {
+      title.setAttribute('data-text', text(title.textContent));
+      title.classList.add('cr-glitch');
+    });
     document.body.appendChild(parts.home);
     root.classList.add('cromo-home');
     const sound = window.BRVTALCromoSound;

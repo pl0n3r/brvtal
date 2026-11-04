@@ -403,9 +403,19 @@ class CromoMotionTests(unittest.TestCase):
         self.assertNotIn("innerHTML", self.JS)
 
     def test_graph_and_swap_have_reduced_motion_fallbacks(self) -> None:
-        block = self.HOME[self.HOME.rindex("prefers-reduced-motion"):]
+        block = "".join(self.HOME[m.start():] for m in re.finditer("prefers-reduced-motion", self.HOME))
         for needle in ("cr-cn-node", "t-text-soft", "cr-cn-edges li{animation:none}"):
             self.assertIn(needle, block)
+
+
+    def test_titles_get_the_green_glitch_only_through_data_text_layers(self) -> None:
+        self.assertIn("setAttribute('data-text'", self.JS)
+        self.assertIn("cr-glitch", self.JS)
+        self.assertRegex(self.HOME, r"\.cr-glitch::before\{[^}]*content:attr\(data-text\)|content:attr\(data-text\)")
+        # The green exists only on the glitch layers; the rest of the home stays red, bone and black.
+        for rule in re.findall(r"([^{}]+)\{[^{}]*#b6ff00[^{}]*\}", self.HOME):
+            self.assertIn("cr-glitch", rule)
+        self.assertNotIn("innerHTML", self.JS)
 
 
 if __name__ == "__main__":
