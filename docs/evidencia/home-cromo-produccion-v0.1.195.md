@@ -55,8 +55,18 @@ No se han registrado como defectos las observaciones inconclusas, la falta de di
 - **AC-02:** este archivo corresponde a la ruta reclamada.
 - **AC-03:** cuatro defectos reproducidos tienen Issue enlazado.
 - **AC-04:** cumplido en esta ejecución; solo GET públicos, interacción UI, sin credenciales ni envío de formulario.
-- **AC-05:** pendiente de `factory-ci / Validar` terminal `success` sobre HEAD definitivo y revisión final permitida.
+- **AC-05:** el check `factory-ci / Validar` llegó a **success** para el HEAD reconciliado `085bd7a9613ce6350ee89b02972704fde726817b` ([run 41842079211](https://github.com/pl0n3r/brvtal/actions/runs/41842079211)). Para la revisión y eventual fusión se debe verificar de nuevo el `success` terminal contra el **HEAD vigente del PR**, que puede cambiar cuando se actualice este mismo informe. AC-05 no sustituye AC-01.
 
 **Puerta humana explícita:** antes de enviar el formulario de producción, el dueño debe acordar el texto de la prueba y autorizar el envío. Sin esa autorización no se marca el criterio como probado. La prueba en un **móvil físico real** tampoco se sustituye por emulación ni se declara cumplida por falta de equipamiento.
 
-**Continuación segura:** completar pruebas permitidas, incorporar evidencia visual mediante un claim legítimo sin invadir rutas, resolver autorización/hardware, y solo entonces abrir/finalizar el PR y satisfacer gates exactos para fusionar; no falsificar un resultado por el color de CI.
+**Continuación segura:** completar pruebas permitidas, incorporar evidencia visual mediante un claim legítimo sin invadir rutas, resolver autorización/hardware, y solo entonces marcar el PR #1517 como definitivo y satisfacer gates exactos para fusionar; no falsificar un resultado por el color de CI.
+
+
+## Revalidación de coordinación y puertas de QA (2026-11-04)
+
+- **PR existente:** [#1517](https://github.com/pl0n3r/brvtal/pull/1517), en estado **DRAFT**, reservado por la lease V3 `e3f7400e-4e13-42bc-ab3b-54299239ad3a`. Al consultar el HEAD `085bd7a9613ce6350ee89b02972704fde726817b`, la rama no estaba rezagada respecto de `main@56ec4fa6cdbeca4308d080bcb9f4e3dd2d8f69b2`, y su diff se limitaba al presente Markdown.
+- **Gates técnicos del HEAD previo:** `BRVTAL CI / validate` success, `factory-ci / Validar` success, SonarCloud success, CodeQL success y Factory Policy success. CodeRabbit check **skipped** por tratarse de un PR DRAFT, sin review FINAL. Deben repetirse o acreditarse sobre el HEAD posterior a cualquier edición; no se heredan automáticamente.
+- **Mensaje de prueba propuesto (SIN envío):** `Prueba técnica controlada BRVTAL, issue #1507. Verificación del envío de contacto, protección anti-robots y confirmación de éxito en producción. Mensaje de QA; no requiere respuesta comercial.` La propuesta y la solicitud de autorización están en el [comentario #6632556563](https://github.com/pl0n3r/brvtal/issues/1507#issuecomment-6632556563). No hay aprobación explícita de texto, nombre y correo de prueba. **No completar ni enviar el formulario sin esa aprobación**.
+- **Equipo físico:** las comprobaciones del Mac autorizado (`system_profiler SPUSBDataType` y disponibilidad de `adb`) no aportaron ningún teléfono disponible para esta QA. No se deben reclasificar la emulación 390 px, el contexto WebAudio o el CSS de movimiento reducido como validación en hardware físico.
+- **Confirmación independiente:** el [comentario de CodeRabbit en el issue](https://github.com/pl0n3r/brvtal/issues/1507#issuecomment-6632567905) señaló que la solicitud del mensaje no es una autorización y que falta móvil real, audio audible y una noche pasada publicada. Ese comentario no constituye una revisión FINAL del PR #1517.
+- **Cierre condicionado:** AC-01 permanece **parcial**. Ni CI verde ni una lista de `UNKNOWN` sustituyen resultados de pruebas no ejecutadas; #1507 no se cierra hasta obtener la evidencia faltante o una decisión explícita y legítima del dueño que revise el alcance.
