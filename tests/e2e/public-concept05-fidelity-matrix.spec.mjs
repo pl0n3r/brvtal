@@ -47,12 +47,6 @@ const fixture = `<!doctype html>
     <span class="c5-header-origin mono">PEREIRA / COLOMBIA</span>
     <a class="c5-header-ticket" href="#genesis">TICKETS <span>↗</span></a>
     <div class="nav-right">
-      <fieldset class="language-selector">
-        <legend>Idioma / Language</legend>
-        <button type="button" class="language-option magnetic" data-locale="es" aria-pressed="true" data-cursor="ES">ES</button>
-        <span class="language-separator" aria-hidden="true">/</span>
-        <button type="button" class="language-option magnetic" data-locale="en" aria-pressed="false" data-cursor="EN" disabled>EN</button>
-      </fieldset>
       <button class="menu magnetic" type="button">MENU +</button>
     </div>
   </header>
@@ -432,8 +426,10 @@ test('Concept 05 canonical 390 and 1440 preserve distinct authored compositions'
   expect(desktop.heroBackground).toContain('linear-gradient');
 });
 
-test('Concept 05 critical actions remain touch-safe and keyboard focus remains visible', async ({ page }) => {
+test('Concept 05 Spanish-only actions remain touch-safe and keyboard focus remains visible', async ({ page }) => {
   await mount(page, { width:430, height:900 });
+  await expect(page.locator('.language-selector')).toHaveCount(0);
+  await expect(page.locator('.nav-right button')).toHaveCount(1);
 
   const heights = await page.locator(
     '.nav-right button,.experience-actions a,.c5-section-route,.transmissions-route,.c5-bottom-nav a'
