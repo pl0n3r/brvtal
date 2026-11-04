@@ -151,3 +151,44 @@ html.cromo-home body>*:not(#cromo-home):not(#cromoGL):not(script):not(style):not
   #cromo-home .cr-band div,#cromo-home .cr-snd.cr-on i,#cromo-home .cr-core h1 span,#cromo-home .cr-ac .cr-orb,#cromo-home .cr-feat .cr-disc{animation:none}
   #cromo-home .cr-ac,#cromo-home .cr-night,#cromo-home .cr-mem .cr-t{transition:none}
 }
+
+/* ---------- Secciones del Concept 05 que se conservan (Genesis y Conectado), adaptadas al look ---------- */
+#cromo-home .cr-keep{
+  position:relative;
+  z-index:2;
+  margin:clamp(24px,5vw,64px) clamp(14px,4vw,64px);
+  padding:clamp(18px,3vw,40px);
+  background:rgba(3,3,3,.9);
+  border:1px solid rgba(244,241,232,.22);
+  border-top:3px solid #e12e34;
+  color:#f4f1e8;
+  overflow:hidden;
+}
+#cromo-home .cr-keep h2{
+  font-family:"Broken Glass","Barlow Condensed",sans-serif;
+  font-weight:400;
+  color:#f4f1e8;
+  -webkit-text-stroke:2px #050505;
+  paint-order:stroke fill;
+  text-shadow:.04em .05em 0 #e12e34;
+  line-height:.9;
+}
+#cromo-home .cr-keep .mono,
+#cromo-home .cr-keep .eyebrow,
+#cromo-home .cr-keep [class*="kicker"],
+#cromo-home .cr-keep [class*="tagline"]{
+  font-family:"Space Mono",monospace;
+  color:#f4f1e8;
+}
+#cromo-home .cr-keep a.enter,
+#cromo-home .cr-keep a[class*="route"]{
+  display:inline-flex;align-items:center;min-height:44px;padding:0 18px;
+  background:#e12e34;color:#fff;text-decoration:none;
+  font:700 13px/1 "Space Mono",monospace;letter-spacing:.06em;text-transform:uppercase;
+}
+#cromo-home .cr-keep :focus-visible{outline:3px solid #f4f1e8;outline-offset:3px}
+#cromo-home .cr-keep .genesis-bg,
+#cromo-home .cr-keep .genesis-noise,
+#cromo-home .cr-keep .genesis-scanline{display:none}
+#cromo-home .cr-keep [class*="connected"] svg [stroke]{stroke:#e12e34}
+#cromo-home .cr-keep [class*="connected-node"]{background:#050505;border:2px solid #f4f1e8;color:#f4f1e8}
