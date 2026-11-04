@@ -761,6 +761,12 @@
     stage.style.setProperty('--hero-overlay', String(slide.overlay / 100));
     appendPreviewMedia(stage, slide);
 
+    // Match the Cromo public banner: duotone tint above media, below copy and handles.
+    const tint = document.createElement('div');
+    tint.className = 'hero-preview-tint';
+    tint.setAttribute('aria-hidden', 'true');
+    stage.appendChild(tint);
+
     const overlay = document.createElement('div');
     overlay.className = 'hero-preview-overlay';
     stage.appendChild(overlay);
@@ -776,6 +782,14 @@
       appendPreviewText(copy, 'b', slide.ctaLabel ? `${slide.ctaLabel} ↗` : '');
       stage.appendChild(copy);
     }
+    // An editor-only visual index: no new fields are saved to the slide model.
+    const position = Math.max(0, config.slides.findIndex(item => item.id === slide.id));
+    const counter = document.createElement('p');
+    counter.className = 'hero-preview-counter';
+    counter.setAttribute('aria-hidden', 'true');
+    appendPreviewText(counter, 'b', String(position + 1).padStart(2, '0'));
+    appendPreviewText(counter, 'span', '/ ' + String(config.slides.length).padStart(2, '0'));
+    stage.appendChild(counter);
     frame.appendChild(stage);
   }
 
