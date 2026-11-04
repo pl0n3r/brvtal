@@ -144,3 +144,71 @@ test('Memorias muestra completa la imagen vertical del CMS en móvil y escritori
     await expect(card).toBeVisible();
   }
 });
+
+
+test('Social & Contact shows five CMS links after contact form at 390 and 1440', async ({ page }) => {
+  const social = {
+    instagram: 'https://www.instagram.com/brvtal/',
+    soundcloud: 'https://soundcloud.com/brvtal',
+    youtube: 'https://www.youtube.com/@brvtal',
+    spotify: 'https://open.spotify.com/artist/1234',
+    website: 'https://brvtal.example.org/contact?ref=home',
+  };
+  const labels = ['Instagram', 'SoundCloud', 'YouTube', 'Spotify', 'Sitio web'];
+  for (const width of [390, 1440]) {
+    await mount(page, { width, payload: { ...data, settings: { social } } });
+    const links = page.locator('#contacto .cr-social-link');
+    await expect(links).toHaveCount(5);
+    await expect(page.locator('#contacto .cr-social h2')).toHaveText('Enlaces oficiales');
+    await expect(page.locator('#contacto form')).toBeVisible();
+    await expect(page.locator('#contacto form input[name="email"]')).toHaveCount(1);
+    await expect(page.locator('#contacto form button[type="submit"]')).toHaveCount(1);
+    for (let i = 0; i < 5; i++) {
+      const link = links.nth(i);
+      await expect(link).toContainText(labels[i]);
+      await expect(link).toHaveAttribute('href', Object.values(social)[i]);
+      await expect(link).toHaveAttribute('target', '_blank');
+      await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+      const size = await link.evaluate(n => ({ width: n.getBoundingClientRect().width, height: n.getBoundingClientRect().height }));
+      expect(size.width).toBeGreaterThanOrEqual(44);
+      expect(size.height).toBeGreaterThanOrEqual(44);
+    }
+    await links.first().focus();
+    await expect(links.first()).toBeFocused();
+    expect(await links.first().evaluate(n => getComputedStyle(n).outlineStyle)).toBe('solid');
+    await noOverflow(page);
+  }
+});
+
+test('Social & Contact filters malformed and unsafe values, supports legacy keys and missing data', async ({ page }) => {
+  const social = {
+    instagram: 'javascript:alert(1)',
+    instagram_url: 'https://instagram.com/old-destination',
+    soundcloud_url: 'https://soundcloud.com/legacy-profile',
+    youtube: '/relative/path',
+    spotify: 'https://user:secret@open.spotify.com/artist/1',
+    website: 'https://host.example.com\\@attacker.invalid',
+  };
+  await mount(page, { width: 390, payload: { ...data, settings: { social } } });
+  let links = page.locator('#contacto .cr-social-link');
+  await expect(links).toHaveCount(1);
+  await expect(links).toHaveAttribute('href', 'https://soundcloud.com/legacy-profile');
+  await noOverflow(page);
+  await mount(page, { payload: { ...data, settings: { social: {
+    instagram: 'data:text/html,<script>alert(1)</script>',
+    soundcloud: 'https://', youtube: 'http://@example.com',
+    spotify: 'https://bad.example.com/with space', website: 'mailto:hello@example.com',
+  } } } });
+  await expect(page.locator('#contacto .cr-social')).toHaveCount(0);
+  await expect(page.locator('#contacto form')).toBeVisible();
+  await mount(page, { payload: { ...data, settings: {} } });
+  await expect(page.locator('#contacto .cr-social')).toHaveCount(0);
+  await mount(page, { payload: { ...data, settings: { social: {
+    website_url: 'https://example.org/?q=%3Cimg%20onerror%3Dalert(1)%3E',
+  } } } });
+  links = page.locator('#contacto .cr-social-link');
+  await expect(links).toHaveCount(1);
+  await expect(page.locator('#contacto .cr-social img')).toHaveCount(0);
+  await expect(links).toHaveAttribute('target', '_blank');
+  await noOverflow(page);
+});
