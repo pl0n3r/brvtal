@@ -43,7 +43,7 @@ try {
         // A missing optional table must not disable delivery for published media.
         if (function_exists('brvtal_log')) {
             brvtal_log('PUBLIC_IMAGE_DELIVERY_EVENTS_UNAVAILABLE', 'Event cover lookup failed', [
-                'class' => get_class($eventError),
+                'class' => $eventError::class,
             ]);
         }
     }
@@ -60,7 +60,7 @@ try {
 } catch (Throwable $e) {
     if (function_exists('brvtal_log')) {
         brvtal_log('PUBLIC_IMAGE_DELIVERY_ERROR', 'Public image delivery failure', [
-            'class' => get_class($e),
+            'class' => $e::class,
             'message' => $e->getMessage(),
         ]);
     }
