@@ -101,6 +101,9 @@ function brvtalActivitySettingKeyAuditable(string $key): bool
         'public.contact_email',
         'public.instagram_url',
         'public.soundcloud_url',
+        'privacy.controller_name',
+        'privacy.controller_email',
+        'privacy.response_time',
     ], true);
 }
 

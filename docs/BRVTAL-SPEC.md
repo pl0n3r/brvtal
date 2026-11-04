@@ -49,7 +49,7 @@ Effects must never be added merely for decoration. Mobile is a first-class requi
 
 ## 4. Sound
 
-Public audio remains content-led (sets/media) and must respect browser autoplay restrictions. Owner decision #821/#826 retires the public **SOUND ON / SOUND OFF** navigation control; the synthetic AudioContext path is intentionally absent and must not be reintroduced as an implicit navigation side effect.
+Public audio remains content-led (sets/media) and must respect browser autoplay restrictions. Owner decision #821/#826 retired the **old** SOUND ON / SOUND OFF navigation control. **Newer owner decision (2026-11-04, #1496):** the Cromo home and interior top bar may expose their own synthesized pulse, off by default and started only by an explicit click. The accessible switch uses `aria-pressed`; audio stops when the tab is hidden. Do not autoplay or revive the legacy control outside Cromo by implication.
 
 ## 5. Public narrative
 
@@ -96,6 +96,35 @@ Canonical published entity routes are implemented and must remain server-rendere
 ## 8. Homepage direction
 
 Homepage composition should remain relatively stable and art-directed. CMS controls may modify content and selected presentation parameters, but administrators should not be able to accidentally destroy the visual system with a generic component builder.
+
+
+### 8.1 Cromo home — public data and graceful degradation (owner decision 2026-11-04)
+
+The design/interaction source is `docs/design/CROMO.md`; executable sources are `js/public-cromo-home.js` and `css/public-cromo-home.css` (PR #1497, issue #1496). Cromo mounts only after `GET /api/public.php` returns usable public data. If that request or mounting fails, Concept 05 remains as a readable fallback. Banners are independently optional via `GET /api/hero-slider.php`; their failure must **never** prevent the rest of the home.
+
+| Section | Public inputs and behavior without data |
+| --- | --- |
+| Hero / Noches | `data.events` filtered to eligible upcoming nights, with date, city, venue, title, slug and safe ticket URL; artists inform the next-event display. Without a next event, the hero's next-night card is omitted, while navigation and the «Aún sin fecha» contact invitation remain. No fabricated date or ticket. |
+| Destacados | DISCADMIN Slider Manager (`/api/hero-slider.php`) provides enabled slides, desktop/mobile media, optional video, overlay, layers, links, transition and autoplay. Disabled, invalid or failed slider: omit this block only. |
+| Artistas | `data.artists` (published records, name, slug, bio, `is_collective_member`) supplies up to five artists, collective first. Without profiles, retain only the invitation to contact. |
+| Experiencia | The next public event in `data.events`, optional cover/description/ticket and artist IDs from `data.relations.events`. Without the next night, omit section; without cover, use text-only layout; without lineup or URL, omit only those respective elements. |
+| Sonido | Explicit opt-in synthesized pulse from the user-gesture button; no editorial data, autoplay or automatic activation. |
+| Sets | `data.sets` for featured set plus up to four more, with safe external platform URL or internal `/sets/{slug}`. Empty: show published-sets-coming copy rather than an imaginary player. |
+| Memorias | Up to nine `data.memories` entries with safe file URLs and image/video/audio filters. Empty: show the real-media-coming message. |
+| Journal | `data.blog` for one public post, optionally linking to `/blog/{slug}`; without posts, keep only the editorial Archive/Memorias card. |
+| Conectado | `data.events`, `artists`, `sets`, `releases` and `relations` provide verified entities and edges. Both endpoints must be present in public lists. No links: show the explicit no-published-connections sentence; no nodes: show the neutral invitation, never invented relationships. Mobile retains selection and descriptions without SVG lines. |
+| Últimas noches (inside Noches) | `data.archive.events` holds historical events with valid slug/date; show up to eight posters, expandable, sorted newest first and linked to `/events/{slug}`. No valid history: omit subsection. `#events` resolves to `#noches` and `#archive` to the nested `#archivo` when present. |
+| Hablemos / footer | `/api/contact.php` serves the anti-bot challenge and receives the form; unavailable challenge, invalid fields or network failure yield visible errors, never a fabricated success. Footer retains privacy/cookie links when available. |
+
+Editorial composition is fixed; DISCADMIN changes content/selected presentation parameters, not the section hierarchy. CMS strings are inserted safely and outbound URLs validated. The owner's explicit 2026-11-04 choices are **Broken Glass** display typography, **Barlow Condensed** for content, **red/white/black**, **Spanish-only** public copy, and **Archive embedded under Noches**, not a standalone Cromo home section.
+
+### 8.2 Cromo interior pages — public inputs and fallbacks
+
+`config/public_cromo_chrome.php` supplies the shared fixed brand/section navigation, opt-in sound switch and contextual back link. `config/public_page.php` renders published Events, Artists, Sets, Releases, Blog and CMS Pages from canonical entity/SEO data: type/title, hero artwork, facts, description, safe actions and *public-only* related items. Missing related lists are omitted; a related card without an image uses the BRVTAL mark; a plain empty description falls back to brand copy. Events distinguish active from historical records in the existing lifecycle band; expired/archived ticket and visibility restrictions remain authoritative.
+
+`config/public_privacy_rights.php` uses the privacy-controller, contact email and response-time settings. Missing legal values remain explicitly marked as pending rather than declared legally reviewed. `config/public_not_found.php` and `config/public_unavailable.php` render distinct 404/503 recovery states with Cromo top bar/póster and `noindex, follow`; a partially degraded entity displays a visible data warning and `noindex, follow`. These are not alternate ways to publish unavailable records.
+
+`css/public-cromo-pages.css` applies the same duotone red/black full-bleed poster, Broken Glass titles with a two-layer red glitch, Barlow Condensed text, chrome-edged cards and readable dark plates. WebGL is optional: without it, the base is black and content stays visible. Both home and interiors use transitions.dev timing tokens (40/80/150/250/350/400/500 ms). The `data-text` glitch is a short burst every ~5.4 s **without moving the real title**; `prefers-reduced-motion: reduce` removes nonessential animation, automatic banners and line drawing while preserving accessible controls, visible text and focus. See `docs/design/CROMO.md` for exact tokens, graph edges and design rules.
 
 ## 9. Events
 
