@@ -58,13 +58,7 @@ public_seo_expect(
     ),
     'sitemap must render the standard XML URL set through the executable renderer'
 );
-public_seo_expect(
-    str_contains(
-        $sitemapResponse['body'],
-        'xmlns:xhtml="' . BRVTAL_SITEMAP_XHTML_NAMESPACE . '"'
-    ),
-    'localized sitemap rendering must declare the standard XHTML alternate namespace'
-);
+public_seo_expect(!str_contains($sitemapResponse['body'], 'hreflang'), 'Spanish-only sitemap must not publish hreflang links');
 public_seo_expect(str_contains($seo, 'brvtal_public_event_is_visible($row)'), 'canonical Event resolver must apply publication-proof visibility');
 public_seo_expect(str_contains($seo, 'status,event_date,published_at'), 'canonical Event resolver must hydrate lifecycle evidence used by visibility policy');
 $eventSitemapRows = brvtalPublicSitemapLocalizedContentUrls(
@@ -93,9 +87,8 @@ $eventSitemapRows = brvtalPublicSitemapLocalizedContentUrls(
 public_seo_expect(
     array_column($eventSitemapRows, 0) === [
         BRVTAL_SITEMAP_CANONICAL_ORIGIN . '/events/visible-event',
-        BRVTAL_SITEMAP_CANONICAL_ORIGIN . '/en/events/visible-event',
     ],
-    'sitemap must apply canonical Event visibility behavior before localized projection'
+    'sitemap must apply canonical Event visibility behavior before Spanish-only projection'
 );
 public_seo_expect(str_contains($sitemap, 'status,event_date,published_at'), 'sitemap Event rows must include publication-proof lifecycle fields');
 public_seo_expect(str_contains($pages, 'brvtal_page_public_event_rows'), 'entity relationships must filter Event rows through canonical visibility');

@@ -1,141 +1,49 @@
 from __future__ import annotations
-
 import json
 import subprocess
 import unittest
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
+def read(path: str) -> str:
+    return (ROOT / path).read_text(encoding="utf-8")
 
-
-def composed_home() -> str:
-    """Read the same fixed home parts used by the PHP public entrypoint."""
-    source = (ROOT / "index.html").read_text(encoding="utf-8")
-    for name in (
-        "nav", "hero", "experience", "nights", "artists",
-        "sound", "memories", "journal", "connected", "footer",
-    ):
-        marker = "<!-- BRVTAL-HOME-PARTIAL:" + name + " -->"
-        if source.count(marker) != 1:
-            raise AssertionError("Missing or duplicate home partial marker: " + name)
-        path = ROOT / "partials" / "home" / (name + ".html")
-        source = source.replace(marker, path.read_text(encoding="utf-8"))
-    return source
+def php(expression: str, imports: str = "config/public_i18n_routing.php"):
+    command = "chdir($argv[1]); require '" + imports + "'; echo json_encode(" + expression + ", JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);"
+    process = subprocess.run(["php", "-r", command, str(ROOT)], cwd=ROOT, text=True, capture_output=True)
+    if process.returncode:
+        raise AssertionError(process.stderr)
+    return json.loads(process.stdout)
 
 class PublicI18nContractTests(unittest.TestCase):
-    def php_payload(self, site_expression: str) -> dict:
-        script = (
-            "chdir($argv[1]); "
-            "require 'config/public_i18n.php'; "
-            f"echo json_encode(brvtalPublicI18nPayload({site_expression}), "
-            "JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);"
-        )
-        result = subprocess.run(
-            ["php", "-r", script, str(ROOT)],
-            cwd=ROOT,
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        return json.loads(result.stdout)
+    def test_public_policy_ignores_legacy_english_settings(self):
+        for settings in ("[]", "['default_locale'=>'en','available_locales'=>['en','es']]",
+                         "['available_locales'=>['en']]", "['available_locales'=>['fr']]"):
+            value = php("brvtalPublicI18nPayload(" + settings + ")", "config/public_i18n.php")
+            self.assertEqual(value["canonical_locale"], "es")
+            self.assertEqual(value["default_locale"], "es")
+            self.assertEqual(value["available_locales"], ["es"])
+            self.assertIn("es", value["catalog"])
 
-    def test_spanish_is_canonical_default_and_available_locales_are_effective(self) -> None:
-        payload = self.php_payload(
-            "['default_locale'=>'es','available_locales'=>['es','en','fr','en']]"
-        )
-        self.assertEqual(payload["canonical_locale"], "es")
-        self.assertEqual(payload["default_locale"], "es")
-        self.assertEqual(payload["available_locales"], ["es", "en"])
+    def test_legacy_offline_adapter_and_caches_are_not_deleted(self):
+        source = read("config/public_i18n.php")
+        self.assertIn("function brvtalPublicI18nCatalog()", source)
+        self.assertIn("function brvtalPublicI18nEditorialSurfaceFields()", source)
+        self.assertNotIn("DELETE FROM", source)
 
-        stale_english_default = self.php_payload(
-            "['default_locale'=>'en','available_locales'=>['es','en']]"
-        )
-        self.assertEqual(stale_english_default["default_locale"], "es")
+    def test_home_is_spanish_with_no_selector(self):
+        self.assertIn('<html lang="es">', read("index.html"))
+        nav = read("partials/home/nav.html")
+        self.assertNotIn('id="languageSelector"', nav)
+        self.assertNotIn('data-locale="en"', nav)
+        self.assertIn('id="menuToggle"', nav)
+        self.assertIn("window.BRVTALPublicLocale", read("js/app.js"))
 
-        fallback = self.php_payload(
-            "['default_locale'=>'fr','available_locales'=>['fr']]"
-        )
-        self.assertEqual(fallback["canonical_locale"], "es")
-        self.assertEqual(fallback["default_locale"], "es")
-        self.assertEqual(fallback["available_locales"], ["es", "en"])
-
-        index = composed_home()
-        api = (ROOT / "api/public.php").read_text(encoding="utf-8")
-        runtime = (ROOT / "js/app.js").read_text(encoding="utf-8")
-        self.assertIn('<html lang="es">', index)
-        self.assertIn("brvtalPublicI18nPayload", api)
-        self.assertIn("window.BRVTALI18N", runtime)
-        lint = subprocess.run(
-            ["php", "-l", "api/public.php"],
-            cwd=ROOT,
-            capture_output=True,
-            text=True,
-        )
-        self.assertEqual(lint.returncode, 0, lint.stderr)
-
-    def test_browser_delegates_locale_policy_to_server_payload(self) -> None:
-        runtime = (ROOT / "js" / "app.js").read_text(encoding="utf-8")
-        self.assertNotIn("const supportedLocales", runtime)
-        self.assertNotIn("configuredLocales", runtime)
-        self.assertNotIn("canonicalLocale: 'es'", runtime)
-        self.assertIn(
-            "i18nCandidate.available_locales.every(locale => typeof locale === 'string')",
-            runtime,
-        )
-        self.assertIn("typeof i18nCandidate?.default_locale === 'string'", runtime)
-        self.assertIn("typeof i18nCandidate?.canonical_locale === 'string'", runtime)
-        self.assertIn("canonicalLocale,", runtime)
-        self.assertIn("qsa('#languageSelector [data-locale]')", runtime)
-        self.assertIn(
-            "availableLocales.every(locale => renderedLocales.has(locale))",
-            runtime,
-        )
-        self.assertIn("availableLocales.includes(defaultLocale)", runtime)
-        self.assertIn("availableLocales.includes(canonicalLocale)", runtime)
-
-    def test_selector_owns_document_locale_after_phase_one_selector(self) -> None:
-        index = composed_home()
-        runtime = (ROOT / "js" / "app.js").read_text(encoding="utf-8")
-        self.assertIn('<html lang="es">', index)
-        self.assertIn('<span data-current-locale>ES</span>', index)
-        self.assertIn("document.documentElement.lang = locale;", runtime)
-        self.assertIn("document.documentElement.dataset.locale = locale;", runtime)
-        self.assertIn("window.BRVTALPublicLocale", runtime)
-
-    def test_legacy_pages_remain_unchanged_until_atomic_locale_migration(self) -> None:
-        api = (ROOT / "api" / "public.php").read_text(encoding="utf-8")
-        self.assertIn("WHERE status='published' AND locale='en'", api)
-        self.assertNotIn("$pagesStatement->execute([$pageLocale]);", api)
-        self.assertIn("migration must be atomic", api)
-
-    def test_critical_microcopy_and_protected_terms_are_versioned_in_code(self) -> None:
-        payload = self.php_payload("[]")
-        self.assertEqual(payload["version"], 1)
-        self.assertEqual(set(payload["catalog"]), {"es", "en"})
-        self.assertEqual(
-            set(payload["catalog"]["es"]),
-            set(payload["catalog"]["en"]),
-        )
-        self.assertEqual(payload["catalog"]["es"]["nav.events"], "EVENTOS")
-        self.assertEqual(payload["catalog"]["en"]["nav.events"], "EVENTS")
-
-        protected = payload["protected_terms"]
-        self.assertIn("BRVTAL", protected["exact"])
-        self.assertIn("RAVE TILL GRAVE", protected["exact"])
-        self.assertIn("HARD TECHNO", protected["music_taxonomy"])
-        self.assertIn("artists[].name", protected["entity_fields"])
-        self.assertIn("events[].title", protected["entity_fields"])
-
-    def test_required_ci_command_executes_acceptance_suite(self) -> None:
-        package = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
-        self.assertEqual(
-            package["scripts"]["test:i18n"],
-            "python3 -m unittest tests/test_public_i18n_contract.py",
-        )
-        self.assertIn("npm run test:i18n", package["scripts"]["test:integration"])
-
+    def test_ci_keeps_spanish_regression_suite(self):
+        package = json.loads(read("package.json"))
+        self.assertEqual(package["scripts"]["test:i18n"], "python3 -m unittest tests/test_public_i18n_contract.py")
+        self.assertIn("npm run test:spanish-only", package["scripts"]["test:integration"])
 
 if __name__ == "__main__":
     unittest.main()

@@ -3,86 +3,46 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/public_i18n.php';
 
-/**
- * Public locale routing contract.
- *
- * Spanish keeps the established unprefixed public URLs. English uses /en
- * variants. /es aliases are redirected at the web-server boundary so there is
- * only one Spanish URL for every public resource.
- */
-
+/** Only Spanish public URLs resolve. Legacy /en URLs redirect at .htaccess. */
 function brvtalPublicRouteLocale(mixed $value): ?string
 {
-    if ($value === null) {
+    if ($value === null || $value === '') {
         return 'es';
     }
-    if (!is_string($value)) {
-        return null;
-    }
-
-    $value = trim($value);
-    if ($value === '') {
-        return 'es';
-    }
-
-    return brvtalPublicI18nNormalizeLocale($value);
+    return is_string($value) && strtolower(trim($value)) === 'es' ? 'es' : null;
 }
 
-/**
- * @return array{locale:string,path:string,spanish_path:string}|null
- */
+/** @return array{locale:string,path:string,spanish_path:string}|null */
 function brvtalPublicLocalizedRoute(
     string $locale,
     string $type = '',
     string $slug = '',
     string $page = ''
 ): ?array {
-    $locale = brvtalPublicI18nNormalizeLocale($locale) ?? '';
-    if ($locale === '') {
+    if ($locale !== 'es') {
         return null;
     }
-
     $type = trim($type);
     $slug = trim($slug);
     $page = trim($page);
-
     if ($page !== '') {
         if (!in_array($page, ['contact', 'privacy'], true) || $type !== '' || $slug !== '') {
             return null;
         }
-        $spanishPath = '/' . $page;
+        $path = '/' . $page;
     } elseif ($type !== '' || $slug !== '') {
-        $allowedTypes = ['events', 'artists', 'sets', 'releases', 'blog', 'pages'];
-        if (
-            !in_array($type, $allowedTypes, true)
-            || !preg_match('/^[a-z0-9-]{1,190}$/D', $slug)
-        ) {
+        if (!in_array($type, ['events', 'artists', 'sets', 'releases', 'blog', 'pages'], true)
+            || !preg_match('/^[a-z0-9-]{1,190}$/D', $slug)) {
             return null;
         }
-        $spanishPath = '/' . $type . '/' . rawurlencode($slug);
+        $path = '/' . $type . '/' . rawurlencode($slug);
     } else {
-        $spanishPath = '/';
+        $path = '/';
     }
-
-    $path = $locale === 'en'
-        ? '/en' . ($spanishPath === '/' ? '' : $spanishPath)
-        : $spanishPath;
-
-    return [
-        'locale' => $locale,
-        'path' => $path,
-        'spanish_path' => $spanishPath,
-    ];
+    return ['locale' => 'es', 'path' => $path, 'spanish_path' => $path];
 }
 
-/**
- * @return array{
- *   locale:string,
- *   canonical:string,
- *   paths:array{es:string,en:string},
- *   alternates:array{es:string,en:string,x-default:string}
- * }|null
- */
+/** @return array{locale:string,canonical:string,paths:array{es:string},alternates:array{}}|null */
 function brvtalPublicLocalizedRouteUrls(
     string $base,
     string $locale,
@@ -90,52 +50,33 @@ function brvtalPublicLocalizedRouteUrls(
     string $slug = '',
     string $page = ''
 ): ?array {
-    $base = rtrim($base, '/');
-    $current = brvtalPublicLocalizedRoute($locale, $type, $slug, $page);
-    $spanish = brvtalPublicLocalizedRoute('es', $type, $slug, $page);
-    $english = brvtalPublicLocalizedRoute('en', $type, $slug, $page);
-    if ($current === null || $spanish === null || $english === null) {
+    $route = brvtalPublicLocalizedRoute($locale, $type, $slug, $page);
+    if ($route === null) {
         return null;
     }
-
-    $paths = [
-        'es' => $spanish['path'],
-        'en' => $english['path'],
-    ];
-    $alternates = [
-        'es' => $base . $paths['es'],
-        'en' => $base . $paths['en'],
-        'x-default' => $base . $paths['es'],
-    ];
-
     return [
-        'locale' => $current['locale'],
-        'canonical' => $base . $current['path'],
-        'paths' => $paths,
-        'alternates' => $alternates,
+        'locale' => 'es',
+        'canonical' => rtrim($base, '/') . $route['path'],
+        'paths' => ['es' => $route['path']],
+        'alternates' => [],
     ];
 }
 
 function brvtalPublicApplyLocalizedSeo(array $seo, array $route): array
 {
     $canonical = (string)($route['canonical'] ?? '');
-    $locale = brvtalPublicI18nNormalizeLocale($route['locale'] ?? null);
-    $alternates = $route['alternates'] ?? null;
-    if ($canonical === '' || $locale === null || !is_array($alternates)) {
+    if ($canonical === '' || ($route['locale'] ?? null) !== 'es') {
         return $seo;
     }
-
     $seo['canonical'] = $canonical;
-    $seo['alternates'] = $alternates;
-    $seo['route_locale'] = $locale;
-
+    unset($seo['alternates']);
+    $seo['route_locale'] = 'es';
     if (is_array($seo['schema'] ?? null)) {
         $seo['schema']['url'] = $canonical;
         if (isset($seo['schema']['mainEntityOfPage'])) {
             $seo['schema']['mainEntityOfPage'] = $canonical;
         }
     }
-
     return $seo;
 }
 
@@ -145,51 +86,18 @@ function brvtalPublicApplyLocalizedDocument(
     array $paths = [],
     bool $routeLocaleIsExplicit = false
 ): string {
-    $locale = brvtalPublicI18nNormalizeLocale($locale);
-    if ($locale === null) {
+    if ($locale !== 'es') {
         return $html;
     }
-
-    $pathEs = is_string($paths['es'] ?? null) ? $paths['es'] : '/';
-    $pathEn = is_string($paths['en'] ?? null) ? $paths['en'] : '/en';
-    foreach ([$pathEs, $pathEn] as $path) {
-        if (!str_starts_with($path, '/') || str_starts_with($path, '//')) {
-            return $html;
-        }
-    }
-
-    $escape = static fn(string $value): string => htmlspecialchars(
-        $value,
-        ENT_QUOTES | ENT_SUBSTITUTE,
-        'UTF-8'
-    );
-
     return preg_replace_callback(
         '/<html\b([^>]*)>/i',
-        static function (array $match) use (
-            $locale,
-            $pathEs,
-            $pathEn,
-            $routeLocaleIsExplicit,
-            $escape
-        ): string {
-            $attributes = (string)$match[1];
+        static function (array $match): string {
             $attributes = preg_replace(
                 '/\s+(?:lang|data-route-locale|data-route-path-es|data-route-path-en)=(["\']).*?\1/i',
                 '',
-                $attributes
-            ) ?? $attributes;
-
-            $routeLocale = $routeLocaleIsExplicit
-                ? ' data-route-locale="' . $escape($locale) . '"'
-                : '';
-
-            return '<html lang="' . $escape($locale) . '"'
-                . $routeLocale
-                . ' data-route-path-es="' . $escape($pathEs) . '"'
-                . ' data-route-path-en="' . $escape($pathEn) . '"'
-                . $attributes
-                . '>';
+                (string)$match[1]
+            ) ?? (string)$match[1];
+            return '<html lang="es"' . $attributes . '>';
         },
         $html,
         1

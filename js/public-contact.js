@@ -4,7 +4,7 @@
   const endpoint = '/api/contact.php';
   const LOCALE_STORAGE_KEY = 'brvtal.public.locale';
   const LOCALE_EVENT = 'brvtal:localechange';
-  const SAFE_LOCALES = new Set(['es', 'en']);
+  const SAFE_LOCALES = new Set(['es']);
   const CONTACT_CATALOG = Object.freeze({
     es:Object.freeze({
       'contact.skip':'IR AL FORMULARIO',

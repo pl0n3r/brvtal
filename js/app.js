@@ -217,98 +217,25 @@
   }
 })();
 
+// Public language is fixed to Spanish. Old localStorage choices are obsolete.
 const PublicLocale = (() => {
-  const LOCALE_STORAGE_KEY = 'brvtal.public.locale';
-  const selector = document.querySelector('#languageSelector');
-  const buttons = () => [...document.querySelectorAll('#languageSelector [data-locale]')];
-
-  const readStoredLocale = () => {
-    try {
-      return window.localStorage.getItem(LOCALE_STORAGE_KEY);
-    } catch {
-      return null;
-    }
-  };
-
-  const writeStoredLocale = (locale) => {
-    try {
-      window.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
-    } catch {
-      // Storage can be unavailable in privacy modes; the current page still switches.
-    }
-  };
-
-  const applyCatalog = (locale, config) => {
-    const catalog = config?.catalog?.[locale];
-    if (!catalog || typeof catalog !== 'object') return;
+  const configure = config => {
+    document.documentElement.lang = 'es';
+    document.documentElement.dataset.locale = 'es';
+    const catalog = config?.catalog?.es || {};
     document.querySelectorAll('[data-i18n-key]').forEach(element => {
       const value = catalog[element.dataset.i18nKey];
       if (typeof value === 'string') element.textContent = value;
     });
-  };
-
-  const syncLocalizedRoute = (locale) => {
-    const key = locale === 'en' ? 'routePathEn' : 'routePathEs';
-    const path = document.documentElement.dataset[key];
-    if (typeof path !== 'string' || !path.startsWith('/') || path.startsWith('//')) return;
-    const target = path + (window.location.hash || '');
-    if (window.location.pathname + window.location.hash !== target) {
-      window.history.replaceState(window.history.state, '', target);
-    }
-    document.documentElement.dataset.routeLocale = locale;
-  };
-
-  const setLocale = (locale, {persist = false} = {}) => {
-    const config = window.BRVTALI18N;
-    const availableLocales = Array.isArray(config?.availableLocales)
-      ? config.availableLocales
-      : [];
-    if (!availableLocales.includes(locale)) return false;
-
-    document.documentElement.lang = locale;
-    document.documentElement.dataset.locale = locale;
-    buttons().forEach(button => {
-      const active = button.dataset.locale === locale;
-      button.setAttribute('aria-pressed', String(active));
-      button.classList.toggle('active', active);
-    });
-    document.querySelectorAll('[data-current-locale]').forEach(element => {
-      element.textContent = locale.toUpperCase();
-    });
-    applyCatalog(locale, config);
-    if (persist) {
-      writeStoredLocale(locale);
-      syncLocalizedRoute(locale);
+    try { window.localStorage.removeItem('brvtal.public.locale'); } catch {
+      // Browsers in restricted privacy modes may not expose storage.
     }
     return true;
   };
-
-  const configure = (config) => {
-    if (!selector || !config || !Array.isArray(config.availableLocales)) return;
-    const availableLocales = config.availableLocales;
-    buttons().forEach(button => {
-      button.disabled = !availableLocales.includes(button.dataset.locale);
-    });
-    const storedLocale = readStoredLocale();
-    const routeLocale = document.documentElement.dataset.routeLocale;
-    let locale = config.defaultLocale;
-    if (availableLocales.includes(storedLocale)) {
-      locale = storedLocale;
-    }
-    if (availableLocales.includes(routeLocale)) {
-      locale = routeLocale;
-    }
-    setLocale(locale);
+  const setLocale = locale => {
+    if (locale !== 'es') return false;
+    return configure(window.BRVTALI18N);
   };
-
-  if (selector) {
-    selector.addEventListener('click', event => {
-      const button = event.target.closest('[data-locale]');
-      if (!button || button.disabled || !selector.contains(button)) return;
-      setLocale(button.dataset.locale, {persist:true});
-    });
-  }
-
   return {configure, setLocale};
 })();
 window.BRVTALPublicLocale = PublicLocale;
@@ -431,46 +358,14 @@ window.BRVTALPublicLocale = PublicLocale;
       const branding = theme.branding && typeof theme.branding === 'object' ? theme.branding : {};
       const colors = theme.colors && typeof theme.colors === 'object' ? theme.colors : {};
 
-      const i18nCandidate = settings.i18n && typeof settings.i18n === 'object'
-        ? settings.i18n
-        : null;
-      const availableLocales = Array.isArray(i18nCandidate?.available_locales)
-        && i18nCandidate.available_locales.length > 0
-        && i18nCandidate.available_locales.every(locale => typeof locale === 'string')
-        ? [...i18nCandidate.available_locales]
-        : null;
-      const defaultLocale = typeof i18nCandidate?.default_locale === 'string'
-        ? i18nCandidate.default_locale
-        : '';
-      const canonicalLocale = typeof i18nCandidate?.canonical_locale === 'string'
-        ? i18nCandidate.canonical_locale
-        : '';
-      const renderedLocales = new Set(
-        qsa('#languageSelector [data-locale]')
-          .map(button => button.dataset.locale)
-          .filter(locale => typeof locale === 'string' && locale !== '')
-      );
-      const hasValidLocalePolicy = availableLocales !== null
-        && renderedLocales.size > 0
-        && availableLocales.every(locale => renderedLocales.has(locale))
-        && availableLocales.includes(defaultLocale)
-        && availableLocales.includes(canonicalLocale)
-        && renderedLocales.has(defaultLocale)
-        && renderedLocales.has(canonicalLocale);
-
-      if (hasValidLocalePolicy) {
-        const i18n = i18nCandidate;
-        document.documentElement.dataset.availableLocales = availableLocales.join(',');
-        window.BRVTALI18N = {
-          version: Number.isInteger(i18n.version) ? i18n.version : 1,
-          canonicalLocale,
-          defaultLocale,
-          availableLocales,
-          catalog: i18n.catalog && typeof i18n.catalog === 'object' ? i18n.catalog : {},
-          protectedTerms: i18n.protected_terms && typeof i18n.protected_terms === 'object' ? i18n.protected_terms : {}
-        };
-        window.BRVTALPublicLocale?.configure(window.BRVTALI18N);
-      }
+      // Ignore any obsolete bilingual policy supplied by legacy CMS rows.
+      window.BRVTALI18N = {
+        canonicalLocale: 'es',
+        defaultLocale: 'es',
+        availableLocales: ['es'],
+        catalog: {es: settings.i18n?.catalog?.es || {}}
+      };
+      window.BRVTALPublicLocale?.configure(window.BRVTALI18N);
 
       const siteName = pick(site, ['name','siteName','title'], 'BRVTAL');
       const tagline = pick(site, ['tagline','description'], 'RAVE TILL GRAVE');

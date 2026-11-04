@@ -39,13 +39,10 @@ RewriteRule ^es/contact/?$ /contact [R=301,L,NE]
 RewriteRule ^es/privacy/?$ /privacy [R=301,L,NE]
 RewriteRule ^es/(events|artists|sets|releases|blog|pages)/([a-z0-9-]+)/?$ /$1/$2 [R=301,L,NE]
 
-# EN is the localized public alternate. Keep the home URL slashless so the
-# legacy relative home assets continue to resolve from the web root.
-RewriteRule ^en/$ /en [R=301,L,NE]
-RewriteRule ^en$ index.php?locale=en [L,QSA,NC]
-RewriteRule ^en/contact/?$ index.php?page=contact&locale=en [L,QSA,NC]
-RewriteRule ^en/privacy/?$ index.php?page=privacy&locale=en [L,QSA,NC]
-RewriteRule ^en/(events|artists|sets|releases|blog|pages)/([a-z0-9-]+)/?$ index.php?locale=en&type=$1&slug=$2 [L,QSA,NC]
+# Spanish-only canonical site: legacy /en and /en/* redirect to unprefixed URLs.
+# Do not permit a captured leading slash (protocol-relative Location header).
+RewriteRule ^en/*$ / [R=301,L,NE,QSD,NC]
+RewriteRule ^en/+([^/].*)$ /$1 [R=301,L,NE,QSD,NC]
 
 RewriteRule ^contact/?$ index.php?page=contact [L,QSA,NC]
 RewriteRule ^privacy/?$ index.php?page=privacy [L,QSA,NC]

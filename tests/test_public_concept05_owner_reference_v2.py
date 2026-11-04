@@ -102,7 +102,7 @@ class PublicConcept05OwnerReferenceV2Tests(unittest.TestCase):
         self.assertEqual(
             {
                 "es": {"es_manifesto": True, "en_manifesto": False, "es_cta": True, "en_cta": False, "cms_hook": True},
-                "en": {"es_manifesto": False, "en_manifesto": True, "es_cta": False, "en_cta": True, "cms_hook": True},
+                "en": {"es_manifesto": True, "en_manifesto": False, "es_cta": True, "en_cta": False, "cms_hook": True},
                 "invalid": {"es_manifesto": True, "en_manifesto": False, "es_cta": True, "en_cta": False, "cms_hook": True},
             },
             observed,

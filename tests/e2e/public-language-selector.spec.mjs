@@ -1,297 +1,35 @@
-import { test, expect } from '@playwright/test';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import {test, expect} from '@playwright/test';
+import {readFileSync} from 'node:fs';
+import {join} from 'node:path';
 
-const appJs = readFileSync(join(process.cwd(), 'js/app.js'), 'utf8');
-const harnessUrl = 'http://127.0.0.1:4173/public-language-selector-e2e.html';
+// Spanish-only public navigation is the canonical partial served by index.php.
+const nav = readFileSync(join(process.cwd(), 'partials/home/nav.html'), 'utf8');
+const runtime = readFileSync(join(process.cwd(), 'js/app.js'), 'utf8');
 
-const i18n = {
-  version: 1,
-  canonical_locale: 'es',
-  default_locale: 'es',
-  available_locales: ['es', 'en'],
-  catalog: {
-    es: {'nav.events':'EVENTOS','nav.contact':'CONTACTO'},
-    en: {'nav.events':'EVENTS','nav.contact':'CONTACT'},
-  },
-  protected_terms: {},
-};
-
-async function installHarness(page) {
-  await page.route('**/api/public.php', route => route.fulfill({
-    contentType: 'application/json',
-    body: JSON.stringify({
-      ok: true,
-      data: {events:[], artists:[], sets:[], media:[], settings:{i18n}},
-    }),
-  }));
-  await page.route(harnessUrl, route => route.fulfill({
-    contentType: 'text/html; charset=utf-8',
-    body: `<!doctype html><html lang="es"><body>
-      <div id="loader"></div>
-      <button id="menuToggle">MENU <strong>+</strong></button>
-      <aside id="menuPanel" aria-hidden="true"></aside>
-      <fieldset id="languageSelector"><legend>Idioma / Language</legend>
-        <button type="button" data-locale="es" aria-pressed="true">ES</button>
-        <button type="button" data-locale="en" aria-pressed="false" disabled>EN</button>
-      </fieldset>
-      <h2 data-i18n-key="nav.events">EVENTOS</h2>
-      <a data-i18n-key="nav.contact">CONTACTO</a>
-      <span data-current-locale>ES</span>
-      <span id="dynamicStatus"></span><div id="apiFallback"></div>
-      <div class="events-track"></div>
-      <script>${appJs}</script>
-    </body></html>`,
-  }));
-}
-
-test('ES/EN switches without navigation and persists the explicit choice', async ({ page }) => {
-  await installHarness(page);
-  await page.goto(harnessUrl);
-  await expect(page.locator('#dynamicStatus')).toHaveText('LIVE / CMS CONNECTED');
+test('Spanish-only navigation has no language selector and keeps the menu accessible', async ({page}) => {
+  await page.setContent('<!doctype html><html lang="es"><body>' + nav + '</body></html>');
   await expect(page.locator('html')).toHaveAttribute('lang', 'es');
-  await expect(page.locator('[data-i18n-key="nav.events"]')).toHaveText('EVENTOS');
-
-  let navigations = 0;
-  page.on('framenavigated', frame => {
-    if (frame === page.mainFrame()) navigations += 1;
-  });
-
-  await page.getByRole('button', {name:'EN', exact:true}).click();
-  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
-  await expect(page.locator('[data-i18n-key="nav.events"]')).toHaveText('EVENTS');
-  await expect(page.locator('[data-current-locale]')).toHaveText('EN');
-  await expect(page.getByRole('button', {name:'EN', exact:true})).toHaveAttribute('aria-pressed', 'true');
-  expect(await page.evaluate(() => localStorage.getItem('brvtal.public.locale'))).toBe('en');
-  expect(navigations).toBe(0);
-
-  await page.reload();
-  await expect(page.locator('#dynamicStatus')).toHaveText('LIVE / CMS CONNECTED');
-  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
-  await expect(page.locator('[data-i18n-key="nav.events"]')).toHaveText('EVENTS');
-  await expect(page.locator('[data-current-locale]')).toHaveText('EN');
+  await expect(page.locator('#languageSelector')).toHaveCount(0);
+  await expect(page.locator('[data-locale="en"]')).toHaveCount(0);
+  await expect(page.locator('#menuToggle')).toBeVisible();
+  await page.keyboard.press('Tab');
+  const buttons = await page.locator('button:visible').count();
+  expect(buttons).toBeGreaterThan(0);
 });
 
-test('language selector stays keyboard-accessible and layout-safe on desktop and mobile', async ({ page }) => {
-  await installHarness(page);
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto(harnessUrl);
-
-  const selector = page.getByRole('group', { name:'Idioma / Language' });
-  const english = page.getByRole('button', { name:'EN', exact:true });
-  await expect(selector).toBeVisible();
-  await expect(english).toBeEnabled();
-
-  let navigations = 0;
-  page.on('framenavigated', frame => {
-    if (frame === page.mainFrame()) navigations += 1;
-  });
-
-  await english.focus();
-  await expect(english).toBeFocused();
-  await page.keyboard.press('Enter');
-  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
-  await expect(english).toHaveAttribute('aria-pressed', 'true');
-  expect(navigations).toBe(0);
-
-  await page.setViewportSize({ width: 390, height: 844 });
-  await expect(selector).toBeVisible();
-  await expect(page.locator('[data-i18n-key="nav.events"]')).toHaveText('EVENTS');
+test('Spanish-only mobile navigation has no language toggle or horizontal overflow', async ({page}) => {
+  await page.setViewportSize({width:390,height:844});
+  await page.setContent('<!doctype html><html lang="es"><head><style>body{margin:0}header{display:flex;justify-content:space-between;align-items:center;padding:0 16px;box-sizing:border-box}</style></head><body>' + nav + '</body></html>');
+  await expect(page.locator('html')).toHaveAttribute('lang','es');
+  await expect(page.locator('#menuToggle')).toBeVisible();
+  await expect(page.locator('#languageSelector')).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
-test('successful public response without i18n policy keeps Spanish selector fail-safe', async ({ page }) => {
-  await page.route('**/api/public.php', route => route.fulfill({
-    contentType: 'application/json',
-    body: JSON.stringify({
-      ok: true,
-      data: {events:[], artists:[], sets:[], media:[], settings:{}},
-    }),
-  }));
-  await page.route(harnessUrl, route => route.fulfill({
-    contentType: 'text/html; charset=utf-8',
-    body: `<!doctype html><html lang="es"><body>
-      <div id="loader"></div>
-      <button id="menuToggle">MENU <strong>+</strong></button>
-      <aside id="menuPanel" aria-hidden="true"></aside>
-      <fieldset id="languageSelector"><legend>Idioma / Language</legend>
-        <button type="button" data-locale="es" aria-pressed="true">ES</button>
-        <button type="button" data-locale="en" aria-pressed="false" disabled>EN</button>
-      </fieldset>
-      <h2 data-i18n-key="nav.events">EVENTOS</h2>
-      <span data-current-locale>ES</span>
-      <span id="dynamicStatus"></span><div id="apiFallback"></div><div class="events-track"></div>
-      <script>${appJs}</script>
-    </body></html>`,
-  }));
-
-  await page.goto(harnessUrl);
-  await expect(page.locator('#dynamicStatus')).toHaveText('LIVE / CMS CONNECTED');
-  await expect(page.locator('html')).toHaveAttribute('lang', 'es');
-  await expect(page.getByRole('button', {name:'ES', exact:true})).toBeEnabled();
-  await expect(page.getByRole('button', {name:'EN', exact:true})).toBeDisabled();
-  await expect(page.getByRole('button', {name:'ES', exact:true})).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('[data-i18n-key="nav.events"]')).toHaveText('EVENTOS');
-  expect(await page.evaluate(() => localStorage.getItem('brvtal.public.locale'))).toBeNull();
-});
-
-test('malformed public locale policy preserves canonical Spanish first paint', async ({ page }) => {
-  await page.route('**/api/public.php', route => route.fulfill({
-    contentType: 'application/json',
-    body: JSON.stringify({
-      ok: true,
-      data: {
-        events:[],
-        artists:[],
-        sets:[],
-        media:[],
-        settings:{i18n:{available_locales:'es'}},
-      },
-    }),
-  }));
-  await page.route(harnessUrl, route => route.fulfill({
-    contentType: 'text/html; charset=utf-8',
-    body: `<!doctype html><html lang="es"><body>
-      <div id="loader"></div>
-      <button id="menuToggle">MENU <strong>+</strong></button>
-      <aside id="menuPanel" aria-hidden="true"></aside>
-      <fieldset id="languageSelector"><legend>Idioma / Language</legend>
-        <button type="button" data-locale="es" aria-pressed="true">ES</button>
-        <button type="button" data-locale="en" aria-pressed="false" disabled>EN</button>
-      </fieldset>
-      <h2 data-i18n-key="nav.events">EVENTOS</h2>
-      <span data-current-locale>ES</span>
-      <span id="dynamicStatus"></span><div id="apiFallback"></div><div class="events-track"></div>
-      <script>${appJs}</script>
-    </body></html>`,
-  }));
-
-  await page.goto(harnessUrl);
-  await expect(page.locator('#dynamicStatus')).toHaveText('LIVE / CMS CONNECTED');
-  await expect(page.locator('html')).toHaveAttribute('lang', 'es');
-  await expect(page.getByRole('button', {name:'ES', exact:true})).toBeEnabled();
-  await expect(page.getByRole('button', {name:'EN', exact:true})).toBeDisabled();
-  await expect(page.getByRole('button', {name:'ES', exact:true})).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('[data-i18n-key="nav.events"]')).toHaveText('EVENTOS');
-  expect(await page.evaluate(() => localStorage.getItem('brvtal.public.locale'))).toBeNull();
-});
-
-test('unsupported but self-consistent locale policy fails closed to rendered locales', async ({ page }) => {
-  await page.route('**/api/public.php', route => route.fulfill({
-    contentType: 'application/json',
-    body: JSON.stringify({
-      ok: true,
-      data: {
-        events:[],
-        artists:[],
-        sets:[],
-        media:[],
-        settings:{i18n:{
-          available_locales:['fr'],
-          default_locale:'fr',
-          canonical_locale:'fr',
-          catalog:{fr:{'nav.events':'ÉVÉNEMENTS'}},
-        }},
-      },
-    }),
-  }));
-  await page.route(harnessUrl, route => route.fulfill({
-    contentType: 'text/html; charset=utf-8',
-    body: `<!doctype html><html lang="es"><body>
-      <div id="loader"></div>
-      <button id="menuToggle">MENU <strong>+</strong></button>
-      <aside id="menuPanel" aria-hidden="true"></aside>
-      <fieldset id="languageSelector"><legend>Idioma / Language</legend>
-        <button type="button" data-locale="es" aria-pressed="true">ES</button>
-        <button type="button" data-locale="en" aria-pressed="false" disabled>EN</button>
-      </fieldset>
-      <h2 data-i18n-key="nav.events">EVENTOS</h2>
-      <span data-current-locale>ES</span>
-      <span id="dynamicStatus"></span><div id="apiFallback"></div><div class="events-track"></div>
-      <script>${appJs}</script>
-    </body></html>`,
-  }));
-
-  await page.goto(harnessUrl);
-  await expect(page.locator('#dynamicStatus')).toHaveText('LIVE / CMS CONNECTED');
-  await expect(page.locator('html')).toHaveAttribute('lang', 'es');
-  await expect(page.getByRole('button', {name:'ES', exact:true})).toBeEnabled();
-  await expect(page.getByRole('button', {name:'EN', exact:true})).toBeDisabled();
-  await expect(page.getByRole('button', {name:'ES', exact:true})).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('[data-i18n-key="nav.events"]')).toHaveText('EVENTOS');
-  expect(await page.evaluate(() => localStorage.getItem('brvtal.public.locale'))).toBeNull();
-});
-
-test('default locale outside available locales fails closed to Spanish first paint', async ({ page }) => {
-  await page.route('**/api/public.php', route => route.fulfill({
-    contentType: 'application/json',
-    body: JSON.stringify({
-      ok: true,
-      data: {
-        events:[],
-        artists:[],
-        sets:[],
-        media:[],
-        settings:{i18n:{
-          available_locales:['en'],
-          default_locale:'es',
-          canonical_locale:'es',
-          catalog:{
-            es:{'nav.events':'EVENTOS'},
-            en:{'nav.events':'EVENTS'},
-          },
-        }},
-      },
-    }),
-  }));
-  await page.route(harnessUrl, route => route.fulfill({
-    contentType: 'text/html; charset=utf-8',
-    body: `<!doctype html><html lang="es"><body>
-      <div id="loader"></div>
-      <button id="menuToggle">MENU <strong>+</strong></button>
-      <aside id="menuPanel" aria-hidden="true"></aside>
-      <fieldset id="languageSelector"><legend>Idioma / Language</legend>
-        <button type="button" data-locale="es" aria-pressed="true">ES</button>
-        <button type="button" data-locale="en" aria-pressed="false" disabled>EN</button>
-      </fieldset>
-      <h2 data-i18n-key="nav.events">EVENTOS</h2>
-      <span data-current-locale>ES</span>
-      <span id="dynamicStatus"></span><div id="apiFallback"></div><div class="events-track"></div>
-      <script>${appJs}</script>
-    </body></html>`,
-  }));
-
-  await page.goto(harnessUrl);
-  await expect(page.locator('#dynamicStatus')).toHaveText('LIVE / CMS CONNECTED');
-  await expect(page.locator('html')).toHaveAttribute('lang', 'es');
-  await expect(page.getByRole('button', {name:'ES', exact:true})).toBeEnabled();
-  await expect(page.getByRole('button', {name:'EN', exact:true})).toBeDisabled();
-  await expect(page.getByRole('button', {name:'ES', exact:true})).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('[data-i18n-key="nav.events"]')).toHaveText('EVENTOS');
-  expect(await page.evaluate(() => localStorage.getItem('brvtal.public.locale'))).toBeNull();
-});
-
-test('missing public locale policy keeps EN unavailable and Spanish canonical', async ({ page }) => {
-  await page.route('**/api/**', route => route.abort('failed'));
-  await page.route(harnessUrl, route => route.fulfill({
-    contentType: 'text/html; charset=utf-8',
-    body: `<!doctype html><html lang="es"><body>
-      <div id="loader"></div><button id="menuToggle">MENU <strong>+</strong></button>
-      <aside id="menuPanel" aria-hidden="true"></aside>
-      <fieldset id="languageSelector"><legend>Idioma / Language</legend>
-        <button type="button" data-locale="es" aria-pressed="true">ES</button>
-        <button type="button" data-locale="en" aria-pressed="false" disabled>EN</button>
-      </fieldset>
-      <h2 data-i18n-key="nav.events">EVENTOS</h2><span data-current-locale>ES</span>
-      <span id="dynamicStatus"></span><div id="apiFallback"></div><div class="events-track"></div>
-      <script>${appJs}</script>
-    </body></html>`,
-  }));
-  await page.goto(harnessUrl);
-  await expect(page.locator('#dynamicStatus')).toHaveText('STATIC / API OFFLINE');
-  await expect(page.locator('html')).toHaveAttribute('lang', 'es');
-  await expect(page.getByRole('button', {name:'ES', exact:true})).toBeEnabled();
-  await expect(page.getByRole('button', {name:'EN', exact:true})).toBeDisabled();
-  await expect(page.locator('[data-i18n-key="nav.events"]')).toHaveText('EVENTOS');
-  expect(await page.evaluate(() => localStorage.getItem('brvtal.public.locale'))).toBeNull();
+test('Spanish-only client rejects stale EN localStorage and never changes document language to EN', async ({page}) => {
+  await page.setContent('<!doctype html><html lang="es"><body>' + nav + '</body></html>');
+  const source=runtime;
+  expect(source).toContain("window.localStorage.removeItem('brvtal.public.locale')");
+  expect(source).toContain("if (locale !== 'es') return false");
+  expect(source).not.toContain('document.documentElement.lang = locale');
 });
