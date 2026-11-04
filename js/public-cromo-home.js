@@ -354,7 +354,7 @@
     const list = (key) => (Array.isArray(data[key]) ? data[key] : []);
     const rel = data.relations || {};
     const entities = new Map();
-    const columns = { noches: [], artistas: [], sonido: [] };
+    const columns = { noches: [], artistas: [], sonido: [], memorias: [] };
     const route = (path, slug) => (slug ? '/' + path + '/' + encodeURIComponent(slug) : '');
     const add = (column, key, kind, label, sub, href) => {
       if (!label) return;
@@ -394,34 +394,78 @@
     entries(rel.sets).forEach(([id, r]) => { ids(r?.artist).forEach((x) => join('s' + id, 'a' + x)); ids(r?.event).forEach((x) => join('s' + id, 'e' + x)); });
     entries(rel.releases).forEach(([id, r]) => { ids(r?.artist || r?.artists).forEach((x) => join('r' + id, 'a' + x)); ids(r?.event).forEach((x) => join('r' + id, 'e' + x)); });
 
+    // The API already filters Memories and their target relations to published records.
+    // Only put a Memory on the board when its target also has a visible node.
+    const memoryTargets = new Map([['event', 'e'], ['artist', 'a'], ['set', 's'], ['release', 'r']]);
+    list('memories').forEach((memory) => {
+      const memoryId = Number(memory?.id);
+      if (!Number.isSafeInteger(memoryId) || memoryId < 1) return;
+      const links = (Array.isArray(memory.relations) ? memory.relations : []).map((relation) => {
+        const prefix = memoryTargets.get(relation?.related_type);
+        const id = Number(relation?.related_id);
+        return prefix && Number.isSafeInteger(id) && id > 0 ? prefix + id : null;
+      }).filter((key) => key && entities.has(key));
+      if (!links.length) return;
+      const key = 'm' + memoryId;
+      add('memorias', key, 'memoria', text(memory.title, 60), 'Memoria', '#memorias');
+      if (!entities.has(key)) return;
+      links.forEach((target) => join(key, target));
+    });
+
     const related = (key) => [...(adjacency.get(key) || [])].map((k) => entities.get(k)).filter(Boolean);
     const labels = (items) => joinNames(items.map((x) => x.label));
     const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+    const memoryCaption = (entity, memories) => {
+      if (!memories.length) return '';
+      const verb = entity.kind === 'noche' ? 'Quedó registrada' : 'Aparece';
+      return verb + ' en ' + plural(memories.length, 'memoria', 'memorias') + ': ' + labels(memories) + '.';
+    };
+    const detailForNight = ({ artists, sounds }) => [
+      artists.length ? 'Tocan ' + labels(artists) + '.' : 'Aún no tiene artistas enlazados.',
+      sounds.length ? 'Quedó registrada en ' + plural(sounds.length, 'pieza de sonido', 'piezas de sonido') + ': ' + labels(sounds) + '.' : ''
+    ].filter(Boolean).join(' ');
+    const detailForArtist = (entity, { nights, sounds }) => [
+      nights.length ? entity.label + ' toca en ' + labels(nights) + '.' : entity.label + ' aún no tiene noches publicadas.',
+      sounds.length ? 'Puedes escuchar ' + labels(sounds) + '.' : ''
+    ].filter(Boolean).join(' ');
+    const detailForMemory = ({ nights, artists, sounds }) => [
+      nights.length ? 'Recuerda ' + labels(nights) + '.' : '',
+      artists.length ? 'Conecta con ' + labels(artists) + '.' : '',
+      sounds.length ? 'Incluye ' + labels(sounds) + '.' : ''
+    ].filter(Boolean).join(' ');
+    const detailForSound = (entity, { nights, artists }) => [
+      artists.length ? 'Lo hace ' + labels(artists) + '.' : '',
+      nights.length ? 'Se grabó en ' + labels(nights) + '.' : ''
+    ].filter(Boolean).join(' ') || entity.label + '.';
+
     const sentenceOf = (entity) => {
       const around = related(entity.key);
-      const nights = around.filter((x) => x.kind === 'noche');
-      const artists = around.filter((x) => x.kind === 'artista');
-      const sounds = around.filter((x) => x.column === 'sonido');
       if (!around.length) return entity.label + ' todavía no tiene conexiones publicadas.';
-      if (entity.kind === 'noche') {
-        return [artists.length ? 'Tocan ' + labels(artists) + '.' : 'Aún no tiene artistas enlazados.',
-          sounds.length ? 'Quedó registrada en ' + plural(sounds.length, 'pieza de sonido', 'piezas de sonido') + ': ' + labels(sounds) + '.' : ''].filter(Boolean).join(' ');
-      }
-      if (entity.kind === 'artista') {
-        return [nights.length ? entity.label + ' toca en ' + labels(nights) + '.' : entity.label + ' aún no tiene noches publicadas.',
-          sounds.length ? 'Puedes escuchar ' + labels(sounds) + '.' : ''].filter(Boolean).join(' ');
-      }
-      return [artists.length ? 'Lo hace ' + labels(artists) + '.' : '', nights.length ? 'Se grabó en ' + labels(nights) + '.' : ''].filter(Boolean).join(' ') || entity.label + '.';
+      const groups = {
+        nights: around.filter((x) => x.kind === 'noche'),
+        artists: around.filter((x) => x.kind === 'artista'),
+        sounds: around.filter((x) => x.column === 'sonido'),
+        memories: around.filter((x) => x.kind === 'memoria')
+      };
+      let message;
+      if (entity.kind === 'noche') message = detailForNight(groups);
+      else if (entity.kind === 'artista') message = detailForArtist(entity, groups);
+      else if (entity.kind === 'memoria') message = detailForMemory(groups);
+      else message = detailForSound(entity, groups);
+      const memoryText = memoryCaption(entity, groups.memories);
+      const withMemories = (message) => memoryText ? message + ' ' + memoryText : message;
+      return withMemories(message);
     };
-    const actionOf = (entity) => ({ noche: 'Ver la noche', artista: 'Ver el artista', set: 'Escuchar el set', disco: 'Ver el disco' }[entity.kind]);
+    const actionOf = (entity) => ({ noche: 'Ver la noche', artista: 'Ver el artista', set: 'Escuchar el set', disco: 'Ver el disco', memoria: 'Ver la memoria' }[entity.kind]);
 
     let selected = null;
     let hovered = null;
     const items = new Map();
     const narrow = window.matchMedia('(max-width: 700px)');
-    const TITLES = { noches: 'Noches', artistas: 'Artistas', sonido: 'Sonido' };
+    const TITLES = { noches: 'Noches', artistas: 'Artistas', sonido: 'Sonido', memorias: 'Memorias' };
     const LIMIT = 6;
     const board = el('div', { class: 'cn2-board' });
+    if (columns.memorias.length) board.classList.add('cr-has-memories');
     const svg = document.createElementNS(SVG_NS, 'svg');
     svg.setAttribute('class', 'cr-cn2-lines');
     svg.setAttribute('aria-hidden', 'true');
@@ -463,7 +507,9 @@
     sentence.append(sentenceText);
     const open = el('a', { class: 'btn r', href: '#', hidden: true });
     const clear = el('button', { class: 'btn', type: 'button', text: 'Quitar selección', hidden: true });
-    const intro = el('p', { class: 'cn2-intro', text: 'Toca una noche, un artista o un set y mira con qué se conecta.' });
+    const intro = el('p', { class: 'cn2-intro', text: columns.memorias.length
+      ? 'Toca una noche, un artista, un set o una memoria y mira con qué se conecta.'
+      : 'Toca una noche, un artista o un set y mira con qué se conecta.' });
 
     const focusKey = () => hovered || selected;
     const visibleEl = (button) => button && button.offsetParent !== null;

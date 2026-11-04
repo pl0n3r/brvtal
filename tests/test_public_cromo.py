@@ -375,6 +375,53 @@ class CromoHomeKeepsEverySectionTests(unittest.TestCase):
         self.assertIn("prefers-reduced-motion", self.CSS)
 
 
+class CromoConnectedMemoriesTests(unittest.TestCase):
+    """A fourth column exists only for explicit published Memory relations."""
+
+    JS = (ROOT / "js/public-cromo-home.js").read_text(encoding="utf-8")
+    CSS = (ROOT / "css/public-cromo-home.css").read_text(encoding="utf-8")
+
+    def test_memory_edges_require_real_visible_published_targets(self) -> None:
+        for name, prefix in (("event", "e"), ("artist", "a"), ("set", "s"), ("release", "r")):
+            self.assertIn("['" + name + "', '" + prefix + "']", self.JS)
+        self.assertIn("Array.isArray(memory.relations)", self.JS)
+        self.assertIn("relation?.related_type", self.JS)
+        self.assertIn("relation?.related_id", self.JS)
+        self.assertIn("Number.isSafeInteger(id) && id > 0", self.JS)
+        self.assertIn(".filter((key) => key && entities.has(key))", self.JS)
+        self.assertIn("if (!links.length) return;", self.JS)
+        self.assertIn("links.forEach((target) => join(key, target))", self.JS)
+        self.assertIn("add('memorias', key, 'memoria'", self.JS)
+        self.assertIn("'#memorias'", self.JS)
+
+    def test_without_links_three_columns_and_same_intro_remain(self) -> None:
+        self.assertIn("noches: [], artistas: [], sonido: [], memorias: []", self.JS)
+        self.assertIn("if (columns.memorias.length) board.classList.add('cr-has-memories')", self.JS)
+        self.assertIn("Object.keys(columns).filter((name) => columns[name].length)", self.JS)
+        self.assertIn("Toca una noche, un artista o un set y mira con qué se conecta.", self.JS)
+        self.assertIn("grid-template-columns:repeat(3,minmax(0,1fr))", self.CSS)
+
+    def test_real_memory_labels_and_contextual_sentences(self) -> None:
+        for fragment in ("memorias: 'Memorias'", "memoria: 'Ver la memoria'",
+                         "plural(memories.length, 'memoria', 'memorias')",
+                         "'Quedó registrada'", "'Aparece'", "'Recuerda '",
+                         "'Conecta con '", "'Incluye '"):
+            self.assertIn(fragment, self.JS)
+        self.assertIn("const withMemories = (message) => memoryText ? message + ' ' + memoryText : message", self.JS)
+        self.assertNotIn("innerHTML", self.JS)
+
+    def test_four_column_desktop_stacked_mobile_and_static_reduced_motion(self) -> None:
+        self.assertIn(".cr-cn2-board.cr-has-memories{grid-template-columns:repeat(4,minmax(0,1fr))", self.CSS)
+        self.assertIn("@media(max-width:1050px)", self.CSS)
+        self.assertIn(".cr-cn2-board.cr-has-memories{grid-template-columns:repeat(2,minmax(0,1fr))}", self.CSS)
+        self.assertIn("@media(max-width:700px)", self.CSS)
+        self.assertIn(".cr-cn2-board.cr-has-memories{grid-template-columns:1fr}", self.CSS)
+        self.assertIn("#cromo-home .cr-cn2-lines{display:none}", self.CSS)
+        self.assertIn("@media(prefers-reduced-motion:reduce)", self.CSS)
+        self.assertIn(".cr-cn2-path{stroke-dashoffset:0}", self.CSS)
+        self.assertIn(".cr-cn2-path,#cromo-home .t-text-soft", self.CSS)
+
+
 class CromoMotionTests(unittest.TestCase):
     """Motion follows the transitions.dev scale and the connected graph is an interactive control."""
 
