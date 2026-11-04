@@ -110,5 +110,5 @@
    coarse pointers / touch. */
 @media (pointer:coarse){
   /* Cromo loads its crosshair rule later; touch users still need native behavior. */
-  html.cromo-home body,html.cromo-home body.cursor-enhanced,body.cursor-enhanced{cursor:auto!important}
+  html.cromo-home:root body,html.cromo-home:root body.cursor-enhanced,html:root body.cursor-enhanced{cursor:auto}
 }

@@ -59,8 +59,9 @@ class PublicMobileAccessibilityTests(unittest.TestCase):
         self.assertIn("#cromo-home .cr-snd{", css)
         self.assertIn('footer :is(a[href="/privacy"],button)', css)
         self.assertGreaterEqual(css.count("min-height:44px;"),2)
-        self.assertIn("html.cromo-home body,html.cromo-home body.cursor-enhanced", css)
-        self.assertIn("cursor:auto!important", css)
+        self.assertIn("html.cromo-home:root body,html.cromo-home:root body.cursor-enhanced", css)
+        self.assertIn("cursor:auto}", css)
+        self.assertNotIn("cursor:auto!important", css)
         self.assertIn("@media (pointer:coarse)",css)
         self.assertNotIn("body{cursor:none}",css)
 
