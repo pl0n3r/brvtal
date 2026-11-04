@@ -367,5 +367,46 @@ class CromoHomeKeepsEverySectionTests(unittest.TestCase):
         self.assertIn("prefers-reduced-motion", self.CSS)
 
 
+class CromoMotionTests(unittest.TestCase):
+    """Motion follows the transitions.dev scale and the connected graph is an interactive control."""
+
+    FILES = ("css/public-cromo-home.css", "css/public-cromo-pages.css", "css/public-cromo-redesign.css")
+    JS = (ROOT / "js/public-cromo-home.js").read_text(encoding="utf-8")
+    HOME = (ROOT / "css/public-cromo-home.css").read_text(encoding="utf-8")
+
+    def test_transitions_and_one_shot_animations_use_the_shared_motion_tokens(self) -> None:
+        for path in self.FILES:
+            css = re.sub(r"/\*.*?\*/", "", (ROOT / path).read_text(encoding="utf-8"), flags=re.S)
+            for decl in re.findall(r"(?<![-\w])(?:transition|animation)\s*:\s*([^;}]+)", css):
+                if "infinite" in decl or decl.strip() == "none":
+                    continue  # looping ambience (float, roll, spin, pulse) keeps its own cadence
+                stripped = re.sub(r"var\([^)]*\)", "", decl)
+                self.assertNotRegex(stripped, r"\b\d*\.?\d+m?s\b", path + ": " + decl)
+                self.assertNotRegex(stripped, r"cubic-bezier|\bease\b", path + ": " + decl)
+
+    def test_motion_tokens_exist_and_match_the_scale(self) -> None:
+        for token, value in (("--duration-quick", "150ms"), ("--duration-fast", "250ms"),
+                             ("--duration-slow", "400ms"), ("--duration-very-slow", "500ms"),
+                             ("--ease-smooth-out", "cubic-bezier(.22,1,.36,1)")):
+            self.assertIn(token + ":" + value, self.HOME.replace(" ", ""), token)
+
+    def test_connected_graph_is_interactive_and_accessible(self) -> None:
+        self.assertIn("'aria-pressed'", self.JS)
+        self.assertIn("class: 'cn-node plate chrome-b', type: 'button'", self.JS)
+        self.assertIn("softSwap(headingText", self.JS)
+        self.assertIn("softSwap(totalText", self.JS)
+        self.assertIn("event.key === 'Escape'", self.JS)
+        self.assertIn("matchMedia('(prefers-reduced-motion: reduce)')", self.JS)
+        self.assertIn("ms('--duration-quick')", self.JS)
+        for destination in ("#noches", "#artistas", "#sonido", "#discos", "#memorias"):
+            self.assertIn(destination, self.JS)
+        self.assertNotIn("innerHTML", self.JS)
+
+    def test_graph_and_swap_have_reduced_motion_fallbacks(self) -> None:
+        block = self.HOME[self.HOME.rindex("prefers-reduced-motion"):]
+        for needle in ("cr-cn-node", "t-text-soft", "cr-cn-edges li{animation:none}"):
+            self.assertIn(needle, block)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -288,26 +288,126 @@
     ['artist_release', 'Artistas', 'Discos'], ['event_memory', 'Eventos', 'Memorias'], ['artist_memory', 'Artistas', 'Memorias'],
     ['set_memory', 'Sonido', 'Memorias'], ['release_memory', 'Discos', 'Memorias'],
   ];
+  const SECTION = { Eventos: '#noches', Artistas: '#artistas', Sonido: '#sonido', Discos: '#discos', Memorias: '#memorias' };
+
+  // Motion timing is read from the shared tokens (css/public-cromo-home.css), never hardcoded here.
+  const ms = (name) => parseFloat(getComputedStyle(document.getElementById('cromo-home') || root).getPropertyValue(name)) || 0;
+  const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // transitions.dev "text swap soft": old and new text cross-blur in place and the width eases.
+  const softSwap = (node, next) => {
+    const prev = node.dataset.text ?? node.textContent;
+    if (prev === next) return;
+    node.dataset.text = next;
+    clearTimeout(node._softTimer);
+    if (reduced()) { node.textContent = next; return; }
+    const out = document.createElement('span');
+    out.className = 't-text-soft-old';
+    out.setAttribute('aria-hidden', 'true');
+    out.textContent = prev;
+    const inn = document.createElement('span');
+    inn.className = 't-text-soft-new';
+    inn.textContent = next;
+    const w0 = node.getBoundingClientRect().width;
+    node.classList.remove('is-swapping');
+    node.replaceChildren(out, inn);
+    const w1 = inn.getBoundingClientRect().width;
+    node.style.width = w0 + 'px';
+    void node.offsetWidth; // force reflow so every transition runs
+    node.classList.add('is-swapping');
+    node.style.width = w1 + 'px';
+    node._softTimer = setTimeout(() => {
+      node.classList.remove('is-swapping');
+      node.style.removeProperty('width');
+      node.textContent = next;
+    }, Math.max(ms('--text-soft-dur'), ms('--text-soft-resize-dur')) + 40);
+  };
+
   const buildConnected = (data) => {
-    // --- Conectado: only counts that the CMS certifies; nothing is invented.
+    // --- Conectado: only counts that the CMS certifies; nothing is invented. Nodes are buttons:
+    // choosing one narrows the relations to it and links to the sections it connects with.
     const raw = ((data.relations || {}).counts) || {};
     const count = (key) => (Number.isSafeInteger(raw[key]) && raw[key] > 0 ? raw[key] : 0);
     const len = (list) => (Array.isArray(list) ? list.length : 0);
     const nodes = [['Eventos', len(data.events)], ['Artistas', len(data.artists)], ['Sonido', len(data.sets)],
       ['Discos', len(data.releases)], ['Memorias', len(data.memories)]];
     const edges = EDGES.map(([key, a, b]) => [a, b, count(key)]).filter((e) => e[2] > 0);
-    const total = edges.reduce((sum, e) => sum + e[2], 0);
-    const grid = el('ul', { class: 'cn-nodes' }, nodes.map(([name, n]) => el('li', { class: 'plate chrome-b' },
-      el('span', { class: 'cn-n u', text: String(n) }), el('span', { class: 'cn-l', text: name }))));
-    const list = edges.length
-      ? el('ul', { class: 'cn-edges' }, edges.map(([a, b, n]) => el('li', {}, el('span', { text: a + ' ↔ ' + b }), el('b', { text: String(n) }))))
-      : el('p', { class: 'cn-empty', text: 'Todavía no hay relaciones publicadas.' });
-    return el('section', { class: 'sec', id: 'conectado' }, el('h2', { class: 'u', text: 'Conectado' }),
+    const sumOf = (list) => list.reduce((sum, e) => sum + e[2], 0);
+
+    let selected = null;
+    const grid = el('ul', { class: 'cn-nodes', role: 'group', 'aria-label': 'Elige una categoría para ver sus conexiones' });
+    const buttons = new Map();
+    nodes.forEach(([name, n]) => {
+      const button = el('button', { class: 'cn-node plate chrome-b', type: 'button', 'aria-pressed': 'false', 'data-node': name },
+        el('span', { class: 'cn-n u', text: String(n) }), el('span', { class: 'cn-l', text: name }));
+      buttons.set(name, button);
+      grid.append(el('li', {}, button));
+    });
+
+    const heading = el('p', { class: 'cn-sel u' });
+    const headingText = document.createElement('span');
+    headingText.className = 't-text-soft';
+    headingText.textContent = 'Todo el archivo';
+    heading.append(headingText);
+    const list = el('ul', { class: 'cn-edges', 'aria-live': 'polite' });
+    const totalNode = el('p', { class: 'cn-total' });
+    const totalText = document.createElement('span');
+    totalText.className = 't-text-soft';
+    totalNode.append(totalText);
+    const tagline = el('p', { class: 'cn-tag u', text: 'Todo está conectado.' });
+    const go = el('a', { class: 'btn', href: '#memorias', text: 'Explorar el archivo' });
+    const reset = el('button', { class: 'btn r', type: 'button', text: 'Ver todo', hidden: true });
+
+    const visible = () => (selected ? edges.filter((e) => e[0] === selected || e[1] === selected) : edges);
+    const totalLabel = () => {
+      const shown = visible();
+      if (!shown.length) return selected ? selected + ' aún no tiene vínculos publicados.' : 'Sin vínculos publicados aún.';
+      return sumOf(shown) + (selected ? ' vínculos verificados de ' + selected + '.' : ' vínculos verificados en el archivo público.');
+    };
+    const rows = () => {
+      const shown = visible();
+      if (!shown.length) return [el('li', { class: 'cn-empty', text: 'Todavía no hay relaciones publicadas.' })];
+      return shown.map(([a, b, n], i) => {
+        const other = selected ? (a === selected ? b : a) : b;
+        return el('li', { style: '--i:' + i }, el('a', { class: 'cn-edge', href: SECTION[other], 'aria-label': a + ' con ' + b + ': ' + n + '. Ir a ' + other },
+          el('span', { text: a + ' ↔ ' + b }), el('b', { text: String(n) }), el('i', { 'aria-hidden': 'true', text: 'Ver' })));
+      });
+    };
+    const paintList = (animate) => {
+      const swap = () => { list.replaceChildren(...rows()); list.classList.remove('cr-is-leaving'); };
+      if (!animate || reduced()) { swap(); return; }
+      list.classList.add('cr-is-leaving');
+      setTimeout(swap, ms('--duration-quick'));
+    };
+
+    const choose = (name) => {
+      selected = selected === name ? null : name;
+      buttons.forEach((button, key) => {
+        const linked = selected && key !== selected && edges.some((e) => (e[0] === selected && e[1] === key) || (e[1] === selected && e[0] === key));
+        button.setAttribute('aria-pressed', String(key === selected));
+        button.classList.toggle('cr-is-linked', Boolean(linked));
+      });
+      grid.classList.toggle('cr-has-selection', Boolean(selected));
+      softSwap(headingText, selected ? selected + ' conecta con' : 'Todo el archivo');
+      softSwap(totalText, totalLabel());
+      go.textContent = selected ? 'Ir a ' + selected : 'Explorar el archivo';
+      go.setAttribute('href', selected ? SECTION[selected] : '#memorias');
+      reset.hidden = !selected;
+      paintList(true);
+    };
+    buttons.forEach((button, name) => button.addEventListener('click', () => choose(name)));
+    reset.addEventListener('click', () => choose(selected));
+
+    headingText.dataset.text = 'Todo el archivo';
+    totalText.textContent = totalLabel();
+    totalText.dataset.text = totalText.textContent;
+    paintList(false);
+
+    const section = el('section', { class: 'sec', id: 'conectado' }, el('h2', { class: 'u', text: 'Conectado' }),
       el('div', { class: 'cn' }, grid,
-        el('div', { class: 'cn-side plate chrome-b' }, list,
-          el('p', { class: 'cn-total', text: total ? total + ' vínculos verificados en el archivo público.' : 'Sin vínculos publicados aún.' }),
-          el('p', { class: 'cn-tag u', text: 'Todo está conectado.' }),
-          el('a', { class: 'btn', href: '#memorias', text: 'Explorar el archivo' }))));
+        el('div', { class: 'cn-side plate chrome-b' }, heading, list, totalNode, tagline, el('div', { class: 'cn-actions' }, go, reset))));
+    section.addEventListener('keydown', (event) => { if (event.key === 'Escape' && selected) choose(selected); });
+    return section;
   };
 
   const build = (data) => {

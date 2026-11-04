@@ -25,6 +25,32 @@ body.cromo-page > main,
 body.cromo-page > footer{position:relative;z-index:2}
 body.cromo-page a{color:inherit}
 body.cromo-page :focus-visible{outline:3px solid var(--cromo-bone);outline-offset:3px}
+/* ---------- Motion tokens (transitions.dev scale): every transition below reads from these ---------- */
+body.cromo-page{
+  --duration-stagger:40ms;--duration-micro:80ms;--duration-quick:150ms;--duration-fast:250ms;
+  --duration-medium:350ms;--duration-slow:400ms;--duration-very-slow:500ms;
+  --ease-smooth-out:cubic-bezier(.22,1,.36,1);--ease-in-out:ease-in-out;--ease-out:ease-out;
+  --distance-medium:12px;--blur-small:2px;--blur-medium:3px;
+}
+
+/* Motion: hover lift and color changes use the shared scale; the page enters once, with a soft blur. */
+body.cromo-page .entity-actions a,
+body.cromo-page .entity-brand,
+body.cromo-page .entity-card,
+body.cromo-page .entity-image{
+  transition:
+    transform var(--duration-fast) var(--ease-smooth-out),
+    box-shadow var(--duration-fast) var(--ease-smooth-out),
+    background-color var(--duration-quick) var(--ease-in-out),
+    color var(--duration-quick) var(--ease-in-out);
+}
+body.cromo-page .entity-card:hover{transform:translate(-3px,-3px);box-shadow:6px 6px 0 var(--cromo-red)}
+@keyframes cromo-page-in{from{opacity:0;filter:blur(var(--blur-medium));transform:translateY(var(--distance-medium))}to{opacity:1;filter:blur(0);transform:none}}
+body.cromo-page .entity-hero .entity-copy > *{animation:cromo-page-in var(--duration-very-slow) var(--ease-in-out) backwards}
+body.cromo-page .entity-hero .entity-copy > :nth-child(2){animation-delay:var(--duration-stagger)}
+body.cromo-page .entity-hero .entity-copy > :nth-child(3){animation-delay:calc(var(--duration-stagger)*2)}
+body.cromo-page .entity-hero .entity-copy > :nth-child(4){animation-delay:calc(var(--duration-stagger)*3)}
+
 
 /* ---------- Navigation and footer ---------- */
 body.cromo-page .entity-nav,
@@ -138,5 +164,8 @@ body.cromo-page.brvtal-privacy-rights > footer{padding:16px clamp(16px,4vw,48px)
   body.cromo-page .entity-image{box-shadow:4px 4px 0 var(--cromo-red)}
 }
 @media(prefers-reduced-motion:reduce){
-  body.cromo-page .entity-actions a:hover{transform:none;box-shadow:none}
+  body.cromo-page .entity-actions a:hover,
+  body.cromo-page .entity-card:hover{transform:none;box-shadow:none}
+  body.cromo-page .entity-hero .entity-copy > *{animation:none}
+  body.cromo-page .entity-actions a,body.cromo-page .entity-brand,body.cromo-page .entity-card,body.cromo-page .entity-image{transition:none}
 }
