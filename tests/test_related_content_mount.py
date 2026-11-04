@@ -32,6 +32,15 @@ function element(name) {
     isConnected: true,
     parentNode: null,
     children: [],
+    className: '',
+    style: {},
+    closest(selector) {
+      if (selector !== '.c5-board-region--pair') return null;
+      for (let node = this; node; node = node.parentNode) {
+        if (node.className.split(/\s+/).includes('c5-board-region--pair')) return node;
+      }
+      return null;
+    },
     addEventListener() {},
     querySelector() { return null; },
     appendChild(child) {
@@ -59,6 +68,11 @@ const media = element('media');
 if (scenario === 'nested') {
   host.appendChild(wrapper);
   wrapper.appendChild(media);
+} else if (scenario === 'pair') {
+  wrapper.className = 'c5-board-region c5-board-region--pair';
+  host.appendChild(wrapper);
+  wrapper.appendChild(element('sets'));
+  wrapper.appendChild(media);
 } else if (scenario === 'direct') {
   host.appendChild(media);
 } else if (scenario !== 'missing' && scenario !== 'detached') {
@@ -85,10 +99,15 @@ assert.equal(section.name, 'section');
 assert.equal(section.id, 'network');
 assert.equal(section.className, 'related-network');
 assert.equal(state.root, section);
+assert.equal(section.style.gridColumn, '1 / -1', 'section spans the host grid');
 if (scenario === 'nested') {
   assert.equal(section.parentNode, wrapper);
   assert.deepEqual(host.children.map(node => node.name), ['wrapper']);
   assert.deepEqual(wrapper.children.map(node => node.name), ['section', 'media']);
+} else if (scenario === 'pair') {
+  assert.equal(section.parentNode, host, 'network must not occupy a pair cell');
+  assert.deepEqual(host.children.map(node => node.name), ['section', 'wrapper']);
+  assert.deepEqual(wrapper.children.map(node => node.name), ['sets', 'media']);
 } else if (scenario === 'direct') {
   assert.equal(section.parentNode, host);
   assert.deepEqual(host.children.map(node => node.name), ['section', 'media']);
@@ -118,6 +137,9 @@ class RelatedContentMountTests(unittest.TestCase):
 
     def test_nested_media_inserts_before_reference_in_real_parent(self) -> None:
         self.run_fixture("nested")
+
+    def test_pair_grid_keeps_sound_and_memories_on_same_row(self) -> None:
+        self.run_fixture('pair')
 
     def test_direct_media_keeps_previous_order(self) -> None:
         self.run_fixture("direct")
