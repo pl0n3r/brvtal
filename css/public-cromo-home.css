@@ -80,6 +80,16 @@ html.cromo-home body>*:not(#cromo-home):not(#cromoGL):not(script):not(style):not
 #cromo-home footer{position:relative;z-index:3;padding:30px 28px 40px;display:flex;justify-content:space-between;font:700 19px/1.4 var(--body);background:#030303;color:#fff;flex-wrap:wrap;gap:12px}
 #cromo-home footer button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0;text-decoration:underline}
 
+
+/* Public Social & Contact destinations, provided only by the allowlisted CMS payload. */
+#cromo-home .cr-social{box-sizing:border-box;width:calc(100% - 8px);max-width:1100px;margin:clamp(36px,6vw,72px) auto 0;padding:clamp(18px,3vw,32px);background:rgba(3,3,3,.94);border:3px solid var(--bone);box-shadow:8px 8px 0 var(--red);text-align:left}
+#cromo-home .cr-social-title{margin:0 0 24px;font:400 clamp(34px,5vw,72px)/.95 var(--disp);color:var(--bone);text-shadow:4px 4px 0 var(--red);overflow-wrap:anywhere}
+#cromo-home .cr-social-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:12px}
+#cromo-home .cr-social-link{box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;min-width:0;min-height:52px;padding:12px 16px;border:2px solid var(--bone);background:#030303;color:var(--bone);font:700 clamp(17px,1.5vw,21px)/1.2 var(--body);letter-spacing:.04em;text-transform:uppercase;text-decoration:none;overflow-wrap:anywhere;transition:background-color var(--duration-quick) var(--ease-in-out),color var(--duration-quick) var(--ease-in-out),box-shadow var(--duration-quick) var(--ease-in-out)}
+#cromo-home .cr-social-link:hover{background:var(--red);color:var(--ink);box-shadow:4px 4px 0 var(--bone)}
+#cromo-home .cr-social-link:focus-visible{outline:3px solid var(--red);outline-offset:3px}
+@media(prefers-reduced-motion:reduce){#cromo-home .cr-social-link{transition:none}}
+
 /* ===== secciones completas ===== */
 #cromo-home .cr-plate{background:rgba(3,3,3,.93)}
 #cromo-home .cr-chrome-b{border:3px solid transparent;border-image:linear-gradient(135deg,#fff 0%,#5b6677 30%,#fff 50%,#ff3b1f 78%,#fff 100%) 1}

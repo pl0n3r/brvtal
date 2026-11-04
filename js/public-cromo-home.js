@@ -109,7 +109,43 @@
     return memoriesSec;
   };
 
-  const buildContact = () => {
+
+  // Only public, absolute HTTP(S) destinations may leave the site.
+  const safeSocialUrl = (value) => {
+    if (typeof value !== 'string') return '';
+    const raw = value.trim();
+    const authority = /^https?:\/\/([^/?#]+)/i.exec(raw)?.[1] || '';
+    if (!authority || authority.includes('@') || /\s/.test(raw) || /[\\\u0000-\u001f\u007f]/.test(raw)) return '';
+    try {
+      const parsed = new URL(raw);
+      return ['http:', 'https:'].includes(parsed.protocol) && parsed.hostname && !parsed.username && !parsed.password ? parsed.href : '';
+    } catch (error) {
+      // URL validation only normalizes known invalid-input errors; unexpected failures reach the home fallback.
+      if (error instanceof TypeError) return '';
+      throw error;
+    }
+  };
+
+  const buildSocialLinks = (settings) => {
+    const social = settings && typeof settings === 'object' && !Array.isArray(settings) ? settings : {};
+    const destinations = [
+      ['instagram', 'Instagram'], ['soundcloud', 'SoundCloud'], ['youtube', 'YouTube'],
+      ['spotify', 'Spotify'], ['website', 'Sitio web'],
+    ];
+    const links = destinations.map(([key, label]) => {
+      const href = safeSocialUrl(social[key] || social[key + '_url']);
+      return href ? el('a', {
+        class: 'social-link', href, target: '_blank', rel: 'noopener noreferrer',
+        text: label + ' ↗', 'aria-label': label + ' (abre en una nueva pestaña)',
+      }) : null;
+    }).filter(Boolean);
+    if (!links.length) return null;
+    return el('div', { class: 'social', 'aria-label': 'Redes y enlaces oficiales' },
+      el('h2', { class: 'u social-title', text: 'Enlaces oficiales' }),
+      el('div', { class: 'social-grid' }, links));
+  };
+
+  const buildContact = (social) => {
     // --- Contacto
     const status = el('p', { class: 'form-status', role: 'status', 'aria-live': 'polite', 'data-state': 'idle' });
     const captchaLabel = el('label', { for: 'cromo-c', text: 'Cargando…' });
@@ -173,7 +209,7 @@
         submit.disabled = false;
       }
     });
-    const end = el('section', { class: 'end', id: 'contacto' }, el('a', { class: 'u', href: '#contacto', text: 'Hablemos' }), form);
+    const end = el('section', { class: 'end', id: 'contacto' }, el('a', { class: 'u', href: '#contacto', text: 'Hablemos' }), form, buildSocialLinks(social));
 
     return { end, loadChallenge };
   };
@@ -791,7 +827,7 @@
     const journalSec = buildJournal(posts);
 
     // --- Contacto
-    const { end, loadChallenge } = buildContact();
+    const { end, loadChallenge } = buildContact(data.settings?.social);
 
     // --- Footer
     const cookiePrefs = document.querySelector('.brvtal-cookie-preferences');
