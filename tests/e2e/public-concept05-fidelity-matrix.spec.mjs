@@ -801,12 +801,17 @@ const canonicalVisualRegions = [
  * Never auto-update these values in CI.
  * See docs/reference/concept05-v2-qa-baseline-2026-10-10.md.
  */
+// #1441: Reviewed real Chromium 390/1440 captures (artifact 13289666320)
+// against the preceding fixture (artifact 13288393668). Pixel changes are
+// confined to the sticky nav: 0.171% at 390px and 0.166% at 1440px.
+// Existing media, content and layout remain visually unchanged.
+// Refresh only this Spanish-only synthetic baseline, not #1415 historical hashes.
 const canonicalScreenshotBaselines = {
   390: {
     // Refreshed for #1415 after the owner reviewed the A/B captures (hero stacked
     // in normal flow on mobile; roster groups span the artist list). Synthetic-only:
     // does NOT attest CMS visual approval.
-    structure: '5bb83396f6dc08a147922a9e32527ee7901343e4d6b3b4e079a622ac38df5c66',
+    structure: '95abfc6d067ff057fe24b7c62aea50243a912964a7336bca4f96af09cfd30cca',
     color: '353f6d7f73df49561f72522b7a215756128711d261c17a02ee70b6573fe8b9c2',
   },
   1440: {
@@ -814,8 +819,8 @@ const canonicalScreenshotBaselines = {
     // against owner-v2 (#1361, PR #1391, artifact 13046482598). Synthetic-only:
     // retains fail-closed checks and does NOT attest CMS visual approval.
     // Refreshed again for #1415 after the owner reviewed the A/B captures.
-    structure: 'da684983d0788c585435fa0261aafe4d7547e4e7d1a2d2e879d31a362d20fe76',
-    color: '8cec8a73fa3dc6f0260d0898a272c5480a772f29cfe548ccc72b0ae93336b612',
+    structure: '97da71dd0b95d8803b932d42def427df40f7f441e0695b6f82ac231a42a456c2',
+    color: 'edf6dfdcbdf3f23d857654fa2552db727364ce05469fdfe18832dbbe5138340f',
   },
 };
 

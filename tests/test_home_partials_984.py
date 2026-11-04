@@ -280,7 +280,8 @@ class HomePartials984Tests(unittest.TestCase):
         self.assertLess(htaccess.index(redirect), htaccess.index("RewriteRule ^api/public/?$"))
         # Keep the canonical localized URL and entity/preview routes intact.
         for existing in (
-            "RewriteRule ^en$ index.php?locale=en [L,QSA,NC]",
+            "RewriteRule ^en/*$ / [R=301,L,NE,QSD,NC]",
+            "RewriteRule ^en/+([^/].*)$ /$1 [R=301,L,NE,QSD,NC]",
             "RewriteRule ^preview/([a-f0-9]{48})/?$ preview.php?token=$1 [L,QSA,NC]",
         ):
             self.assertIn(existing, htaccess)
