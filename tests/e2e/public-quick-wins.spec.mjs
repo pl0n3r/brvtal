@@ -134,7 +134,7 @@ test('Home images keep explicit accessible alternatives', async ({ page }) => {
     }] },
   }));
   await expect(page.locator('[data-c5-past-nights] .event-img img'))
-    .toHaveAttribute('alt', 'PUBLISHED CMS NIGHT');
+    .toHaveAttribute('alt', 'Portada de PUBLISHED CMS NIGHT');
 });
 
 test('Hero counting remains tied to the configured slider total', async () => {
