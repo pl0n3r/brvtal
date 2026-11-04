@@ -277,7 +277,7 @@ html.cromo body.brvtal-contact-page :where(button[type="submit"],.brvtal-contact
   html.cromo .cromo-next{transform:none;box-shadow:4px 4px 0 var(--cromo-red)}
   /* In the header the switch is icon-only; the label stays for screen readers. */
   html.cromo header.nav .cromo-sound{padding:0;justify-content:center;width:44px}
-  html.cromo header.nav .cromo-sound .cromo-sound-label{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+  html.cromo header.nav .cromo-sound .cromo-sound-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
 }
 
 @media(prefers-reduced-motion:reduce){
