@@ -153,7 +153,8 @@ void main(){
     gl.uniform2f(uM, mouseX, mouseY);
     gl.uniform1f(uBeat, beat);
     gl.uniform1f(uScroll, window.scrollY / window.innerHeight);
-    gl.uniform3f(uAccent, accent[0], accent[1], accent[2]);
+    const tint = window.BRVTAL_CROMO_ACCENT || accent;
+    gl.uniform3f(uAccent, tint[0], tint[1], tint[2]);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   };
 

@@ -31,7 +31,11 @@ def selectors(css: str) -> list[str]:
         prelude = match.group(1).strip()
         at_rule = re.match(r"(media|keyframes)\b", prelude)
         if prelude and not at_rule and not re.fullmatch(r"(from|to|\d+%)", prelude):
-            found.extend(part.strip() for part in re.split(r",(?![^(]*\))", prelude))
+            found.extend(
+                part.strip()
+                for part in re.split(r",(?![^(]*\))", prelude)
+                if not re.fullmatch(r"\s*(from|to|\d+%)\s*", part)
+            )
     return found
 
 
@@ -229,6 +233,61 @@ class CromoRedesignTests(unittest.TestCase):
     def test_beat_bridge_between_sound_and_backdrop(self) -> None:
         self.assertIn("cromo:beat", SOUND)
         self.assertIn("cromo:beat", JS)
+
+
+HOME_CSS = (ROOT / "css/public-cromo-home.css").read_text(encoding="utf-8")
+HOME_JS = (ROOT / "js/public-cromo-home.js").read_text(encoding="utf-8")
+
+
+class CromoHomeTests(unittest.TestCase):
+    def test_home_css_is_scoped_to_the_mounted_root(self) -> None:
+        for selector in selectors(HOME_CSS):
+            self.assertTrue(
+                selector.startswith("#cromo-home") or selector.startswith("html.cromo-home"),
+                f"unscoped selector: {selector}",
+            )
+
+    def test_home_classes_are_prefixed_to_avoid_legacy_collisions(self) -> None:
+        for legacy in (".hero{", ".sound{", ".sets{", ".artists{", ".journal{", ".btn{"):
+            self.assertNotIn(legacy, HOME_CSS.replace(" ", ""))
+        self.assertIn("'cr-' + c", HOME_JS)
+        self.assertNotIn("id: 'top'", HOME_JS)
+
+    def test_home_uses_installed_fonts_only(self) -> None:
+        self.assertIn('"Broken Glass"', HOME_CSS)
+        self.assertIn('"Barlow Condensed"', HOME_CSS)
+        self.assertNotIn("Rubik Mono One", HOME_CSS)
+        self.assertNotIn("fonts.googleapis.com", HOME_CSS)
+
+    def test_home_inserts_cms_text_without_html(self) -> None:
+        code = re.sub(r"/\*.*?\*/", "", HOME_JS, flags=re.S)
+        self.assertNotIn("innerHTML", code)
+        self.assertNotIn("outerHTML", code)
+        self.assertNotIn("insertAdjacentHTML", code)
+        self.assertIn("textContent", code)
+
+    def test_home_falls_back_to_the_previous_home(self) -> None:
+        self.assertIn("/api/public.php", HOME_JS)
+        self.assertIn("keep the Concept 05 home", HOME_JS)
+        self.assertIn("catch", HOME_JS)
+        self.assertIn("root.classList.add('cromo-home')", HOME_JS)
+
+    def test_home_keeps_the_real_functions(self) -> None:
+        for needle in ("/api/contact.php", "captcha_token", "captcha_answer", "'/privacy'", "BRVTALCromoSound", "aria-pressed"):
+            self.assertIn(needle, HOME_JS)
+        self.assertIn("Saltar al contenido", HOME_JS)
+
+    def test_home_assets_are_injected(self) -> None:
+        self.assertIn("css/public-cromo-home.css", HOME)
+        self.assertIn("js/public-cromo-home.js", HOME)
+
+    def test_sets_section_has_a_real_empty_state(self) -> None:
+        self.assertIn("Los próximos sets aparecerán aquí cuando estén publicados.", HOME_JS)
+        self.assertIn("id: 'discos'", HOME_JS)
+
+    def test_home_respects_reduced_motion(self) -> None:
+        self.assertIn("prefers-reduced-motion:reduce", HOME_CSS)
+        self.assertIn("reduce.matches", HOME_JS)
 
 
 if __name__ == "__main__":

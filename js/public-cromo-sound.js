@@ -82,10 +82,14 @@
   const buttons = [];
   const paint = () => {
     buttons.forEach((b) => {
+      const labelOn = b.dataset.cromoSoundOn || LABEL_ON;
+      const labelOff = b.dataset.cromoSoundOff || LABEL_OFF;
       b.setAttribute('aria-pressed', on ? 'true' : 'false');
-      b.setAttribute('aria-label', on ? LABEL_ON : LABEL_OFF);
-      const label = b.querySelector('.cromo-sound-label');
-      if (label) label.textContent = on ? LABEL_ON : LABEL_OFF;
+      b.setAttribute('aria-label', on ? LABEL_ON : labelOff);
+      b.classList.toggle('on', on);
+      b.classList.toggle('cr-on', on);
+      const label = b.querySelector('.cromo-sound-label, [data-cromo-sound-label]');
+      if (label) label.textContent = on ? labelOn : labelOff;
     });
     root.classList.toggle('cromo-sound-on', on);
   };
@@ -122,6 +126,16 @@
     b.addEventListener('click', toggle);
     buttons.push(b);
     return b;
+  };
+
+  // The Cromo home builds its own switches later and registers them here.
+  window.BRVTALCromoSound = {
+    bind: (button) => {
+      if (!button || buttons.includes(button)) return;
+      button.addEventListener('click', toggle);
+      buttons.push(button);
+      paint();
+    },
   };
 
   const mount = () => {
