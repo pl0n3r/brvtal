@@ -519,3 +519,12 @@ html[data-theme-grain="0"] [data-concept="05"] .c5-experience-authored .genesis-
 }
 
 [data-concept="05"] .c5-experience-authored :is(a,button):focus-visible{outline:2px solid var(--c5-signal-green,#b6ff00);outline-offset:3px}
+
+
+/* #1448 BRVTAL / NEXT EXPERIENCE: contrast-safe label on Theme Studio red. */
+[data-concept="05"] .c5-experience-artwork-label,
+[data-concept="05"] .c5-experience-artwork-label:hover,
+[data-concept="05"] .c5-experience-artwork-label:focus-visible{
+  background:var(--c5-a11y-red-bg);
+  color:var(--c5-a11y-red-fg);
+}

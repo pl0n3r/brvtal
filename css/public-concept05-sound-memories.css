@@ -619,3 +619,14 @@ html.c5-visual-test [data-concept="05"] .c5-memory-cell .public-media-open video
   overflow-wrap:break-word;
   word-break:normal;
 }
+
+
+/* #1448 LISTEN: WCAG AA at 12px, including pointer and keyboard states. */
+[data-concept="05"] #sets .set-listen-action,
+[data-concept="05"] #sets .set-listen-action:hover,
+[data-concept="05"] #sets .set-listen-action:focus-visible{
+  border-color:var(--c5-a11y-red-bg);
+  background:var(--c5-a11y-red-bg);
+  color:var(--c5-a11y-red-fg);
+}
+[data-concept="05"] #sets .set-listen-action span{color:inherit}

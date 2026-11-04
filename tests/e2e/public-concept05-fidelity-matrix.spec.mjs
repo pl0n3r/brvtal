@@ -831,6 +831,7 @@ const screenshotCssPaths = ["css/public-concept05-hero.css","css/public-concept0
 const screenshotCssBlobs = {
   main: ["af236f13954278c66ca9f0a36624fe8b08b95180","4911cbe7042707f026b2172b2e72b16d9f7364d8","436a0155bad56c87561623828bab31bcdfb4d0ed"],
   issue1415: ["2e7e5b8665f300fc9cfbbb5236fe35acd5c27ded","b5fb1d60eaa7501733b31f9cd4c7e94cc6bcb402","fc91461fab7604666885eb9023d14c7301ae3988"],
+  issue1448: ["2e7e5b8665f300fc9cfbbb5236fe35acd5c27ded","00b074cd162851dc9955a24cd30678812bcc26a7","3bdd8a707f6be4bba345d4e064dae5d8679d8d8e"],
 };
 // Agent-inspected A/B under owner's #965 authorization, synthetic Chromium fixture,
 // #1415 @ d20f9f8, run 41709818566 / artifact 13267882889.
@@ -861,6 +862,16 @@ const spanishOnlyScreenshotBaselines = {
     color: 'edf6dfdcbdf3f23d857654fa2552db727364ce05469fdfe18832dbbe5138340f',
   },
 };
+// #1448: owner-authorized contrast refresh (#965 comment 6094235414).
+// All four CSS blobs match those of the historic screenshot calibration
+// Chromium run 41789025086, artifact 13302607095, at 390/1440.
+// Retain strict exact-HEAD checks: visual drift must fail in current CI.
+const issue1448ScreenshotBaselines = {
+  390: {structure:'95abfc6d067ff057fe24b7c62aea50243a912964a7336bca4f96af09cfd30cca',
+        color:'353f6d7f73df49561f72522b7a215756128711d261c17a02ee70b6573fe8b9c2'},
+  1440: {structure:'97da71dd0b95d8803b932d42def427df40f7f441e0695b6f82ac231a42a456c2',
+         color:'edf6dfdcbdf3f23d857654fa2552db727364ce05469fdfe18832dbbe5138340f'},
+};
 const spanishOnlyPublicNav = !readFileSync(
   join(root, 'partials/home/nav.html'), 'utf8'
 ).includes('id="languageSelector"');
@@ -876,9 +887,11 @@ function baselineForCssBlobs(blobs, spanishOnly = false) {
   }
   const matchesMain = screenshotCssBlobs.main.every((sha, i) => sha === blobs[i]);
   const matchesIssue1415 = screenshotCssBlobs.issue1415.every((sha, i) => sha === blobs[i]);
-  if (!matchesMain && !matchesIssue1415) {
+  const matchesIssue1448 = screenshotCssBlobs.issue1448.every((sha, i) => sha === blobs[i]);
+  if (!matchesMain && !matchesIssue1415 && !matchesIssue1448) {
     throw new Error(`Unknown Concept 05 CSS blobs: ${blobs.join(', ')}`);
   }
+  if (matchesIssue1448) return issue1448ScreenshotBaselines;
   if (spanishOnly) return spanishOnlyScreenshotBaselines;
   return matchesMain ? canonicalScreenshotBaselines : issue1415ScreenshotBaselines;
 }
@@ -888,6 +901,10 @@ test('Concept 05 screenshot baseline CSS blobs reject mixed and unknown revision
     .toBe(canonicalScreenshotBaselines);
   expect(baselineForCssBlobs(screenshotCssBlobs.issue1415))
     .toBe(issue1415ScreenshotBaselines);
+  expect(baselineForCssBlobs(screenshotCssBlobs.issue1448))
+    .toBe(issue1448ScreenshotBaselines);
+  expect(baselineForCssBlobs(screenshotCssBlobs.issue1448, true))
+    .toBe(issue1448ScreenshotBaselines);
   expect(baselineForCssBlobs(screenshotCssBlobs.issue1415, true))
     .toBe(spanishOnlyScreenshotBaselines);
   expect(baselineForCssBlobs(screenshotCssBlobs.main, true))
@@ -896,6 +913,13 @@ test('Concept 05 screenshot baseline CSS blobs reject mixed and unknown revision
     const mixed = [...screenshotCssBlobs.main];
     mixed[index] = screenshotCssBlobs.issue1415[index];
     expect(() => baselineForCssBlobs(mixed)).toThrow(/Unknown Concept 05 CSS blobs/);
+  }
+  for (let index = 0; index < screenshotCssPaths.length; index += 1) {
+    const mixed = [...screenshotCssBlobs.main];
+    mixed[index] = screenshotCssBlobs.issue1448[index];
+    if (mixed[index] !== screenshotCssBlobs.main[index]) {
+      expect(() => baselineForCssBlobs(mixed)).toThrow(/Unknown Concept 05 CSS blobs/);
+    }
   }
   expect(() => baselineForCssBlobs([])).toThrow(/incomplete triple/);
   const unknown = [...screenshotCssBlobs.main];

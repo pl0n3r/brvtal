@@ -383,3 +383,34 @@ html[data-theme-glitch="0"] [data-concept="05"] .experience-actions .ticket-cta:
     min-height:0;border-left:0;width:100%
   }
 }
+
+
+/* #1448 WCAG AA: Theme Studio --red remains the accent source.
+   contrast-color() chooses high-contrast black/white on that red; older
+   browsers use a theme-derived dark red with guaranteed white contrast. */
+[data-concept="05"]{
+  --c5-a11y-red-bg:color-mix(in srgb,var(--c5-signal-red) 40%,#050505);
+  --c5-a11y-red-fg:#ffffff;
+}
+@supports (color:contrast-color(red)){
+  [data-concept="05"]{
+    --c5-a11y-red-bg:var(--c5-signal-red);
+    --c5-a11y-red-fg:contrast-color(var(--c5-signal-red));
+  }
+}
+[data-concept="05"] .events .event-ticket,
+[data-concept="05"] .events .event-ticket:hover,
+[data-concept="05"] .events .event-ticket:focus-visible,
+[data-concept="05"] .experience-actions .enter,
+[data-concept="05"] .experience-actions .enter:hover,
+[data-concept="05"] .experience-actions .enter:focus-visible,
+[data-concept="05"] .experience-actions .ticket-cta,
+[data-concept="05"] .experience-actions .ticket-cta:hover,
+[data-concept="05"] .experience-actions .ticket-cta:focus-visible{
+  background:var(--c5-a11y-red-bg);
+  border-color:var(--c5-a11y-red-bg);
+  color:var(--c5-a11y-red-fg);
+}
+[data-concept="05"] .events .event-ticket span,
+[data-concept="05"] .experience-actions .enter span,
+[data-concept="05"] .experience-actions .ticket-cta span{color:inherit}
