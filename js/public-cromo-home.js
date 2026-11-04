@@ -178,6 +178,84 @@
     return { end, loadChallenge };
   };
 
+  const buildHero = (next, artists) => {
+    // --- Hero
+    const word = el('h1', { class: 'u', id: 'word', 'aria-label': 'BRVTAL' }, Array.from('BRVTAL').map((c) => el('span', { 'aria-hidden': 'true', text: c })));
+    let nextCard = null;
+    if (next) {
+      const when = parseDate(next.event_date);
+      const days = Math.ceil((new Date(when.getFullYear(), when.getMonth(), when.getDate()) - new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate())) / 86400000);
+      const k = days <= 0 ? 'Es hoy' : days === 1 ? 'Falta 1 día' : 'Faltan ' + days + ' días';
+      const lineup = lineupText(artists);
+      const place = [text(next.city), text(next.venue)].filter(Boolean).join(', ');
+      nextCard = el('aside', { class: 'next', 'aria-label': 'Próxima noche' },
+        el('b', { text: k }), el('span', { text: when.getDate() + ' ' + MONTHS[when.getMonth()] }),
+        el('small', { text: text(next.title) + (lineup ? ': ' + lineup : '') + (place ? '. ' + place + '.' : '.') }));
+    }
+    const hero = el('section', { class: 'hero' },
+      el('div', { class: 'core' }, word, el('p', { text: 'Más que fiestas. Una cultura en movimiento.' })),
+      nextCard,
+      el('div', { class: 'cta' }, el('a', { class: 'btn r', href: '#noches', text: 'Ver la próxima noche' }), el('a', { class: 'btn', href: '#sonido', text: 'Escuchar' })));
+    const bandItems = ['Rave till grave', 'Pereira, Colombia', 'Más que fiestas'];
+    const band = el('div', { class: 'band', 'aria-hidden': 'true' }, el('div', {}, [...bandItems, ...bandItems].map((t) => el('span', { text: t }))));
+
+    return { word, hero, band };
+  };
+
+  const buildNights = (upcoming, next, artists) => {
+    // --- Noches
+    const nights = el('section', { class: 'sec', id: 'noches' }, el('h2', { class: 'u', text: 'Noches' }));
+    upcoming.slice(0, 6).forEach((event) => {
+      const when = parseDate(event.event_date);
+      const place = [text(event.city), text(event.venue)].filter(Boolean).join(', ');
+      const meta = (event === next ? lineupText(artists) : '') ;
+      const line = [meta, place + ', ' + two(when.getHours()) + ':' + two(when.getMinutes())].filter(Boolean).join('. ') + '.';
+      nights.append(el('a', { class: 'night', href: '/events/' + encodeURIComponent(event.slug) },
+        el('span', { class: 'u n', text: two(when.getDate()) + '.' + two(when.getMonth() + 1) }),
+        el('span', {}, el('span', { class: 't', text: text(event.title) }), el('span', { class: 'm', text: line })),
+        el('span', { class: 'go', text: safeUrl(event.ticket_url) ? 'Comprar tickets' : 'Ver noche' })));
+    });
+    nights.append(el('a', { class: 'night', href: '#contacto' },
+      el('span', { class: 'u n', text: 'Sigue' }),
+      el('span', {}, el('span', { class: 't', text: 'Aún sin fecha' }), el('span', { class: 'm', text: 'Escríbenos y te avisamos cuando se anuncie la siguiente.' })),
+      el('span', { class: 'go', text: 'Avísame' })));
+
+    return nights;
+  };
+
+  const buildArtists = (artists) => {
+    // --- Artistas
+    const roster = [...artists].sort((a, b) => (b.is_collective_member ? 1 : 0) - (a.is_collective_member ? 1 : 0)).slice(0, 5);
+    const artistsGrid = el('div', { class: 'artists' }, roster.map((a) => el('a', { class: 'ac plate chrome-b', href: '/artists/' + encodeURIComponent(a.slug) },
+      el('i', { class: 'orb', 'aria-hidden': 'true' }), el('span', { class: 'nm', text: text(a.name) }),
+      el('span', { class: 'rl', text: (a.is_collective_member ? 'Colectivo. ' : 'Colaborador. ') + text(a.bio, 90) }))));
+    artistsGrid.append(el('a', { class: 'ac plate chrome-b', href: '#contacto' },
+      el('i', { class: 'orb', 'aria-hidden': 'true' }), el('span', { class: 'nm', text: 'Tú' }),
+      el('span', { class: 'rl', text: '¿Quieres sumarte al roster? Escríbenos y cuéntanos qué suenas.' })));
+    const artistsSec = el('section', { class: 'sec', id: 'artistas' }, el('h2', { class: 'u', text: 'Artistas' }), artistsGrid);
+
+    return artistsSec;
+  };
+
+  const buildJournal = (posts) => {
+    // --- Journal
+    const post = posts[0];
+    const cards = [];
+    if (post) {
+      cards.push(el('article', { class: 'jn plate chrome-b' },
+        el('div', {}, el('p', { class: 'k', text: 'Crónica' }), el('h3', { style: 'margin-top:10px', text: text(post.title) })),
+        el('p', { text: text(post.excerpt, 180) }),
+        el('div', {}, el('a', { class: 'btn', href: '/blog/' + encodeURIComponent(post.slug), text: 'Leer la crónica' }))));
+    }
+    cards.push(el('article', { class: 'jn plate chrome-b' },
+      el('div', {}, el('p', { class: 'k', text: 'Archivo' }), el('h3', { style: 'margin-top:10px', text: 'Todo está conectado' })),
+      el('p', { text: 'De una noche puedes llegar a su música y a quien la tocó: eventos, artistas, sets y memorias, enlazados.' }),
+      el('div', {}, el('a', { class: 'btn', href: '#memorias', text: 'Explorar el archivo' }))));
+    const journalSec = el('section', { class: 'sec', id: 'journal' }, el('h2', { class: 'u', text: 'Journal' }), el('div', { class: 'journal' }, cards));
+
+    return journalSec;
+  };
+
   const build = (data) => {
     const events = Array.isArray(data.events) ? data.events : [];
     const artists = Array.isArray(data.artists) ? data.artists : [];
@@ -200,51 +278,13 @@
       el('div', { style: 'display:flex;gap:10px;align-items:center' }, snd, ticketsLink));
 
     // --- Hero
-    const word = el('h1', { class: 'u', id: 'word', 'aria-label': 'BRVTAL' }, Array.from('BRVTAL').map((c) => el('span', { 'aria-hidden': 'true', text: c })));
-    let nextCard = null;
-    if (next) {
-      const when = parseDate(next.event_date);
-      const days = Math.ceil((new Date(when.getFullYear(), when.getMonth(), when.getDate()) - new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate())) / 86400000);
-      const k = days <= 0 ? 'Es hoy' : days === 1 ? 'Falta 1 día' : 'Faltan ' + days + ' días';
-      const lineup = lineupText(artists);
-      const place = [text(next.city), text(next.venue)].filter(Boolean).join(', ');
-      nextCard = el('aside', { class: 'next', 'aria-label': 'Próxima noche' },
-        el('b', { text: k }), el('span', { text: when.getDate() + ' ' + MONTHS[when.getMonth()] }),
-        el('small', { text: text(next.title) + (lineup ? ': ' + lineup : '') + (place ? '. ' + place + '.' : '.') }));
-    }
-    const hero = el('section', { class: 'hero' },
-      el('div', { class: 'core' }, word, el('p', { text: 'Más que fiestas. Una cultura en movimiento.' })),
-      nextCard,
-      el('div', { class: 'cta' }, el('a', { class: 'btn r', href: '#noches', text: 'Ver la próxima noche' }), el('a', { class: 'btn', href: '#sonido', text: 'Escuchar' })));
-    const bandItems = ['Rave till grave', 'Pereira, Colombia', 'Más que fiestas'];
-    const band = el('div', { class: 'band', 'aria-hidden': 'true' }, el('div', {}, [...bandItems, ...bandItems].map((t) => el('span', { text: t }))));
+    const { word, hero, band } = buildHero(next, artists);
 
     // --- Noches
-    const nights = el('section', { class: 'sec', id: 'noches' }, el('h2', { class: 'u', text: 'Noches' }));
-    upcoming.slice(0, 6).forEach((event) => {
-      const when = parseDate(event.event_date);
-      const place = [text(event.city), text(event.venue)].filter(Boolean).join(', ');
-      const meta = (event === next ? lineupText(artists) : '') ;
-      const line = [meta, place + ', ' + two(when.getHours()) + ':' + two(when.getMinutes())].filter(Boolean).join('. ') + '.';
-      nights.append(el('a', { class: 'night', href: '/events/' + encodeURIComponent(event.slug) },
-        el('span', { class: 'u n', text: two(when.getDate()) + '.' + two(when.getMonth() + 1) }),
-        el('span', {}, el('span', { class: 't', text: text(event.title) }), el('span', { class: 'm', text: line })),
-        el('span', { class: 'go', text: safeUrl(event.ticket_url) ? 'Comprar tickets' : 'Ver noche' })));
-    });
-    nights.append(el('a', { class: 'night', href: '#contacto' },
-      el('span', { class: 'u n', text: 'Sigue' }),
-      el('span', {}, el('span', { class: 't', text: 'Aún sin fecha' }), el('span', { class: 'm', text: 'Escríbenos y te avisamos cuando se anuncie la siguiente.' })),
-      el('span', { class: 'go', text: 'Avísame' })));
+    const nights = buildNights(upcoming, next, artists);
 
     // --- Artistas
-    const roster = [...artists].sort((a, b) => (b.is_collective_member ? 1 : 0) - (a.is_collective_member ? 1 : 0)).slice(0, 5);
-    const artistsGrid = el('div', { class: 'artists' }, roster.map((a) => el('a', { class: 'ac plate chrome-b', href: '/artists/' + encodeURIComponent(a.slug) },
-      el('i', { class: 'orb', 'aria-hidden': 'true' }), el('span', { class: 'nm', text: text(a.name) }),
-      el('span', { class: 'rl', text: (a.is_collective_member ? 'Colectivo. ' : 'Colaborador. ') + text(a.bio, 90) }))));
-    artistsGrid.append(el('a', { class: 'ac plate chrome-b', href: '#contacto' },
-      el('i', { class: 'orb', 'aria-hidden': 'true' }), el('span', { class: 'nm', text: 'Tú' }),
-      el('span', { class: 'rl', text: '¿Quieres sumarte al roster? Escríbenos y cuéntanos qué suenas.' })));
-    const artistsSec = el('section', { class: 'sec', id: 'artistas' }, el('h2', { class: 'u', text: 'Artistas' }), artistsGrid);
+    const artistsSec = buildArtists(artists);
 
     // --- Sonido
     const snd2Label = el('span', { 'data-cromo-sound-label': true, text: 'Encender el pulso' });
@@ -259,19 +299,7 @@
     const memoriesSec = buildMemories(memories);
 
     // --- Journal
-    const post = posts[0];
-    const cards = [];
-    if (post) {
-      cards.push(el('article', { class: 'jn plate chrome-b' },
-        el('div', {}, el('p', { class: 'k', text: 'Crónica' }), el('h3', { style: 'margin-top:10px', text: text(post.title) })),
-        el('p', { text: text(post.excerpt, 180) }),
-        el('div', {}, el('a', { class: 'btn', href: '/blog/' + encodeURIComponent(post.slug), text: 'Leer la crónica' }))));
-    }
-    cards.push(el('article', { class: 'jn plate chrome-b' },
-      el('div', {}, el('p', { class: 'k', text: 'Archivo' }), el('h3', { style: 'margin-top:10px', text: 'Todo está conectado' })),
-      el('p', { text: 'De una noche puedes llegar a su música y a quien la tocó: eventos, artistas, sets y memorias, enlazados.' }),
-      el('div', {}, el('a', { class: 'btn', href: '#memorias', text: 'Explorar el archivo' }))));
-    const journalSec = el('section', { class: 'sec', id: 'journal' }, el('h2', { class: 'u', text: 'Journal' }), el('div', { class: 'journal' }, cards));
+    const journalSec = buildJournal(posts);
 
     // --- Contacto
     const { end, loadChallenge } = buildContact();
