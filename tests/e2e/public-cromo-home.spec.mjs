@@ -204,7 +204,7 @@ test('Social & Contact filters malformed and unsafe values, supports legacy keys
   await mount(page, { payload: { ...data, settings: {} } });
   await expect(page.locator('#contacto .cr-social')).toHaveCount(0);
   await mount(page, { payload: { ...data, settings: { social: {
-    website_url: 'https://example.org/?q=<img onerror=alert(1)>',
+    website_url: 'https://example.org/?q=%3Cimg%20onerror%3Dalert(1)%3E',
   } } } });
   links = page.locator('#contacto .cr-social-link');
   await expect(links).toHaveCount(1);
