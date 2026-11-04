@@ -31,7 +31,7 @@ class PublicI18nE2ETests(unittest.TestCase):
     def test_canonical_public_route_and_metadata(self):
         route = php("brvtalPublicLocalizedRouteUrls('https://www.brvtal.com.co','es','blog','ritual-industrial')")
         self.assertEqual(route["canonical"],"https://www.brvtal.com.co/blog/ritual-industrial")
-        self.assertEqual(route["alternates"],{})
+        self.assertEqual(route["alternates"],[])
 
     def test_version_bump_and_ci_commands(self):
         package=json.loads(read("package.json"))

@@ -21,7 +21,7 @@ class PublicI18nIndexingTests(unittest.TestCase):
         expr = """brvtalPublicSitemapLocalizedEntityUrls('https://www.brvtal.com.co',['id'=>4,'route_type'=>'blog','slug'=>'ritual-industrial','status'=>'published'],null,['es','en'])"""
         rows=php(expr,"config/public_sitemap.php")
         self.assertEqual([row[0] for row in rows], ["https://www.brvtal.com.co/blog/ritual-industrial"])
-        self.assertEqual(rows[0][2], {})
+        self.assertEqual(rows[0][2], [])
 
     def test_private_draft_untrusted_not_indexed(self):
         expr = """[brvtalPublicSitemapLocalizedEntityUrls('https://www.brvtal.com.co',['route_type'=>'blog','slug'=>'draft','status'=>'draft']),brvtalPublicSitemapLocalizedEntityUrls('https://www.brvtal.com.co',['route_type'=>'blog','slug'=>'private','status'=>'published','visibility'=>'private']),brvtalPublicSitemapLocalizedEntityUrls('https://www.brvtal.com.co',['route_type'=>'blog','slug'=>'untrusted','status'=>'published','trusted'=>false])]"""

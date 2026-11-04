@@ -20,7 +20,7 @@ class PublicI18nRoutingTests(unittest.TestCase):
     def test_spanish_routes_keep_original_paths(self):
         routes = php("[brvtalPublicLocalizedRouteUrls('https://www.brvtal.com.co','es'),brvtalPublicLocalizedRouteUrls('https://www.brvtal.com.co','es','events','genesis'),brvtalPublicLocalizedRouteUrls('https://www.brvtal.com.co','es','','','contact')]")
         self.assertEqual([r["canonical"] for r in routes], ["https://www.brvtal.com.co/","https://www.brvtal.com.co/events/genesis","https://www.brvtal.com.co/contact"])
-        self.assertTrue(all(r["alternates"] == {} for r in routes))
+        self.assertTrue(all(r["alternates"] == [] for r in routes))
 
     def test_en_and_invalid_locale_are_not_public_routes(self):
         values = php("[brvtalPublicRouteLocale(null),brvtalPublicRouteLocale('es'),brvtalPublicRouteLocale('en'),brvtalPublicRouteLocale('fr'),brvtalPublicLocalizedRoute('en','events','genesis'),brvtalPublicLocalizedRoute('es','events','invalid/slug')]")
