@@ -237,6 +237,7 @@ test('Experiencia Cromo apila poster y ficha en 375/390/430/900, conserva escrit
       const card = page.locator('#experiencia .cr-xp');
       await expect(card).toBeVisible();
       await expect(card.locator('.cr-xp-body h3')).toHaveText(longTitle);
+      await expect(page.locator('#cromo-home .cr-top .cr-snd')).toHaveAccessibleName(/Activar sonido|Apagar el pulso/);
       await expect(card.locator('.cr-xp-fly')).toHaveCount(cover ? 1 : 0);
       const metrics = await card.evaluate(node => {
         const rect = element => element ? element.getBoundingClientRect().toJSON() : null;
