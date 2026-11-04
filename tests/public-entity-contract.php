@@ -15,7 +15,7 @@ entity_expect(str_contains($page, 'class="skip-link" href="#main-content"'), 'En
 entity_expect(str_contains($page, '<main id="main-content" tabindex="-1">'), 'Entity pages must expose a focusable main-content target');
 entity_expect(str_contains($page, 'loading="eager" fetchpriority="high" decoding="async"'), 'Entity hero image must be prioritized and decoded asynchronously');
 entity_expect(str_contains($page, 'loading="lazy" decoding="async"'), 'Related entity images must remain lazy and decode asynchronously');
-entity_expect(str_contains($page, 'EXPLORE CONNECTIONS ↗'), 'Graph-backed entity pages must expose the CONNECTED return CTA');
+entity_expect(str_contains($page, 'EXPLORAR CONEXIONES ↗'), 'Graph-backed entity pages must expose the CONNECTED return CTA');
 entity_expect(str_contains($css, '.skip-link:focus'), 'Skip link must become visible on keyboard focus');
 entity_expect(str_contains($css, '.entity-nav a:focus-visible'), 'Entity navigation links must expose visible keyboard focus');
 

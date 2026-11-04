@@ -42,7 +42,7 @@ public_pages_expect(str_contains($pages, "\$detail['ticket_url'] = null"), 'hist
 public_pages_expect(str_contains($pages, "\$detail['ticket_instructions'] = null"), 'historical Event page data must clear stale ticket instructions');
 public_pages_expect(!str_contains($pages, "(\$href ?: '#')"), 'cards without a destination must not be dead links');
 public_pages_expect(str_contains($pages, "['events', 'artists', 'sets']"), 'only Home sections that really exist may be used as entity back-link anchors');
-public_pages_expect(str_contains($pages, "'← BACK HOME'"), 'entities without a matching Home section must return to Home');
+public_pages_expect(str_contains($pages, "'← VOLVER AL INICIO'"), 'entities without a matching Home section must return to Home');
 public_pages_expect(!str_contains($pages, 'href="/#{$routeType}"'), 'renderer must not generate route-type anchors blindly');
 public_pages_expect(str_contains($pages, 'htmlspecialchars'), 'editorial content must be escaped before HTML rendering');
 public_pages_expect(str_contains($pages, "rel=\"noopener noreferrer\""), 'external calls to action must isolate their browsing context');
@@ -70,7 +70,7 @@ public_pages_expect(str_contains($pages, 'if ($required)') && str_contains($page
 public_pages_expect(substr_count($pages, '[$id], true)') >= 6, 'each canonical entity type must treat its essential detail read as required');
 public_pages_expect(str_contains($pages, 'brvtal_page_query_degraded(false)'), 'each entity hydration must reset degradation state');
 public_pages_expect(str_contains($pages, '$data[\'degraded\'] = brvtal_page_query_degraded();'), 'entity hydration must surface optional query degradation to delivery');
-public_pages_expect(str_contains($pages, 'DATA STATUS / DEGRADED'), 'partially degraded entity pages must visibly disclose incomplete connected data');
+public_pages_expect(str_contains($pages, 'ESTADO DE LOS DATOS / DEGRADADO'), 'partially degraded entity pages must visibly disclose incomplete connected data');
 public_pages_expect(str_contains($pages, '<meta name="robots" content="noindex, follow">'), 'partially degraded entity pages must not be indexed');
 public_pages_expect(str_contains($entry, "require_once __DIR__ . '/config/public_unavailable.php';"), 'entity delivery must load the dedicated unavailable renderer');
 public_pages_expect(str_contains($entry, 'PUBLIC_ENTITY_DATA_ERROR'), 'essential entity hydration failures must be logged at the delivery boundary');
@@ -79,8 +79,8 @@ public_pages_expect(str_contains($entry, "header('Retry-After: 60')"), '503 enti
 public_pages_expect(str_contains($entry, "header('X-Robots-Tag: noindex, follow')"), 'entity degradation must set a noindex response header');
 public_pages_expect(str_contains($entry, "header('X-BRVTAL-Data-State: degraded')"), 'partial entity degradation must be observable in response headers');
 public_pages_expect(substr_count($entry, "header('Cache-Control: no-store')") >= 2, 'essential and partial entity failures must not be cached');
-public_pages_expect(str_contains($unavailable, 'DATA TEMPORARILY UNAVAILABLE'), 'essential failures must render an explicit unavailable experience');
-public_pages_expect(str_contains($unavailable, '503 / RETRY LATER'), 'unavailable renderer must communicate retry semantics');
+public_pages_expect(str_contains($unavailable, 'DATOS NO DISPONIBLES POR AHORA'), 'essential failures must render an explicit unavailable experience');
+public_pages_expect(str_contains($unavailable, '503 / REINTENTA MÁS TARDE'), 'unavailable renderer must communicate retry semantics');
 public_pages_expect(str_contains($unavailable, '<meta name="robots" content="noindex, follow">'), 'unavailable renderer must remain noindex');
 
 $ticketNow = new DateTimeImmutable('2026-09-15 12:00:00');

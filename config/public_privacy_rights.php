@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/public_cromo_chrome.php';
+
 /**
  * BRVTAL #1352: provisional public rights information.
  * No legal SLA or responsible-party identity is invented.
@@ -71,11 +73,13 @@ function brvtalPublicPrivacyRightsDocument(
 <meta name="description" content="{{SUBTITLE}}">
 <link rel="stylesheet" href="/css/public-legibility.css">
 <link rel="stylesheet" href="/css/public-visual-identity.css">
+<link rel="stylesheet" href="/css/public-cromo.css">
+<link rel="stylesheet" href="/css/public-cromo-pages.css">
 {{SEO}}
 </head>
-<body class="brvtal-privacy-rights" data-privacy-rights-page>
+<body class="brvtal-privacy-rights cromo-page" data-privacy-rights-page>
 <a href="#privacy-content" class="skip-link">{{TITLE}}</a>
-<header><nav aria-label="BRVTAL"><a href="/">{{HOME}}</a></nav></header>
+{{TOPBAR}}
 <main id="privacy-content" tabindex="-1" style="max-width:54rem;margin:3rem auto;padding:1.5rem;line-height:1.7">
 <h1>{{TITLE}}</h1>
 <p>{{SUBTITLE}}</p>
@@ -95,6 +99,9 @@ function brvtalPublicPrivacyRightsDocument(
 </main>
 <footer aria-label="BRVTAL"><span>© BRVTAL</span></footer>
 {{ANALYTICS}}
+<script src="/js/public-cromo.js" defer></script>
+<script src="/js/public-cromo-sound.js" defer></script>
+<script src="/js/public-cromo-pages.js" defer></script>
 </body>
 </html>
 HTML;
@@ -104,6 +111,7 @@ HTML;
         '{{SUBTITLE}}' => $escape($labels['subtitle']),
         '{{SEO}}' => $seoTags,
         '{{HOME}}' => $escape($labels['home']),
+        '{{TOPBAR}}' => brvtalPublicCromoTopbar('/', '← ' . $escape($labels['home'])),
         '{{OWNER_LABEL}}' => $escape($labels['owner']),
         '{{OWNER_VALUE}}' => $escape($values['controller_name']),
         '{{CONTACT_LABEL}}' => $escape($labels['contact']),

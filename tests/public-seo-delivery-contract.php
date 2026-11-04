@@ -44,8 +44,8 @@ $notFoundRenderPos = strpos($renderer, 'echo brvtal_public_not_found_page($seo, 
 $homeLoadPos = strpos($renderer, "file_get_contents(__DIR__ . '/index.html')");
 public_seo_expect($notFoundRenderPos !== false && $homeLoadPos !== false && $notFoundRenderPos < $homeLoadPos, 'not-found response must terminate before Home HTML is loaded');
 public_seo_expect(str_contains($notFound, '<meta name="robots" content="noindex, follow">'), 'not-found HTML must carry an explicit noindex directive');
-public_seo_expect(str_contains($notFound, 'RESOURCE NOT FOUND'), 'not-found HTML must clearly identify the missing resource');
-public_seo_expect(str_contains($notFound, 'BACK HOME'), 'not-found HTML must provide a clear recovery route');
+public_seo_expect(str_contains($notFound, 'PÁGINA NO ENCONTRADA'), 'not-found HTML must clearly identify the missing resource');
+public_seo_expect(str_contains($notFound, 'VOLVER AL INICIO'), 'not-found HTML must provide a clear recovery route');
 public_seo_expect(str_contains($router, 'sitemap.php'), 'sitemap.xml must be served dynamically');
 $sitemapResponse = brvtal_public_sitemap_response(
     brvtal_public_sitemap_static_urls(BRVTAL_SITEMAP_CANONICAL_ORIGIN, ['/']),
@@ -129,7 +129,7 @@ public_seo_expect($missing['canonical'] === 'https://www.brvtal.com.co/events/do
 public_seo_expect($missing['schema']['@type'] === 'WebPage', 'not-found SEO must use a neutral WebPage schema');
 public_seo_expect(str_contains($missing['title'], 'Not Found'), 'not-found SEO title must be explicit');
 $missingHtml = brvtal_public_not_found_page($missing);
-public_seo_expect(str_contains($missingHtml, 'RESOURCE NOT FOUND'), 'dedicated not-found renderer must produce explicit 404 content');
+public_seo_expect(str_contains($missingHtml, 'PÁGINA NO ENCONTRADA'), 'dedicated not-found renderer must produce explicit 404 content');
 public_seo_expect(!str_contains($missingHtml, 'NEXT EXPERIENCE'), 'dedicated not-found renderer must not reuse Home content');
 
 echo "BRVTAL public SEO delivery contract tests passed.\n";

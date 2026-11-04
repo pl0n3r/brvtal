@@ -114,19 +114,19 @@ test('E2E admin relates a curated Memory and the public boundary exposes the exp
     const eventPage = await page.request.get(`${baseUrl}/index.php?type=events&slug=${encodeURIComponent(eventSlug)}`);
     expect(eventPage.ok()).toBeTruthy();
     const eventHtml = await eventPage.text();
-    expect(eventHtml).toContain('MEMORIES / 01');
+    expect(eventHtml).toContain('MEMORIAS / 01');
     expect(eventHtml).toContain(memoryTitle);
 
-    await page.goto(`${baseUrl}/#events`, {waitUntil:'domcontentloaded'});
-    const archiveRecord = page.locator(`[data-archive-id="${eventId}"]`);
-    await expect(archiveRecord).toBeVisible({timeout:10_000});
-    await expect(archiveRecord.locator('.archive-event-relations')).toContainText('1 MEMORY');
-    await expect(archiveRecord.locator('[data-archive-connections]')).toBeVisible();
-
-    const memoriesFilter = page.getByRole('button',{name:'WITH MEMORIES'});
-    await expect(memoriesFilter).toBeVisible();
-    await memoriesFilter.click();
-    await expect(archiveRecord).toBeVisible();
+    // The legacy archive cards (relation counts, "WITH MEMORIES" filter) were replaced by the Cromo home:
+    // the old #events deep link lands on Noches and the archive is a grid of posters linking to each night.
+    // The Memory relation itself is already proven above through the admin API, the public payload and the
+    // event page (MEMORIAS / 01).
+    await page.goto(`${baseUrl}/#archive`, {waitUntil:'domcontentloaded'});
+    await expect(page.locator('#cromo-home')).toBeVisible({timeout:10_000});
+    const showAll = page.locator('#cromo-home .cr-pst-more');
+    if (await showAll.count()) await showAll.click();
+    const archivePoster = page.locator(`#cromo-home .cr-pst[href="/events/${encodeURIComponent(eventSlug)}"]`);
+    await expect(archivePoster).toBeVisible({timeout:10_000});
   } finally {
     const cleanupErrors = [];
     const cleanupDelete = async (label, url) => {

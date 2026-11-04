@@ -71,8 +71,8 @@ html.cromo .transmissions-intro{
 }
 html.cromo .hero-title .cromo-l{
   display:inline-block;
-  animation:cromo-letter .95s cubic-bezier(.22,1,.36,1) backwards;
-  animation-delay:calc(var(--i,0)*70ms);
+  animation:cromo-letter var(--duration-very-slow,500ms) var(--ease-smooth-out,cubic-bezier(.22,1,.36,1)) backwards;
+  animation-delay:calc(var(--i,0)*var(--duration-stagger,40ms));
 }
 html.cromo .cromo-next{
   position:relative;
@@ -150,7 +150,7 @@ html.cromo .c5-experience-artwork-label{
 }
 
 /* ---------- Artistas ---------- */
-html.cromo .artist{padding:16px 18px;transition:transform .16s ease,box-shadow .16s ease}
+html.cromo .artist{padding:16px 18px;transition:transform var(--duration-fast,250ms) var(--ease-smooth-out,cubic-bezier(.22,1,.36,1)),box-shadow var(--duration-fast,250ms) var(--ease-smooth-out,cubic-bezier(.22,1,.36,1))}
 html.cromo .artist:hover,
 html.cromo .artist:focus-visible{transform:translate(-3px,-3px);box-shadow:6px 6px 0 var(--cromo-red)}
 html.cromo .artist :where(h3,strong,.artist-name){

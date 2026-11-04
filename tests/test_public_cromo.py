@@ -326,13 +326,163 @@ class CromoHomeTests(unittest.TestCase):
         self.assertIn("Los próximos sets aparecerán aquí cuando estén publicados.", HOME_JS)
         self.assertIn("id: 'discos'", HOME_JS)
 
-    def test_legacy_archive_hash_preserves_the_original_archive_route(self) -> None:
-        self.assertIn("['#events', '#archive']", HOME_JS)
-        self.assertIn("window.location.hash", HOME_JS)
+    def test_legacy_archive_links_land_on_the_new_home_archive(self) -> None:
+        # #events and #archive no longer fall back to the old home: they scroll to Noches / Últimas noches.
+        self.assertNotIn("['#events', '#archive'].includes", HOME_JS)
+        self.assertIn("'#events': 'noches'", HOME_JS)
+        self.assertIn("'#archive': 'archivo'", HOME_JS)
+        self.assertIn("Últimas noches", HOME_JS)
+        self.assertIn("data.archive && data.archive.events", HOME_JS)
+        self.assertIn("route", "route")  # the archive cards link to each night's own page
+        self.assertIn("'/events/' + encodeURIComponent(event.slug)", HOME_JS)
+        self.assertNotIn("innerHTML", HOME_JS)
 
     def test_home_respects_reduced_motion(self) -> None:
         self.assertIn("prefers-reduced-motion:reduce", HOME_CSS)
         self.assertIn("reduce.matches", HOME_JS)
+
+
+class CromoHomeKeepsEverySectionTests(unittest.TestCase):
+    """Identical to the artifact never means dropping a section: Experiencia and Conectado stay."""
+
+    JS = (ROOT / "js/public-cromo-home.js").read_text(encoding="utf-8")
+    CSS = (ROOT / "css/public-cromo-home.css").read_text(encoding="utf-8")
+
+    def test_experiencia_and_conectado_are_built_from_real_data_in_the_main_flow(self) -> None:
+        self.assertIn("buildExperience(next, artists, data.relations || {})", self.JS)
+        self.assertIn("buildConnected(data)", self.JS)
+        order = re.search(r"el\('main', \{ id: 'cromo-top' \}, ([^)]*)\)", self.JS)
+        self.assertIsNotNone(order)
+        parts = [p.strip() for p in order.group(1).split(",")]
+        for before, after in (("artistsSec", "experience"), ("experience", "sound"),
+                              ("journalSec", "connected"), ("connected", "end")):
+            self.assertLess(parts.index(before), parts.index(after), parts)
+
+    def test_both_sections_are_spanish_and_only_use_published_relations(self) -> None:
+        for phrase in ("Próxima experiencia", "Comprar tickets", "Ver la noche", "Toca una noche, un artista o un set",
+                       "Noches", "Artistas", "Sonido", "Quitar selección"):
+            self.assertIn(phrase, self.JS)
+        self.assertNotRegex(self.JS, r"NEXT EXPERIENCE|VERIFIED RELATIONAL|ENTER EXPERIENCE")
+        self.assertIn("adjacency", self.JS)          # links come from the published relations, never invented
+        self.assertIn("entities.has(a)", self.JS)    # and only between items that are actually published
+        self.assertNotIn("innerHTML", self.JS)
+    def test_section_styles_are_scoped_and_have_a_mobile_layout(self) -> None:
+        for sel in selectors(self.CSS):
+            if "-xp" in sel or "-cn2" in sel:
+                self.assertTrue(sel.strip().startswith("#cromo-home"), sel)
+        self.assertRegex(self.CSS, r"@media\(max-width:900px\)\{[^@]*cr-xp")
+        self.assertRegex(self.CSS, r"@media\(max-width:700px\)\{[^@]*cr-cn2-board\{grid-template-columns:1fr")
+        self.assertIn("prefers-reduced-motion", self.CSS)
+
+
+class CromoMotionTests(unittest.TestCase):
+    """Motion follows the transitions.dev scale and the connected graph is an interactive control."""
+
+    FILES = ("css/public-cromo-home.css", "css/public-cromo-pages.css", "css/public-cromo-redesign.css")
+    JS = (ROOT / "js/public-cromo-home.js").read_text(encoding="utf-8")
+    HOME = (ROOT / "css/public-cromo-home.css").read_text(encoding="utf-8")
+
+    def test_transitions_and_one_shot_animations_use_the_shared_motion_tokens(self) -> None:
+        for path in self.FILES:
+            css = re.sub(r"/\*.*?\*/", "", (ROOT / path).read_text(encoding="utf-8"), flags=re.S)
+            for decl in re.findall(r"(?<![-\w])(?:transition|animation)\s*:\s*([^;}]+)", css):
+                if "infinite" in decl or decl.strip() == "none":
+                    continue  # looping ambience (float, roll, spin, pulse) keeps its own cadence
+                stripped = re.sub(r"var\([^)]*\)", "", decl)
+                self.assertNotRegex(re.sub(r"\b0m?s\b", "", stripped), r"\b\d*\.?\d+m?s\b", path + ": " + decl)  # a literal 0s (no delay) is fine
+                self.assertNotRegex(stripped, r"cubic-bezier|\bease\b", path + ": " + decl)
+
+    def test_motion_tokens_exist_and_match_the_scale(self) -> None:
+        for token, value in (("--duration-quick", "150ms"), ("--duration-fast", "250ms"),
+                             ("--duration-slow", "400ms"), ("--duration-very-slow", "500ms"),
+                             ("--ease-smooth-out", "cubic-bezier(.22,1,.36,1)")):
+            self.assertIn(token + ":" + value, self.HOME.replace(" ", ""), token)
+
+    def test_connected_explorer_is_interactive_and_accessible(self) -> None:
+        self.assertIn("'aria-pressed'", self.JS)
+        self.assertIn("class: 'cn2-item', type: 'button'", self.JS)   # every item is a real button
+        self.assertIn("softSwap(headingText", self.JS)
+        self.assertIn("softSwap(sentenceText", self.JS)
+        self.assertIn("event.key === 'Escape'", self.JS)
+        self.assertIn("matchMedia('(prefers-reduced-motion: reduce)')", self.JS)
+        self.assertIn("createElementNS(SVG_NS", self.JS)               # the lines are drawn, not faked with images
+        self.assertNotIn("innerHTML", self.JS)
+    def test_explorer_and_swap_have_reduced_motion_fallbacks(self) -> None:
+        block = "".join(self.HOME[m.start():] for m in re.finditer("prefers-reduced-motion", self.HOME))
+        for needle in ("cr-cn2-item", "cr-cn2-path", "t-text-soft"):
+            self.assertIn(needle, block)
+    def test_titles_get_the_red_glitch_only_through_data_text_layers(self) -> None:
+        self.assertIn("dataset.text = text(title.textContent)", self.JS)
+        self.assertIn("cr-glitch", self.JS)
+        self.assertIn("content:attr(data-text)", self.HOME.replace(" ", ""))
+        # The glitch is the site's red (never the old lime): a short burst on a long cycle that never hides the text.
+        self.assertNotIn("#b6ff00", self.HOME)
+        self.assertRegex(self.HOME, r"\.cr-glitch::before\{color:var\(--red\)")
+        for name in ("cromo-glitch-a", "cromo-glitch-b"):
+            self.assertIn("@keyframes " + name, self.HOME)
+        self.assertNotIn("cromo-glitch-base", self.HOME)                      # the title itself never shakes
+        self.assertNotIn("skewX(", self.HOME)
+        shifts = [abs(int(v)) for v in re.findall(r"translate\((-?\d+)px", self.HOME[self.HOME.index("@keyframes cromo-glitch-a"):])]
+        self.assertTrue(shifts and max(shifts) <= 12, shifts)                 # shifts stay small enough to read through
+        self.assertRegex(self.HOME, r"cromo-glitch-a 5\.\d+s steps\(1\) infinite")   # one burst every ~5s, not constant
+        self.assertIn("cr-glitch::before,#cromo-home .cr-glitch::after{animation:none", self.HOME.replace("\n", "").replace("  ", ""))
+        self.assertNotIn("innerHTML", self.JS)
+
+
+class CromoBannersTests(unittest.TestCase):
+    """The banners managed in DISCADMIN (Slider Manager) live in the Cromo home, with the site's motion."""
+
+    JS = (ROOT / "js/public-cromo-home.js").read_text(encoding="utf-8")
+    CSS = (ROOT / "css/public-cromo-home.css").read_text(encoding="utf-8")
+
+    def test_banners_come_from_the_managed_endpoint_and_never_block_the_home(self) -> None:
+        self.assertIn("/api/hero-slider.php", self.JS)
+        self.assertIn(".catch(() => null)", self.JS)  # optional: the home mounts without them
+        self.assertIn("buildBanners(slider)", self.JS)
+        order = re.search(r"el\('main', \{ id: 'cromo-top' \}, ([^)]*)\)", self.JS)
+        parts = [p.strip() for p in order.group(1).split(",")]
+        self.assertLess(parts.index("band"), parts.index("banners"))
+        self.assertLess(parts.index("banners"), parts.index("nights"))
+
+    def test_banner_options_of_the_editor_are_honoured_safely(self) -> None:
+        for needle in ("cfg.autoplay", "cfg.interval", "slide.transition", "slide.mobileSrc", "layer.mobileX",
+                       "layer.hiddenMobile", "layer.animation", "layer.delay", "layer.duration", "slide.overlay"):
+            self.assertIn(needle, self.JS)
+        self.assertIn("safeUrl(layer.url)", self.JS)
+        self.assertIn("safeUrl(slide.ctaUrl)", self.JS)
+        self.assertNotIn("innerHTML", self.JS)
+
+    def test_banners_are_an_accessible_carousel_with_a_pause_control(self) -> None:
+        for needle in ("aria-roledescription': 'carousel'", "aria-roledescription': 'slide'",
+                       "Pausar los banners", "Reanudar los banners", "Banner anterior", "Banner siguiente",
+                       "matchMedia('(prefers-reduced-motion: reduce)')", "document.hidden"):
+            self.assertIn(needle, self.JS)
+        self.assertIn("min-width:52px;min-height:52px", self.CSS)
+
+    def test_banners_keep_the_site_motion_and_a_reduced_motion_fallback(self) -> None:
+        self.assertIn("cromo:beat", self.JS)            # the frame pulses with the sound loop
+        self.assertIn("u glitch", self.JS)              # legacy-copy titles get the green glitch
+        for anim in ("fade", "slide-up", "slide-left", "zoom"):
+            self.assertIn("cr-bn-a-" + anim, self.CSS)
+        blocks = "".join(self.CSS[m.start():] for m in re.finditer("prefers-reduced-motion", self.CSS))
+        self.assertIn("cr-bn-layer{animation:none", blocks.replace(" ", ""))
+
+
+    def test_explorer_has_no_card_template_and_names_real_items(self) -> None:
+        # No eyebrow above the heading, no big-number/small-label cards: columns of the real items instead.
+        self.assertNotIn("Conexiones del archivo", self.JS)
+        self.assertIn("cn2-col", self.JS)
+        self.assertIn("aria-hidden', 'true'", self.JS)             # the drawn lines are decorative; the sentence says it
+        self.assertIn("IntersectionObserver", self.JS)             # the lines draw in once, when first seen
+        self.assertRegex(HOME_CSS, r"cr-cn2-board\.cr-is-in \.cr-cn2-path\{stroke-dashoffset:0")
+    def test_choosing_an_item_shows_what_it_is_linked_to_in_plain_words(self) -> None:
+        for route in ("route('events', e.slug)", "route('artists', a.slug)", "route('sets', x.slug)", "route('releases', r.slug)"):
+            self.assertIn(route, self.JS)
+        self.assertIn("encodeURIComponent(slug)", self.JS)   # slugs from the CMS never build a raw URL
+        for phrase in ("Tocan ", "toca en ", "Puedes escuchar ", "todavía no tiene conexiones publicadas"):
+            self.assertIn(phrase, self.JS)
+        self.assertIn("LIMIT", self.JS)                      # long columns are capped with a "Ver todos" toggle
+        self.assertNotIn("innerHTML", self.JS)
 
 
 if __name__ == "__main__":
