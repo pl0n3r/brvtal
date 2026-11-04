@@ -50,6 +50,10 @@ test('Banners uses bounded bootstrap reads on the authenticated real stack', asy
   });
 
   await page.goto(`${baseUrl}/discadmin/`);
+  const appearance = page.locator('[data-admin-nav="appearance"][data-ia-key="appearance"]');
+  await expect(appearance).toBeVisible();
+  await appearance.click();
+  await expect(appearance).toHaveAttribute('aria-expanded','true');
   await page.getByRole('button', {name:'BANNERS'}).click();
   await expect(page.locator('.hero-manager')).toBeVisible();
 

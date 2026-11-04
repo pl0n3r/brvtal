@@ -60,6 +60,7 @@
     ['MEDIA', 'media'],
     ['MEDIA LIBRARY', 'media'],
     ['BANNERS', 'hero-slider'],
+    ['APPEARANCE', 'appearance'],
     ['SETTINGS', 'settings']
   ]);
   const partialNavLabelRules = [
@@ -257,14 +258,157 @@
     return partialRule?.key || 'other:' + label.toLowerCase();
   }
 
+  // Canonical WordPress-like sidebar; existing module buttons remain direct children.
   const groups = [
-    {label:'SITE / EDITORIAL', keys:['dashboard','hero-slider','events','artists','releases','sets','media','pages','blog','seo']},
-    {label:'CONFIGURATION / TECHNICAL', keys:['settings','system']},
+    ['dashboard'],
+    ['pages','blog','media','events','artists','releases','sets'],
+    ['appearance','hero-slider','theme','seo'],
+    ['settings','system']
   ];
-  const hiddenNavigationKeys = new Set(['content-core','theme','security','backups','activity']);
+  const hiddenNavigationKeys = new Set(['content-core','security','backups','activity']);
+  const expandedMenus = {media:false,appearance:false};
+  let lastMenuRoute = '';
 
   function observeNavigation() {
     navObserver?.observe(document.documentElement,{childList:true,subtree:true});
+  }
+
+  function collectNavigationButtons(nav) {
+    const keyed = new Map();
+    for (const button of nav.querySelectorAll(':scope > button')) {
+      const key = buttonKey(button);
+      button.dataset.iaKey = key;
+      if (hiddenNavigationKeys.has(key)) {
+        button.dataset.iaHidden = '1';
+        button.setAttribute('aria-hidden','true');
+        button.tabIndex = -1;
+        button.hidden = true;
+        continue;
+      }
+      delete button.dataset.iaHidden;
+      button.removeAttribute('aria-hidden');
+      button.removeAttribute('tabindex');
+      button.hidden = false;
+      if (button.dataset.memoriesNav === '1' || key === 'hero-slider' || key === 'theme') {
+        button.dataset.iaSubnav = '1';
+      } else {
+        delete button.dataset.iaSubnav;
+      }
+      if (!keyed.has(key)) keyed.set(key, []);
+      keyed.get(key).push(button);
+    }
+    return keyed;
+  }
+
+  function ensureAppearanceNav(keyed) {
+    // Production renders Appearance immediately; the legacy test shell can omit it.
+    if (keyed.has('appearance')) return;
+    const appearance = document.createElement('button');
+    appearance.type = 'button';
+    appearance.textContent = 'APPEARANCE';
+    appearance.dataset.adminNav = 'appearance';
+    appearance.dataset.iaKey = 'appearance';
+    keyed.set('appearance',[appearance]);
+  }
+
+  function currentNavigationContext() {
+    const visibleSection = String(window.state?.section || '') === 'security'
+      ? 'settings' : String(window.state?.section || '');
+    const memoriesActive = visibleSection === 'media'
+      && new URL(location.href).searchParams.get('view') === 'memories';
+    const appearanceActive = visibleSection === 'hero-slider' || visibleSection === 'theme';
+    const menuRoute = visibleSection + (memoriesActive ? ':memories' : '');
+    if (lastMenuRoute !== menuRoute) {
+      if (memoriesActive) expandedMenus.media = true;
+      if (appearanceActive) expandedMenus.appearance = true;
+      lastMenuRoute = menuRoute;
+    }
+    return {visibleSection,memoriesActive,appearanceActive};
+  }
+
+  function addNavDivider(nav) {
+    const divider = document.createElement('div');
+    divider.className = 'ia-navdivider';
+    divider.setAttribute('role','separator');
+    divider.setAttribute('aria-orientation','horizontal');
+    nav.appendChild(divider);
+  }
+
+  function bindAppearanceDisclosure(button) {
+    button.type = 'button';
+    button.setAttribute('aria-controls','brvtal-nav-banners brvtal-nav-theme');
+    button.setAttribute('aria-expanded',String(expandedMenus.appearance));
+    if (button.dataset.iaToggleBound === '1') return;
+    button.addEventListener('click',() => {
+      expandedMenus.appearance = !expandedMenus.appearance;
+      rebuildNavigation();
+    });
+    button.dataset.iaToggleBound = '1';
+  }
+
+  function appendMemoriesSubmenu(nav, memoriesButtons) {
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'ia-nav-chevron';
+    toggle.dataset.iaToggle = 'media';
+    toggle.setAttribute('aria-controls','brvtal-nav-memories');
+    toggle.setAttribute('aria-expanded',String(expandedMenus.media));
+    toggle.setAttribute('aria-label',expandedMenus.media ? 'Collapse Media submenu' : 'Expand Media submenu');
+    toggle.addEventListener('click',() => {
+      expandedMenus.media = !expandedMenus.media;
+      rebuildNavigation();
+    });
+    nav.appendChild(toggle);
+    for (const child of memoriesButtons) {
+      child.id = 'brvtal-nav-memories';
+      child.hidden = !expandedMenus.media;
+      nav.appendChild(child);
+    }
+  }
+
+  function appendNavigationButton(nav, key, button, memoriesButtons) {
+    if (key === 'appearance') bindAppearanceDisclosure(button);
+    if (key === 'hero-slider' || key === 'theme') {
+      button.id = key === 'hero-slider' ? 'brvtal-nav-banners' : 'brvtal-nav-theme';
+      button.hidden = !expandedMenus.appearance;
+    }
+    if (key === 'media' && memoriesButtons.length) button.dataset.iaHasChildren = '1';
+    else delete button.dataset.iaHasChildren;
+    nav.appendChild(button);
+    if (key === 'media' && memoriesButtons.length) appendMemoriesSubmenu(nav,memoriesButtons);
+  }
+
+  function appendNavigationGroups(nav, keyed, memoriesButtons) {
+    let visibleGroups = 0;
+    for (const keys of groups) {
+      if (!keys.some(key => (keyed.get(key) || []).length)) continue;
+      if (visibleGroups++) addNavDivider(nav);
+      for (const key of keys) {
+        for (const button of (keyed.get(key) || [])) {
+          appendNavigationButton(nav,key,button,memoriesButtons);
+        }
+        keyed.delete(key);
+      }
+    }
+    for (const list of keyed.values()) {
+      for (const button of list) nav.appendChild(button);
+    }
+  }
+
+  function synchronizeNavigationSelection(nav, context) {
+    const {visibleSection,memoriesActive,appearanceActive} = context;
+    for (const button of nav.querySelectorAll(':scope > button:not([data-ia-hidden="1"]):not([data-ia-toggle])')) {
+      const key = buttonKey(button);
+      if (key === 'media') {
+        const isMemories = button.dataset.memoriesNav === '1';
+        button.classList.toggle('active',visibleSection === 'media'
+          && (isMemories === memoriesActive || (!expandedMenus.media && !isMemories)));
+      } else if (key === 'appearance') {
+        button.classList.toggle('active',appearanceActive);
+      } else {
+        button.classList.toggle('active',key === visibleSection);
+      }
+    }
   }
 
   function rebuildNavigation() {
@@ -274,60 +418,16 @@
     applyingNav = true;
     navObserver?.disconnect();
     try {
-      nav.querySelectorAll('.navgroup,.ia-navgroup').forEach(node => node.remove());
-      const buttons = [...nav.querySelectorAll(':scope > button')];
-      const keyed = new Map();
-      const unknown = [];
-
-      buttons.forEach(button => {
-        const key = buttonKey(button);
-        button.dataset.iaKey = key;
-        if (hiddenNavigationKeys.has(key)) {
-          button.dataset.iaHidden = '1';
-          button.setAttribute('aria-hidden','true');
-          button.tabIndex = -1;
-          return;
-        }
-        delete button.dataset.iaHidden;
-        button.removeAttribute('aria-hidden');
-        button.removeAttribute('tabindex');
-        if (button.dataset.memoriesNav === '1') button.dataset.iaSubnav = '1';
-        else delete button.dataset.iaSubnav;
-        if (!keyed.has(key)) keyed.set(key, []);
-        keyed.get(key).push(button);
-      });
-
-      groups.forEach(group => {
-        const groupButtons = [];
-        group.keys.forEach(key => {
-          (keyed.get(key) || []).forEach(button => groupButtons.push(button));
-          keyed.delete(key);
-        });
-        if (!groupButtons.length) return;
-        const heading = document.createElement('div');
-        heading.className = 'ia-navgroup';
-        heading.textContent = group.label;
-        nav.appendChild(heading);
-        groupButtons.forEach(button => nav.appendChild(button));
-      });
-
-      keyed.forEach(list => list.forEach(button => unknown.push(button)));
-      unknown.forEach(button => nav.appendChild(button));
-
-      const visibleSection = ['theme','security'].includes(String(window.state?.section || ''))
-        ? 'settings'
-        : String(window.state?.section || '');
-      const memoriesActive = visibleSection === 'media'
-        && new URL(location.href).searchParams.get('view') === 'memories';
-      nav.querySelectorAll(':scope > button:not([data-ia-hidden="1"])').forEach(button => {
-        const key = buttonKey(button);
-        if (key === 'media') {
-          const isMemories = button.dataset.memoriesNav === '1';
-          button.classList.toggle('active', visibleSection === 'media' && (isMemories === memoriesActive));
-          return;
-        }
-        button.classList.toggle('active', key === visibleSection);
-      });
+      nav.querySelectorAll('.navgroup,.ia-navgroup,.ia-navdivider,[data-ia-toggle="media"]')
+        .forEach(node => node.remove());
+      const keyed = collectNavigationButtons(nav);
+      ensureAppearanceNav(keyed);
+      const context = currentNavigationContext();
+      const mediaButtons = keyed.get('media') || [];
+      const memoriesButtons = mediaButtons.filter(button => button.dataset.memoriesNav === '1');
+      keyed.set('media',mediaButtons.filter(button => button.dataset.memoriesNav !== '1'));
+      appendNavigationGroups(nav,keyed,memoriesButtons);
+      synchronizeNavigationSelection(nav,context);
     } finally {
       applyingNav = false;
       observeNavigation();
