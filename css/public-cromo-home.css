@@ -371,3 +371,22 @@ html.cromo-home body>*:not(#cromo-home):not(#cromoGL):not(script):not(style):not
   #cromo-home .cr-cn-node{opacity:1;animation:none !important}
   #cromo-home .cr-cn-node:hover,#cromo-home .cr-cn-node.cr-is-focus{transform:translate(-50%,-50%)}
 }
+
+/* Elementos reales de la categoría elegida (los artistas, las noches, los sets...). */
+#cromo-home .cr-cn-h{margin:6px 0 -4px;font-size:clamp(26px,2.4vw,34px);color:var(--bone)}
+#cromo-home .cr-cn-items{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:10px;transition:opacity var(--duration-quick) var(--ease-in-out),filter var(--duration-quick) var(--ease-in-out)}
+#cromo-home .cr-cn-items.cr-is-leaving{opacity:0;filter:blur(var(--blur-small))}
+#cromo-home .cr-cn-items li{animation:cromo-cn-in var(--duration-very-slow) var(--ease-in-out) backwards;animation-delay:calc(var(--i,0)*var(--duration-stagger))}
+#cromo-home .cr-cn-item{display:grid;gap:2px;min-height:44px;padding:9px 14px;background:#030303;border:2px solid var(--bone);color:var(--bone);
+  transition:background-color var(--duration-quick) var(--ease-in-out),color var(--duration-quick) var(--ease-in-out),transform var(--duration-fast) var(--ease-smooth-out)}
+#cromo-home .cr-cn-item strong{font:700 21px/1.05 var(--body);text-transform:uppercase}
+#cromo-home .cr-cn-item small{font:500 16px/1.1 var(--body);color:#c3c9d4;transition:color var(--duration-quick) var(--ease-in-out)}
+#cromo-home a.cr-cn-item:hover,#cromo-home a.cr-cn-item:focus-visible{background:var(--bone);color:var(--ink);transform:translate(-3px,-3px)}
+#cromo-home a.cr-cn-item:hover small,#cromo-home a.cr-cn-item:focus-visible small{color:#3b4150}
+#cromo-home a.cr-cn-item:focus-visible{outline:3px solid var(--red);outline-offset:2px}
+#cromo-home .cr-cn-more{align-content:center;font:700 19px/1 var(--body);text-transform:uppercase;color:var(--red)}
+@media(prefers-reduced-motion:reduce){
+  #cromo-home .cr-cn-items,#cromo-home .cr-cn-item{transition:none !important}
+  #cromo-home .cr-cn-items li{animation:none}
+  #cromo-home a.cr-cn-item:hover{transform:none}
+}

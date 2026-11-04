@@ -471,5 +471,14 @@ class CromoBannersTests(unittest.TestCase):
         self.assertRegex(HOME_CSS, r"cr-cn-stage\.cr-is-in \.cr-cn-line\{stroke-dashoffset:0")
 
 
+    def test_choosing_a_category_lists_its_real_items_with_links(self) -> None:
+        self.assertIn("itemsOf(selected, data)", self.JS)
+        for route in ("link('events', e.slug)", "link('artists', a.slug)", "link('sets', x.slug)", "link('releases', r.slug)"):
+            self.assertIn(route, self.JS)
+        self.assertIn("encodeURIComponent(slug)", self.JS)   # slugs from the CMS never build a raw URL
+        self.assertIn("all.length - 12", self.JS)            # long categories are capped with a link to the section
+        self.assertNotIn("innerHTML", self.JS)
+
+
 if __name__ == "__main__":
     unittest.main()
