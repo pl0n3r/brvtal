@@ -370,16 +370,17 @@ try {
   const deployment = health.deployment || {};
   evidence.checks.health = {
     httpStatus: healthResponse.status(),
-    database: health.database,
+    status: health.status,
     version: deployment.version,
     commit: deployment.commit,
     exact: deployment.exact === true,
     pass: healthResponse.status() === 200 && health.ok === true
-      && health.database === 'connected' && deployment.exact === true
+      && health.status === 'ok' && health.release_sha === expectedSha
+      && deployment.exact === true
       && deployment.version === expectedVersion && deployment.commit === expectedSha
   };
   writeEvidence();
-  if (!evidence.checks.health.pass) throw new Error('Production health/version/SHA/database does not match exact main.');
+  if (!evidence.checks.health.pass) throw new Error('Production health/version/SHA/readiness does not match exact main.');
 
   markStage('home');
   const homeResponse = await context.request.get(`${baseUrl}/`, { timeout: 12_000 });

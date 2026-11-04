@@ -184,7 +184,10 @@ class ProductionSmokeDiagnosticsTests(unittest.TestCase):
 
     def test_existing_functional_checks_remain_required(self):
         source = SMOKE.read_text(encoding="utf-8")
-        self.assertIn("Production health/version/SHA/database does not match exact main.", source)
+        self.assertIn("Production health/version/SHA/readiness does not match exact main.", source)
+        self.assertIn("health.status === 'ok'", source)
+        self.assertIn("health.release_sha === expectedSha", source)
+        self.assertNotIn("health.database", source)
         self.assertIn("Production has no dated Event available for the #123 read-only verification.", source)
         self.assertIn("Production needs at least one published Artist and one published Event to verify #124", source)
         self.assertIn("#125 Dashboard transition", source)

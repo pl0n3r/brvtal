@@ -73,6 +73,9 @@ $assert(str_contains($releaseObserver, 'fallbackReason'), 'release observation m
 $assert(str_contains($probe, 'deploymentProbeFallbacks'), 'smoke evidence must record deployment-probe fallback diagnostics');
 $assert(str_contains($probe, 'await observeBeforeAuthenticate('), 'smoke must use the tested observe-before-auth orchestration boundary');
 $assert(str_contains($probe, 'adminVersion'), 'visible Admin product version must be captured in evidence');
+$assert(str_contains($probe, "health.status === 'ok'"), 'production smoke must require healthy public readiness');
+$assert(str_contains($probe, 'health.release_sha === expectedSha'), 'smoke must compare the public release SHA to expected main');
+$assert(!str_contains($probe, 'health.database'), 'smoke must not depend on removed private database diagnostics');
 $assert(str_contains($probe, 'Admin product version mismatch'), 'production smoke must fail on visible release mismatch');
 $assert(str_contains($probe, "target => typeof state !== 'undefined' && state.section === target"), 'sidebar navigation must await the lexical Admin state transition');
 $assert(str_contains($probe, '`navigate:${section}`'), 'navigation wait must remain bounded and stage-labelled');
