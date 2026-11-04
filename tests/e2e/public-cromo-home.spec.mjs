@@ -24,6 +24,7 @@ const slider = {
     { desktopSrc: '/banner-b.svg', title: 'BANNER B', transition: 'fade' },
   ],
 };
+let fixtureSequence = 0;
 async function mount(page, { payload = data, banners = slider, hash = '', reduced = false, width = 1440 } = {}) {
   await page.setViewportSize({ width, height: 900 });
   await page.emulateMedia({ reducedMotion: reduced ? 'reduce' : 'no-preference' });
@@ -34,7 +35,9 @@ async function mount(page, { payload = data, banners = slider, hash = '', reduce
     contentType: 'text/html; charset=utf-8',
     body: '<!doctype html><html lang="es"><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;padding:0}</style><style>' + css + '</style></head><body><main id="legacy">FALLBACK</main></body></html>',
   }));
-  await page.goto(url + hash);
+  // A fragment-only navigation does not reload the document or reinitialize Cromo.
+  // Give every fixture a distinct URL so legacy-hash checks exercise a fresh mount.
+  await page.goto(url + '?fixture=' + (++fixtureSequence) + hash);
   await page.addScriptTag({ content: runtime });
   await expect(page.locator('#cromo-home')).toBeAttached();
 }
