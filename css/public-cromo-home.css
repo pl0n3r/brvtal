@@ -228,30 +228,34 @@ html.cromo-home body>*:not(#cromo-home):not(#cromoGL):not(script):not(style):not
   #cromo-home .cr-glitch::before,#cromo-home .cr-glitch::after{animation:none}
 }
 
-/* ---------- Destacados: los banners que se gestionan en DISCADMIN, dentro del marco Cromo ---------- */
+/* ---------- Destacados: los banners de DISCADMIN como pósters a todo el ancho, en duotono rojo y negro ---------- */
 #cromo-home .cr-sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
-#cromo-home .cr-bn{padding-top:clamp(40px,8vh,96px);padding-bottom:clamp(24px,5vh,64px)}
-#cromo-home .cr-bn-stage{position:relative;aspect-ratio:16/8;min-height:340px;max-height:78vh;overflow:hidden;background:#07080b;box-shadow:12px 12px 0 var(--red);transition:box-shadow var(--duration-quick) var(--ease-out)}
-#cromo-home .cr-bn-stage.cr-beat{box-shadow:12px 12px 0 var(--red),0 0 0 4px rgba(242,239,232,.55)}
+#cromo-home .cr-bn{padding:0}
+#cromo-home .cr-bn-stage{position:relative;height:clamp(520px,92vh,860px);overflow:hidden;background:#030303;border-top:3px solid var(--bone);border-bottom:10px solid var(--red)}
+/* The outgoing slide leaves quickly and the incoming one arrives right after, so two titles never overlap. */
 #cromo-home .cr-bn-slide{position:absolute;inset:0;opacity:0;visibility:hidden;
-  transition:opacity var(--duration-slow) var(--ease-in-out),transform var(--duration-slow) var(--ease-smooth-out),visibility 0s linear var(--duration-slow)}
+  transition:opacity var(--duration-quick) var(--ease-in-out),transform var(--duration-slow) var(--ease-smooth-out),visibility 0s linear var(--duration-quick)}
 #cromo-home .cr-bn-slide.cr-bn-t-slide{transform:translateX(3%)}
 #cromo-home .cr-bn-slide.cr-bn-t-zoom{transform:scale(1.04)}
-#cromo-home .cr-bn-slide.cr-is-active{opacity:1;visibility:visible;transform:none;transition-delay:0s}
-#cromo-home .cr-bn-media{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+#cromo-home .cr-bn-slide.cr-is-active{opacity:1;visibility:visible;transform:none;transition:opacity var(--duration-slow) var(--ease-in-out) var(--duration-quick),transform var(--duration-slow) var(--ease-smooth-out) var(--duration-quick),visibility 0s}
 #cromo-home .cr-bn-slide picture{display:contents}
-#cromo-home .cr-bn-ov{position:absolute;inset:0;background:linear-gradient(90deg,rgba(3,3,3,calc(var(--ov,.35) + .4)) 0%,rgba(3,3,3,var(--ov,.35)) 48%,rgba(3,3,3,calc(var(--ov,.35)*.4)) 100%),linear-gradient(0deg,rgba(3,3,3,.55),transparent 38%)}
+/* Duotone: whatever colors the artwork has, it lands in the site's palette. The real colors come back on hover/focus. */
+#cromo-home .cr-bn-media{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;filter:grayscale(1) contrast(1.3) brightness(1.05);transition:filter var(--duration-slow) var(--ease-smooth-out)}
+#cromo-home .cr-bn-tint{position:absolute;inset:0;background:var(--red);mix-blend-mode:multiply;opacity:.5;transition:opacity var(--duration-slow) var(--ease-smooth-out)}
+#cromo-home .cr-bn-stage:hover .cr-bn-media,#cromo-home .cr-bn-stage:focus-within .cr-bn-media{filter:none}
+#cromo-home .cr-bn-stage:hover .cr-bn-tint,#cromo-home .cr-bn-stage:focus-within .cr-bn-tint{opacity:0}
+#cromo-home .cr-bn-ov{position:absolute;inset:0;background:linear-gradient(90deg,rgba(3,3,3,calc(var(--ov,.35) + .45)) 0%,rgba(3,3,3,calc(var(--ov,.35) + .1)) 55%,rgba(3,3,3,.15) 100%),linear-gradient(0deg,rgba(3,3,3,.85),transparent 45%)}
 
 /* Layers: positioned from the center point the editor defines (percent of the stage), mobile overrides included. */
 #cromo-home .cr-bn-layer{position:absolute;left:var(--x,12%);top:var(--y,50%);width:var(--w,50%);transform:translate(-50%,-50%);color:#fff;z-index:2;word-break:break-word}
 #cromo-home .cr-bn-al-left{text-align:left}
 #cromo-home .cr-bn-al-center{text-align:center}
 #cromo-home .cr-bn-al-right{text-align:right}
-#cromo-home .cr-bn-text{font:400 clamp(26px,4.6vw,84px)/1.12 var(--disp);text-transform:uppercase}
-#cromo-home .cr-bn-t{padding:.04em .28em;background:rgba(3,3,3,.9);color:#fff;box-decoration-break:clone;-webkit-box-decoration-break:clone;box-shadow:.12em .12em 0 var(--red)}
+#cromo-home .cr-bn-text{font:400 clamp(30px,6vw,110px)/1.08 var(--disp);text-transform:uppercase}
+#cromo-home .cr-bn-t{padding:.04em .26em;background:rgba(3,3,3,.92);color:#fff;box-decoration-break:clone;-webkit-box-decoration-break:clone}
 #cromo-home .cr-bn-image img,#cromo-home .cr-bn-logo img{display:block;width:100%;height:auto;object-fit:contain}
 #cromo-home .cr-bn-cta{width:auto;white-space:nowrap}
-#cromo-home .cr-bn-layer.cr-btn{min-height:48px}
+#cromo-home .cr-bn-layer.cr-btn{min-height:52px}
 @keyframes cromo-bn-fade{from{opacity:0;filter:blur(var(--blur-medium))}to{opacity:1;filter:blur(0)}}
 @keyframes cromo-bn-up{from{opacity:0;filter:blur(var(--blur-medium));transform:translate(-50%,calc(-50% + var(--distance-medium)*2))}to{opacity:1;filter:blur(0);transform:translate(-50%,-50%)}}
 @keyframes cromo-bn-left{from{opacity:0;filter:blur(var(--blur-medium));transform:translate(calc(-50% - var(--distance-medium)*2),-50%)}to{opacity:1;filter:blur(0);transform:translate(-50%,-50%)}}
@@ -261,40 +265,49 @@ html.cromo-home body>*:not(#cromo-home):not(#cromoGL):not(script):not(style):not
 #cromo-home .cr-bn-slide.cr-is-active .cr-bn-a-slide-left{animation:cromo-bn-left var(--t,650ms) var(--ease-smooth-out) both;animation-delay:var(--d,0ms)}
 #cromo-home .cr-bn-slide.cr-is-active .cr-bn-a-zoom{animation:cromo-bn-zoom var(--t,650ms) var(--ease-smooth-out) both;animation-delay:var(--d,0ms)}
 
-/* Slides without layers: the classic kicker, title, text and button. */
-#cromo-home .cr-bn-copy{position:absolute;left:clamp(20px,5vw,72px);right:clamp(20px,5vw,72px);bottom:clamp(70px,12%,110px);z-index:2;display:grid;gap:14px;max-width:44em}
-#cromo-home .cr-bn-copy.cr-bn-al-center{margin:0 auto;justify-items:center}
-#cromo-home .cr-bn-copy.cr-bn-al-right{margin-left:auto;justify-items:end}
-#cromo-home .cr-bn-copy .cr-k{margin:0;font:700 18px/1 var(--body);letter-spacing:.14em;text-transform:uppercase;color:var(--red)}
-#cromo-home .cr-bn-copy h3{margin:0;font-size:min(11vw,140px);color:#fff;-webkit-text-stroke:.06em #030303;paint-order:stroke fill;text-shadow:0 .05em 0 var(--red)}
-#cromo-home .cr-bn-body{margin:0;font:500 clamp(21px,1.8vw,26px)/1.35 var(--body);color:#e6e9f0}
-#cromo-home .cr-bn-copy .cr-btn{justify-self:start}
-#cromo-home .cr-bn-al-center .cr-btn{justify-self:center}
-#cromo-home .cr-bn-al-right .cr-btn{justify-self:end}
+/* Slides without layers: giant display title like the home wordmark, plate for the details. */
+#cromo-home .cr-bn-copy{position:absolute;left:clamp(20px,4vw,64px);right:clamp(20px,34vw,520px);bottom:clamp(110px,16vh,150px);z-index:2;display:grid;gap:16px;justify-items:start}
+#cromo-home .cr-bn-copy.cr-bn-al-center{margin:0 auto;justify-items:center;left:0;right:0;text-align:center}
+#cromo-home .cr-bn-copy.cr-bn-al-right{justify-items:end;text-align:right;left:clamp(20px,34vw,520px);right:clamp(20px,4vw,64px)}
+#cromo-home .cr-bn-copy .cr-k{margin:0;padding:8px 14px;background:var(--red);color:#fff;font:700 20px/1 var(--body);letter-spacing:.14em;text-transform:uppercase}
+#cromo-home .cr-bn-copy h3{margin:0;font-size:min(13vw,200px);line-height:.88;color:#fff;-webkit-text-stroke:.06em #030303;paint-order:stroke fill;text-shadow:0 .05em 0 #030303;overflow-wrap:anywhere}
+#cromo-home .cr-bn-body{margin:0;padding:8px 14px;max-width:30em;background:rgba(3,3,3,.92);font:500 clamp(21px,1.8vw,26px)/1.35 var(--body);color:#f2efe8}
 
-#cromo-home .cr-bn-ctl{position:absolute;right:16px;bottom:16px;z-index:5;display:flex;align-items:center;gap:8px;padding:6px;background:rgba(3,3,3,.9);border:2px solid var(--bone)}
-#cromo-home .cr-bn-nav,#cromo-home .cr-bn-pp{min-width:44px;min-height:44px;padding:0 12px;background:none;color:var(--bone);border:0;cursor:pointer;font:700 20px/1 var(--body);text-transform:uppercase;letter-spacing:.04em;
-  transition:background-color var(--duration-quick) var(--ease-in-out),color var(--duration-quick) var(--ease-in-out)}
-#cromo-home .cr-bn-nav:hover,#cromo-home .cr-bn-pp:hover{background:var(--bone);color:var(--ink)}
-#cromo-home .cr-bn-pp[aria-pressed="true"]{background:var(--red);color:#fff}
-#cromo-home .cr-bn-dots{display:flex;gap:2px}
-#cromo-home .cr-bn-dot{position:relative;width:44px;height:44px;background:none;border:0;cursor:pointer}
-#cromo-home .cr-bn-dot::before{content:"";position:absolute;left:12px;right:12px;top:50%;height:6px;margin-top:-3px;background:rgba(242,239,232,.4);
-  transition:background-color var(--duration-fast) var(--ease-smooth-out),left var(--duration-fast) var(--ease-smooth-out),right var(--duration-fast) var(--ease-smooth-out)}
-#cromo-home .cr-bn-dot[aria-current="true"]::before{background:var(--red);left:6px;right:6px}
-#cromo-home .cr-bn-nav:focus-visible,#cromo-home .cr-bn-pp:focus-visible,#cromo-home .cr-bn-dot:focus-visible{outline:3px solid var(--red);outline-offset:-3px}
+/* Counter and controls: the display face for the number, the site's own buttons for the rest. */
+#cromo-home .cr-bn-count{position:absolute;right:clamp(20px,4vw,64px);top:clamp(20px,5vh,56px);z-index:5;margin:0;display:flex;align-items:baseline;gap:10px;color:#fff;-webkit-text-stroke:.04em #030303;paint-order:stroke fill}
+#cromo-home .cr-bn-count b{font-size:clamp(64px,9vw,150px);font-weight:400;line-height:.9;text-shadow:0 .05em 0 var(--red)}
+#cromo-home .cr-bn-count span{font-size:clamp(24px,2.6vw,40px);color:var(--bone);-webkit-text-stroke:0}
+#cromo-home .cr-bn-ctl{position:absolute;left:clamp(20px,4vw,64px);right:clamp(20px,4vw,64px);bottom:clamp(20px,4vh,44px);z-index:5;display:flex;align-items:center;gap:10px}
+#cromo-home .cr-bn-dots{display:flex;flex:1;gap:10px;margin-right:10px}
+#cromo-home .cr-bn-dot{position:relative;flex:1;max-width:200px;height:44px;background:none;border:0;cursor:pointer}
+#cromo-home .cr-bn-dot::before{content:"";position:absolute;left:0;right:0;top:50%;height:6px;margin-top:-3px;background:rgba(242,239,232,.35)}
+#cromo-home .cr-bn-dot::after{content:"";position:absolute;left:0;top:50%;height:6px;margin-top:-3px;width:0;background:var(--red)}
+#cromo-home .cr-bn-dot[aria-current="true"]::after{width:100%;animation:cromo-bn-run var(--bn-ms,7000ms) linear both}
+#cromo-home .cr-bn-stage.cr-is-held .cr-bn-dot[aria-current="true"]::after,#cromo-home .cr-bn-stage.cr-is-paused .cr-bn-dot[aria-current="true"]::after{animation-play-state:paused}
+@keyframes cromo-bn-run{from{width:0}to{width:100%}}
+#cromo-home .cr-bn-nav,#cromo-home .cr-bn-pp{min-width:52px;min-height:52px;padding:0 16px;background:rgba(3,3,3,.9);color:var(--bone);border:3px solid var(--bone);cursor:pointer;font:700 22px/1 var(--body);text-transform:uppercase;letter-spacing:.04em;
+  transition:transform var(--duration-fast) var(--ease-smooth-out),background-color var(--duration-quick) var(--ease-in-out),color var(--duration-quick) var(--ease-in-out),box-shadow var(--duration-fast) var(--ease-smooth-out)}
+#cromo-home .cr-bn-nav:hover,#cromo-home .cr-bn-pp:hover{background:var(--bone);color:var(--ink);transform:translate(-3px,-3px);box-shadow:5px 5px 0 var(--red)}
+#cromo-home .cr-bn-pp[aria-pressed="true"]{background:var(--red);border-color:var(--red);color:#fff}
+#cromo-home .cr-bn-dot:focus-visible,#cromo-home .cr-bn-nav:focus-visible,#cromo-home .cr-bn-pp:focus-visible{outline:3px solid var(--red);outline-offset:3px}
 
 @media(max-width:700px){
-  #cromo-home .cr-bn-stage{aspect-ratio:4/5;max-height:none;box-shadow:8px 8px 0 var(--red)}
+  #cromo-home .cr-bn-stage{height:clamp(560px,86vh,760px)}
   #cromo-home .cr-bn-layer{left:var(--mx,var(--x,12%));top:var(--my,var(--y,50%));width:var(--mw,var(--w,50%))}
   #cromo-home .cr-bn-layer.cr-bn-hm{display:none}
-  #cromo-home .cr-bn-text{font-size:clamp(22px,9vw,52px)}
-  #cromo-home .cr-bn-ctl{right:10px;left:10px;bottom:10px;justify-content:space-between}
+  #cromo-home .cr-bn-text{font-size:clamp(26px,10vw,56px)}
+  #cromo-home .cr-bn-copy,#cromo-home .cr-bn-copy.cr-bn-al-right{left:16px;right:16px;bottom:150px}
+  #cromo-home .cr-bn-copy h3{font-size:min(17vw,96px)}
+  #cromo-home .cr-bn-ctl{left:16px;right:16px;flex-wrap:wrap}
+  #cromo-home .cr-bn-dots{flex-basis:100%;order:-1;margin:0 0 4px}
+  #cromo-home .cr-bn-nav,#cromo-home .cr-bn-pp{flex:1}
 }
 @media(prefers-reduced-motion:reduce){
-  #cromo-home .cr-bn-slide,#cromo-home .cr-bn-stage,#cromo-home .cr-bn-nav,#cromo-home .cr-bn-pp,#cromo-home .cr-bn-dot::before{transition:none !important}
+  #cromo-home .cr-bn-slide,#cromo-home .cr-bn-media,#cromo-home .cr-bn-tint,#cromo-home .cr-bn-nav,#cromo-home .cr-bn-pp{transition:none !important}
   #cromo-home .cr-bn-slide.cr-bn-t-slide,#cromo-home .cr-bn-slide.cr-bn-t-zoom{transform:none}
   #cromo-home .cr-bn-layer{animation:none !important}
+  #cromo-home .cr-bn-dot[aria-current="true"]::after{animation:none}
+  #cromo-home .cr-bn-nav:hover,#cromo-home .cr-bn-pp:hover{transform:none;box-shadow:none}
 }
 
 
