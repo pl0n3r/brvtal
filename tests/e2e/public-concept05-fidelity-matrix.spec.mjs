@@ -862,6 +862,22 @@ const spanishOnlyScreenshotBaselines = {
     color: 'edf6dfdcbdf3f23d857654fa2552db727364ce05469fdfe18832dbbe5138340f',
   },
 };
+// #1442: fixed Concept 05 Spanish authored copy; synthetic Chromium captures
+// at 390/1440 from exact HEAD e962f2f00525d4fd8c215051c9c03e1c2901554f,
+// BRVTAL CI run 41907386405, artifact 13361181540. Owner authorized refresh
+// without waiting (#965 comment 6094235414). These are *synthetic fixture*
+// fingerprints, NOT evidence of real CMS/production visual approval. Preserve
+// previous baselines for historical variants and keep equality fail-closed.
+const issue1442ScreenshotBaselines = {
+  390: {
+    structure:'3090eef74c0bab1efee6424540ad981b210b23c10409407f3afc68d8c2a228b9',
+    color:'f892e21e0942e619db725c65d4ad5f9685683e23370049bbf33610af1121a140',
+  },
+  1440: {
+    structure:'53dc3f992bc8b732399d0d15906d0b975f15898d8519437c7ea38e9bd3968232',
+    color:'6fca2a67864cf3c4ee17e6c214695e55e0dddb34415a14498e0ef6a29d9da8a3',
+  },
+};
 // #1448: owner-authorized contrast refresh (#965 comment 6094235414).
 // All four CSS blobs match those of the historic screenshot calibration
 // Chromium run 41789025086, artifact 13302607095, at 390/1440.
@@ -875,13 +891,17 @@ const issue1448ScreenshotBaselines = {
 const spanishOnlyPublicNav = !readFileSync(
   join(root, 'partials/home/nav.html'), 'utf8'
 ).includes('id="languageSelector"');
+const spanishAuthoredHomeCopy = readFileSync(
+  join(root, 'partials/home/hero.html'), 'utf8'
+).includes('DESLIZA PARA ENTRAR');
+
 
 const currentScreenshotCssBlobs = screenshotCssPaths.map(file => {
   const bytes = readFileSync(join(root, file));
   // SHA of the Git blob, including the canonical header, not raw file SHA.
   return createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
 });
-function baselineForCssBlobs(blobs, spanishOnly = false) {
+function baselineForCssBlobs(blobs, spanishOnly = false, spanishCopy = false) {
   if (blobs.length !== screenshotCssPaths.length) {
     throw new Error('Unknown Concept 05 CSS blobs: incomplete triple');
   }
@@ -891,6 +911,7 @@ function baselineForCssBlobs(blobs, spanishOnly = false) {
   if (!matchesMain && !matchesIssue1415 && !matchesIssue1448) {
     throw new Error(`Unknown Concept 05 CSS blobs: ${blobs.join(', ')}`);
   }
+  if (matchesIssue1448 && spanishOnly && spanishCopy) return issue1442ScreenshotBaselines;
   if (matchesIssue1448) return issue1448ScreenshotBaselines;
   if (spanishOnly) return spanishOnlyScreenshotBaselines;
   return matchesMain ? canonicalScreenshotBaselines : issue1415ScreenshotBaselines;
@@ -905,6 +926,8 @@ test('Concept 05 screenshot baseline CSS blobs reject mixed and unknown revision
     .toBe(issue1448ScreenshotBaselines);
   expect(baselineForCssBlobs(screenshotCssBlobs.issue1448, true))
     .toBe(issue1448ScreenshotBaselines);
+  expect(baselineForCssBlobs(screenshotCssBlobs.issue1448, true, true))
+    .toBe(issue1442ScreenshotBaselines);
   expect(baselineForCssBlobs(screenshotCssBlobs.issue1415, true))
     .toBe(spanishOnlyScreenshotBaselines);
   expect(baselineForCssBlobs(screenshotCssBlobs.main, true))
@@ -1036,7 +1059,7 @@ for (const viewport of [{ width:390, height:844 }, { width:1440, height:900 }]) 
   test(`Concept 05 canonical ${viewport.width}px screenshot fingerprint stays approved`, async ({ page }) => {
     await mount(page, viewport);
     const actual = await captureCanonicalVisualFingerprint(page);
-    const expected = baselineForCssBlobs(currentScreenshotCssBlobs, spanishOnlyPublicNav)[viewport.width];
+    const expected = baselineForCssBlobs(currentScreenshotCssBlobs, spanishOnlyPublicNav, spanishAuthoredHomeCopy)[viewport.width];
 
     if (expected.structure === 'PENDING_CALIBRATION') {
       console.log(`CONCEPT05_SCREENSHOT_BASELINE_${viewport.width}=${JSON.stringify(actual)}`);

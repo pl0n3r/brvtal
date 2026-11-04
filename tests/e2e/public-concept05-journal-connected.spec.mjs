@@ -287,7 +287,7 @@ test('Concept 05 desktop Journal authors a real feature/index and Connected draw
   await expect(page.locator('[data-connected-edge="event_artist"]')).toHaveAttribute('data-connected-count','2');
   await expect(page.locator('[data-connected-edge="set_memory"]')).toHaveCount(0);
   await expect(page.locator('[data-connected-ledger-edge="release_memory"]')).toHaveCount(0);
-  await expect(page.locator('[data-connected-edges]')).toContainText('7 VERIFIED RELATIONAL LINKS');
+  await expect(page.locator('[data-connected-edges]')).toContainText('7 VÍNCULOS VERIFICADOS');
 
   // Visual geometry regression: genuine CMS edges form a diagonal/radial
   // network at desktop widths instead of five nodes in one long row.
@@ -343,7 +343,7 @@ test('Connected renders no fake lines when the canonical relation graph has zero
   await mount(page, zero);
 
   await expect(page.locator('[data-connected-lines] line')).toHaveCount(0);
-  await expect(page.locator('[data-connected-ledger]')).toContainText('NO STRUCTURED LINKS YET.');
+  await expect(page.locator('[data-connected-ledger]')).toContainText('AÚN NO HAY VÍNCULOS ESTRUCTURADOS.');
   await expect(page.locator('[data-connected-edges]')).toContainText('AÚN NO HAY RELACIONES ESTRUCTURADAS PUBLICADAS.');
   await expect(page.locator('[data-connected-node="events"] [data-connected-count]')).toHaveText('2');
 });
@@ -394,7 +394,7 @@ test('Connected ignores inherited relation counters and draws no fabricated link
   await mount(page, inherited);
   await expect(page.locator('[data-connected-lines] line')).toHaveCount(0);
   await expect(page.locator('[data-connected-edge="event_artist"]')).toHaveCount(0);
-  await expect(page.locator('[data-connected-ledger]')).toContainText('NO STRUCTURED LINKS YET.');
+  await expect(page.locator('[data-connected-ledger]')).toContainText('AÚN NO HAY VÍNCULOS ESTRUCTURADOS.');
   await expect(page.locator('[data-connected-edges]')).toContainText(
     'AÚN NO HAY RELACIONES ESTRUCTURADAS PUBLICADAS.'
   );
@@ -405,7 +405,7 @@ test('Connected tolerates null CMS relationship counts without fabricated edges'
   empty.relations = {counts:null};
   await mount(page, empty);
   await expect(page.locator('[data-connected-lines] line')).toHaveCount(0);
-  await expect(page.locator('[data-connected-ledger]')).toContainText('NO STRUCTURED LINKS YET.');
+  await expect(page.locator('[data-connected-ledger]')).toContainText('AÚN NO HAY VÍNCULOS ESTRUCTURADOS.');
   await expect(page.locator('[data-connected-edges]')).toContainText('AÚN NO HAY RELACIONES ESTRUCTURADAS PUBLICADAS.');
   await expect(page.locator('[data-connected-node="events"] [data-connected-count]')).toHaveText('2');
 });
@@ -426,7 +426,7 @@ test('Connected rejects malformed CMS counts without fabricating graph edges', a
   await expect(page.locator('[data-connected-lines] line')).toHaveCount(1);
   await expect(page.locator('[data-connected-edge="set_memory"]')).toHaveAttribute('data-connected-count','2');
   await expect(page.locator('[data-connected-edge="event_artist"]')).toHaveCount(0);
-  await expect(page.locator('[data-connected-edges]')).toContainText('2 VERIFIED RELATIONAL LINKS');
+  await expect(page.locator('[data-connected-edges]')).toContainText('2 VÍNCULOS VERIFICADOS');
 });
 
 test('Connected declines an imprecise aggregate total while preserving exact CMS edges', async ({page}) => {
@@ -437,7 +437,7 @@ test('Connected declines an imprecise aggregate total while preserving exact CMS
   await expect(page.locator('[data-connected-edge="event_artist"]'))
     .toHaveAttribute('data-connected-count',String(Number.MAX_SAFE_INTEGER));
   await expect(page.locator('[data-connected-ledger-edge="event_set"]')).toContainText('1');
-  await expect(page.locator('[data-connected-edges]')).toHaveText('RELATIONAL LINK TOTAL UNAVAILABLE.');
+  await expect(page.locator('[data-connected-edges]')).toHaveText('TOTAL DE VÍNCULOS RELACIONALES NO DISPONIBLE.');
 });
 
 test('Journal empty state remains honest and reduced-motion leaves the authored modules static', async ({page}) => {

@@ -274,7 +274,7 @@
       if (section.querySelector('img[data-c5-editorial-media="' + key + '"]')) return;
       const image = document.createElement('img');
       image.dataset.c5EditorialMedia = key;
-      image.alt = 'Editorial BRVTAL ' + key.replace('_', ' ');
+      image.alt = 'Editorial BRVTAL: ' + ({hero_face:'imagen principal',crowd:'público',nights:'noches',artists:'artistas',memories:'memorias'}[key] || 'imagen');
       image.width = 384;
       image.height = 240;
       image.style.maxWidth = '100%';

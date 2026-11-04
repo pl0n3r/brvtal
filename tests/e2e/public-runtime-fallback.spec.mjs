@@ -37,7 +37,7 @@ for (const missing of ['GSAP', 'ScrollTrigger']) {
     await expect(page.locator('.events-track h3')).toHaveText(escapedCmsTitle);
     await expect(page.locator('.events-track event')).toHaveCount(0);
     await expect(page.locator('.event-img img')).toHaveAttribute('src', escapedCmsImage);
-    await expect(page.locator('#dynamicStatus')).toHaveText('LIVE / CMS CONNECTED');
+    await expect(page.locator('#dynamicStatus')).toHaveText('EN VIVO / CMS CONECTADO');
     expect(errors).toEqual([]);
   });
 }
@@ -68,7 +68,7 @@ test('public modules share one CMS request while rendering archive and curated M
   }));
 
   await page.goto(harnessUrl);
-  await expect(page.locator('#dynamicStatus')).toHaveText('LIVE / CMS CONNECTED');
+  await expect(page.locator('#dynamicStatus')).toHaveText('EN VIVO / CMS CONECTADO');
   await expect(page.locator('[data-archive-event]')).toHaveCount(1);
   await expect(page.locator('[data-public-media-item]')).toHaveCount(1);
   await expect(page.locator('[data-public-media-item]')).toContainText('Crowd Memory');
@@ -130,7 +130,7 @@ test('dynamic CMS nodes keep cursor, magnetic and artist-preview behavior after 
   }));
 
   await page.goto(harnessUrl);
-  await expect(page.locator('#dynamicStatus')).toHaveText('LIVE / CMS CONNECTED');
+  await expect(page.locator('#dynamicStatus')).toHaveText('EN VIVO / CMS CONECTADO');
 
   const artist = page.locator('.artist');
   await expect(artist).toHaveAttribute('data-dynamic-bound', '1');

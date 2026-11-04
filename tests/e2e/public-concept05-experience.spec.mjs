@@ -515,6 +515,6 @@ test('PHP-rendered canonical Next Experience keeps published facts and captures 
   await expect(section.locator('.ticket-cta')).toHaveCount(0);
   await expect(section.locator('.c5-experience-ticket')).toHaveCount(0);
   await expect(section.locator('.c5-experience-artwork img')).toHaveCount(0);
-  await expect(section.locator('[data-c5-fact="date"]')).toHaveText('DATE TBA');
+  await expect(section.locator('[data-c5-fact="date"]')).toHaveText('FECHA POR ANUNCIAR');
   } finally { await inertContext.close(); }
 });

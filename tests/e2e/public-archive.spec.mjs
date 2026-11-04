@@ -54,7 +54,7 @@ test('public archive separates active lifecycle from historical nights and filte
 
   await expect(page.locator('[data-archive-id="20"]')).toBeVisible();
   await expect(page.locator('[data-archive-id="20"]')).toContainText('Session Five');
-  await expect(page.locator('[data-archive-id="20"]')).toContainText('5 ARTISTS / 1 SET');
+  await expect(page.locator('[data-archive-id="20"]')).toContainText('5 ARTISTAS / 1 SET');
   await expect(page.locator('[data-archive-id="20"] a[href="/events/session-five"]')).toHaveText('ABRIR REGISTRO ↗');
   const connections = page.locator('[data-archive-id="20"] [data-archive-connections]');
   await expect(connections).toHaveText('EXPLORAR CONEXIONES ↗');
@@ -80,7 +80,7 @@ test('public archive separates active lifecycle from historical nights and filte
   await page.locator('[data-archive-search]').fill('bogota');
   await expect(page.locator('[data-archive-id="20"]')).toBeHidden();
   await expect(page.locator('[data-archive-id="21"]')).toBeVisible();
-  await expect(page.locator('[data-archive-results]')).toHaveText('1 RECORD FOUND');
+  await expect(page.locator('[data-archive-results]')).toHaveText('1 REGISTRO ENCONTRADO');
   await page.locator('[data-archive-search]').fill('Pereíra');
   await expect(page.locator('[data-archive-id="20"]')).toBeVisible();
   await expect(page.locator('[data-archive-id="21"]')).toBeHidden();
@@ -186,7 +186,7 @@ test('public archive treats explicit Event Memories as first-class archive conne
 
   const memoryOnly = page.locator('[data-archive-id="77"]');
   const unrelated = page.locator('[data-archive-id="78"]');
-  await expect(memoryOnly.locator('.archive-event-relations')).toHaveText('1 MEMORY');
+  await expect(memoryOnly.locator('.archive-event-relations')).toHaveText('1 MEMORIA');
   await expect(memoryOnly).toHaveAttribute('data-archive-memories','1');
   await expect(unrelated.locator('.archive-event-relations')).toHaveText('REGISTRO HISTÓRICO');
   await expect(unrelated).toHaveAttribute('data-archive-memories','0');
