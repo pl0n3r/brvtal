@@ -560,7 +560,7 @@ test('Hero Description conserva texto original si site.description falta o está
 
 test('Hero Description limita entrada CMS a 240 caracteres en móvil y escritorio', async ({ page }) => {
   const description = 'la cultura nocturna es nuestra '.repeat(14);
-  const normalized = description.replace(/\\s+/g, ' ').trim();
+  const normalized = description.replace(/\s+/g, ' ').trim();
   const expected = normalized.slice(0, 239).trimEnd() + '…';
   expect(expected.length).toBeLessThanOrEqual(240);
   for (const width of [390, 1440]) {
