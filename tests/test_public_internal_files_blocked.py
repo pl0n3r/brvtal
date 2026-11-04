@@ -110,6 +110,17 @@ class PublicInternalFilesBlockedTests(unittest.TestCase):
         self.assertIn("https:", directives["img-src"])
         self.assertIn("blob:", directives["media-src"])
 
+    def test_script_src_allows_every_host_the_runtime_loader_uses(self):
+        loader = (ROOT / "js" / "public-runtime-loader.js").read_text(encoding="utf-8")
+        csp = re.search(r"Content-Security-Policy \"([^\"]+)\"", self.rules)
+        self.assertIsNotNone(csp)
+        script_src = re.search(r"script-src ([^;]+);", csp.group(1))
+        self.assertIsNotNone(script_src)
+        hosts = set(re.findall(r"https://[A-Za-z0-9.-]+", loader))
+        self.assertIn("https://cdn.jsdelivr.net", hosts)
+        for host in hosts:
+            self.assertIn(host, script_src.group(1), f"CSP blocks {host}")
+
 
 if __name__ == "__main__":
     unittest.main()
