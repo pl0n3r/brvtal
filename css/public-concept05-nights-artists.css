@@ -769,3 +769,24 @@ align-self:center;
     grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));
   }
 }
+
+
+/* #1448 TICKETS: accessible ink on Theme Studio red, hover and focus. */
+[data-concept="05"] .c5-night-actions .event-ticket,
+[data-concept="05"] .c5-night-actions .event-ticket:hover,
+[data-concept="05"] .c5-night-actions .event-ticket:focus-visible{
+  background:var(--c5-a11y-red-bg);
+  border-color:var(--c5-a11y-red-bg);
+  color:var(--c5-a11y-red-fg);
+}
+[data-concept="05"] .c5-night-actions .event-ticket span{color:inherit}
+/* OPEN RECORD: an opaque plate avoids low contrast against artwork. */
+[data-concept="05"] .c5-night-actions .event-record,
+[data-concept="05"] .c5-night-actions .event-record:hover,
+[data-concept="05"] .c5-night-actions .event-record:focus-visible,
+[data-concept="05"] [data-c5-past-nights] .c5-night-card .event-record,
+[data-concept="05"] [data-c5-past-nights] .c5-night-card .event-record:hover,
+[data-concept="05"] [data-c5-past-nights] .c5-night-card .event-record:focus-visible{
+  background:#050505;
+  color:#f4f1e8;
+}
