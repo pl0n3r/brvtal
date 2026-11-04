@@ -105,6 +105,7 @@ test('PHP-composed C05 displays five published CMS images at 390 and 1440', asyn
     window.BRVTALPublicDataPromise = Promise.resolve({payload:{data:{settings:{site}}}});
     window.BRVTALRuntimeReady = Promise.resolve();
   }, publicSite);
+  const requestedFixtureImages = [];
   await page.route('**/*', route => {
     const url = new URL(route.request().url());
     if (url.href === composerUrl) return route.fulfill({
@@ -113,9 +114,9 @@ test('PHP-composed C05 displays five published CMS images at 390 and 1440', asyn
     if (url.origin !== 'http://127.0.0.1:4173') return route.abort();
     if (url.pathname.startsWith(fixtureBase)) {
       const name = url.pathname.slice(fixtureBase.length);
-      return Object.hasOwn(webp,name)
-        ? route.fulfill({contentType:'image/webp',body:webp[name]})
-        : route.abort();
+      if (!Object.hasOwn(webp,name)) return route.abort();
+      requestedFixtureImages.push(name);
+      return route.fulfill({contentType:'image/webp',body:webp[name]});
     }
     let file;
     try { file = resolve(root,decodeURIComponent(url.pathname).replace(/^\/+/,'')); }
@@ -129,13 +130,31 @@ test('PHP-composed C05 displays five published CMS images at 390 and 1440', asyn
     return route.fulfill({contentType:mimes[ext],body:readFileSync(file)});
   });
   for (const width of [390,1440]) {
+    requestedFixtureImages.length = 0;
     await page.setViewportSize({width,height:900});
     await page.goto(composerUrl,{waitUntil:'load'});
     const images = page.locator('img[data-c5-editorial-media]');
     await expect(images).toHaveCount(5);
+    // An offscreen, initially hidden <img> cannot be natively lazy-loaded.
+    // Its URL is assigned only when its *section* intersects the viewport.
+    const heroImage = page.locator('img[data-c5-editorial-media="hero_face"]');
+    await expect(heroImage).toBeVisible();
+    expect(new Set(requestedFixtureImages).size).toBeLessThan(5);
+    for (const [key, selector] of [
+      ['crowd','#genesis'],
+      ['nights','#events'],
+      ['artists','#artists'],
+      ['memories','#media'],
+    ]) {
+      await page.locator(selector).scrollIntoViewIfNeeded();
+      await expect(page.locator('img[data-c5-editorial-media="' + key + '"]')).toBeVisible();
+    }
+    // All five published fixture assets must still render after scrolling;
+    // the optimization may defer, never suppress, their eventual requests.
     await expect.poll(() => images.evaluateAll(nodes =>
       nodes.filter(node => node.complete && node.naturalWidth > 0 && !node.hidden).length
     )).toBe(5);
+    expect(new Set(requestedFixtureImages).size).toBe(5);
     const broken = await images.evaluateAll(nodes =>
       nodes.filter(node => !node.src.startsWith('http://127.0.0.1:4173/uploads/media/fixture/')
         || node.naturalWidth === 0).length);

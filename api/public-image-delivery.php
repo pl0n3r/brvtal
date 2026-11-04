@@ -28,6 +28,25 @@ try {
     )->fetchAll();
 
     $paths = array_map(static fn(array $row): string => (string)($row['file_path'] ?? ''), $rows);
+    // Published event covers can be referenced outside the Media Library list.
+    // Include them only if they have an existing allowlisted Media Engine sidecar.
+    try {
+        $eventRows = db()->query(
+            "SELECT DISTINCT cover_image AS file_path
+             FROM events
+             WHERE status='published' AND cover_image LIKE '/uploads/%'"
+        )->fetchAll();
+        foreach ($eventRows as $event) {
+            $paths[] = (string)($event['file_path'] ?? '');
+        }
+    } catch (Throwable $eventError) {
+        // A missing optional table must not disable delivery for published media.
+        if (function_exists('brvtal_log')) {
+            brvtal_log('PUBLIC_IMAGE_DELIVERY_EVENTS_UNAVAILABLE', 'Event cover lookup failed', [
+                'class' => $eventError::class,
+            ]);
+        }
+    }
     $map = brvtal_public_media_delivery_map($paths);
     $etag = '"' . sha1(json_encode($map, JSON_UNESCAPED_SLASHES)) . '"';
     header('ETag: ' . $etag);
@@ -41,7 +60,7 @@ try {
 } catch (Throwable $e) {
     if (function_exists('brvtal_log')) {
         brvtal_log('PUBLIC_IMAGE_DELIVERY_ERROR', 'Public image delivery failure', [
-            'class' => get_class($e),
+            'class' => $e::class,
             'message' => $e->getMessage(),
         ]);
     }
