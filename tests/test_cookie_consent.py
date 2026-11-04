@@ -180,8 +180,11 @@ echo json_encode([
         self.assertIn("@media(max-width:480px)", css)
         self.assertIn("width:calc(100vw - 24px)", css)
         self.assertIn("@media(prefers-reduced-motion:reduce)", css)
-        self.assertIn("animation:none!important", css)
-        self.assertIn("transition:none!important", css)
+        self.assertIn(".brvtal-cookie-banner button,.brvtal-cookie-banner a,.brvtal-cookie-preferences{", css)
+        self.assertIn("animation:none", css)
+        self.assertIn("transition:none", css)
+        self.assertIn(".brvtal-cookie-banner button.brvtal-cookie-close{", css)
+        self.assertEqual(css.count("!important"), 1, "only the hidden attribute requires !important")
         self.assertRegex(css, r'\.brvtal-cookie-banner\[hidden\],\.brvtal-cookie-preferences\[hidden\]\{display:none!important\}')
 
         def luminance(hex_color: str) -> float:

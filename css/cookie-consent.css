@@ -72,18 +72,18 @@
   border-color:var(--cookie-red);
   color:var(--cookie-ink);
 }
-.brvtal-cookie-close{
+.brvtal-cookie-banner button.brvtal-cookie-close{
   display:inline-flex;
   flex:0 0 44px;
   align-items:center;
   justify-content:center;
   min-width:44px;
   min-height:44px;
-  padding:0!important;
-  border-color:var(--cookie-bone)!important;
-  background:var(--cookie-ink)!important;
-  color:var(--cookie-bone)!important;
-  font-size:27px!important;
+  padding:0;
+  border-color:var(--cookie-bone);
+  background:var(--cookie-ink);
+  color:var(--cookie-bone);
+  font-size:27px;
   line-height:1;
 }
 .brvtal-cookie-close:hover{box-shadow:3px 3px 0 var(--cookie-red)}
@@ -125,8 +125,8 @@
   .brvtal-cookie-actions{gap:8px}
 }
 @media(prefers-reduced-motion:reduce){
-  .brvtal-cookie-banner,.brvtal-cookie-banner *,.brvtal-cookie-preferences{
-    animation:none!important;
-    transition:none!important;
+  .brvtal-cookie-banner,.brvtal-cookie-banner *,.brvtal-cookie-banner button,.brvtal-cookie-banner a,.brvtal-cookie-preferences{
+    animation:none;
+    transition:none;
   }
 }
