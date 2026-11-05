@@ -15,12 +15,12 @@ function releases_index_expect(bool $condition, string $message): void
 
 class BrvtalReleasesIndexStatement extends PDOStatement
 {
-    public function __construct(private array $rows) {}
+    public function __construct(private readonly array $rows) {}
     public function fetchAll(int $mode = PDO::FETCH_DEFAULT, mixed ...$args): array { return $this->rows; }
 }
 class BrvtalReleasesIndexDb extends PDO
 {
-    public function __construct(private array $rows, private bool $fail = false) {}
+    public function __construct(private readonly array $rows, private readonly bool $fail = false) {}
     public function query(string $query, ?int $fetchMode = null, mixed ...$fetchModeArgs): PDOStatement|false
     {
         releases_index_expect(str_contains($query, "FROM releases WHERE status='published'"), 'catalog must query published releases only');
