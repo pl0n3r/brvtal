@@ -10,7 +10,7 @@ require_once __DIR__ . '/public_cromo_chrome.php';
 const BRVTAL_PRIVACY_OWNER_PLACEHOLDER = '[COMPLETAR POR EL DUEÑO]';
 const BRVTAL_PRIVACY_LEGAL_STATUS = 'Texto legal pendiente de aprobación profesional (Condor #974).';
 
-/** @return array{controller_name:string,controller_email:string,response_time:string,controller_domicile:string,controller_address:string,controller_phone:string,rights_contact_area:string,consultation_time:string,claim_time:string} */
+/** @return array{controller_name:string,controller_email:string,response_time:string,controller_domicile:string,controller_address:string,rights_contact_area:string,consultation_time:string,claim_time:string} */
 function brvtalPublicPrivacyRightsConfiguration(array $settings): array
 {
     $name = trim(is_string($settings['controller_name'] ?? null) ? $settings['controller_name'] : '');
@@ -18,7 +18,7 @@ function brvtalPublicPrivacyRightsConfiguration(array $settings): array
     $response = trim(is_string($settings['response_time'] ?? null) ? $settings['response_time'] : '');
 
     $extra = [];
-    foreach (['controller_domicile','controller_address','controller_phone',
+    foreach (['controller_domicile','controller_address',
               'rights_contact_area','consultation_time','claim_time'] as $key) {
         $raw = $settings[$key] ?? null;
         $value = trim(is_string($raw) ? $raw : '');
@@ -52,7 +52,6 @@ function brvtalPublicPrivacyRightsDocument(
         'contact' => 'Responsible contact email',
         'domicile' => 'Legal domicile',
         'address' => 'Contact address',
-        'phone' => 'Contact phone',
         'area' => 'Area responsible for data rights',
         'consultation' => 'Consultation response period',
         'claim' => 'Claim response period',
@@ -68,7 +67,6 @@ function brvtalPublicPrivacyRightsDocument(
         'contact' => 'Correo de contacto del responsable',
         'domicile' => 'Domicilio del responsable',
         'address' => 'Dirección de contacto',
-        'phone' => 'Teléfono de contacto',
         'area' => 'Área responsable de solicitudes',
         'consultation' => 'Plazo para consultas',
         'claim' => 'Plazo para reclamos',
@@ -113,8 +111,6 @@ function brvtalPublicPrivacyRightsDocument(
 <p data-privacy-domicile>{{DOMICILE_VALUE}}</p>
 <h3>{{ADDRESS_LABEL}}</h3>
 <p data-privacy-address>{{ADDRESS_VALUE}}</p>
-<h3>{{PHONE_LABEL}}</h3>
-<p data-privacy-phone>{{PHONE_VALUE}}</p>
 </section>
 <section aria-labelledby="rights-heading">
 <h2 id="rights-heading">{{RIGHTS_LABEL}}</h2>
@@ -153,8 +149,6 @@ HTML;
         '{{DOMICILE_VALUE}}' => $escape($values['controller_domicile']),
         '{{ADDRESS_LABEL}}' => $escape($labels['address']),
         '{{ADDRESS_VALUE}}' => $escape($values['controller_address']),
-        '{{PHONE_LABEL}}' => $escape($labels['phone']),
-        '{{PHONE_VALUE}}' => $escape($values['controller_phone']),
         '{{AREA_LABEL}}' => $escape($labels['area']),
         '{{AREA_VALUE}}' => $escape($values['rights_contact_area']),
         '{{CONSULTATION_LABEL}}' => $escape($labels['consultation']),

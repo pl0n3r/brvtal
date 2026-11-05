@@ -106,7 +106,6 @@ function brvtalActivitySettingKeyAuditable(string $key): bool
         'privacy.response_time',
         'privacy.controller_domicile',
         'privacy.controller_address',
-        'privacy.controller_phone',
         'privacy.rights_contact_area',
         'privacy.consultation_time',
         'privacy.claim_time',

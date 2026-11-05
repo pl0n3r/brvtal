@@ -554,10 +554,10 @@ try {
             }
             $isJson = (int)($d['is_json'] ?? 0);
             if (in_array($key, ['privacy.controller_name','privacy.controller_email','privacy.response_time',
-                'privacy.controller_domicile','privacy.controller_address','privacy.controller_phone',
+                'privacy.controller_domicile','privacy.controller_address',
                 'privacy.rights_contact_area','privacy.consultation_time','privacy.claim_time'], true)) {
                 $privacyLimit = in_array($key, ['privacy.controller_email','privacy.controller_address'], true)
-                    ? 254 : ($key === 'privacy.controller_phone' ? 80 : 160);
+                    ? 254 : 160;
                 $plain = trim($value);
                 if ($isJson !== 0 || strlen($plain) > $privacyLimit
                     || preg_match('/[<>\x00-\x1F\x7F]/', $plain) === 1) {
@@ -566,10 +566,6 @@ try {
                 if ($key === 'privacy.controller_email' && $plain !== ''
                     && filter_var($plain, FILTER_VALIDATE_EMAIL) === false) {
                     json_response(['ok' => false, 'error' => 'INVALID_PRIVACY_EMAIL', 'field' => 'setting_value'], 422);
-                }
-                if ($key === 'privacy.controller_phone' && $plain !== ''
-                    && preg_match('/^[0-9+().\\s-]{5,80}$/', $plain) !== 1) {
-                    json_response(['ok' => false, 'error' => 'INVALID_PRIVACY_VALUE', 'field' => 'setting_value'], 422);
                 }
                 $value = $plain;
             }
