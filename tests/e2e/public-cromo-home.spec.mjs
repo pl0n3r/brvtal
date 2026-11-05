@@ -7,6 +7,7 @@ const root = process.cwd();
 const css = ['css/public-cromo.css', 'css/public-cromo-home.css']
   .map(path => readFileSync(join(root, path), 'utf8')).join('\n');
 const runtime = readFileSync(join(root, 'js/public-cromo-home.js'), 'utf8');
+const soundRuntime = readFileSync(join(root, 'js/public-cromo-sound.js'), 'utf8');
 const url = 'http://127.0.0.1:4173/cromo-home-e2e.html';
 const event = { id: 7, slug: 'genesis', title: 'GENESIS', event_date: '2099-08-14 21:00:00', city: 'Pereira', venue: 'Warehouse' };
 const artist = { id: 2, slug: 'artist-one', name: 'ARTIST ONE', is_collective_member: true };
@@ -622,3 +623,34 @@ test('Hero Description limita entrada CMS a 240 caracteres en móvil y escritori
     await noOverflow(page);
   }
 });
+
+// #1570: el botón de sonido solo dice «Apagar el pulso» cuando el audio corre de verdad.
+for (const [mode, expected] of [['running', 'true'], ['suspended', 'false'], ['rejected', 'false']]) {
+  test('El sonido ' + (expected === 'true' ? 'queda activo' : 'vuelve a apagado y permite reintentar') + ' si resume() termina ' + mode, async ({ page }) => {
+    await page.addInitScript(resumeMode => {
+      const node = () => new Proxy(function () {}, { get: (t, k) => (k === 'connect' ? (x) => x || node() : node()), apply: () => node() });
+      window.AudioContext = class {
+        constructor() { this.state = 'suspended'; this.currentTime = 0; this.sampleRate = 44100; this.destination = node(); window.__audioStarts = 0; }
+        createGain() { return node(); } createOscillator() { return node(); } createBiquadFilter() { return node(); }
+        createBufferSource() { window.__audioStarts += 1; return node(); } createBuffer() { return { getChannelData: () => [] }; }
+        addEventListener() {}
+        resume() {
+          if (resumeMode === 'rejected') return Promise.reject(new Error('blocked'));
+          if (resumeMode === 'running') this.state = 'running';
+          return Promise.resolve();
+        }
+      };
+      window.__resumeMode = resumeMode;
+    }, mode);
+    await page.route('**/sound-e2e.html', route => route.fulfill({ contentType: 'text/html', body: '<!doctype html><html><body><button class="cromo-sound" type="button"><span class="cromo-sound-label">Activar sonido</span></button></body></html>' }));
+    await page.goto('http://127.0.0.1:4173/sound-e2e.html');
+    await page.addScriptTag({ content: soundRuntime });
+    const button = page.locator('button.cromo-sound');
+    await page.evaluate(() => window.BRVTALCromoSound.bind(document.querySelector('button.cromo-sound')));
+    await button.click();
+    await expect(button).toHaveAttribute('aria-pressed', expected);
+    await expect(button.locator('.cromo-sound-label')).toHaveText(expected === 'true' ? 'Apagar el pulso' : 'Activar sonido');
+    // El desbloqueo ocurre dentro del gesto del clic.
+    expect(await page.evaluate(() => window.__audioStarts)).toBeGreaterThan(0);
+  });
+}
