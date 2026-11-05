@@ -36,6 +36,14 @@ class Concept05ProductionVisualEvidenceTests(unittest.TestCase):
             with self.subTest(marker=marker):
                 self.assertIn(marker, self.capture)
 
+    def test_live_capture_waits_for_cromo_regions_not_the_hidden_concept05_home(self) -> None:
+        for region in (".cr-hero", "#noches", "#artistas", "#experiencia", "#sonido", "#conectado", "#contacto"):
+            with self.subTest(region=region):
+                self.assertIn(f"'{region}'", self.capture)
+        for legacy in (".home-phase-a-hero", "'#genesis'", "'#transmissions'", ".c5-footer"):
+            with self.subTest(legacy=legacy):
+                self.assertNotIn(legacy, self.capture)
+
     def test_live_capture_is_public_read_only_deterministic_and_sha_bound(self) -> None:
         for marker in (
             "https://www.brvtal.com.co/",

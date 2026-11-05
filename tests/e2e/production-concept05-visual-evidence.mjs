@@ -17,15 +17,13 @@ if (target.origin !== 'https://www.brvtal.com.co' || target.pathname !== '/' || 
 }
 
 const canonicalVisualRegions = [
-  '.home-phase-a-hero',
-  '#genesis',
-  '#events',
-  '#artists',
-  '#sets',
-  '#media',
-  '#transmissions',
-  '#connected',
-  '.c5-footer',
+  '.cr-hero',
+  '#noches',
+  '#artistas',
+  '#experiencia',
+  '#sonido',
+  '#conectado',
+  '#contacto',
 ];
 
 const captures = [
