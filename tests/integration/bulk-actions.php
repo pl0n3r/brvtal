@@ -252,4 +252,62 @@ try {
 }
 bulk_it_assert($limitRejected, 'more than 100 IDs must be rejected');
 
+// Exercise the exact individual Blog/Release prepared UPDATE SQL on a disposable DB.
+// These are not production API requests: endpoint auth, CSRF and public filtering
+// retain their own existing contract/E2E coverage.
+function bulk_it_endpoint_update(PDO $pdo, string $endpoint, string $table): PDOStatement
+{
+    $source = (string)file_get_contents(dirname(__DIR__, 2) . '/api/' . $endpoint);
+    $pattern = '~"(UPDATE ' . preg_quote($table, '~') . ' SET [^"]+)"~s';
+    bulk_it_assert(preg_match($pattern, $source, $match) === 1, "must locate {$table} individual UPDATE SQL");
+    return $pdo->prepare($match[1]);
+}
+
+$pdo->exec('DROP TEMPORARY TABLE IF EXISTS blog_posts');
+$pdo->exec("CREATE TEMPORARY TABLE blog_posts (
+    id INT AUTO_INCREMENT PRIMARY KEY, title VARCHAR(180), slug VARCHAR(190),
+    excerpt TEXT NULL, body TEXT NULL, cover_image VARCHAR(255) NULL,
+    seo_title VARCHAR(180) NULL, seo_description TEXT NULL,
+    status VARCHAR(30) NOT NULL, featured TINYINT NOT NULL DEFAULT 0,
+    published_at DATETIME NULL, sort_order INT NOT NULL DEFAULT 0,
+    deleted_at DATETIME NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+$pdo->exec("INSERT INTO blog_posts(title,slug,body,status,published_at,sort_order) VALUES
+    ('Synthetic Blog','synthetic-blog','Original text','published','2026-01-02 03:04:05',1),
+    ('Fresh draft','fresh-draft','Unpublished text','draft',NULL,2)");
+$blogEdit = bulk_it_endpoint_update($pdo, 'blog.php', 'blog_posts');
+$blogEdit->execute(['Synthetic Blog revised', 'synthetic-blog', null, 'Edited text', null, null, null, 'draft', 0, 0, 7, 1]);
+$editedBlog = $pdo->query('SELECT title,body,status,published_at,sort_order,deleted_at FROM blog_posts WHERE id=1')->fetch();
+bulk_it_assert(($editedBlog['status'] ?? '') === 'draft', 'individual Blog PUT must save draft');
+bulk_it_assert(($editedBlog['title'] ?? '') === 'Synthetic Blog revised' && ($editedBlog['body'] ?? '') === 'Edited text' && (int)($editedBlog['sort_order'] ?? 0) === 7, 'individual Blog PUT must retain editable fields');
+bulk_it_assert(($editedBlog['published_at'] ?? '') === '2026-01-02 03:04:05' && $editedBlog['deleted_at'] === null, 'individual Blog draft must preserve publication and deletion metadata');
+$blogEdit->execute(['Synthetic Blog revised', 'synthetic-blog', null, 'Edited text', null, null, null, 'published', 0, 1, 7, 1]);
+bulk_it_assert($pdo->query('SELECT published_at FROM blog_posts WHERE id=1')->fetchColumn() === '2026-01-02 03:04:05', 'individual Blog re-publication must retain original timestamp');
+$blogEdit->execute(['Fresh draft', 'fresh-draft', null, 'Unpublished text', null, null, null, 'published', 0, 1, 2, 2]);
+bulk_it_assert($pdo->query('SELECT published_at FROM blog_posts WHERE id=2')->fetchColumn() !== null, 'individual first Blog publication must set timestamp');
+
+$pdo->exec('DROP TEMPORARY TABLE IF EXISTS releases');
+$pdo->exec("CREATE TEMPORARY TABLE releases (
+    id INT AUTO_INCREMENT PRIMARY KEY, title VARCHAR(180), slug VARCHAR(190),
+    release_type VARCHAR(32), catalog_number VARCHAR(80) NULL,
+    release_date DATE NULL, description TEXT NULL, artwork VARCHAR(255) NULL,
+    spotify_url TEXT NULL, soundcloud_url TEXT NULL, bandcamp_url TEXT NULL,
+    youtube_url TEXT NULL, beatport_url TEXT NULL,
+    status VARCHAR(30) NOT NULL, featured TINYINT NOT NULL DEFAULT 0,
+    sort_order INT NOT NULL DEFAULT 0, published_at DATETIME NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+$pdo->exec("INSERT INTO releases(title,slug,release_type,status,published_at) VALUES
+    ('Synthetic Release','synthetic-release','ep','published','2026-01-02 03:04:05'),
+    ('Fresh Release','fresh-release','single','draft',NULL)");
+$releaseEdit = bulk_it_endpoint_update($pdo, 'releases.php', 'releases');
+$releaseEdit->execute(['Synthetic Release revised','synthetic-release','ep',null,null,'Edited text',null,null,null,null,null,null,'draft',0,5,0,1]);
+$editedRelease = $pdo->query('SELECT title,description,status,published_at,sort_order FROM releases WHERE id=1')->fetch();
+bulk_it_assert(($editedRelease['status'] ?? '') === 'draft' && ($editedRelease['title'] ?? '') === 'Synthetic Release revised', 'individual Release PUT must save draft and title');
+bulk_it_assert(($editedRelease['description'] ?? '') === 'Edited text' && (int)($editedRelease['sort_order'] ?? 0) === 5, 'individual Release PUT must keep other editable fields');
+bulk_it_assert(($editedRelease['published_at'] ?? '') === '2026-01-02 03:04:05', 'individual Release draft must preserve published_at');
+$releaseEdit->execute(['Synthetic Release revised','synthetic-release','ep',null,null,'Edited text',null,null,null,null,null,null,'published',0,5,1,1]);
+bulk_it_assert($pdo->query('SELECT published_at FROM releases WHERE id=1')->fetchColumn() === '2026-01-02 03:04:05', 'individual Release re-publication must preserve timestamp');
+$releaseEdit->execute(['Fresh Release','fresh-release','single',null,null,null,null,null,null,null,null,null,'published',0,0,1,2]);
+bulk_it_assert($pdo->query('SELECT published_at FROM releases WHERE id=2')->fetchColumn() !== null, 'individual first Release publication must set timestamp');
+
 echo "BRVTAL Bulk Actions MariaDB integration tests passed.\n";
