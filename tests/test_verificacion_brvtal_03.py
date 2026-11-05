@@ -135,7 +135,7 @@ class VerificacionBrvtal03Tests(unittest.TestCase):
         with self.assertRaises(ValueError):
             read_rows(report + "\n" + drop)
         self.assertNotEqual(
-            read_rows(report.replace("REGRESION_LOCAL", "CUBIERTO", 1)),
+            read_rows(report.replace(drop, drop.replace("REGRESION_LOCAL", "CUBIERTO", 1), 1)),
             {key: (path, kind) for key, path, kind in CASES},
         )
 
