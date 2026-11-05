@@ -227,6 +227,12 @@ class ProductionSmokeDiagnosticsTests(unittest.TestCase):
         self.assertIn("if (!item.pass) throw new Error(", source)
         self.assertIn("if (evidence.serverErrors.length)", source)
 
+    def test_settings_selector_is_unique_not_shared_with_css_link(self):
+        source = SMOKE.read_text(encoding="utf-8")
+        self.assertIn('[data-testid="settings-v2-root"]', source)
+        self.assertNotIn("coverageWorkspace(page,'settings','settings','[data-settings-v2]')", source)
+        self.assertIn("await coverageWorkspace(page,'settings','settings'", source)
+
     def test_dashboard_checkpoint_has_no_stale_server_errors_binding(self):
         source = SMOKE.read_text(encoding="utf-8")
         self.assertNotIn("    serverErrors,\n", source)
