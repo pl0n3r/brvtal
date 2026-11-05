@@ -72,3 +72,77 @@ for (const [kind, heading, path] of routes) {
     }
   });
 }
+
+
+// Render the actual PHP document so a handwritten fixture cannot hide missing assets.
+const contactMarkup = execFileSync('php', ['-r',
+  'require "config/public_contact_page.php";'
+    + ' if (!function_exists("brvtal_public_seo_tags")) {function brvtal_public_seo_tags(array $seo): string {return "";}}'
+    + ' echo brvtal_public_contact_page(["title"=>"Contact — BRVTAL","description"=>"Contacto de prueba"]);',
+], { cwd: root, encoding: 'utf8' });
+const contactCss = readFileSync(join(root, 'css/contact-social.css'), 'utf8');
+const soundJs = readFileSync(join(root, 'js/public-cromo-sound.js'), 'utf8');
+const bindingJs = readFileSync(join(root, 'js/public-cromo-pages.js'), 'utf8');
+async function openContactSound(page, width) {
+  await page.setViewportSize({width, height:844});
+  await page.addInitScript(() => {
+    window.__createdCromoContexts = 0;
+    class FakeAudioContext {
+      constructor() { window.__createdCromoContexts++; this.state='suspended'; this.sampleRate=44100; this.currentTime=0; this.destination={}; }
+      createGain() { return {gain:{setTargetAtTime(){},setValueAtTime(){},exponentialRampToValueAtTime(){}},connect(){return this}}; }
+      createBuffer() { return {getChannelData(){return new Float32Array(128)}}; }
+      createBufferSource() { return {connect(){return this},start(){},stop(){}}; }
+      createOscillator() { return {frequency:{setValueAtTime(){},exponentialRampToValueAtTime(){}},connect(){return this},start(){},stop(){}}; }
+      createBiquadFilter() { return {frequency:{setValueAtTime(){},exponentialRampToValueAtTime(){}},Q:{},connect(){return this}}; }
+      addEventListener() {}
+      resume() { this.state='running'; return Promise.resolve(); }
+    }
+    window.AudioContext = FakeAudioContext;
+  });
+  await page.route('**/__cromo-contact', route => route.fulfill({
+    contentType:'text/html; charset=utf-8',
+    body:contactMarkup.replace('</head>','<style>'+contactCss+'</style></head>'),
+  }));
+  await page.route('**/js/public-cromo.js', route => route.fulfill({contentType:'text/javascript',body:''}));
+  await page.route('**/js/public-contact.js', route => route.fulfill({contentType:'text/javascript',body:''}));
+  await page.route('**/js/public-cromo-sound.js', route => route.fulfill({contentType:'text/javascript',body:soundJs}));
+  await page.route('**/js/public-cromo-pages.js', route => route.fulfill({contentType:'text/javascript',body:bindingJs}));
+  await page.goto('http://127.0.0.1:4173/__cromo-contact');
+  const button=page.locator('.contact-page-nav [data-cromo-sound]');
+  await expect(button).toHaveCount(1);
+  await expect(button).toBeVisible();
+  await expect(button).toHaveAttribute('aria-pressed','false');
+  await expect(button).toHaveAccessibleName('Activar sonido');
+  expect(await page.evaluate(() => window.__createdCromoContexts)).toBe(0);
+  expect(await button.evaluate(el => parseFloat(getComputedStyle(el).minHeight))).toBeGreaterThanOrEqual(44);
+  await expect(page.locator('#brvtalContactForm')).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  return button;
+}
+for (const width of [390,1440]) {
+  test('real contact sound toggles on gesture and keyboard at ' + width, async ({page}) => {
+    const button=await openContactSound(page,width);
+    await button.click();
+    await expect(button).toHaveAttribute('aria-pressed','true');
+    await expect(button).toHaveAccessibleName('Apagar el pulso');
+    await button.focus();
+    await page.keyboard.press('Space');
+    await expect(button).toHaveAttribute('aria-pressed','false');
+    await page.keyboard.press('Enter');
+    await expect(button).toHaveAttribute('aria-pressed','true');
+    await page.keyboard.press('Enter');
+    await expect(button).toHaveAttribute('aria-pressed','false');
+  });
+}
+test('contact sound toggles by touch at 390 without submitting form', async ({browser}) => {
+  const context=await browser.newContext({viewport:{width:390,height:844},hasTouch:true});
+  try {
+    const page=await context.newPage();
+    const button=await openContactSound(page,390);
+    await button.tap();
+    await expect(button).toHaveAttribute('aria-pressed','true');
+    await button.tap();
+    await expect(button).toHaveAttribute('aria-pressed','false');
+    await expect(page.locator('#brvtalContactForm')).toBeVisible();
+  } finally { await context.close(); }
+});

@@ -31,3 +31,12 @@ a,button{color:inherit}.mono{font-family:"Space Mono",monospace;letter-spacing:.
 .brvtal-contact-field :is(input,textarea):focus-visible{outline-color:var(--acid);outline-offset:3px}
 .brvtal-contact-submit:active:not(:disabled){transform:scale(.96)}
 .brvtal-contact-status{font-variant-numeric:tabular-nums}
+
+/* Cromo contact header: reuse the sound button without changing form behavior. */
+.contact-page-nav-actions{justify-self:end;display:flex;align-items:center;gap:clamp(6px,1.2vw,14px)}
+.brvtal-contact-page .cp-snd{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 12px;border:2px solid #f2f2ef;border-radius:999px;background:rgba(3,3,3,.9);color:#f2f2ef;cursor:pointer;font:700 13px/1 "Barlow Condensed",Arial,sans-serif;text-transform:uppercase;white-space:nowrap}
+.brvtal-contact-page .cp-snd i{width:9px;height:9px;border-radius:50%;background:currentColor;flex:none}
+.brvtal-contact-page .cp-snd[aria-pressed="true"]{background:var(--red);border-color:var(--red)}
+.brvtal-contact-page .cp-snd[aria-pressed="true"] i{background:#fff}
+.brvtal-contact-page .cp-snd:focus-visible{outline:3px solid var(--acid);outline-offset:3px}
+@media(max-width:560px){.contact-page-nav-actions{gap:7px}.brvtal-contact-page .cp-snd{gap:5px;padding:0 8px;font-size:12px}.contact-page-nav-actions .contact-page-home{font-size:11px}}
