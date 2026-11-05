@@ -65,6 +65,7 @@ test('Artistas muestra fotos CMS y fallback seguro en 390/1440', async ({ page }
     await expect(cards).toHaveCount(6);
     const valid = page.locator('#artistas .cr-ac[href="/artists/artist-one"]');
     const img = valid.locator('img.cr-photo');
+    await valid.scrollIntoViewIfNeeded();
     await expect(img).toHaveAttribute('src', '/uploads/artist-photo.svg');
     await expect(img).toHaveAttribute('alt', '');
     await expect(img).toHaveAttribute('loading', 'lazy');
@@ -78,6 +79,7 @@ test('Artistas muestra fotos CMS y fallback seguro en 390/1440', async ({ page }
     await expect(valid.locator('.cr-nm')).toHaveText('ARTIST ONE');
     for (const slug of ['sin-foto', 'url-insegura', 'origen-externo', 'foto-rota']) {
       const fallback = page.locator('#artistas .cr-ac[href="/artists/' + slug + '"]');
+      await fallback.scrollIntoViewIfNeeded();
       await expect(fallback.locator('img')).toHaveCount(0);
       await expect(fallback.locator('.cr-orb')).toBeVisible();
     }
