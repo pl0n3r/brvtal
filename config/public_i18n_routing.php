@@ -26,7 +26,7 @@ function brvtalPublicLocalizedRoute(
     $slug = trim($slug);
     $page = trim($page);
     if ($page !== '') {
-        if (!in_array($page, ['contact', 'privacy'], true) || $type !== '' || $slug !== '') {
+        if (!in_array($page, ['contact', 'privacy', 'releases'], true) || $type !== '' || $slug !== '') {
             return null;
         }
         $path = '/' . $page;
