@@ -342,13 +342,19 @@ function coverageRecord(kind, key, result) {
   if (!item.pass) throw new Error('DISCADMIN coverage failure: ' + key + ' / ' + item.status);
 }
 
-async function coverageWorkspace(page, key, section, selector) {
+async function coverageWorkspace(page, key, section, selector, readySelector = null) {
   markStage('coverage:' + key);
   await navigate(page, section);
   // Empty native table bodies and empty dynamic grids may have zero dimensions.
   // Require attachment plus a visible owning workspace, not nonempty content.
   await runOperation(key + ':workspace', () =>
     page.locator(selector).waitFor({state:'attached',timeout:14_000}), 17_000);
+  // Some native workspaces mount a shell synchronously and hydrate it later.
+  // Attached/empty does NOT establish that the actual editor has rendered.
+  if (readySelector) {
+    await runOperation(key + ':render-ready', () =>
+      page.locator(readySelector).first().waitFor({state:'visible',timeout:14_000}), 17_000);
+  }
   const result = await runOperation(key + ':observe', () => page.evaluate(selector => {
     const root = document.querySelector(selector);
     const owner = root?.closest('[data-admin-module]') || root?.closest('.main') || root;
@@ -419,7 +425,8 @@ async function auditRemainingDiscAdmin(page, context) {
   if (await appearance.getAttribute('aria-expanded')!=='true') {
     await runOperation('appearance:expand',()=>appearance.click());
   }
-  await coverageWorkspace(page,'themeStudio','theme','[data-theme-studio-v2]');
+  await coverageWorkspace(page,'themeStudio','theme','[data-theme-studio-v2]',
+    '[data-theme-studio-v2] [data-theme-tab="brand"].active');
 
   await coverageWorkspace(page,'settings','settings','[data-settings-v2]');
   markStage('coverage:privacy');
