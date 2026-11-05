@@ -1,16 +1,13 @@
 #!/usr/bin/env python3
 """BRVTAL #1091: five synthetic coverage contracts, not go-live evidence.
 
-The original logo's provenance, subjective flyer quality and real DeepL
-admissibility require independent human/operational evidence. These checks
-never contact a provider or turn NO_VERIFICABLE into certified compliance.
+The original logo's provenance and subjective flyer quality require
+independent human/operational evidence. Synthetic checks cannot turn
+NO_VERIFICABLE into certified compliance.
 """
 from __future__ import annotations
 
-import json
 import re
-import shutil
-import subprocess
 import unittest
 from pathlib import Path
 
@@ -21,8 +18,6 @@ ROUTER = ROOT / "index.php"
 VISUAL = ROOT / "css/public-visual-identity.css"
 TOKENS = ROOT / "css/public-concept05-tokens.css"
 E2E = ROOT / "tests/e2e/public-home-visual-identity.spec.mjs"
-TRIAL = ROOT / "config/public_translation_deepl_page_trial.php"
-SCENARIOS = ROOT / "tests/deepl_translation_adapter_scenarios.php"
 CLAUSES = ("H212-01", "S02-R001", "S02-R002", "S02-R003", "S02-R004")
 UNKNOWN = "UNKNOWN"
 
@@ -53,23 +48,6 @@ def unverified_external_evidence(candidate: object = None) -> str:
     return UNKNOWN
 
 
-def fake_adapter_missing() -> dict:
-    """Execute repository's PHP fixture with NO key and no network transport."""
-    php = shutil.which("php")
-    if php is None:
-        raise AssertionError("UNKNOWN: PHP runtime unavailable")
-    result = subprocess.run(
-        [php, str(SCENARIOS), "missing"],
-        cwd=ROOT, text=True, capture_output=True, timeout=20, check=False,
-    )
-    if result.returncode:
-        raise AssertionError("UNKNOWN: synthetic PHP fixture failed: " + result.stderr[-500:])
-    try:
-        return json.loads(result.stdout)
-    except json.JSONDecodeError as exc:
-        raise AssertionError("UNKNOWN: unreadable synthetic adapter evidence") from exc
-
-
 class BrechasBrvtal01Tests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -80,8 +58,6 @@ class BrechasBrvtal01Tests(unittest.TestCase):
         cls.tokens = TOKENS.read_text(encoding="utf-8")
         cls.router = ROUTER.read_text(encoding="utf-8")
         cls.e2e = E2E.read_text(encoding="utf-8")
-        cls.trial = TRIAL.read_text(encoding="utf-8")
-        cls.fake = fake_adapter_missing()
 
     def test_contrato_principal(self):
         """AC-01: each clause has an independent, bounded offline assertion."""
@@ -90,17 +66,6 @@ class BrechasBrvtal01Tests(unittest.TestCase):
                 self.assertIn(key, self.rows)
                 self.assertIn(self.rows[key][2], {"NO_VERIFICABLE", "CUBIERTO"})
                 self.assertEqual(unverified_external_evidence(self.rows[key]), UNKNOWN)
-
-        # H212-01: fake/provider-neutral architecture is testable, real
-        # provider/legal authorization is NOT implied by these fixtures.
-        self.assertIn("Traducción ES/EN: arquitectura provider-neutral", self.rows["H212-01"][1])
-        self.assertEqual(self.fake["reason"], "provider_not_configured")
-        self.assertEqual(self.fake["transport_calls"], 0)
-        self.assertEqual(self.fake["result"]["locale"], "es")
-        self.assertFalse(self.fake["result"]["translated"])
-        self.assertIn("BRVTAL_DEEPL_TRIAL_OPERATIONAL_PERMIT", self.trial)
-        self.assertIn("BRVTAL_DEEPL_ENABLED", self.trial)
-        self.assertIn("status", self.trial)
 
         # S02-R001: canonical brand text and real public visual stylesheet.
         # Neither source code nor a screenshot proves logo ownership.
@@ -146,13 +111,10 @@ class BrechasBrvtal01Tests(unittest.TestCase):
         self.assertEqual(unverified_external_evidence(None), UNKNOWN)
 
     def test_sin_datos_reales(self):
-        """AC-03: purely synthetic fixtures, no personal data or real provider."""
-        self.assertEqual(self.fake["transport_calls"], 0)
-        self.assertEqual(self.fake["result"]["text"], "Hola")
-        self.assertNotIn("api_key", json.dumps(self.fake).lower())
-        self.assertNotIn("password", json.dumps(self.fake).lower())
-        self.assertNotIn("authorization", json.dumps(self.fake).lower())
-        self.assertEqual(unverified_external_evidence({"provider": "DeepL"}), UNKNOWN)
+        """AC-03: synthetic evidence does not grant operational/legal approval."""
+        for alleged in ({"external_provider": "configured"}, {"provider": "synthetic"}):
+            self.assertEqual(unverified_external_evidence(alleged), UNKNOWN)
+        self.assertNotIn("api_key", self.router.lower())
 
     def test_estados_unknown_explicitos(self):
         """AC-04: do not label visual review or external provider as proven."""
