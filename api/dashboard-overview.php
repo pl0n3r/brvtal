@@ -169,7 +169,7 @@ try {
 } catch (Throwable $e) {
     if (function_exists('brvtal_log')) {
         brvtal_log('DASHBOARD_OVERVIEW_ERROR', 'Dashboard V2 overview failed', [
-            'class'=>get_class($e),
+            'class'=>$e::class,
             'message'=>$e->getMessage(),
         ]);
     }
