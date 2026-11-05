@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/public_i18n_routing.php';
-require_once __DIR__ . '/public_translation_overlay.php';
+require_once __DIR__ . '/public_visibility.php';
 
 const BRVTAL_SITEMAP_NAMESPACE = 'http://www.sitemaps.org/schemas/sitemap/0.9';
 const BRVTAL_SITEMAP_XHTML_NAMESPACE = 'http://www.w3.org/1999/xhtml';
@@ -141,6 +141,26 @@ function brvtalPublicSitemapLocalizedStaticUrls(
  * @param list<string> $locales
  * @return list<array{0:string,1:mixed,2:array{es:string,en:string,x-default:string}}>
  */
+/** Published, trusted Spanish source eligible for the sitemap (no translation). */
+function brvtal_public_sitemap_editorial_is_visible(array $source): bool
+{
+    $type = trim((string)($source['route_type'] ?? ''));
+    $id = (int)($source['id'] ?? 0);
+    $slug = trim((string)($source['slug'] ?? ''));
+    if (!in_array($type, ['events', 'artists', 'sets', 'releases', 'blog', 'pages'], true)
+        || $id < 1 || preg_match('/^[a-z0-9-]{1,190}$/D', $slug) !== 1
+        || (array_key_exists('trusted', $source) && $source['trusted'] !== true)
+        || !empty($source['private']) || !empty($source['is_private'])
+        || (array_key_exists('visibility', $source)
+            && strtolower(trim((string)$source['visibility'])) !== 'public')
+    ) {
+        return false;
+    }
+    return $type === 'events'
+        ? brvtal_public_event_is_visible($source)
+        : strtolower(trim((string)($source['status'] ?? ''))) === 'published';
+}
+
 function brvtalPublicSitemapLocalizedEntityUrls(
     string $base,
     array $source,
@@ -153,7 +173,7 @@ function brvtalPublicSitemapLocalizedEntityUrls(
     if (!array_key_exists('status', $source)) {
         return [];
     }
-    if (!brvtalPublicEditorialOverlayEligible($source, true, true)) {
+    if (!brvtal_public_sitemap_editorial_is_visible($source)) {
         return [];
     }
 

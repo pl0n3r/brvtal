@@ -69,7 +69,6 @@ function brvtalFreeQuotaRow(
  */
 function brvtalFreeQuotaSnapshot(
     ?array $sources = null,
-    ?string $deeplLedger = null,
     ?int $nowOverride = null
 ): array {
     $now = $nowOverride ?? time();
@@ -81,31 +80,7 @@ function brvtalFreeQuotaSnapshot(
         $threshold = 80;
     }
 
-    $deeplLimit = brvtalFreeQuotaInteger(brvtalFreeQuotaEnvironment('BRVTAL_DEEPL_MONTHLY_CHARS', $sources));
-    if ($deeplLimit === null || $deeplLimit < 1 || $deeplLimit > 9999999) {
-        $deeplLimit = 300000;
-    }
-    $deeplFile = $deeplLedger ?? dirname(__DIR__) . '/storage/deepl-usage.json';
-    $deeplUsed = null;
-    $deeplMeasured = null;
-    if (is_file($deeplFile) && is_readable($deeplFile)) {
-        $raw = @file_get_contents($deeplFile);
-        $record = is_string($raw) ? json_decode($raw, true) : null;
-        if (is_array($record) && array_keys($record) === ['month', 'chars']
-            && ($record['month'] ?? null) === gmdate('Y-m', $now)
-            && is_int($record['chars']) && $record['chars'] >= 0
-        ) {
-            $mtime = @filemtime($deeplFile);
-            if (is_int($mtime) && $mtime <= $now) {
-                $deeplUsed = $record['chars'];
-                $deeplMeasured = $mtime;
-            }
-        }
-    }
-    $rows = [brvtalFreeQuotaRow(
-        'deepl', 'DeepL Free', 'caracteres / mes', $deeplUsed,
-        $deeplLimit, $deeplMeasured, 'CONTADOR LOCAL', $now, $zone, $threshold
-    )];
+    $rows = [];
     foreach ([
         ['mail', 'Correo gratuito', 'mensajes'],
         ['backups', 'Copias gratuitas', 'copias'],

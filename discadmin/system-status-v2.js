@@ -690,7 +690,7 @@
 
   function freeQuotaPanel(result) {
     const rows = Array.isArray(result?.data?.rows) ? result.data.rows : [];
-    const ids = [['deepl', 'DEEPL FREE'], ['mail', 'CORREO'], ['backups', 'COPIAS'], ['hosting', 'HOSTING']];
+    const ids = [['mail', 'CORREO'], ['backups', 'COPIAS'], ['hosting', 'HOSTING']];
     const items = ids.map(([id, label]) => {
       const row = rows.find(item => item?.id === id);
       const status = String(row?.status || 'UNKNOWN').toUpperCase();
@@ -709,7 +709,7 @@
     return `<section class="ssv2-panel" data-testid="free-quotas">
       <div class="ssv2-panel-head"><span>CUOTAS GRATUITAS</span><b>AVISOS SIN BLOQUEAR · ${Number.isFinite(threshold) ? threshold : 80}%</b></div>
       <div class="ssv2-quota-list">${items}</div>
-      <small>DEEPL: CONTADOR LOCAL; CUOTA DEL PROVEEDOR NO VERIFICADA. SIN PLAN DE PAGO.</small></section>`;
+      <small>AVISOS BASADOS EN MEDICIONES DISPONIBLES. SIN PLAN DE PAGO.</small></section>`;
   }
   function render(root, data, health, activity, latency, quotas) {
     if (!root.isConnected || !isSystemStatus()) return;

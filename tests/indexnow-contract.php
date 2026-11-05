@@ -80,8 +80,21 @@ indexnow_assert($unpublishUrls === [
 ], 'unpublishing should notify the former public URL and Home');
 
 indexnow_assert(
-    brvtalIndexNowChangeUrls('pages', null, ['slug'=>'private-es','status'=>'published','locale'=>'es']) === [],
-    'non-English CMS Pages must not be submitted'
+    brvtalIndexNowChangeUrls('pages', null, ['slug'=>'canonical-es','status'=>'published','locale'=>'es']) === [
+        'https://www.brvtal.com.co/pages/canonical-es',
+        'https://www.brvtal.com.co/',
+    ],
+    'public Spanish CMS Pages must be submitted'
+);
+indexnow_assert(
+    brvtalIndexNowChangeUrls('pages', null, [
+        'slug'=>'private-es', 'status'=>'published', 'locale'=>'es', 'private'=>true,
+    ]) === [],
+    'private Spanish CMS Pages must not be submitted'
+);
+indexnow_assert(
+    brvtalIndexNowChangeUrls('pages', null, ['slug'=>'legacy-en','status'=>'published','locale'=>'en']) === [],
+    'non-Spanish CMS Pages must not be submitted'
 );
 indexnow_assert(
     brvtalIndexNowChangeUrls('artists', null, ['slug'=>'draft-artist','status'=>'draft']) === [],

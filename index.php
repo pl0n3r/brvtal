@@ -181,8 +181,6 @@ if ($entity) {
         exit;
     }
 
-    // Public pages never invoke the retained DeepL trial.
-
     header('Content-Type: text/html; charset=utf-8');
     if (!empty($page['degraded'])) {
         header('X-Robots-Tag: noindex, follow');

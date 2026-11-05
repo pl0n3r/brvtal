@@ -63,7 +63,7 @@ function brvtal_dashboard_page_status_counts(PDO $pdo): array
 
     $row = $pdo->query(
         "SELECT COUNT(*) total,
-                COALESCE(SUM(status='published' AND locale='en'),0) public,
+                COALESCE(SUM(status='published' AND locale='es'),0) public,
                 COALESCE(SUM(status='draft'),0) draft
          FROM pages"
     )->fetch(PDO::FETCH_ASSOC) ?: [];
@@ -169,7 +169,7 @@ try {
 } catch (Throwable $e) {
     if (function_exists('brvtal_log')) {
         brvtal_log('DASHBOARD_OVERVIEW_ERROR', 'Dashboard V2 overview failed', [
-            'class'=>get_class($e),
+            'class'=>$e::class,
             'message'=>$e->getMessage(),
         ]);
     }
