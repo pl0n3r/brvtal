@@ -531,6 +531,9 @@ window.BRVTALMediaLibrary = (() => {
     if (options.imagesOnly !== false) items = items.filter(x => x.type === 'image');
     const imagesOnly = options.imagesOnly !== false;
     const overlay = document.createElement('div'); overlay.className = 'brvtal-media-picker';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-label', 'SELECT MEDIA');
     const accept = imagesOnly
       ? 'image/jpeg,image/png,image/webp,image/gif'
       : 'image/jpeg,image/png,image/webp,image/gif,video/mp4,audio/mpeg,audio/wav,application/pdf';
@@ -565,8 +568,9 @@ window.BRVTALMediaLibrary = (() => {
     const setUploadState = (message, kind = '') => {
       uploadStatus.textContent = message;
       uploadStatus.dataset.state = kind;
+      uploadStatus.setAttribute('role', kind === 'error' ? 'alert' : 'status');
     };
-    const selectItem = item => {
+    const selectItem = (item, fromUpload = false) => {
       if (uploading || !overlay.isConnected) return;
       const path = original(item) || mediaUrl(item?.file_path);
       if (!path) { setUploadState('El archivo no tiene una ruta válida.', 'error'); return; }
@@ -575,7 +579,9 @@ window.BRVTALMediaLibrary = (() => {
       input.dispatchEvent(new Event('change',{bubbles:true}));
       updateInputPreview(input, item);
       overlay.remove();
-      notify('warning', 'Media selected. Press SAVE to persist this record.', {timeout:5200});
+      notify(fromUpload ? 'success' : 'warning', fromUpload
+        ? 'Imagen subida y seleccionada. Pulsa GUARDAR para conservar los cambios del artículo.'
+        : 'Media selected. Press SAVE to persist this record.', {timeout:5200});
     };
     const draw = q => {
       const term = (q || '').toLowerCase();
@@ -628,7 +634,7 @@ window.BRVTALMediaLibrary = (() => {
         if (index >= 0) store.items[index] = {...store.items[index],...item};
         else store.items.unshift(item);
         uploading = false;
-        selectItem(item);
+        selectItem(item, true);
       } catch (error) {
         setUploadState('No se pudo subir: ' + (error.payload?.error || error.message || 'UPLOAD_FAILED'), 'error');
         uploading = false;
@@ -639,6 +645,7 @@ window.BRVTALMediaLibrary = (() => {
         overlay.querySelector('.brvtal-media-picker-box').removeAttribute('aria-busy');
       }
     };
+    uploadButton.focus();
   }
 
   function decoratePickerInputs(root = document) {

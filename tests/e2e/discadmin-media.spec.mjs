@@ -301,7 +301,7 @@ test('media picker uploads a local image with CSRF and selects it without saving
   expect(uploadRequest.method()).toBe('POST');
   expect(uploadRequest.headers()['x-csrf-token']).toBe('csrf-token');
   expect(uploadRequest.postData()).toContain('nueva-portada.png');
-  await expect(page.getByText('Media selected. Press SAVE to persist this record.')).toBeVisible();
+  await expect(page.getByText(/Imagen subida y seleccionada.*GUARDAR/)).toBeVisible();
 });
 
 test('media picker keeps original cover and remains open on rejected or invalid local upload', async ({ page }) => {

@@ -183,6 +183,7 @@ test('blog editor can upload a cover from local computer without saving or publi
   });
   await expect(page.locator('#blog_cover_image')).toHaveValue('/uploads/media/2026/11/cover.png');
   await expect(page.locator('.brvtal-media-picker')).toHaveCount(0);
+  await expect(page.getByText(/Imagen subida y seleccionada.*GUARDAR/)).toBeVisible();
   expect(await page.locator('#blog_cover_image').inputValue()).not.toBe(original);
   expect(await page.evaluate(() => window.__blogMutation)).toBeUndefined();
   await page.locator('#saveBtn').click();
