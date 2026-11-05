@@ -150,9 +150,8 @@ class VerificacionBrvtal08Tests(unittest.TestCase):
             "tests/test_cobertura_brvtal_04.py",
         ):
             with self.subTest(module=relative):
-                module = relative[6:-3].replace("/", ".")
                 finished = subprocess.run(
-                    [sys.executable, "-m", "unittest", "tests." + module],
+                    [sys.executable, "-m", "unittest", relative],
                     cwd=ROOT, capture_output=True, text=True,
                     check=False, timeout=90,
                 )
