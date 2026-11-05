@@ -21,14 +21,28 @@ window.BRVTALArtistHeroPreview = (() => {
     return Object.fromEntries(viewports.map(viewport => [viewport,crop(viewport)]));
   }
 
+  function safeImageUrl(value) {
+    const raw = String(value ?? '').trim();
+    if (!raw || /[<>"'\x60\\\x00-\x1f]/.test(raw)) return '';
+    const local = raw.startsWith('/');
+    if (local && (!raw.startsWith('/uploads/') || raw.startsWith('//'))) return '';
+    if (!local && !/^https?:\/\//i.test(raw)) return '';
+
+    let url;
+    try { url = new URL(raw, window.location.origin); }
+    catch (_) { return ''; }
+    if (!['http:', 'https:'].includes(url.protocol)) return '';
+    if (url.username || url.password) return '';
+    if (local && (url.origin !== window.location.origin || !url.pathname.startsWith('/uploads/'))) return '';
+    return url.href;
+  }
+
   function syncImage(root, frame) {
     const img = root.querySelector('[data-hero-preview-img]');
     if (!img) return;
-    const path = String(document.getElementById('f_photo')?.value || '').trim();
-    const safePath = (path.startsWith('/') && !path.startsWith('//'))
-      || /^https?:\/\//i.test(path) ? path : '';
-    if (img.getAttribute('src') !== safePath) {
-      if (safePath) img.setAttribute('src',safePath);
+    const safeUrl = safeImageUrl(document.getElementById('f_photo')?.value);
+    if (img.src !== safeUrl) {
+      if (safeUrl) img.src = safeUrl;
       else img.removeAttribute('src');
     }
     const focus = frame.x + '% ' + frame.y + '%';

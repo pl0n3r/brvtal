@@ -83,6 +83,10 @@ artistHeroExpect(str_contains($api, "'INVALID_ARTIST_HERO_FRAMING'"), 'artist AP
 artistHeroExpect(str_contains($admin, 'ENCUADRE DE PORTADA')
     && str_contains($admin, 'data-hero-switch="mobile"'), 'artist editor offers preview and mobile view');
 artistHeroExpect(str_contains($payload, 'BRVTALArtistHeroPreview?.values()'), 'artist Save includes crop');
+artistHeroExpect(str_contains($runtime, 'function safeImageUrl(')
+    && str_contains($runtime, 'new URL(raw, window.location.origin)')
+    && str_contains($runtime, 'img.src = safeUrl')
+    && !str_contains($runtime, "img.setAttribute('src',safePath)"), 'preview must parse and validate URLs before assigning image property');
 artistHeroExpect(str_contains($runtime, 'data-hero-reset')
     && str_contains($runtime, 'function sync(root)'), 'preview responds to changes');
 artistHeroExpect(str_contains($cssSource, 'body.cromo-page.entity-page--artist .entity-hero .entity-image img'), 'only artist profile hero is styled');

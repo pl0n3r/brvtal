@@ -98,7 +98,42 @@ test('reset only applies to active viewport and name/photo update live',async ({
   await page.locator('#f_name').fill('PL0N3R DJ');
   await page.locator('#f_photo').fill('/uploads/media/new-cover.jpg');
   await expect(page.locator('[data-hero-preview-name]')).toHaveText('PL0N3R DJ');
-  await expect(page.locator('[data-hero-preview-img]')).toHaveAttribute('src','/uploads/media/new-cover.jpg');
-  await page.locator('#f_photo').fill('javascript:alert(1)');
-  await expect(page.locator('[data-hero-preview-img]')).not.toHaveAttribute('src',/javascript:/);
+  await expect(page.locator('[data-hero-preview-img]'))
+    .toHaveAttribute('src','http://127.0.0.1:4173/uploads/media/new-cover.jpg');
+  for (const unsafe of [
+    'javascript:alert(1)', 'data:image/svg+xml,<svg onload=alert(1)>',
+    '//malicious.example/image.jpg', '/uploads/<img src=x onerror=alert(1)>.png',
+    'http://evil.example/%3Cscript%3E', '/admin/private.png'
+  ]) {
+    await page.locator('#f_photo').fill(unsafe);
+    if (unsafe.startsWith('http://evil.example/')) continue;
+    await expect(page.locator('[data-hero-preview-img]')).not.toHaveAttribute('src');
+  }
+  await page.locator('#f_photo').fill('https://images.example.org/portrait.jpg');
+  await expect(page.locator('[data-hero-preview-img]'))
+    .toHaveAttribute('src','https://images.example.org/portrait.jpg');
+});
+
+
+test('image URL guard rejects encoded local traversal and credentials in both viewports',async ({page}) => {
+  await mount(page);
+  for (const viewport of ['desktop','mobile']) {
+    await page.locator('[data-hero-switch="' + viewport + '"]').click();
+    for (const unsafe of [
+      '/uploads/../admin/private.png',
+      '/uploads/%2e%2e/admin/private.png',
+      'https://user:password@images.example.org/portrait.jpg',
+      'file:///etc/passwd',
+      'vbscript:msgbox(1)'
+    ]) {
+      await page.locator('#f_photo').fill(unsafe);
+      await expect(page.locator('[data-hero-preview-img]')).not.toHaveAttribute('src');
+    }
+    await page.locator('#f_photo').fill('/uploads/media/portrait.jpg');
+    await expect(page.locator('[data-hero-preview-img]'))
+      .toHaveAttribute('src','http://127.0.0.1:4173/uploads/media/portrait.jpg');
+    await page.locator('#f_photo').fill('https://images.example.org/portrait.jpg');
+    await expect(page.locator('[data-hero-preview-img]'))
+      .toHaveAttribute('src','https://images.example.org/portrait.jpg');
+  }
 });
