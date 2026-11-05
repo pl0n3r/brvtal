@@ -732,7 +732,7 @@ try {
         $heroIncluded = $resource === 'artists' && array_key_exists('hero_framing', $d);
         $hero = $heroIncluded ? brvtalArtistHeroValidate($d['hero_framing']) : null;
         if ($heroIncluded && $hero === null) {
-            json_response(['ok'=>false,'error'=>'INVALID_ARTIST_HERO_FRAMING','field'=>'hero_framing'],422);
+            json_response(['ok' => false, 'error' => 'INVALID_ARTIST_HERO_FRAMING', 'field' => 'hero_framing'], 422);
         }
         $d = sanitize_payload($resource, $d);
         $allowed = allowed_fields($resource);
@@ -884,7 +884,7 @@ try {
         $heroIncluded = $resource === 'artists' && array_key_exists('hero_framing', $d);
         $hero = $heroIncluded ? brvtalArtistHeroValidate($d['hero_framing']) : null;
         if ($heroIncluded && $hero === null) {
-            json_response(['ok'=>false,'error'=>'INVALID_ARTIST_HERO_FRAMING','field'=>'hero_framing'],422);
+            json_response(['ok' => false, 'error' => 'INVALID_ARTIST_HERO_FRAMING', 'field' => 'hero_framing'], 422);
         }
         $d = sanitize_payload($resource, $d);
         $allowed = allowed_fields($resource);

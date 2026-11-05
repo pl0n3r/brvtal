@@ -5,7 +5,7 @@
   padding:12px 16px;min-height:44px;background:#080909;color:#f1f1ef;
   border:1px solid #51575b;font:800 12px/1.2 "Space Mono",monospace;cursor:pointer
 }
-.artist-hero-tabs button[aria-pressed="true"]{background:#ed2437;border-color:#ed2437;color:white}
+.artist-hero-tabs button[aria-pressed="true"]{background:#b8192e;border-color:#b8192e;color:white}
 .artist-hero-stage{
   position:relative;isolation:isolate;overflow:hidden;background:#080808;
   width:100%;height:min(45vw,400px);min-height:240px;border:2px solid #6c7379;

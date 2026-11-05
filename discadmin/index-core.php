@@ -326,7 +326,8 @@ function artistHeroMarkup(r) {
    const value = Number.isFinite(raw) && raw>=min && raw<=max ? raw : defaults[key];
    const id = 'f_hero_'+viewport+'_'+key;
    return `<label class="artist-hero-control" for="${id}">
-      <span>${caption}<output for="${id}" data-hero-output="${id}">${key==='zoom'?Math.round(value*100):value}${unit}</output></span>
+      <span>${caption}<output for="${id}" data-hero-output="${id}">
+       ${key==='zoom'?Math.round(value*100):value}${unit}</output></span>
       <input id="${id}" type="range" min="${min}" max="${max}" step="${step}" value="${value}">
      </label>`;
   };
@@ -355,7 +356,8 @@ function artistHeroMarkup(r) {
      <small>MIEMBRO DEL COLECTIVO</small>
     </div>
    </div>
-   <p class="artist-hero-help">Vista previa aproximada del encabezado público. Los cambios se aplican al pulsar GUARDAR.</p>
+   <p class="artist-hero-help">Vista previa aproximada del encabezado público.
+    Los cambios se aplican al pulsar GUARDAR.</p>
    ${controls}
    <div class="artist-hero-actions">
     <button type="button" data-hero-reset>RESTABLECER ESTA VISTA</button>

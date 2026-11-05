@@ -92,7 +92,9 @@ function brvtal_public_artist_decorate_html(string $html, array $page): string
         $html
     );
     $classes = 'entity-page--artist entity-page--artist-' . htmlspecialchars(
-        $status, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'
+        $status,
+        ENT_QUOTES | ENT_SUBSTITUTE,
+        'UTF-8'
     );
     $rosterStatus = htmlspecialchars($status, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     foreach (['entity-page cromo-page', 'entity-page'] as $baseClass) {

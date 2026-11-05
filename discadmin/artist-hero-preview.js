@@ -21,38 +21,47 @@ window.BRVTALArtistHeroPreview = (() => {
     return Object.fromEntries(viewports.map(viewport => [viewport,crop(viewport)]));
   }
 
-  function sync(root) {
-    if (!root?.isConnected) return;
-    const viewport = root.dataset.viewport === 'mobile' ? 'mobile' : 'desktop';
-    const frame = crop(viewport);
-    const photo = document.getElementById('f_photo');
+  function syncImage(root, frame) {
     const img = root.querySelector('[data-hero-preview-img]');
-    const path = String(photo?.value || '').trim();
-    const safePath = path.startsWith('/') && !path.startsWith('//')
+    if (!img) return;
+    const path = String(document.getElementById('f_photo')?.value || '').trim();
+    const safePath = (path.startsWith('/') && !path.startsWith('//'))
       || /^https?:\/\//i.test(path) ? path : '';
-    if (img && img.getAttribute('src') !== safePath) {
+    if (img.getAttribute('src') !== safePath) {
       if (safePath) img.setAttribute('src',safePath);
       else img.removeAttribute('src');
     }
-    if (img) {
-      img.style.objectPosition = frame.x + '% ' + frame.y + '%';
-      img.style.transformOrigin = frame.x + '% ' + frame.y + '%';
-      img.style.transform = 'scale(' + frame.zoom + ')';
-    }
-    const name = root.querySelector('[data-hero-preview-name]');
-    if (name) name.textContent = document.getElementById('f_name')?.value || 'ARTISTA';
-    for (const vp of viewports) {
-      const panel = root.querySelector('[data-hero-controls="' + vp + '"]');
-      if (panel) panel.hidden = vp !== viewport;
-      const button = root.querySelector('[data-hero-switch="' + vp + '"]');
-      if (button) button.setAttribute('aria-pressed',String(vp === viewport));
+    const focus = frame.x + '% ' + frame.y + '%';
+    img.style.objectPosition = focus;
+    img.style.transformOrigin = focus;
+    img.style.transform = 'scale(' + frame.zoom + ')';
+  }
+
+  function syncControls(root, active) {
+    for (const viewport of viewports) {
+      const panel = root.querySelector('[data-hero-controls="' + viewport + '"]');
+      if (panel) panel.hidden = viewport !== active;
+      const button = root.querySelector('[data-hero-switch="' + viewport + '"]');
+      if (button) button.setAttribute('aria-pressed',String(viewport === active));
+      const values = crop(viewport);
       for (const key of controls) {
-        const id = 'f_hero_' + vp + '_' + key;
+        const id = 'f_hero_' + viewport + '_' + key;
         const counter = root.querySelector('[data-hero-output="' + id + '"]');
-        const value = crop(vp)[key];
-        if (counter) counter.textContent = (key === 'zoom' ? Math.round(value * 100) : value) + '%';
+        if (counter) {
+          const value = key === 'zoom' ? Math.round(values[key] * 100) : values[key];
+          counter.textContent = value + '%';
+        }
       }
     }
+  }
+
+  function sync(root) {
+    if (!root?.isConnected) return;
+    const viewport = root.dataset.viewport === 'mobile' ? 'mobile' : 'desktop';
+    syncImage(root,crop(viewport));
+    const name = root.querySelector('[data-hero-preview-name]');
+    if (name) name.textContent = document.getElementById('f_name')?.value || 'ARTISTA';
+    syncControls(root,viewport);
   }
 
   function attach(root) {

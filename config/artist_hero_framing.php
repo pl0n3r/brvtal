@@ -66,10 +66,11 @@ function brvtalArtistHeroEnrich(PDO $pdo, array $rows): array
 {
     $single = array_key_exists('id', $rows);
     $items = $single ? [$rows] : $rows;
-    $ids = array_values(array_unique(array_filter(array_map(
-        static fn(array $row): int => (int)($row['id'] ?? 0),
-        $items
-    ), static fn(int $id): bool => $id > 0)));
+    $ids = array_map(static fn(array $row): int => (int)($row['id'] ?? 0), $items);
+    $ids = array_values(array_unique(array_filter(
+        $ids,
+        static fn(int $id): bool => $id > 0
+    )));
     $indexed = [];
     if ($ids) {
         $keys = array_map('brvtalArtistHeroSettingKey', $ids);
