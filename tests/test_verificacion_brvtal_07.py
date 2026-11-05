@@ -155,18 +155,22 @@ class VerificacionBrvtal07Tests(unittest.TestCase):
         original = rows(content)
         line = next(line for line in content.splitlines()
                     if line.startswith("| " + first + " |"))
+        omitted = content.replace(line + "\n", "", 1)
+        duplicated = content.replace(line, line + "\n" + line, 1)
+        promoted = content.replace(
+            "| " + first + " | NO_VERIFICABLE |",
+            "| " + first + " | CUBIERTO |", 1)
+        reclassified = content.replace(
+            "| " + first + " | NO_VERIFICABLE | C |",
+            "| " + first + " | NO_VERIFICABLE | B |", 1)
         with self.assertRaises(AssertionError):
-            verify_report(content.replace(line + "\n", "", 1))
+            verify_report(omitted)
         with self.assertRaises(AssertionError):
-            rows(content.replace(line, line + "\n" + line, 1))
+            rows(duplicated)
         with self.assertRaises(AssertionError):
-            verify_report(content.replace(
-                "| " + first + " | NO_VERIFICABLE |",
-                "| " + first + " | CUBIERTO |", 1))
+            verify_report(promoted)
         with self.assertRaises(AssertionError):
-            verify_report(content.replace(
-                "| " + first + " | NO_VERIFICABLE | C |",
-                "| " + first + " | NO_VERIFICABLE | B |", 1))
+            verify_report(reclassified)
         self.assertEqual(len(original), 50)
 
     def test_fixtures_sinteticos_y_limites_reales(self) -> None:
