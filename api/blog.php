@@ -332,10 +332,10 @@ try {
             if ($id <= 0) throw new RuntimeException('BLOG_POST_NOT_FOUND',404);
             $before = brvtal_blog_fetch($pdo,$id);
             if (!$before) throw new RuntimeException('BLOG_POST_NOT_FOUND',404);
-            $st = $pdo->prepare("UPDATE blog_posts SET title=?,slug=?,excerpt=?,body=?,cover_image=?,seo_title=?,seo_description=?,status=?,featured=?,published_at=CASE WHEN ?='published' THEN COALESCE(published_at,CURRENT_TIMESTAMP) ELSE published_at END,sort_order=? WHERE id=? AND deleted_at IS NULL");
+            $st = $pdo->prepare("UPDATE blog_posts SET title=?,slug=?,excerpt=?,body=?,cover_image=?,seo_title=?,seo_description=?,status=?,featured=?,published_at=CASE WHEN ?=1 THEN COALESCE(published_at,CURRENT_TIMESTAMP) ELSE published_at END,sort_order=? WHERE id=? AND deleted_at IS NULL");
             $st->execute([
                 $data['title'],$data['slug'],$data['excerpt'] ?: null,$data['body'] ?: null,$data['cover_image'] ?: null,
-                $data['seo_title'] ?: null,$data['seo_description'] ?: null,$data['status'],$data['featured'],$data['status'],$data['sort_order'],$id,
+                $data['seo_title'] ?: null,$data['seo_description'] ?: null,$data['status'],$data['featured'],(int)($data['status'] === 'published'),$data['sort_order'],$id,
             ]);
         }
         if ($method === 'POST' || $data['tags_provided']) {

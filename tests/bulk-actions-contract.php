@@ -34,6 +34,12 @@ bulk_assert(!str_contains($library, "'media' =>"), 'media must stay outside Bulk
 bulk_assert(str_contains($library, 'count($rawIds) > 100'), 'request must enforce the 100 item safety limit');
 bulk_assert(str_contains($library, 'FOR UPDATE'), 'bulk status changes must lock selected rows');
 bulk_assert(str_contains($library, 'rollBack()'), 'bulk status changes must rollback on failure');
+$releasesApi = (string)file_get_contents($root . '/api/releases.php');
+bulk_assert(str_contains($library, 'published_at=CASE WHEN ?=1'), 'Bulk Blog/Release status updates must use a numeric publication guard');
+bulk_assert(str_contains($library, "(int)(\$status === 'published')"), 'Bulk must pass the numeric publication flag');
+bulk_assert(str_contains($releasesApi, 'published_at=CASE WHEN ?=1'), 'Release edits must use the numeric publication guard');
+bulk_assert(str_contains($releasesApi, "(int)(\$data['status'] === 'published')"), 'Release edits must pass the numeric publication flag');
+bulk_assert(!str_contains($library, "?='published'") && !str_contains($releasesApi, "?='published'"), 'Bulk and Releases must not compare a string placeholder with a text literal');
 bulk_assert(!str_contains($library, 'DELETE FROM'), 'Bulk Actions v1 must not expose bulk deletion');
 bulk_assert(str_contains($library, "require_once __DIR__ . '/../config/event_lifecycle.php';"), 'Bulk Actions must reuse the canonical Event lifecycle policy');
 bulk_assert(str_contains($library, 'brvtal_event_lifecycle_patch($row'), 'bulk Event updates must derive lifecycle timestamps from each locked row');

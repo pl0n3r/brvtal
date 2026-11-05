@@ -31,6 +31,17 @@ $pdo = new PDO($dsn, (string)(getenv('BRVTAL_TEST_DB_USER') ?: 'root'), (string)
     PDO::ATTR_EMULATE_PREPARES => false,
 ]);
 
+// Production #1562: prepared string operands may use different collations.
+// Keep this fixture deterministic across CI MariaDB versions.
+$pdo->exec("SET SESSION collation_connection='utf8mb4_general_ci'");
+$collationConflict = false;
+try {
+    $pdo->query("SELECT _utf8mb4'draft' COLLATE utf8mb4_general_ci = _utf8mb4'published' COLLATE utf8mb4_unicode_ci");
+} catch (PDOException $e) {
+    $collationConflict = (int)($e->errorInfo[1] ?? 0) === 1267;
+}
+bulk_it_assert($collationConflict, 'mixed utf8mb4 collations must reproduce MariaDB error 1267 in isolation');
+
 $pdo->exec('DROP TEMPORARY TABLE IF EXISTS events');
 $pdo->exec("CREATE TEMPORARY TABLE events (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -49,7 +60,7 @@ foreach (['artists','sets_media','pages'] as $table) {
 }
 foreach (['releases','blog_posts'] as $table) {
     $pdo->exec("DROP TEMPORARY TABLE IF EXISTS {$table}");
-    $pdo->exec("CREATE TEMPORARY TABLE {$table} (id INT AUTO_INCREMENT PRIMARY KEY,status VARCHAR(30) NOT NULL DEFAULT 'draft',published_at DATETIME NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $pdo->exec("CREATE TEMPORARY TABLE {$table} (id INT AUTO_INCREMENT PRIMARY KEY,status VARCHAR(30) NOT NULL DEFAULT 'draft',published_at DATETIME NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 }
 
 // #173: the full selected Event set is validated before any bulk status mutation.
@@ -160,6 +171,17 @@ bulk_it_assert(($publishedRelease['status'] ?? '') === 'published', 'bulk Releas
 bulk_it_assert(trim((string)($publishedRelease['published_at'] ?? '')) !== '', 'bulk Release publish must stamp published_at');
 $releasePublishedAt = (string)$publishedRelease['published_at'];
 brvtal_bulk_apply($pdo, brvtal_bulk_normalize_request([
+    'resource'=>'releases', 'status'=>'draft', 'ids'=>[(int)$releaseIds[0]],
+]));
+$draftRelease = $pdo->query('SELECT status,published_at FROM releases ORDER BY id LIMIT 1')->fetch(PDO::FETCH_ASSOC);
+bulk_it_assert(($draftRelease['status'] ?? '') === 'draft', 'published Release must move to draft');
+bulk_it_assert((string)($draftRelease['published_at'] ?? '') === $releasePublishedAt, 'Release draft must retain its publication timestamp');
+brvtal_bulk_apply($pdo, brvtal_bulk_normalize_request([
+    'resource'=>'releases', 'status'=>'published', 'ids'=>[(int)$releaseIds[0]],
+]));
+bulk_it_assert((string)$pdo->query('SELECT published_at FROM releases ORDER BY id LIMIT 1')->fetchColumn() === $releasePublishedAt, 'republished Release must preserve its original published_at');
+
+brvtal_bulk_apply($pdo, brvtal_bulk_normalize_request([
     'resource'=>'releases',
     'status'=>'archived',
     'ids'=>$releaseIds,
@@ -179,6 +201,18 @@ $publishedBlog = $pdo->query("SELECT status,published_at FROM blog_posts WHERE i
 bulk_it_assert(($publishedBlog['status'] ?? '') === 'published', 'bulk Blog publish must update status');
 bulk_it_assert(trim((string)($publishedBlog['published_at'] ?? '')) !== '', 'bulk Blog publish must stamp published_at');
 $blogPublishedAt = (string)$publishedBlog['published_at'];
+// The failing production action is published -> draft, not just publish -> archive.
+brvtal_bulk_apply($pdo, brvtal_bulk_normalize_request([
+    'resource'=>'blog', 'status'=>'draft', 'ids'=>[$blogId],
+]));
+$draftBlog = $pdo->query("SELECT status,published_at FROM blog_posts WHERE id={$blogId}")->fetch(PDO::FETCH_ASSOC);
+bulk_it_assert(($draftBlog['status'] ?? '') === 'draft', 'published Blog must move back to draft');
+bulk_it_assert((string)($draftBlog['published_at'] ?? '') === $blogPublishedAt, 'Blog draft must preserve original publication timestamp');
+brvtal_bulk_apply($pdo, brvtal_bulk_normalize_request([
+    'resource'=>'blog', 'status'=>'published', 'ids'=>[$blogId],
+]));
+bulk_it_assert((string)$pdo->query("SELECT published_at FROM blog_posts WHERE id={$blogId}")->fetchColumn() === $blogPublishedAt, 'republishing Blog must not replace its original published_at');
+
 brvtal_bulk_apply($pdo, brvtal_bulk_normalize_request([
     'resource'=>'blog',
     'status'=>'archived',

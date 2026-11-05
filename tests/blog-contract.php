@@ -24,6 +24,10 @@ blog_assert(str_contains($api, 'BLOG_SCHEMA_MISSING'), 'blog API must fail expli
 blog_assert(str_contains($api, 'brvtal_blog_sync_tags'), 'blog API must persist tags');
 blog_assert(str_contains($api, 'brvtal_blog_sync_relations'), 'blog API must persist related content');
 blog_assert(str_contains($api, "['draft','published','archived']"), 'blog API must validate lifecycle status');
+// A numeric publication flag avoids comparing COERCIBLE strings with conflicting MariaDB collations.
+blog_assert(str_contains($api, 'published_at=CASE WHEN ?=1'), 'Blog updates must use a numeric publication guard');
+blog_assert(str_contains($api, "(int)(\$data['status'] === 'published')"), 'Blog must derive the publication flag from the validated status');
+blog_assert(!str_contains($api, "?='published'"), 'Blog update SQL must not compare a string placeholder to a text literal');
 blog_assert(str_contains($api, "require_once __DIR__ . '/blog-relations.php';"), 'blog API must load the relation integrity boundary');
 blog_assert(str_contains($api, "brvtal_blog_relation_id(\$relation['related_id'] ?? null)"), 'blog payload must validate raw relation IDs before persistence');
 blog_assert(str_contains($api, 'brvtal_blog_lock_relation_targets($pdo, $data[\'relations\']);'), 'blog API must validate and lock relation targets inside the mutation transaction');
