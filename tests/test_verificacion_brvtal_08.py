@@ -127,7 +127,9 @@ class VerificacionBrvtal08Tests(unittest.TestCase):
         spec = SPEC.read_text(encoding="utf-8")
         report = REPORT.read_text(encoding="utf-8")
         samples = [
-            (matrix.replace("NO_VERIFICABLE", "CUBIERTO", 1), spec, report),
+            (matrix.replace(CASES[0]["requirement"] + " | NO_VERIFICABLE |",
+                            CASES[0]["requirement"] + " | CUBIERTO |", 1),
+             spec, report),
             (matrix, spec.replace("No public multilingual features",
                                   "Public multilingual features", 1), report),
             (matrix, spec, report.replace("| H212-01 |", "| H212-02 |", 1)),
