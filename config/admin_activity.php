@@ -104,6 +104,11 @@ function brvtalActivitySettingKeyAuditable(string $key): bool
         'privacy.controller_name',
         'privacy.controller_email',
         'privacy.response_time',
+        'privacy.controller_domicile',
+        'privacy.controller_address',
+        'privacy.rights_contact_area',
+        'privacy.consultation_time',
+        'privacy.claim_time',
     ], true);
 }
 
