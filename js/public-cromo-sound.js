@@ -147,7 +147,7 @@
   const wavUrl = (rendered) => {
     const samples = rendered.getChannelData(0);
     const bytes = new DataView(new ArrayBuffer(44 + samples.length * 2));
-    const text = (at, value) => { for (let i = 0; i < value.length; i += 1) bytes.setUint8(at + i, value.charCodeAt(i)); };
+    const text = (at, value) => { for (let i = 0; i < value.length; i += 1) bytes.setUint8(at + i, value.codePointAt(i)); };
     text(0, 'RIFF'); bytes.setUint32(4, 36 + samples.length * 2, true); text(8, 'WAVEfmt ');
     bytes.setUint32(16, 16, true); bytes.setUint16(20, 1, true); bytes.setUint16(22, 1, true);
     bytes.setUint32(24, rendered.sampleRate, true); bytes.setUint32(28, rendered.sampleRate * 2, true);
@@ -191,26 +191,25 @@
     // Starting playback inside the click unlocks the element for the real loop.
     const unlocked = mediaEl.play();
     if (!mediaLoop) mediaLoop = renderLoop();
-    Promise.all([Promise.resolve(unlocked), mediaLoop])
-      .then(([, url]) => {
-        if (session !== mediaSession) return null;
-        mediaEl.src = url;
-        mediaEl.currentTime = 0;
-        return Promise.resolve(mediaEl.play()).then(() => true);
-      })
-      .then((started) => {
-        if (!started || session !== mediaSession) return;
-        on = true;
-        let last = -1;
-        window.clearInterval(timer);
-        timer = window.setInterval(() => {
-          const beat = Math.floor((mediaEl.currentTime % (STEP * 16)) / (STEP * 4));
-          if (beat !== last) window.dispatchEvent(new CustomEvent('cromo:beat'));
-          last = beat;
-        }, 20);
-        paint();
-      })
-      .catch(() => { if (session === mediaSession) stop(); });
+    const run = async () => {
+      await unlocked;
+      const url = await mediaLoop;
+      if (session !== mediaSession) return;
+      mediaEl.src = url;
+      mediaEl.currentTime = 0;
+      await mediaEl.play();
+      if (session !== mediaSession) return;
+      on = true;
+      let last = -1;
+      window.clearInterval(timer);
+      timer = window.setInterval(() => {
+        const beat = Math.floor((mediaEl.currentTime % (STEP * 16)) / (STEP * 4));
+        if (beat !== last) window.dispatchEvent(new CustomEvent('cromo:beat'));
+        last = beat;
+      }, 20);
+      paint();
+    };
+    run().catch(() => { if (session === mediaSession) stop(); });
   };
   const start = () => {
     if (useMedia()) { startMedia(); return; }
