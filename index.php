@@ -69,6 +69,12 @@ if ($pageRoute === 'privacy') {
         'controller_name' => '',
         'controller_email' => '',
         'response_time' => '',
+        'controller_domicile' => '',
+        'controller_address' => '',
+        'controller_phone' => '',
+        'rights_contact_area' => '',
+        'consultation_time' => '',
+        'claim_time' => '',
     ];
     $gtmId = '';
     try {
@@ -82,6 +88,10 @@ if ($pageRoute === 'privacy') {
         $privacySettings['response_time'] = brvtal_config_setting_text(
             $privacyPdo, 'privacy.response_time'
         );
+        foreach (['controller_domicile','controller_address','controller_phone',
+                  'rights_contact_area','consultation_time','claim_time'] as $key) {
+            $privacySettings[$key] = brvtal_config_setting_text($privacyPdo, 'privacy.' . $key);
+        }
         $gtmId = brvtal_public_gtm_id($privacyPdo);
     } catch (Throwable) {
         // Never invent a responsible party or expose configuration errors.

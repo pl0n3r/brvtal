@@ -10,18 +10,27 @@ require_once __DIR__ . '/public_cromo_chrome.php';
 const BRVTAL_PRIVACY_OWNER_PLACEHOLDER = '[COMPLETAR POR EL DUEÑO]';
 const BRVTAL_PRIVACY_LEGAL_STATUS = 'Texto legal pendiente de aprobación profesional (Condor #974).';
 
-/** @return array{controller_name:string,controller_email:string,response_time:string} */
+/** @return array{controller_name:string,controller_email:string,response_time:string,controller_domicile:string,controller_address:string,controller_phone:string,rights_contact_area:string,consultation_time:string,claim_time:string} */
 function brvtalPublicPrivacyRightsConfiguration(array $settings): array
 {
     $name = trim(is_string($settings['controller_name'] ?? null) ? $settings['controller_name'] : '');
     $email = trim(is_string($settings['controller_email'] ?? null) ? $settings['controller_email'] : '');
     $response = trim(is_string($settings['response_time'] ?? null) ? $settings['response_time'] : '');
 
+    $extra = [];
+    foreach (['controller_domicile','controller_address','controller_phone',
+              'rights_contact_area','consultation_time','claim_time'] as $key) {
+        $raw = $settings[$key] ?? null;
+        $value = trim(is_string($raw) ? $raw : '');
+        $extra[$key] = $value !== '' ? $value : BRVTAL_PRIVACY_OWNER_PLACEHOLDER;
+    }
+
     return [
         'controller_name' => $name !== '' ? $name : BRVTAL_PRIVACY_OWNER_PLACEHOLDER,
         'controller_email' => filter_var($email, FILTER_VALIDATE_EMAIL) !== false
             ? $email : BRVTAL_PRIVACY_OWNER_PLACEHOLDER,
         'response_time' => $response !== '' ? $response : BRVTAL_PRIVACY_OWNER_PLACEHOLDER,
+        ...$extra,
     ];
 }
 
@@ -41,6 +50,12 @@ function brvtalPublicPrivacyRightsDocument(
         'subtitle' => 'Information about personal data and how to request access, correction or erasure.',
         'owner' => 'Data controller',
         'contact' => 'Responsible contact email',
+        'domicile' => 'Legal domicile',
+        'address' => 'Contact address',
+        'phone' => 'Contact phone',
+        'area' => 'Area responsible for data rights',
+        'consultation' => 'Consultation response period',
+        'claim' => 'Claim response period',
         'rights' => 'Request access, correction or erasure',
         'instructions' => 'Contact the controller by the email indicated above. Specify the right you want to exercise. Do not post sensitive data on this public page.',
         'time' => 'Response period indicated by the controller',
@@ -51,6 +66,12 @@ function brvtalPublicPrivacyRightsDocument(
         'subtitle' => 'Información sobre datos personales y cómo solicitar acceso, corrección o borrado.',
         'owner' => 'Responsable del tratamiento',
         'contact' => 'Correo de contacto del responsable',
+        'domicile' => 'Domicilio del responsable',
+        'address' => 'Dirección de contacto',
+        'phone' => 'Teléfono de contacto',
+        'area' => 'Área responsable de solicitudes',
+        'consultation' => 'Plazo para consultas',
+        'claim' => 'Plazo para reclamos',
         'rights' => 'Solicitar acceso, corrección o borrado',
         'instructions' => 'Escribe al correo indicado arriba e identifica el derecho que deseas ejercer. No publiques datos sensibles en esta página.',
         'time' => 'Plazo de respuesta informado por el responsable',
@@ -88,10 +109,22 @@ function brvtalPublicPrivacyRightsDocument(
 <p data-privacy-controller>{{OWNER_VALUE}}</p>
 <h3>{{CONTACT_LABEL}}</h3>
 <p data-privacy-email>{{EMAIL_VALUE}}</p>
+<h3>{{DOMICILE_LABEL}}</h3>
+<p data-privacy-domicile>{{DOMICILE_VALUE}}</p>
+<h3>{{ADDRESS_LABEL}}</h3>
+<p data-privacy-address>{{ADDRESS_VALUE}}</p>
+<h3>{{PHONE_LABEL}}</h3>
+<p data-privacy-phone>{{PHONE_VALUE}}</p>
 </section>
 <section aria-labelledby="rights-heading">
 <h2 id="rights-heading">{{RIGHTS_LABEL}}</h2>
 <p>{{INSTRUCTIONS}}</p>
+<h3>{{AREA_LABEL}}</h3>
+<p data-privacy-contact-area>{{AREA_VALUE}}</p>
+<h3>{{CONSULTATION_LABEL}}</h3>
+<p data-privacy-consultation-time>{{CONSULTATION_VALUE}}</p>
+<h3>{{CLAIM_LABEL}}</h3>
+<p data-privacy-claim-time>{{CLAIM_VALUE}}</p>
 <h3>{{TIME_LABEL}}</h3>
 <p data-privacy-response-time>{{TIME_VALUE}}</p>
 </section>
@@ -116,6 +149,18 @@ HTML;
         '{{OWNER_VALUE}}' => $escape($values['controller_name']),
         '{{CONTACT_LABEL}}' => $escape($labels['contact']),
         '{{EMAIL_VALUE}}' => $emailHtml,
+        '{{DOMICILE_LABEL}}' => $escape($labels['domicile']),
+        '{{DOMICILE_VALUE}}' => $escape($values['controller_domicile']),
+        '{{ADDRESS_LABEL}}' => $escape($labels['address']),
+        '{{ADDRESS_VALUE}}' => $escape($values['controller_address']),
+        '{{PHONE_LABEL}}' => $escape($labels['phone']),
+        '{{PHONE_VALUE}}' => $escape($values['controller_phone']),
+        '{{AREA_LABEL}}' => $escape($labels['area']),
+        '{{AREA_VALUE}}' => $escape($values['rights_contact_area']),
+        '{{CONSULTATION_LABEL}}' => $escape($labels['consultation']),
+        '{{CONSULTATION_VALUE}}' => $escape($values['consultation_time']),
+        '{{CLAIM_LABEL}}' => $escape($labels['claim']),
+        '{{CLAIM_VALUE}}' => $escape($values['claim_time']),
         '{{RIGHTS_LABEL}}' => $escape($labels['rights']),
         '{{INSTRUCTIONS}}' => $escape($labels['instructions']),
         '{{TIME_LABEL}}' => $escape($labels['time']),
