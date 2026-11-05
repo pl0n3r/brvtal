@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/seo_workspace.php';
+require_once __DIR__ . '/public_cromo_chrome.php';
 
 /** @return array{title:string,description:string,canonical:string,image:string,schema:array<string,mixed>} */
 function brvtal_public_contact_seo(string $base, ?PDO $pdo = null): array // NOSONAR legacy public API name
@@ -66,7 +67,10 @@ function brvtal_public_contact_page(array $seo, string $analytics = ''): string
       <span data-contact-i18n-key="contact.nav">CONTACTO / 01</span>
       <span>PEREIRA — COLOMBIA</span>
     </div>
-    <a class="contact-page-home mono" href="/" data-contact-i18n-key="contact.home">INICIO ↙</a>
+    <div class="contact-page-nav-actions">
+      ' . brvtalPublicCromoSoundButton() . '
+      <a class="contact-page-home mono" href="/" data-contact-i18n-key="contact.home">INICIO ↙</a>
+    </div>
   </header>
 
   <main class="contact-page-main">
@@ -177,6 +181,8 @@ function brvtal_public_contact_page(array $seo, string $analytics = ''): string
   </footer>
   <script src="/js/public-contact.js"></script>
   <script src="/js/public-cromo.js" defer></script>
+  <script src="/js/public-cromo-sound.js" defer></script>
+  <script src="/js/public-cromo-pages.js" defer></script>
   ' . $analytics . '
 </body>
 </html>';

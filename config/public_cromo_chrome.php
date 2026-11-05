@@ -6,6 +6,13 @@ declare(strict_types=1);
  * the same top bar as the home (brand, section menu, sound switch) so no page feels apart.
  * $backHref / $backLabel must already be escaped by the caller.
  */
+function brvtalPublicCromoSoundButton(): string
+{
+    return '<button class="cp-snd" type="button" aria-pressed="false" data-cromo-sound'
+        . ' data-cromo-sound-off="Activar sonido" data-cromo-sound-on="Apagar el pulso">'
+        . '<i aria-hidden="true"></i><span data-cromo-sound-label>Activar sonido</span></button>';
+}
+
 function brvtalPublicCromoTopbar(string $backHref = '/', string $backLabel = '‚Üê VOLVER AL INICIO'): string
 {
     $sections = [
@@ -20,7 +27,7 @@ function brvtalPublicCromoTopbar(string $backHref = '/', string $backLabel = '‚Ü
         . '<a href="/" class="entity-brand">BRVTAL<small>RAVE TILL GRAVE</small></a>'
         . '<nav class="cp-nav" aria-label="Secciones">' . $menu . '</nav>'
         . '<div class="cp-tools">'
-        . '<button class="cp-snd" type="button" aria-pressed="false" data-cromo-sound data-cromo-sound-off="Activar sonido" data-cromo-sound-on="Apagar el pulso"><i></i><span data-cromo-sound-label>Activar sonido</span></button>'
+        . brvtalPublicCromoSoundButton()
         . '<a class="cp-back" href="' . $backHref . '">' . $backLabel . '</a>'
         . '</div></header>';
 }
