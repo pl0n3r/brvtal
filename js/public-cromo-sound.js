@@ -98,22 +98,60 @@
     window.clearInterval(timer);
     timer = null;
     if (master && ctx) master.gain.setTargetAtTime(0, ctx.currentTime, .05);
+    if (keepAlive) keepAlive.pause();
     paint();
   };
-  const start = () => {
-    if (!ctx) {
-      ctx = new AudioCtx();
-      master = ctx.createGain();
-      master.gain.value = .6;
-      master.connect(ctx.destination);
-    }
-    master.gain.setTargetAtTime(.6, ctx.currentTime, .05);
-    ctx.resume();
+  // iOS mutes Web Audio with the ring/silent switch unless the page declares
+  // media playback; older iOS needs a silent <audio> started inside the gesture.
+  let keepAlive = null;
+  const SILENT_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=';
+  const claimPlayback = () => {
+    try {
+      if (navigator.audioSession) { navigator.audioSession.type = 'playback'; return; }
+      if (!keepAlive) {
+        keepAlive = new Audio(SILENT_WAV);
+        keepAlive.setAttribute('playsinline', '');
+        keepAlive.loop = true;
+      }
+      const played = keepAlive.play();
+      if (played && played.catch) played.catch(() => {});
+    } catch (e) { /* best effort */ }
+  };
+  const unlock = () => {
+    // A node started inside the click gesture unlocks the context on Safari.
+    const buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(ctx.destination);
+    source.start(0);
+  };
+  const begin = () => {
+    window.clearInterval(timer);
     on = true;
     nextTime = ctx.currentTime + .05;
     step = 0;
     timer = window.setInterval(schedule, 25);
     paint();
+  };
+  const start = () => {
+    claimPlayback();
+    if (!ctx) {
+      ctx = new AudioCtx();
+      master = ctx.createGain();
+      master.gain.value = .6;
+      master.connect(ctx.destination);
+      // Calls, backgrounding or the OS can suspend the context while "on":
+      // reflect it honestly instead of showing a sound that is not playing.
+      ctx.addEventListener('statechange', () => {
+        if (on && ctx.state !== 'running') stop();
+      });
+    }
+    master.gain.setTargetAtTime(.6, ctx.currentTime, .05);
+    unlock();
+    const resumed = ctx.resume();
+    const ready = () => (ctx.state === 'running' ? begin() : stop());
+    if (resumed && resumed.then) resumed.then(ready, stop);
+    else ready();
   };
   const toggle = () => (on ? stop() : start());
 
