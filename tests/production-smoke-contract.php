@@ -109,6 +109,9 @@ $assert(
 // features must be checked in the SAME authenticated smoke artifact.
 $assert(str_contains($probe, 'adminCoverage: { sections: [], features: [] }'), 'full admin coverage evidence must be initialized');
 $assert(str_contains($probe, 'await auditRemainingDiscAdmin(page, context);'), 'full admin coverage must run before final guards');
+$assert(str_contains($probe, '[data-testid="settings-v2-root"]'), 'Settings must use unique workspace test id, not shared CSS attribute');
+$assert(!str_contains($probe, "coverageWorkspace(page,'settings','settings','[data-settings-v2]')"), 'Settings selector must not match the stylesheet link');
+
 $assert(str_contains($probe, 'if (evidence.authentication.http401.length)'), 'HTTP 401 must fail the full admin audit');
 $assert(str_contains($probe, "key + ':render-ready'"), 'async workspaces must await real editor hydration');
 $assert(str_contains($probe, "await runOperation(key + ':render-ready'"), 'Theme Studio render-readiness wait must be awaited');

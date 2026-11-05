@@ -428,7 +428,7 @@ async function auditRemainingDiscAdmin(page, context) {
   await coverageWorkspace(page,'themeStudio','theme','[data-theme-studio-v2]',
     '[data-theme-studio-v2] [data-theme-tab="brand"].active');
 
-  await coverageWorkspace(page,'settings','settings','[data-settings-v2]');
+  await coverageWorkspace(page,'settings','settings','[data-testid="settings-v2-root"]');
   markStage('coverage:privacy');
   await runOperation('privacy:open',async()=>{
     await page.locator('[data-settings-tab="analytics"]').click();
