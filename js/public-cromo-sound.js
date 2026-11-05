@@ -114,7 +114,7 @@
         keepAlive.loop = true;
       }
       const played = keepAlive.play();
-      if (played && played.catch) played.catch(() => {});
+      played?.catch?.(() => {});
     } catch (e) { /* best effort */ }
   };
   const unlock = () => {
@@ -150,7 +150,7 @@
     unlock();
     const resumed = ctx.resume();
     const ready = () => (ctx.state === 'running' ? begin() : stop());
-    if (resumed && resumed.then) resumed.then(ready, stop);
+    if (resumed?.then) resumed.then(ready, stop);
     else ready();
   };
   const toggle = () => (on ? stop() : start());
