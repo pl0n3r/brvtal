@@ -654,3 +654,34 @@ for (const [mode, expected] of [['running', 'true'], ['suspended', 'false'], ['r
     expect(await page.evaluate(() => window.__audioStarts)).toBeGreaterThan(0);
   });
 }
+
+// #1575: en WebKit el sonido se reproduce con un <audio> y un bucle renderizado.
+for (const [mode, expected] of [['resolves', 'true'], ['rejects', 'false']]) {
+  test('El sonido en WebKit ' + (expected === 'true' ? 'reproduce el bucle renderizado con audio' : 'vuelve a apagado si el audio es rechazado'), async ({ page }) => {
+    await page.addInitScript(playMode => {
+      window.__cromoForceMediaSound = true;
+      window.__audioContextsCreated = 0;
+      window.__mediaSources = [];
+      const RealAudioContext = window.AudioContext;
+      window.AudioContext = class extends RealAudioContext { constructor(...args) { super(...args); window.__audioContextsCreated += 1; } };
+      HTMLMediaElement.prototype.play = function () {
+        window.__mediaSources.push(this.src);
+        return playMode === 'rejects' ? Promise.reject(new Error('blocked')) : Promise.resolve();
+      };
+    }, mode === 'rejects' ? 'rejects' : 'resolves');
+    await page.route('**/sound-e2e.html', route => route.fulfill({ contentType: 'text/html', body: '<!doctype html><html><body><button class="cromo-sound" type="button"><span class="cromo-sound-label">Activar sonido</span></button></body></html>' }));
+    await page.goto('http://127.0.0.1:4173/sound-e2e.html');
+    await page.addScriptTag({ content: soundRuntime });
+    const button = page.locator('button.cromo-sound');
+    await page.evaluate(() => window.BRVTALCromoSound.bind(document.querySelector('button.cromo-sound')));
+    await button.click();
+    await expect(button).toHaveAttribute('aria-pressed', expected);
+    await expect(button.locator('.cromo-sound-label')).toHaveText(expected === 'true' ? 'Apagar el pulso' : 'Activar sonido');
+    // Primero el clip silencioso dentro del gesto; si el audio se acepta, después el bucle renderizado.
+    expect(await page.evaluate(() => window.__mediaSources[0])).toMatch(/^data:audio\/wav/);
+    if (expected === 'true') {
+      await expect.poll(() => page.evaluate(() => window.__mediaSources.at(-1))).toMatch(/^blob:/);
+    }
+    expect(await page.evaluate(() => window.__audioContextsCreated)).toBe(0);
+  });
+}
