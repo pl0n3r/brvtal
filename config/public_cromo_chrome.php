@@ -8,7 +8,9 @@ declare(strict_types=1);
  */
 function brvtalPublicCromoSoundButton(): string
 {
-    return '<button class="cp-snd" type="button" aria-pressed="false" data-cromo-sound data-cromo-sound-off="Activar sonido" data-cromo-sound-on="Apagar el pulso"><i aria-hidden="true"></i><span data-cromo-sound-label>Activar sonido</span></button>';
+    return '<button class="cp-snd" type="button" aria-pressed="false" data-cromo-sound'
+        . ' data-cromo-sound-off="Activar sonido" data-cromo-sound-on="Apagar el pulso">'
+        . '<i aria-hidden="true"></i><span data-cromo-sound-label>Activar sonido</span></button>';
 }
 
 function brvtalPublicCromoTopbar(string $backHref = '/', string $backLabel = '← VOLVER AL INICIO'): string
