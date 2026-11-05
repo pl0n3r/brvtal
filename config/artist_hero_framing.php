@@ -73,7 +73,7 @@ function brvtalArtistHeroEnrich(PDO $pdo, array $rows): array
     )));
     $indexed = [];
     if ($ids) {
-        $keys = array_map('brvtalArtistHeroSettingKey', $ids);
+        $keys = array_map(brvtalArtistHeroSettingKey(...), $ids);
         $marks = implode(',', array_fill(0, count($keys), '?'));
         $statement = $pdo->prepare(
             "SELECT setting_key,setting_value FROM settings WHERE is_json=1 AND setting_key IN ({$marks})"
