@@ -195,7 +195,7 @@
     const fallbackReady = Promise.resolve(prepareWebAudio());
     fallbackReady.catch(() => {});
     if (!mediaLoop) mediaLoop = renderLoop();
-    const run = async () => {
+    const playRendered = async () => {
       await unlocked;
       const url = await mediaLoop;
       if (session !== mediaSession) return;
@@ -213,12 +213,20 @@
       }, 20);
       paint();
     };
-    run().catch((error) => {
-      if (session !== mediaSession) return;
-      window.console?.warn?.('BRVTAL sonido: falló el audio renderizado, se usa Web Audio.', error);
-      mediaEl.pause();
-      fallbackReady.then(() => (ctx.state === 'running' ? begin() : stop()), stop);
-    });
+    const run = async () => {
+      try {
+        await playRendered();
+      } catch (error) {
+        if (session !== mediaSession) return;
+        window.console?.warn?.('BRVTAL sonido: falló el audio renderizado, se usa Web Audio.', error);
+        mediaEl.pause();
+        await fallbackReady;
+        if (session !== mediaSession) return;
+        if (ctx.state === 'running') begin();
+        else stop();
+      }
+    };
+    run().catch(() => { if (session === mediaSession) stop(); });
   };
   // Creates and unlocks the Web Audio context. Must run inside the click gesture,
   // also when it is only the fallback of the rendered-audio path.
