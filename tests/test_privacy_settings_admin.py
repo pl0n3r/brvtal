@@ -35,7 +35,7 @@ class PrivacySettingsAdminTests(unittest.TestCase):
         self.assertIn("'INVALID_PRIVACY_VALUE'", self.api)
         self.assertIn("if ($isJson !== 0", self.api)
         self.assertIn("'field' => 'setting_value'", self.api)
-        self.assertIn("'privacy.controller_email' ? 254 : 400", self.api)
+        self.assertIn("in_array($key, ['privacy.controller_email','privacy.controller_address'], true)", self.api)
 
     def test_saves_use_csrf_protected_settings_without_raw_editor(self):
         self.assertIn("await req('/settings', {", self.ui)
@@ -58,9 +58,30 @@ class PrivacySettingsAdminTests(unittest.TestCase):
         self.assertIn('BRVTAL_PRIVACY_LEGAL_STATUS', self.public)
         self.assertNotIn('value="[COMPLETAR', self.ui)
 
+    def test_two_distinct_colombian_rights_procedures(self):
+        for key in ('privacy.consultation_time', 'privacy.claim_time'):
+            self.assertIn("row('" + key + "')", self.ui)
+            self.assertIn("['" + key + "',read(", self.ui)
+            self.assertIn("'" + key + "'", self.api)
+        self.assertIn("data-privacy-consultation-time", self.public)
+        self.assertIn("data-privacy-claim-time", self.public)
+        self.assertIn("BRVTAL_PRIVACY_LEGAL_STATUS", self.public)
+        self.assertIn("if($method!=='GET')brvtal_admin_require_csrf();", self.api)
+
+    def test_extended_privacy_activity_logs_metadata_only(self):
+        for key in ('controller_domicile','controller_address','controller_phone',
+                    'rights_contact_area','consultation_time','claim_time'):
+            self.assertIn("'privacy." + key + "'", self.activity)
+            self.assertIn("'privacy." + key + "'", self.api)
+        self.assertIn("'value_changed' => true", self.api)
+        self.assertNotIn("'setting_value' => $value", self.api)
+        self.assertIn("'settings' => ['setting_key','is_json']", self.activity)
+
     def test_version_alignment(self):
-        self.assertIn("BRVTAL_APP_VERSION = '0.1.197'", (ROOT/'config/version.php').read_text())
-        self.assertEqual(json.loads((ROOT/'package.json').read_text())['version'], '0.1.197')
+        version_source = (ROOT/'config/version.php').read_text()
+        match = re.search(r"BRVTAL_APP_VERSION\s*=\s*'([^']+)'", version_source)
+        self.assertIsNotNone(match)
+        self.assertEqual(json.loads((ROOT/'package.json').read_text())['version'], match.group(1))
 
 
 if __name__ == '__main__':
