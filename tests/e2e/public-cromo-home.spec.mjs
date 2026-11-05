@@ -418,6 +418,12 @@ test('Próxima noche usa una tarjeta completa clicable y CTA real sin desbordes'
     });
     expect(metrics.left).toBeGreaterThanOrEqual(-1);
     expect(metrics.right).toBeLessThanOrEqual(width + 1);
+    // #1560: tamaño original de la tarjeta (280px en escritorio, 340px en móvil).
+    // offsetWidth ignora la rotación de -3° que infla el rectángulo visual.
+    const layoutWidth = await next.evaluate(node => (node.closest('.cr-next') || node).offsetWidth);
+    expect(layoutWidth).toBeLessThanOrEqual(width >= 1000 ? 280 : 340);
+    const cta = await next.locator('.cr-next-action').boundingBox();
+    expect(cta.height).toBeGreaterThanOrEqual(44);
     expect(metrics.width).toBeGreaterThanOrEqual(44);
     expect(metrics.height).toBeGreaterThanOrEqual(44);
     await next.focus();
