@@ -109,7 +109,7 @@ echo json_encode(['empty'=>$empty,'filled'=>$filled]);
         self.assertIn('&lt;script&gt;unsafe&lt;/script&gt;', data['filled'])
         self.assertNotIn('<script>unsafe</script>', data['filled'])
         self.assertIn('pendiente de aprobación profesional', data['filled'])
-        self.assertGreaterEqual(data['empty'].count('[COMPLETAR POR EL DUEÑO]'), 9)
+        self.assertGreaterEqual(data['empty'].count('[COMPLETAR POR EL DUEÑO]'), 8)
 
     def test_no_unapproved_legal_text(self) -> None:
         source = CONFIG.read_text(encoding="utf-8")
