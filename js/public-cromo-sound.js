@@ -18,6 +18,9 @@
   let nextTime = 0;
   let step = 0;
   let on = false;
+  let mediaEl = null;
+  let mediaLoop = null;
+  let mediaSession = 0;
 
   const kick = (t) => {
     const o = ctx.createOscillator();
@@ -99,12 +102,14 @@
     timer = null;
     if (master && ctx) master.gain.setTargetAtTime(0, ctx.currentTime, .05);
     if (keepAlive) keepAlive.pause();
+    mediaSession += 1;
+    if (mediaEl) mediaEl.pause();
     paint();
   };
   // iOS mutes Web Audio with the ring/silent switch unless the page declares
   // media playback; older iOS needs a silent <audio> started inside the gesture.
   let keepAlive = null;
-  const SILENT_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=';
+  const SILENT_WAV = 'data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YSADAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA==';
   const claimPlayback = () => {
     try {
       if (navigator.audioSession) { navigator.audioSession.type = 'playback'; return; }
@@ -133,7 +138,82 @@
     timer = window.setInterval(schedule, 25);
     paint();
   };
+  // WebKit (Safari and every iOS browser) can show a running AudioContext with
+  // no audible output. There the same loop is rendered offline once and played
+  // through a regular <audio> element, which WebKit routes reliably.
+  const BARS = 8;
+  const STEP = 60 / 130 / 4;
+  const useMedia = () => window.__cromoForceMediaSound === true || /apple/i.test(navigator.vendor || '');
+  const wavUrl = (rendered) => {
+    const samples = rendered.getChannelData(0);
+    const bytes = new DataView(new ArrayBuffer(44 + samples.length * 2));
+    const text = (at, value) => { for (let i = 0; i < value.length; i += 1) bytes.setUint8(at + i, value.charCodeAt(i)); };
+    text(0, 'RIFF'); bytes.setUint32(4, 36 + samples.length * 2, true); text(8, 'WAVEfmt ');
+    bytes.setUint32(16, 16, true); bytes.setUint16(20, 1, true); bytes.setUint16(22, 1, true);
+    bytes.setUint32(24, rendered.sampleRate, true); bytes.setUint32(28, rendered.sampleRate * 2, true);
+    bytes.setUint16(32, 2, true); bytes.setUint16(34, 16, true); text(36, 'data'); bytes.setUint32(40, samples.length * 2, true);
+    for (let i = 0; i < samples.length; i += 1) {
+      bytes.setInt16(44 + i * 2, Math.max(-1, Math.min(1, samples[i])) * 32767, true);
+    }
+    return URL.createObjectURL(new Blob([bytes], { type: 'audio/wav' }));
+  };
+  const renderLoop = () => {
+    const Offline = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    const rate = 44100;
+    const steps = 16 * BARS;
+    const offline = new Offline(1, Math.ceil(rate * steps * STEP), rate);
+    const liveCtx = ctx;
+    const liveMaster = master;
+    ctx = offline;
+    master = offline.createGain();
+    master.gain.value = .6;
+    master.connect(offline.destination);
+    for (let i = 0; i < steps; i += 1) {
+      const t = i * STEP;
+      const s = i % 16;
+      if (s % 4 === 0) kick(t);
+      if (s % 4 === 2) hat(t, true);
+      else if (s % 2 === 1) hat(t, false);
+      if (s % 4 === 2 || s === 7 || s === 15) bass(t);
+    }
+    ctx = liveCtx;
+    master = liveMaster;
+    return offline.startRendering().then(wavUrl);
+  };
+  const startMedia = () => {
+    mediaSession += 1;
+    const session = mediaSession;
+    if (!mediaEl) {
+      mediaEl = new Audio(SILENT_WAV);
+      mediaEl.setAttribute('playsinline', '');
+      mediaEl.loop = true;
+    }
+    // Starting playback inside the click unlocks the element for the real loop.
+    const unlocked = mediaEl.play();
+    if (!mediaLoop) mediaLoop = renderLoop();
+    Promise.all([Promise.resolve(unlocked), mediaLoop])
+      .then(([, url]) => {
+        if (session !== mediaSession) return null;
+        mediaEl.src = url;
+        mediaEl.currentTime = 0;
+        return Promise.resolve(mediaEl.play()).then(() => true);
+      })
+      .then((started) => {
+        if (!started || session !== mediaSession) return;
+        on = true;
+        let last = -1;
+        window.clearInterval(timer);
+        timer = window.setInterval(() => {
+          const beat = Math.floor((mediaEl.currentTime % (STEP * 16)) / (STEP * 4));
+          if (beat !== last) window.dispatchEvent(new CustomEvent('cromo:beat'));
+          last = beat;
+        }, 20);
+        paint();
+      })
+      .catch(() => { if (session === mediaSession) stop(); });
+  };
   const start = () => {
+    if (useMedia()) { startMedia(); return; }
     claimPlayback();
     if (!ctx) {
       ctx = new AudioCtx();
