@@ -36,6 +36,8 @@ class PrivacySettingsAdminTests(unittest.TestCase):
         self.assertIn("if ($isJson !== 0", self.api)
         self.assertIn("'field' => 'setting_value'", self.api)
         self.assertIn("in_array($key, ['privacy.controller_email','privacy.controller_address'], true)", self.api)
+        self.assertIn("in_array($key, ['privacy.controller_name','privacy.response_time'], true)", self.api)
+        self.assertIn('$privacyLimit = 400;', self.api)
 
     def test_saves_use_csrf_protected_settings_without_raw_editor(self):
         self.assertIn("await req('/settings', {", self.ui)

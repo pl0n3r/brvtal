@@ -556,8 +556,13 @@ try {
             if (in_array($key, ['privacy.controller_name','privacy.controller_email','privacy.response_time',
                 'privacy.controller_domicile','privacy.controller_address',
                 'privacy.rights_contact_area','privacy.consultation_time','privacy.claim_time'], true)) {
-                $privacyLimit = in_array($key, ['privacy.controller_email','privacy.controller_address'], true)
-                    ? 254 : 160;
+                $privacyLimit = 160;
+                if (in_array($key, ['privacy.controller_email','privacy.controller_address'], true)) {
+                    $privacyLimit = 254;
+                } elseif (in_array($key, ['privacy.controller_name','privacy.response_time'], true)) {
+                    // Preserve the existing API limit for legacy settings.
+                    $privacyLimit = 400;
+                }
                 $plain = trim($value);
                 if ($isJson !== 0 || strlen($plain) > $privacyLimit
                     || preg_match('/[<>\x00-\x1F\x7F]/', $plain) === 1) {
