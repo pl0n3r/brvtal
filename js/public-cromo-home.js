@@ -309,9 +309,29 @@
   const buildArtists = (artists) => {
     // --- Artistas
     const roster = [...artists].sort((a, b) => (b.is_collective_member ? 1 : 0) - (a.is_collective_member ? 1 : 0)).slice(0, 5);
-    const artistsGrid = el('div', { class: 'artists' }, roster.map((a) => el('a', { class: 'ac plate chrome-b', href: '/artists/' + encodeURIComponent(a.slug) },
-      el('i', { class: 'orb', 'aria-hidden': 'true' }), el('span', { class: 'nm', text: text(a.name) }),
-      el('span', { class: 'rl', text: (a.is_collective_member ? 'Colectivo. ' : 'Colaborador. ') + text(a.bio, 90) }))));
+    const artistCard = (a) => {
+      const card = el('a', { class: 'ac plate chrome-b', href: '/artists/' + encodeURIComponent(a.slug) });
+      const fallback = el('i', { class: 'orb', 'aria-hidden': 'true' });
+      const photo = safeUrl(a.photo);
+      // CMS uploads are public same-origin media; never inject untrusted remote URLs.
+      if (photo && new URL(photo, location.origin).origin === location.origin) {
+        const image = el('img', { class: 'photo', alt: '', loading: 'lazy', decoding: 'async' });
+        image.addEventListener('error', () => {
+          image.remove();
+          card.classList.remove('cr-has-photo');
+          fallback.hidden = false;
+        }, { once: true });
+        image.src = photo;
+        fallback.hidden = true;
+        card.classList.add('cr-has-photo');
+        card.append(image);
+      }
+      card.append(fallback,
+        el('span', { class: 'nm', text: text(a.name) }),
+        el('span', { class: 'rl', text: (a.is_collective_member ? 'Colectivo. ' : 'Colaborador. ') + text(a.bio, 90) }));
+      return card;
+    };
+    const artistsGrid = el('div', { class: 'artists' }, roster.map(artistCard));
     artistsGrid.append(el('a', { class: 'ac plate chrome-b', href: '#contacto' },
       el('i', { class: 'orb', 'aria-hidden': 'true' }), el('span', { class: 'nm', text: 'Tú' }),
       el('span', { class: 'rl', text: '¿Quieres sumarte al roster? Escríbenos y cuéntanos qué suenas.' })));
