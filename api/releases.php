@@ -332,7 +332,7 @@ try {
     brvtal_releases_json(['ok' => false, 'error' => $e->getMessage()], $status);
 } catch (Throwable $e) {
     if (function_exists('brvtal_log')) {
-        brvtal_log('RELEASES_API_ERROR', 'Releases API failure', ['class' => get_class($e), 'message' => $e->getMessage()]);
+        brvtal_log('RELEASES_API_ERROR', 'Releases API failure', ['class' => $e::class, 'message' => $e->getMessage()]);
     }
     brvtal_releases_json(['ok' => false, 'error' => 'INTERNAL_ERROR'], 500);
 }
