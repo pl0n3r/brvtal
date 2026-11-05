@@ -318,3 +318,24 @@ test('Concept 05 hero description is editable, persisted and plain-text safe', a
   ]);
   expect(await page.evaluate(() => window.__posts.length)).toBe(1);
 });
+
+
+test('Privacy distinguishes consultation and claim periods without legal approval', async ({ page }) => {
+  await open(page);
+  await page.locator('[data-settings-tab="analytics"]').click();
+  await expect(page.locator('#sv2_privacy_consultation_time')).toBeVisible();
+  await expect(page.locator('#sv2_privacy_claim_time')).toBeVisible();
+  await page.locator('#sv2_privacy_controller_domicile').fill('Synthetic city, Colombia');
+  await page.locator('#sv2_privacy_controller_phone').fill('+57 601 555 0101');
+  await page.locator('#sv2_privacy_consultation_time').fill('Synthetic consultation deadline');
+  await page.locator('#sv2_privacy_claim_time').fill('Synthetic claim deadline');
+  await page.getByTestId('privacy-save').click();
+  await expect.poll(() => page.evaluate(() => window.__posts.map(p => p.setting_key))).toEqual([
+    'privacy.controller_domicile','privacy.controller_phone','privacy.consultation_time','privacy.claim_time'
+  ]);
+  await expect(page.getByText('Final legal approval is still required even when all fields have values.')).toBeVisible();
+  await page.locator('#sv2_privacy_controller_phone').fill('<script>');
+  await page.getByTestId('privacy-save').click();
+  await expect.poll(() => page.evaluate(() => window.__feedback.at(-1)?.[0])).toBe('error');
+  expect((await page.evaluate(() => window.__posts)).length).toBe(4);
+});

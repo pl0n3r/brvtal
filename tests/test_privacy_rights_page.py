@@ -88,6 +88,30 @@ echo json_encode(['html' => $html, 'old' => $old, 'fallback' => $noFooter]);
         self.assertNotIn(" hidden", data["old"])
         self.assertIn('href="/privacy"', data["fallback"])
 
+    def test_unapproved_extended_fields_fail_closed(self) -> None:
+        data = invoke_php(r"""
+require 'config/public_privacy_rights.php';
+$empty = brvtalPublicPrivacyRightsDocument([]);
+$filled = brvtalPublicPrivacyRightsDocument([
+ 'controller_domicile' => 'Synthetic city, Colombia',
+ 'controller_address' => '<script>unsafe</script>',
+ 'controller_phone' => '+57 601 555 0101',
+ 'rights_contact_area' => 'Synthetic rights office',
+ 'consultation_time' => 'Synthetic consultation deadline',
+ 'claim_time' => 'Synthetic claim deadline',
+]);
+echo json_encode(['empty'=>$empty,'filled'=>$filled]);
+""")
+        self.assertIn('data-privacy-consultation-time', data['empty'])
+        self.assertIn('data-privacy-claim-time', data['empty'])
+        self.assertIn('Synthetic consultation deadline', data['filled'])
+        self.assertIn('Synthetic claim deadline', data['filled'])
+        self.assertIn('Synthetic city, Colombia', data['filled'])
+        self.assertIn('&lt;script&gt;unsafe&lt;/script&gt;', data['filled'])
+        self.assertNotIn('<script>unsafe</script>', data['filled'])
+        self.assertIn('pendiente de aprobación profesional', data['filled'])
+        self.assertGreaterEqual(data['empty'].count('[COMPLETAR POR EL DUEÑO]'), 9)
+
     def test_no_unapproved_legal_text(self) -> None:
         source = CONFIG.read_text(encoding="utf-8")
         self.assertIn("Condor #974", source)
