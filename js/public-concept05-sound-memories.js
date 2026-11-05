@@ -108,7 +108,7 @@
           frame.replaceChildren(); // Removes the provider iframe and stops playback.
         } else {
           var iframe = document.createElement('iframe');
-          iframe.title = String(record?.title || 'BRVTAL Sound');
+          iframe.title = String(record?.title || 'Sonido BRVTAL');
           iframe.src = url;
           iframe.loading = 'lazy';
           // YouTube requires the embedding site's origin; other providers stay private.
@@ -121,9 +121,7 @@
         }
         frame.hidden = opened;
         toggle.setAttribute('aria-expanded', String(!opened));
-        toggle.textContent = isEnglish()
-          ? (opened ? 'PLAY FEATURED SET ↗' : 'CLOSE PLAYER ×')
-          : (opened ? 'REPRODUCIR SET DESTACADO ↗' : 'CERRAR REPRODUCTOR ×');
+        toggle.textContent = opened ? 'REPRODUCIR SET DESTACADO ↗' : 'CERRAR REPRODUCTOR ×';
       });
 
       player.append(toggle, frame);
@@ -132,9 +130,7 @@
 
     var button = player.querySelector('.c5-sound-player-toggle');
     var opened = button?.getAttribute('aria-expanded') === 'true';
-    if (button) button.textContent = isEnglish()
-      ? (opened ? 'CLOSE PLAYER ×' : 'PLAY FEATURED SET ↗')
-      : (opened ? 'CERRAR REPRODUCTOR ×' : 'REPRODUCIR SET DESTACADO ↗');
+    if (button) button.textContent = opened ? 'CERRAR REPRODUCTOR ×' : 'REPRODUCIR SET DESTACADO ↗';
     section.dataset.c5Player = 'available';
   }
 
@@ -243,7 +239,7 @@
         section.appendChild(route);
       }
       route.href = record.getAttribute('href');
-      route.textContent = isEnglish() ? 'EXPLORE SOUND ↗' : 'EXPLORAR SONIDO ↗';
+      route.textContent = 'EXPLORAR SONIDO ↗';
     } else if (route) {
       route.remove();
     }
@@ -297,7 +293,7 @@
       route.remove();
       route = null;
     }
-    if (route) route.textContent = isEnglish() ? 'EXPLORE ARCHIVE ↓' : 'EXPLORAR ARCHIVO ↓';
+    if (route) route.textContent = 'EXPLORAR ARCHIVO ↓';
 
     document.documentElement.dataset.concept05Memories = 'ready';
   }

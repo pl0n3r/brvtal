@@ -102,7 +102,7 @@ class Concept05ShellV2Tests(unittest.TestCase):
         self.assertIn('c5-header-search:focus-visible', css)
         self.assertIn('bottomNav.inert = locked;', shell)
         self.assertIn("bottomNav.setAttribute('aria-hidden'", shell)
-        self.assertIn('aria-label="Primary mobile"', self.html)
+        self.assertIn('aria-label="Navegación móvil principal"', self.html)
         self.assertEqual(self.html.count('class="c5-bottom-nav"'), 1)
         # The composer declares this stylesheet once; index.php must not
         # inject the same stylesheet a second time.

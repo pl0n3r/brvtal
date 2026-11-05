@@ -94,7 +94,7 @@ test('Home exposes no public CMS status or generic section counters', async () =
   expect(source).not.toContain('id="dynamicStatus"');
   expect(source).not.toContain('id="apiFallback"');
   expect(source).not.toContain('01 / 07');
-  expect(source).toContain('<span id="sceneName">CORE</span><b>///</b><span id="sceneCount">01</span>');
+  expect(source).toContain('<span id="sceneName">NÚCLEO</span><b>///</b><span id="sceneCount">01</span>');
   expect(source).toContain('css/public-controls.css');
   expect(source).toContain('css/public-legibility.css');
 });

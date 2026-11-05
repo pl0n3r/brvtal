@@ -67,17 +67,17 @@ $event = [
 $rendered = brvtal_public_render_next_experience($template, $event);
 
 phase_a_assert(str_contains($rendered, 'css/public-home-phase-a.css'), 'Phase A stylesheet must be attached');
-phase_a_assert(str_contains($rendered, 'UNDERGROUND ELECTRONIC CULTURE / PEREIRA / COLOMBIA'), 'Home must state cultural origin');
-phase_a_assert(str_contains($rendered, 'EVENTS / SOUND / ARTISTS / ARCHIVE'), 'Home must communicate the BRVTAL ecosystem');
+phase_a_assert(str_contains($rendered, 'CULTURA ELECTRÓNICA UNDERGROUND / PEREIRA / COLOMBIA'), 'Home must state cultural origin');
+phase_a_assert(str_contains($rendered, 'EVENTOS / SONIDO / ARTISTAS / ARCHIVO'), 'Home must communicate the BRVTAL ecosystem');
 phase_a_assert(str_contains($rendered, 'home-phase-a-experience'), 'Next Experience must receive Phase A treatment');
 phase_a_assert(str_contains($rendered, 'SIGNAL TEST'), 'Next Experience must use backend Event title');
 phase_a_assert(str_contains($rendered, 'PEREIRA / WAREHOUSE 09'), 'Next Experience must use backend location');
 phase_a_assert(str_contains($rendered, 'PL0N3R <i>/</i> DNL5'), 'Next Experience must render structured lineup names');
 phase_a_assert(str_contains($rendered, 'href="https://tickets.example.com/signal"'), 'valid public ticket URL must render a Tickets CTA');
-phase_a_assert(str_contains($rendered, 'TICKETS <span>↗</span>'), 'Tickets CTA must be explicit');
+phase_a_assert(str_contains($rendered, 'ENTRADAS <span>↗</span>'), 'Tickets CTA must be explicit');
 phase_a_assert(
     str_contains($rendered, 'class="c5-header-ticket magnetic"')
-        && str_contains($rendered, 'TICKETS <span>→</span>'),
+        && str_contains($rendered, 'ENTRADAS <span>→</span>'),
     'Valid canonical ticketing must also power the authored desktop header CTA'
 );
 phase_a_assert(str_contains($rendered, 'PREVENTA') && str_contains($rendered, '20.000 COP'), 'Ticket Type pricing must be canonical and formatted for COP');
@@ -101,7 +101,7 @@ $soldOut['ticket_types'] = [
     ['name'=>'Door','price'=>'25000','currency'=>'COP','status'=>'sold_out'],
 ];
 $soldOutRendered = brvtal_public_render_next_experience($template, $soldOut);
-phase_a_assert(str_contains($soldOutRendered, 'SOLD OUT'), 'Sold-out canonical Ticket Type must remain visible as status');
+phase_a_assert(str_contains($soldOutRendered, 'AGOTADO'), 'Sold-out canonical Ticket Type must remain visible as status');
 phase_a_assert(!str_contains($soldOutRendered, 'class="ticket-cta'), 'Sold-out Event must not expose a purchase CTA');
 phase_a_assert(
     !str_contains($soldOutRendered, 'class="c5-header-ticket'),

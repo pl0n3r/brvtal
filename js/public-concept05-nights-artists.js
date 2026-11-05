@@ -213,7 +213,7 @@
         var link = document.createElement('a');
         link.className = 'event-record mono';
         link.href = '/events/' + encodeURIComponent(slug);
-        link.textContent = 'VIEW RECORD ↗';
+        link.textContent = 'VER REGISTRO ↗';
         info.appendChild(link);
       }
       card.append(media, info);

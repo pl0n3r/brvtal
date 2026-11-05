@@ -7,14 +7,14 @@
   'use strict';
 
   var EDGE_SPECS = [
-    ['event_artist','events','artists','EVENTS ↔ ARTISTS'],
-    ['event_set','events','sets','EVENTS ↔ SOUND'],
-    ['artist_set','artists','sets','ARTISTS ↔ SOUND'],
-    ['artist_release','artists','releases','ARTISTS ↔ RECORDS'],
-    ['event_memory','events','memories','EVENTS ↔ MEMORIES'],
-    ['artist_memory','artists','memories','ARTISTS ↔ MEMORIES'],
-    ['set_memory','sets','memories','SOUND ↔ MEMORIES'],
-    ['release_memory','releases','memories','RECORDS ↔ MEMORIES'],
+    ['event_artist','events','artists','EVENTOS ↔ ARTISTAS'],
+    ['event_set','events','sets','EVENTOS ↔ SONIDO'],
+    ['artist_set','artists','sets','ARTISTAS ↔ SONIDO'],
+    ['artist_release','artists','releases','ARTISTAS ↔ DISCOS'],
+    ['event_memory','events','memories','EVENTOS ↔ MEMORIAS'],
+    ['artist_memory','artists','memories','ARTISTAS ↔ MEMORIAS'],
+    ['set_memory','sets','memories','SONIDO ↔ MEMORIAS'],
+    ['release_memory','releases','memories','DISCOS ↔ MEMORIAS'],
   ];
 
   function count(value) {
@@ -117,7 +117,7 @@
     if (!svg.childElementCount) {
       var empty = document.createElement('span');
       empty.className = 'c5-connected-ledger-empty mono';
-      empty.textContent = 'NO STRUCTURED LINKS YET.';
+      empty.textContent = 'AÚN NO HAY VÍNCULOS ESTRUCTURADOS.';
       ledger.appendChild(empty);
     }
   }
@@ -141,10 +141,10 @@
     var edgesEl = section.querySelector('[data-connected-edges]');
     if (edgesEl) {
       edgesEl.textContent = edges === null
-        ? 'RELATIONAL LINK TOTAL UNAVAILABLE.'
+        ? 'TOTAL DE VÍNCULOS RELACIONALES NO DISPONIBLE.'
         : edges > 0
-          ? edges + ' VERIFIED RELATIONAL LINKS IN THE PUBLIC ARCHIVE.'
-          : 'NO STRUCTURED RELATIONSHIPS PUBLISHED YET.';
+          ? edges + ' VÍNCULOS VERIFICADOS EN EL ARCHIVO PÚBLICO.'
+          : 'AÚN NO HAY RELACIONES ESTRUCTURADAS PUBLICADAS.';
     }
 
     requestAnimationFrame(function () {

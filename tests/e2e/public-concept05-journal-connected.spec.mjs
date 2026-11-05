@@ -78,21 +78,21 @@ function markup(payload = data) {
 <style>*{box-sizing:border-box}html,body{margin:0;width:100%;background:#050505;color:#e8e6df}${css}</style>
 </head><body data-concept="05">
 <section class="scene transmissions c5-numbered" id="transmissions" data-dynamic="transmissions">
-  <div class="section-head"><span class="mono">BRVTAL JOURNAL / 06</span><h2>JOURNAL</h2><span class="mono" data-transmissions-count>SIGNAL ARCHIVE</span></div>
-  <div class="transmissions-intro"><h3>FIELD<br>NOTES.</h3><p>Dispatches from BRVTAL culture.</p></div>
+  <div class="section-head"><span class="mono">BRVTAL JOURNAL / 06</span><h2>JOURNAL</h2><span class="mono" data-transmissions-count>ARCHIVO DE SEÑALES</span></div>
+  <div class="transmissions-intro"><h3>NOTAS DE<br>CAMPO.</h3><p>Dispatches from BRVTAL culture.</p></div>
   <div class="transmissions-list" data-transmissions-list><article id="fallback">STATIC JOURNAL FALLBACK</article></div>
 </section>
 <section class="connected scene c5-numbered" data-scene="ARCHIVE" data-index="07" id="connected" aria-labelledby="connected-title">
   <div class="c5-connected-graph" data-connected-graph aria-live="polite">
     <h2 id="connected-title" class="sr-only">Connected</h2>
-    <div class="c5-connected-kicker mono">PUBLIC RELATIONAL SYSTEM / VERIFIED EDGES ONLY</div>
+    <div class="c5-connected-kicker mono">SISTEMA RELACIONAL PÚBLICO / SOLO VÍNCULOS VERIFICADOS</div>
     <svg class="c5-connected-lines" data-connected-lines aria-hidden="true"></svg>
     <ul class="c5-connected-nodes">
-      <li data-connected-node="events"><a href="#events"><span class="mono">EVENTS</span><strong data-connected-count>—</strong></a></li>
-      <li data-connected-node="artists"><a href="#artists"><span class="mono">ARTISTS</span><strong data-connected-count>—</strong></a></li>
-      <li data-connected-node="sets"><a href="#sets"><span class="mono">SOUND</span><strong data-connected-count>—</strong></a></li>
-      <li data-connected-node="releases"><a href="/releases"><span class="mono">RECORDS</span><strong data-connected-count>—</strong></a></li>
-      <li data-connected-node="memories"><a href="#media"><span class="mono">MEMORIES</span><strong data-connected-count>—</strong></a></li>
+      <li data-connected-node="events"><a href="#events"><span class="mono">EVENTOS</span><strong data-connected-count>—</strong></a></li>
+      <li data-connected-node="artists"><a href="#artists"><span class="mono">ARTISTAS</span><strong data-connected-count>—</strong></a></li>
+      <li data-connected-node="sets"><a href="#sets"><span class="mono">SONIDO</span><strong data-connected-count>—</strong></a></li>
+      <li data-connected-node="releases"><a href="/releases"><span class="mono">DISCOS</span><strong data-connected-count>—</strong></a></li>
+      <li data-connected-node="memories"><a href="#media"><span class="mono">MEMORIAS</span><strong data-connected-count>—</strong></a></li>
     </ul>
     <div class="c5-connected-ledger" data-connected-ledger aria-label="Published relationships"></div>
     <p class="c5-connected-edges mono" data-connected-edges>&nbsp;</p>
@@ -287,7 +287,7 @@ test('Concept 05 desktop Journal authors a real feature/index and Connected draw
   await expect(page.locator('[data-connected-edge="event_artist"]')).toHaveAttribute('data-connected-count','2');
   await expect(page.locator('[data-connected-edge="set_memory"]')).toHaveCount(0);
   await expect(page.locator('[data-connected-ledger-edge="release_memory"]')).toHaveCount(0);
-  await expect(page.locator('[data-connected-edges]')).toContainText('7 VERIFIED RELATIONAL LINKS');
+  await expect(page.locator('[data-connected-edges]')).toContainText('7 VÍNCULOS VERIFICADOS');
 
   // Visual geometry regression: genuine CMS edges form a diagonal/radial
   // network at desktop widths instead of five nodes in one long row.
@@ -343,8 +343,8 @@ test('Connected renders no fake lines when the canonical relation graph has zero
   await mount(page, zero);
 
   await expect(page.locator('[data-connected-lines] line')).toHaveCount(0);
-  await expect(page.locator('[data-connected-ledger]')).toContainText('NO STRUCTURED LINKS YET.');
-  await expect(page.locator('[data-connected-edges]')).toContainText('NO STRUCTURED RELATIONSHIPS PUBLISHED YET.');
+  await expect(page.locator('[data-connected-ledger]')).toContainText('AÚN NO HAY VÍNCULOS ESTRUCTURADOS.');
+  await expect(page.locator('[data-connected-edges]')).toContainText('AÚN NO HAY RELACIONES ESTRUCTURADAS PUBLICADAS.');
   await expect(page.locator('[data-connected-node="events"] [data-connected-count]')).toHaveText('2');
 });
 
@@ -394,9 +394,9 @@ test('Connected ignores inherited relation counters and draws no fabricated link
   await mount(page, inherited);
   await expect(page.locator('[data-connected-lines] line')).toHaveCount(0);
   await expect(page.locator('[data-connected-edge="event_artist"]')).toHaveCount(0);
-  await expect(page.locator('[data-connected-ledger]')).toContainText('NO STRUCTURED LINKS YET.');
+  await expect(page.locator('[data-connected-ledger]')).toContainText('AÚN NO HAY VÍNCULOS ESTRUCTURADOS.');
   await expect(page.locator('[data-connected-edges]')).toContainText(
-    'NO STRUCTURED RELATIONSHIPS PUBLISHED YET.'
+    'AÚN NO HAY RELACIONES ESTRUCTURADAS PUBLICADAS.'
   );
 });
 
@@ -405,8 +405,8 @@ test('Connected tolerates null CMS relationship counts without fabricated edges'
   empty.relations = {counts:null};
   await mount(page, empty);
   await expect(page.locator('[data-connected-lines] line')).toHaveCount(0);
-  await expect(page.locator('[data-connected-ledger]')).toContainText('NO STRUCTURED LINKS YET.');
-  await expect(page.locator('[data-connected-edges]')).toContainText('NO STRUCTURED RELATIONSHIPS PUBLISHED YET.');
+  await expect(page.locator('[data-connected-ledger]')).toContainText('AÚN NO HAY VÍNCULOS ESTRUCTURADOS.');
+  await expect(page.locator('[data-connected-edges]')).toContainText('AÚN NO HAY RELACIONES ESTRUCTURADAS PUBLICADAS.');
   await expect(page.locator('[data-connected-node="events"] [data-connected-count]')).toHaveText('2');
 });
 
@@ -426,7 +426,7 @@ test('Connected rejects malformed CMS counts without fabricating graph edges', a
   await expect(page.locator('[data-connected-lines] line')).toHaveCount(1);
   await expect(page.locator('[data-connected-edge="set_memory"]')).toHaveAttribute('data-connected-count','2');
   await expect(page.locator('[data-connected-edge="event_artist"]')).toHaveCount(0);
-  await expect(page.locator('[data-connected-edges]')).toContainText('2 VERIFIED RELATIONAL LINKS');
+  await expect(page.locator('[data-connected-edges]')).toContainText('2 VÍNCULOS VERIFICADOS');
 });
 
 test('Connected declines an imprecise aggregate total while preserving exact CMS edges', async ({page}) => {
@@ -437,7 +437,7 @@ test('Connected declines an imprecise aggregate total while preserving exact CMS
   await expect(page.locator('[data-connected-edge="event_artist"]'))
     .toHaveAttribute('data-connected-count',String(Number.MAX_SAFE_INTEGER));
   await expect(page.locator('[data-connected-ledger-edge="event_set"]')).toContainText('1');
-  await expect(page.locator('[data-connected-edges]')).toHaveText('RELATIONAL LINK TOTAL UNAVAILABLE.');
+  await expect(page.locator('[data-connected-edges]')).toHaveText('TOTAL DE VÍNCULOS RELACIONALES NO DISPONIBLE.');
 });
 
 test('Journal empty state remains honest and reduced-motion leaves the authored modules static', async ({page}) => {

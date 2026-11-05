@@ -45,7 +45,7 @@ test('Home omits blank ticket/set/social links and preserves real HTTP(S) URLs',
   }));
 
   await page.goto(harness);
-  await expect(page.locator('#dynamicStatus')).toHaveText('LIVE / CMS CONNECTED');
+  await expect(page.locator('#dynamicStatus')).toHaveText('EN VIVO / CMS CONECTADO');
   await expect(page.locator('.event-ticket')).toHaveCount(0);
   await expect(page.locator('.set-action')).toHaveCount(0);
   await expect(page.locator('[data-social="instagram"]')).toBeHidden();

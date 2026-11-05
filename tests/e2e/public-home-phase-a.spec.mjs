@@ -11,11 +11,11 @@ const markup = `<!doctype html><html><head><meta name="viewport" content="width=
   <header class="nav"><a class="brand"><span>BRVTAL</span></a></header>
   <section class="hero scene home-phase-a-hero">
     <div class="hero-grid"></div><div class="hero-scan"></div><div class="hero-glitch-lines"></div>
-    <div class="hero-copy"><div class="eyebrow mono">UNDERGROUND ELECTRONIC CULTURE / PEREIRA / COLOMBIA</div><h1 class="hero-title" data-text="BRVTAL">BRVTAL</h1><div class="hero-sub"><span>RAVE TILL GRAVE</span><span>EST. 2026</span></div><div class="hero-declaration"><span class="mono">BRVTAL / CULTURAL SIGNAL</span><strong>EVENTS / SOUND / ARTISTS / ARCHIVE</strong><p>BUILT IN PEREIRA. CONNECTED THROUGH UNDERGROUND ELECTRONIC CULTURE.</p></div></div>
-    <div class="hero-logo-wrap"></div><div class="hero-bottom mono"><span>01 / 07</span><span>SCROLL TO ENTER</span><span>NOISE / SIGNAL / MUSIC</span></div>
+    <div class="hero-copy"><div class="eyebrow mono">CULTURA ELECTRÓNICA UNDERGROUND / PEREIRA / COLOMBIA</div><h1 class="hero-title" data-text="BRVTAL">BRVTAL</h1><div class="hero-sub"><span>RAVE TILL GRAVE</span><span>DESDE 2026</span></div><div class="hero-declaration"><span class="mono">BRVTAL / CULTURAL SIGNAL</span><strong>EVENTOS / SONIDO / ARTISTAS / ARCHIVO</strong><p>BUILT IN PEREIRA. CONNECTED THROUGH CULTURA ELECTRÓNICA UNDERGROUND.</p></div></div>
+    <div class="hero-logo-wrap"></div><div class="hero-bottom mono"><span>01 / 07</span><span>DESLIZA PARA ENTRAR</span><span>RUIDO / SEÑAL / MÚSICA</span></div>
   </section>
   <section class="genesis scene home-phase-a-experience">
-    <div class="genesis-copy"><div class="eyebrow mono">NEXT EXPERIENCE / BRVTAL</div><h2 data-text="UMBRAL 03 // NUCLEO NEURAL + MAREA CIEGA">UMBRAL 03 // NUCLEO NEURAL + MAREA CIEGA</h2><p class="genesis-tag">LAST TICKETS.</p><div class="genesis-data mono"><span>21.11.2026</span><span>22:00</span><span>PEREIRA / WAREHOUSE 09</span></div><div class="experience-lineup"><span class="mono">LINEUP</span><p>PL0N3R <i>/</i> DNL5 <i>/</i> HAKKI</p></div><div class="experience-actions"><a class="enter" href="#event">ENTER EXPERIENCE <span>↗</span></a><a class="ticket-cta" href="#tickets">TICKETS <span>↗</span></a></div></div>
+    <div class="genesis-copy"><div class="eyebrow mono">PRÓXIMA EXPERIENCIA / BRVTAL</div><h2 data-text="UMBRAL 03 // NUCLEO NEURAL + MAREA CIEGA">UMBRAL 03 // NUCLEO NEURAL + MAREA CIEGA</h2><p class="genesis-tag">ÚLTIMAS ENTRADAS.</p><div class="genesis-data mono"><span>21.11.2026</span><span>22:00</span><span>PEREIRA / WAREHOUSE 09</span></div><div class="experience-lineup"><span class="mono">LINEUP</span><p>PL0N3R <i>/</i> DNL5 <i>/</i> HAKKI</p></div><div class="experience-actions"><a class="enter" href="#event">ENTRAR <span>↗</span></a><a class="ticket-cta" href="#tickets">TICKETS <span>↗</span></a></div></div>
   </section>
 </body></html>`;
 
@@ -24,7 +24,7 @@ test('Phase A keeps the cultural statement visible on desktop', async ({ page })
   await page.setContent(markup);
 
   await expect(page.locator('.hero-declaration')).toBeVisible();
-  await expect(page.locator('.hero-declaration strong')).toContainText('EVENTS / SOUND / ARTISTS / ARCHIVE');
+  await expect(page.locator('.hero-declaration strong')).toContainText('EVENTOS / SONIDO / ARTISTAS / ARCHIVO');
   await expect(page.locator('.hero-copy .eyebrow')).toContainText('PEREIRA / COLOMBIA');
   await expect(page.locator('.ticket-cta')).toBeVisible();
 

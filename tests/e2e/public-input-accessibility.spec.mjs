@@ -12,11 +12,11 @@ async function openHarness(page, withGsap) {
   await page.route(harnessUrl, route => route.fulfill({
     contentType: 'text/html; charset=utf-8',
     body: `<!doctype html><html><head><style>:root{--acid:#b8ff00;--fg:#f2f2ef;--bg:#050505}${homeCss}${css}</style></head><body>
-      <a class="skip-link mono" href="#content">SKIP TO CONTENT</a>
+      <a class="skip-link mono" href="#content">IR AL CONTENIDO</a>
       <a href="#content">LINK</a><button type="button">BUTTON</button>
       <a class="brand" href="#content"><span>BRVTAL</span><small>RAVE TILL GRAVE</small></a>
-      <button class="sound" type="button">SOUND</button><button class="menu" type="button">MENU</button>
-      <a class="enter" href="#content">ENTER EXPERIENCE</a><a class="event-ticket" href="#content">TICKETS</a><a class="footer-link" href="#content">CONTACT</a>
+      <button class="sound" type="button">SONIDO</button><button class="menu" type="button">MENÚ</button>
+      <a class="enter" href="#content">ENTRAR</a><a class="event-ticket" href="#content">ENTRADAS</a><a class="footer-link" href="#content">CONTACTO</a>
       <div class="cursor"></div><div class="cursor-label"></div><main id="content" tabindex="-1">CONTENT</main>
       ${withGsap ? '<script>window.gsap={};</script>' : ''}<script>${script}</script>
     </body></html>`,
@@ -40,11 +40,11 @@ test('public home exposes visible keyboard focus', async ({ page }) => {
 });
 
 test('public home provides keyboard skip navigation to the main content', async ({ page }) => {
-  expect(publicEntry).toContain('SKIP TO CONTENT');
+  expect(publicEntry).toContain('IR AL CONTENIDO');
   expect(publicEntry).toContain('<main id="top" tabindex="-1">');
 
   await openHarness(page, false);
-  const skip = page.getByRole('link', { name: 'SKIP TO CONTENT' });
+  const skip = page.getByRole('link', { name: 'IR AL CONTENIDO' });
   await expect(skip).toHaveCSS('transform', /matrix/);
 
   await page.keyboard.press('Tab');

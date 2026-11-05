@@ -36,14 +36,14 @@ dressing_assert(
 );
 dressing_assert(
     str_contains($rendered, 'c5-menu-nav')
-        && str_contains($rendered, '<strong>NIGHTS</strong>')
-        && str_contains($rendered, '<strong>CONNECTED</strong>'),
+        && str_contains($rendered, '<strong>NOCHES</strong>')
+        && str_contains($rendered, '<strong>CONECTADO</strong>'),
     'overlay menu must use the Concept 05 public information architecture'
 );
 dressing_assert(
     str_contains($rendered, 'c5-footer')
         && str_contains($rendered, 'data-site-name>BRVTAL</')
-        && str_contains($rendered, 'href="/contact">COLLABORATE ↗</a>'),
+        && str_contains($rendered, 'href="/contact">COLABORA ↗</a>'),
     'footer must expose managed identity and canonical contact/collaboration routes'
 );
 dressing_assert(

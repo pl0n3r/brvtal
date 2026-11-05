@@ -16,17 +16,17 @@ const fixture = `<!doctype html><html class="native-events-scroll"><head>
 <style>${baseCss}\n${controlCss}\n${mobileEventsCss}\n${visualCss}</style></head><body>
 <section class="hero"><div class="hero-title">BRVTAL</div></section>
 <section class="events">
-  <div class="section-head"><h2>EVENTS</h2></div>
+  <div class="section-head"><h2>EVENTOS</h2></div>
   <div class="events-track">
-    <article class="event-card" id="without-ticket"><div class="event-img"></div><div class="event-info"><span class="mono">17.09.2026 / PEREIRA</span><h3>NO SIGNAL</h3><p>BRVTAL EXPERIENCE</p><span class="event-status">NEXT EXPERIENCE</span></div></article>
+    <article class="event-card" id="without-ticket"><div class="event-img"></div><div class="event-info"><span class="mono">17.09.2026 / PEREIRA</span><h3>NO SIGNAL</h3><p>BRVTAL EXPERIENCE</p><span class="event-status">PRÓXIMA EXPERIENCIA</span></div></article>
     <article class="event-card" id="with-ticket"><div class="event-img"></div><div class="event-info"><span class="mono">18.09.2026 / PEREIRA</span><h3>RED SIGNAL</h3><p>BRVTAL EXPERIENCE</p><span class="event-status">ACTIVE</span><a class="event-ticket mono" href="https://example.com/tickets">TICKETS ↗</a></div></article>
-    <article class="event-card"><div class="event-img"></div><div class="event-info"><span class="mono">19.09.2026 / PEREIRA</span><h3>AFTERIMAGE</h3><p>BRVTAL EXPERIENCE</p><span class="event-status">ARCHIVE</span></div></article>
+    <article class="event-card"><div class="event-img"></div><div class="event-info"><span class="mono">19.09.2026 / PEREIRA</span><h3>AFTERIMAGE</h3><p>BRVTAL EXPERIENCE</p><span class="event-status">ARCHIVO</span></div></article>
   </div>
   <div id="eventArchive"></div>
 </section>
 <section class="artists"><div class="section-head"><h2>ROSTER</h2></div></section>
 <section class="sets"><div class="section-head"><h2>SETS</h2></div></section>
-<section class="media"><div class="media-title"><h2>MEMORIES</h2></div></section>
+<section class="media"><div class="media-title"><h2>MEMORIAS</h2></div></section>
 </body></html>`;
 
 async function mount(page, viewport = { width: 1440, height: 900 }) {

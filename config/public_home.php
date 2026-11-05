@@ -210,27 +210,27 @@ function brvtal_public_home_upper(string $value): string
 function brvtal_public_next_experience_date_parts(?array $event): array
 {
     $raw = trim((string)($event['event_date'] ?? ''));
-    if ($raw === '') return ['DATE TBA', 'TIME TBA'];
+    if ($raw === '') return ['FECHA POR ANUNCIAR', 'HORA POR ANUNCIAR'];
 
     try {
         $date = new DateTimeImmutable($raw);
         return [$date->format('d.m.Y'), $date->format('H:i')];
     } catch (Throwable) {
-        return ['DATE TBA', 'TIME TBA'];
+        return ['FECHA POR ANUNCIAR', 'HORA POR ANUNCIAR'];
     }
 }
 
 function brvtal_public_next_experience_tag(?array $event): string
 {
-    if ($event === null) return 'NEW DATE TO BE ANNOUNCED.';
+    if ($event === null) return 'NUEVA FECHA POR ANUNCIAR.';
 
     $status = strtolower(trim((string)($event['status'] ?? '')));
     return match ($status) {
-        'sold_out' => 'SOLD OUT.',
-        'last_tickets' => 'LAST TICKETS.',
-        'tickets_available' => 'TICKETS AVAILABLE.',
-        'upcoming' => 'UPCOMING.',
-        default => 'NEXT SIGNAL.',
+        'sold_out' => 'AGOTADO.',
+        'last_tickets' => 'ÚLTIMAS ENTRADAS.',
+        'tickets_available' => 'ENTRADAS DISPONIBLES.',
+        'upcoming' => 'PRÓXIMAMENTE.',
+        default => 'PRÓXIMA SEÑAL.',
     };
 }
 
@@ -278,10 +278,10 @@ function brvtalPublicNextExperienceTicketSignalMarkup(?array $event): string
             continue;
         }
 
-        $label = $name !== '' ? brvtal_public_home_escape(brvtal_public_home_upper($name)) : 'TICKET';
+        $label = $name !== '' ? brvtal_public_home_escape(brvtal_public_home_upper($name)) : 'ENTRADA';
         $value = $status === 'sold_out'
-            ? 'SOLD OUT'
-            : ($price !== '' ? brvtal_public_home_escape($price) : 'AVAILABLE');
+            ? 'AGOTADO'
+            : ($price !== '' ? brvtal_public_home_escape($price) : 'DISPONIBLE');
         $items[] = '<div class="c5-experience-ticket" data-ticket-status="'
             . brvtal_public_home_escape($status !== '' ? $status : 'active')
             . '"><span class="mono">' . $label . '</span><strong>' . $value . '</strong></div>';
@@ -293,7 +293,7 @@ function brvtalPublicNextExperienceTicketSignalMarkup(?array $event): string
     if ($items === []) {
         return '';
     }
-    return '<div class="c5-experience-ticket-signal" aria-label="Ticket status">'
+    return '<div class="c5-experience-ticket-signal" aria-label="Estado de entradas">'
         . implode('', $items)
         . '</div>';
 }
@@ -359,22 +359,22 @@ function brvtalPublicHomeConcept05Menu(string $html): string
     $menu = '<aside class="menu-panel c5-menu-panel" id="menuPanel" aria-hidden="true">'
         . '<div class="menu-panel-bg"></div>'
         . '<div class="menu-panel-inner">'
-        . '<div class="menu-label mono">NAVIGATION / CULTURAL ARCHIVE</div>'
-        . '<nav class="c5-menu-nav" aria-label="Site destinations">'
+        . '<div class="menu-label mono">NAVEGACIÓN / ARCHIVO CULTURAL</div>'
+        . '<nav class="c5-menu-nav" aria-label="Destinos del sitio">'
         . '<a href="#top"><span>00</span><strong>BRVTAL</strong></a>'
         . '<a href="#genesis" data-c5-next-menu><span>01</span>'
-        . '<strong data-c5-next-label>NEXT</strong></a>'
-        . '<a href="#events" data-c5-nav-section="events"><span>02</span><strong>NIGHTS</strong></a>'
-        . '<a href="#artists" data-c5-nav-section="artists"><span>03</span><strong>ARTISTS</strong></a>'
-        . '<a href="#sets" data-c5-nav-section="sets"><span>04</span><strong>SOUND</strong></a>'
-        . '<a href="/releases" data-c5-nav-section="releases"><span>05</span><strong>RECORDS</strong></a>'
+        . '<strong data-c5-next-label>SIGUIENTE</strong></a>'
+        . '<a href="#events" data-c5-nav-section="events"><span>02</span><strong>NOCHES</strong></a>'
+        . '<a href="#artists" data-c5-nav-section="artists"><span>03</span><strong>ARTISTAS</strong></a>'
+        . '<a href="#sets" data-c5-nav-section="sets"><span>04</span><strong>SONIDO</strong></a>'
+        . '<a href="/releases" data-c5-nav-section="releases"><span>05</span><strong>DISCOS</strong></a>'
         . '<a href="#transmissions" data-c5-nav-section="transmissions"><span>06</span>'
         . '<strong>JOURNAL</strong></a>'
         . '<a href="#connected" data-c5-nav-section="connected"><span>07</span>'
-        . '<strong>CONNECTED</strong></a>'
-        . '<a href="/contact"><span>08</span><strong>CONTACT</strong></a>'
+        . '<strong>CONECTADO</strong></a>'
+        . '<a href="/contact"><span>08</span><strong>CONTACTO</strong></a>'
         . '</nav>'
-        . '<div class="menu-footer mono">PEREIRA / COLOMBIA · UNDERGROUND ELECTRONIC CULTURE</div>'
+        . '<div class="menu-footer mono">PEREIRA / COLOMBIA · CULTURA ELECTRÓNICA UNDERGROUND</div>'
         . '</div>'
         . '</aside>';
 
@@ -401,21 +401,21 @@ function brvtalPublicHomeConcept05Footer(string $html): string
         . ' aria-labelledby="c5-footer-title">'
         . '<div class="c5-footer-grid">'
         . '<div class="c5-footer-brand">'
-        . '<span class="mono">PEREIRA / COLOMBIA · UNDERGROUND ELECTRONIC CULTURE</span>'
+        . '<span class="mono">PEREIRA / COLOMBIA · CULTURA ELECTRÓNICA UNDERGROUND</span>'
         . '<h2 id="c5-footer-title" data-site-name>BRVTAL</h2>'
-        . '<p><span data-site-tagline>RAVE TILL GRAVE</span> / CULTURE IN MOTION.</p>'
+        . '<p><span data-site-tagline>RAVE TILL GRAVE</span> / CULTURA EN MOVIMIENTO.</p>'
         . '</div>'
-        . '<nav class="c5-footer-nav mono" aria-label="Footer destinations">'
-        . '<a href="#events">NIGHTS</a><a href="#artists">ARTISTS</a>'
-        . '<a href="#sets">SOUND</a><a href="/releases">RECORDS</a>'
-        . '<a href="#transmissions">JOURNAL</a><a href="#connected">CONNECTED</a>'
+        . '<nav class="c5-footer-nav mono" aria-label="Destinos del pie de página">'
+        . '<a href="#events">NOCHES</a><a href="#artists">ARTISTAS</a>'
+        . '<a href="#sets">SONIDO</a><a href="/releases">DISCOS</a>'
+        . '<a href="#transmissions">JOURNAL</a><a href="#connected">CONECTADO</a>'
         . '</nav>'
         . '<div class="c5-footer-contact">'
-        . '<span class="mono">TRANSMIT / COLLABORATE</span>'
-        . '<a href="/contact">CONTACT ↗</a>'
-        . '<a href="/contact">COLLABORATE ↗</a>'
+        . '<span class="mono">TRANSMITE / COLABORA</span>'
+        . '<a href="/contact">CONTACTO ↗</a>'
+        . '<a href="/contact">COLABORA ↗</a>'
         . '</div>'
-        . '<div class="c5-footer-socials mono" aria-label="BRVTAL social links">'
+        . '<div class="c5-footer-socials mono" aria-label="Enlaces sociales BRVTAL">'
         . '<a href="#" data-social="instagram" target="_blank" rel="noopener noreferrer" hidden>INSTAGRAM ↗</a>'
         . '<a href="#" data-social="soundcloud" target="_blank" rel="noopener noreferrer" hidden>SOUNDCLOUD ↗</a>'
         . '<a href="#" data-social="youtube" target="_blank" rel="noopener noreferrer" hidden>YOUTUBE ↗</a>'
@@ -424,8 +424,8 @@ function brvtalPublicHomeConcept05Footer(string $html): string
         . '</div>'
         . '<div class="c5-footer-legal mono">'
         . '<span>© <span data-footer-year>2026</span> <span data-site-name>BRVTAL</span></span>'
-        . '<a href="#" data-footer-privacy hidden>PRIVACY ↗</a>'
-        . '<span>EN</span>'
+        . '<a href="#" data-footer-privacy hidden>PRIVACIDAD ↗</a>'
+        . '<span>ES</span>'
         . '</div>'
         . '</div>'
         . '</footer>';
@@ -470,18 +470,18 @@ function brvtal_public_home_concept05_dressing(string $html): string
         );
     }
 
-    $brandLink = '<a class="brand magnetic" href="#top" data-cursor="HOME">'
+    $brandLink = '<a class="brand magnetic" href="#top" data-cursor="INICIO">'
         . '<span data-site-name>BRVTAL</span>'
         . '<small data-site-tagline>RAVE TILL GRAVE</small>'
         . '</a>';
     if (str_contains($html, $brandLink) && !str_contains($html, 'c5-header-nav')) {
-        $headerNav = '<nav class="c5-header-nav" aria-label="Primary">'
-            . '<a href="#events" data-c5-nav-section="events">NIGHTS</a>'
-            . '<a href="#artists" data-c5-nav-section="artists">ARTISTS</a>'
-            . '<a href="#sets" data-c5-nav-section="sets">SOUND</a>'
-            . '<a href="/releases" data-c5-nav-section="releases">RECORDS</a>'
+        $headerNav = '<nav class="c5-header-nav" aria-label="Navegación principal">'
+            . '<a href="#events" data-c5-nav-section="events">NOCHES</a>'
+            . '<a href="#artists" data-c5-nav-section="artists">ARTISTAS</a>'
+            . '<a href="#sets" data-c5-nav-section="sets">SONIDO</a>'
+            . '<a href="/releases" data-c5-nav-section="releases">DISCOS</a>'
             . '<a href="#transmissions" data-c5-nav-section="transmissions">JOURNAL</a>'
-            . '<a href="#connected" data-c5-nav-section="connected">CONNECTED</a>'
+            . '<a href="#connected" data-c5-nav-section="connected">CONECTADO</a>'
             . '</nav>'
             . '<span class="c5-header-origin mono">PEREIRA / COLOMBIA</span>';
         $html = str_replace($brandLink, $brandLink . $headerNav, $html);
@@ -518,15 +518,15 @@ function brvtal_public_home_concept05_dressing(string $html): string
     }
 
     if (!str_contains($html, 'c5-bottom-nav')) {
-        $bottomNav = '<nav class="c5-bottom-nav" aria-label="Primary mobile">'
+        $bottomNav = '<nav class="c5-bottom-nav" aria-label="Navegación móvil principal">'
             . '<a href="#events" data-c5-nav-section="events">'
-            . '<span class="c5-bottom-icon" data-icon="nights" aria-hidden="true"></span><span>NIGHTS</span></a>'
+            . '<span class="c5-bottom-icon" data-icon="nights" aria-hidden="true"></span><span>NOCHES</span></a>'
             . '<a href="#artists" data-c5-nav-section="artists">'
-            . '<span class="c5-bottom-icon" data-icon="artists" aria-hidden="true"></span><span>ARTISTS</span></a>'
+            . '<span class="c5-bottom-icon" data-icon="artists" aria-hidden="true"></span><span>ARTISTAS</span></a>'
             . '<a href="#sets" data-c5-nav-section="sets">'
-            . '<span class="c5-bottom-icon" data-icon="sound" aria-hidden="true"></span><span>SOUND</span></a>'
+            . '<span class="c5-bottom-icon" data-icon="sound" aria-hidden="true"></span><span>SONIDO</span></a>'
             . '<a href="/releases" data-c5-nav-section="releases">'
-            . '<span class="c5-bottom-icon" data-icon="records" aria-hidden="true"></span><span>RECORDS</span></a>'
+            . '<span class="c5-bottom-icon" data-icon="records" aria-hidden="true"></span><span>DISCOS</span></a>'
             . '<a href="#transmissions" data-c5-nav-section="transmissions">'
             . '<span class="c5-bottom-icon" data-icon="journal" aria-hidden="true"></span><span>JOURNAL</span></a>'
             . '</nav>';
@@ -553,22 +553,22 @@ function brvtal_public_home_concept05_connected_section(string $html): string
     $section = '<section class="connected scene c5-numbered" data-scene="ARCHIVE" data-index="07"'
         . ' id="connected" aria-labelledby="connected-title">'
         . '<div class="c5-connected-graph" data-connected-graph aria-live="polite">'
-        . '<h2 id="connected-title" class="sr-only">Connected</h2>'
-        . '<div class="c5-connected-kicker mono">PUBLIC RELATIONAL SYSTEM / VERIFIED EDGES ONLY</div>'
+        . '<h2 id="connected-title" class="sr-only">Conectado</h2>'
+        . '<div class="c5-connected-kicker mono">SISTEMA RELACIONAL PÚBLICO / SOLO VÍNCULOS VERIFICADOS</div>'
         . '<svg class="c5-connected-lines" data-connected-lines aria-hidden="true"></svg>'
         . '<ul class="c5-connected-nodes">'
-        . '<li data-connected-node="events"><a href="#events"><span class="mono">EVENTS</span>'
+        . '<li data-connected-node="events"><a href="#events"><span class="mono">EVENTOS</span>'
         . '<strong data-connected-count>&mdash;</strong></a></li>'
-        . '<li data-connected-node="artists"><a href="#artists"><span class="mono">ARTISTS</span>'
+        . '<li data-connected-node="artists"><a href="#artists"><span class="mono">ARTISTAS</span>'
         . '<strong data-connected-count>&mdash;</strong></a></li>'
-        . '<li data-connected-node="sets"><a href="#sets"><span class="mono">SOUND</span>'
+        . '<li data-connected-node="sets"><a href="#sets"><span class="mono">SONIDO</span>'
         . '<strong data-connected-count>&mdash;</strong></a></li>'
-        . '<li data-connected-node="releases"><a href="/releases"><span class="mono">RECORDS</span>'
+        . '<li data-connected-node="releases"><a href="/releases"><span class="mono">DISCOS</span>'
         . '<strong data-connected-count>&mdash;</strong></a></li>'
-        . '<li data-connected-node="memories"><a href="#media"><span class="mono">MEMORIES</span>'
+        . '<li data-connected-node="memories"><a href="#media"><span class="mono">MEMORIAS</span>'
         . '<strong data-connected-count>&mdash;</strong></a></li>'
         . '</ul>'
-        . '<div class="c5-connected-ledger" data-connected-ledger aria-label="Published relationships"></div>'
+        . '<div class="c5-connected-ledger" data-connected-ledger aria-label="Relaciones publicadas"></div>'
         . '<p class="c5-connected-edges mono" data-connected-edges>&nbsp;</p>'
         . '<p class="c5-connected-tagline">TODO CONECTADO.</p>'
         . '</div>'
@@ -614,7 +614,7 @@ function brvtal_public_home_identity(string $html): string
     // reversible locale fallbacks; editors cannot inject HTML into the defaults.
     $heroManifestos = [
         'es' => 'MÁS QUE FIESTAS.<br>UNA CULTURA EN MOVIMIENTO.',
-        'en' => 'MORE THAN PARTIES.<br>A CULTURE IN MOTION.',
+        'en' => 'MÁS QUE FIESTAS.<br>UNA CULTURA EN MOVIMIENTO.',
     ];
     $heroManifesto = $heroManifestos[$heroLocale];
     $heroManifestoDefaults = '';
@@ -624,7 +624,7 @@ function brvtal_public_home_identity(string $html): string
         $heroManifestoDefaults .= ' data-c5-default-' . $locale
             . '="' . str_replace("\n", '&#10;', $escaped) . '"';
     }
-    $heroCta = $heroLocale === 'en' ? 'EXPLORE BRVTAL' : 'EXPLORA BRVTAL';
+    $heroCta = $heroLocale === 'en' ? 'EXPLORA BRVTAL' : 'EXPLORA BRVTAL';
 
     if (!str_contains($html, 'css/public-concept05-hero.css')) {
         $html = str_replace(
@@ -708,24 +708,24 @@ function brvtal_public_home_identity(string $html): string
     );
     $html = str_replace(
         '<div class="eyebrow mono">BRVTAL / PEREIRA / COLOMBIA / 2026</div>',
-        '<div class="eyebrow mono">UNDERGROUND ELECTRONIC CULTURE / PEREIRA / COLOMBIA</div>',
+        '<div class="eyebrow mono">CULTURA ELECTRÓNICA UNDERGROUND / PEREIRA / COLOMBIA</div>',
         $html
     );
 
-    $heroSub = '<div class="hero-sub"><span data-site-tagline>RAVE TILL GRAVE</span><span>EST. 2026</span></div>';
+    $heroSub = '<div class="hero-sub"><span data-site-tagline>RAVE TILL GRAVE</span><span>DESDE 2026</span></div>';
     if (str_contains($html, $heroSub) && !str_contains($html, 'class="hero-declaration')) {
         $heroStatement = '<div class="hero-declaration c5-hero-statement">'
             . '<span class="mono" data-c5-hero-eyebrow'
-            . ' data-c5-default-es="EVENTS / SOUND / ARTISTS / ARCHIVE"'
-            . ' data-c5-default-en="EVENTS / SOUND / ARTISTS / ARCHIVE">'
-            . 'EVENTS / SOUND / ARTISTS / ARCHIVE</span>'
+            . ' data-c5-default-es="EVENTOS / SONIDO / ARTISTAS / ARCHIVO"'
+            . ' data-c5-default-en="EVENTOS / SONIDO / ARTISTAS / ARCHIVO">'
+            . 'EVENTOS / SONIDO / ARTISTAS / ARCHIVO</span>'
             . '<strong' . $heroManifestoDefaults
             . ' data-c5-display-locale="' . $heroLocale . '"'
             . ' data-c5-hero-manifesto>' . $heroManifesto . '</strong>'
             . '<p data-c5-hero-description'
-            . ' data-c5-default-description="PEREIRA / COLOMBIA · UNDERGROUND ELECTRONIC CULTURE">'
-            . 'PEREIRA / COLOMBIA · UNDERGROUND ELECTRONIC CULTURE</p>'
-            . '<a class="c5-hero-explore magnetic" href="#genesis" data-cursor="EXPLORE"'
+            . ' data-c5-default-description="PEREIRA / COLOMBIA · CULTURA ELECTRÓNICA UNDERGROUND">'
+            . 'PEREIRA / COLOMBIA · CULTURA ELECTRÓNICA UNDERGROUND</p>'
+            . '<a class="c5-hero-explore magnetic" href="#genesis" data-cursor="EXPLORAR"'
             . ' data-c5-hero-cta data-c5-default-es="EXPLORA BRVTAL"'
             . ' data-c5-default-en="EXPLORE BRVTAL">'
             . $heroCta . ' <span>↘</span></a>'
@@ -740,8 +740,8 @@ function brvtal_public_home_identity(string $html): string
     ) {
         $documentary = '<figure class="c5-hero-documentary" data-c5-hero-documentary hidden>'
             . '<img data-c5-hero-documentary-image src="" alt="" decoding="async" fetchpriority="low">'
-            . '<figcaption><span>DOCUMENT / MEDIA LIBRARY</span>'
-            . '<span data-c5-hero-documentary-label>BRVTAL ARCHIVE</span></figcaption>'
+            . '<figcaption><span>DOCUMENTO / ARCHIVO VISUAL</span>'
+            . '<span data-c5-hero-documentary-label>ARCHIVO BRVTAL</span></figcaption>'
             . '</figure>';
         $html = str_replace($heroLogoWrap, $documentary . $heroLogoWrap, $html);
     }
@@ -797,7 +797,7 @@ function brvtal_public_next_experience_lineup_markup(?array $event): string
     }
     if ($names === []) return '';
 
-    return '<div class="experience-lineup"><span class="mono">LINEUP</span><p>' . implode(' <i>/</i> ', $names) . '</p></div>';
+    return '<div class="experience-lineup"><span class="mono">ELENCO</span><p>' . implode(' <i>/</i> ', $names) . '</p></div>';
 }
 
 function brvtal_public_render_next_experience(string $html, ?array $event): string
@@ -818,7 +818,7 @@ function brvtal_public_render_next_experience(string $html, ?array $event): stri
     $description = trim((string)($event['description'] ?? ''));
 
     if ($title === '') {
-        $title = 'NEXT SIGNAL';
+        $title = 'PRÓXIMA SEÑAL';
         $slug = '';
         $city = '';
         $venue = '';
@@ -829,9 +829,9 @@ function brvtal_public_render_next_experience(string $html, ?array $event): stri
 
     [$dateLabel, $timeLabel] = brvtal_public_next_experience_date_parts($event);
     $locationParts = array_values(array_filter([$city, $venue], static fn(string $value): bool => $value !== ''));
-    $location = $locationParts ? brvtal_public_home_upper(implode(' / ', $locationParts)) : 'LOCATION TBA';
+    $location = $locationParts ? brvtal_public_home_upper(implode(' / ', $locationParts)) : 'LUGAR POR ANUNCIAR';
     $href = $slug !== '' ? '/events/' . rawurlencode($slug) : '#events';
-    $cta = $event ? 'ENTER EXPERIENCE' : 'VIEW EVENTS';
+    $cta = $event ? 'ENTRAR' : 'VER EVENTOS';
     $ticketUrl = $event ? brvtal_public_home_http_url($event['public_ticket_url'] ?? '') : '';
 
     $safeTitle = brvtal_public_home_escape($title);
@@ -850,7 +850,7 @@ function brvtal_public_render_next_experience(string $html, ?array $event): stri
     $section = str_replace('data-scene="GENESIS"', 'data-scene="EXPERIENCE" data-c5-experience', $section);
     $section = preg_replace(
         '~<div class="eyebrow mono">.*?</div>~s',
-        '<div class="eyebrow mono">NEXT EXPERIENCE / BRVTAL</div>',
+        '<div class="eyebrow mono">PRÓXIMA EXPERIENCIA / BRVTAL</div>',
         $section,
         1
     ) ?? $section;
@@ -869,9 +869,9 @@ function brvtal_public_render_next_experience(string $html, ?array $event): stri
     $section = preg_replace_callback(
         '~<div class="genesis-data mono">.*?</div>~s',
         static fn(array $_matches): string => '<div class="genesis-data mono">'
-            . '<span data-c5-fact="date" data-label="DATE">' . brvtal_public_home_escape($dateLabel) . '</span>'
-            . '<span data-c5-fact="time" data-label="TIME">' . brvtal_public_home_escape($timeLabel) . '</span>'
-            . '<span data-c5-fact="location" data-label="LOCATION">' . $safeLocation . '</span>'
+            . '<span data-c5-fact="date" data-label="FECHA">' . brvtal_public_home_escape($dateLabel) . '</span>'
+            . '<span data-c5-fact="time" data-label="HORA">' . brvtal_public_home_escape($timeLabel) . '</span>'
+            . '<span data-c5-fact="location" data-label="LUGAR">' . $safeLocation . '</span>'
             . '</div>',
         $section,
         1
@@ -883,14 +883,14 @@ function brvtal_public_render_next_experience(string $html, ?array $event): stri
         : '';
 
     $actions = '<div class="experience-actions">'
-        . '<a class="enter magnetic" href="' . $safeHref . '" data-cursor="ENTER">'
+        . '<a class="enter magnetic" href="' . $safeHref . '" data-cursor="ENTRAR">'
         . $cta
         . ' <span>↗</span></a>';
     if ($ticketUrl !== '') {
         $actions .= '<a class="ticket-cta magnetic" href="'
             . brvtal_public_home_escape($ticketUrl)
-            . '" target="_blank" rel="noopener" data-cursor="TICKETS">'
-            . 'TICKETS <span>↗</span></a>';
+            . '" target="_blank" rel="noopener" data-cursor="ENTRADAS">'
+            . 'ENTRADAS <span>↗</span></a>';
     }
     $actions .= '</div>';
 
@@ -909,9 +909,9 @@ function brvtal_public_render_next_experience(string $html, ?array $event): stri
         $background = '<div class="genesis-bg c5-experience-artwork"'
             . ' data-c5-experience-artwork style="background-image:none">'
             . '<img src="' . $safeCover . '" alt="' . $safeTitle
-            . ' event artwork" loading="lazy" decoding="async">'
+            . ' de evento" loading="lazy" decoding="async">'
             . '<span class="c5-experience-artwork-label mono" aria-hidden="true">'
-            . 'BRVTAL / NEXT EXPERIENCE</span>'
+            . 'BRVTAL / PRÓXIMA EXPERIENCIA</span>'
             . '</div>';
     }
     $section = str_replace('<div class="genesis-bg"></div>', $background, $section);
@@ -922,8 +922,8 @@ function brvtal_public_render_next_experience(string $html, ?array $event): stri
     if ($ticketUrl !== '' && !str_contains($html, 'c5-header-ticket')) {
         $headerTicket = '<a class="c5-header-ticket magnetic" href="'
             . brvtal_public_home_escape($ticketUrl)
-            . '" target="_blank" rel="noopener" data-cursor="TICKETS">'
-            . 'TICKETS <span>→</span></a>';
+            . '" target="_blank" rel="noopener" data-cursor="ENTRADAS">'
+            . 'ENTRADAS <span>→</span></a>';
         $html = str_replace('<div class="nav-right">', $headerTicket . '<div class="nav-right">', $html);
     }
 

@@ -20,7 +20,7 @@ function fixture({
   artwork = 'https://example.test/genesis.jpg',
 } = {}) {
   const image = artwork
-    ? `<img src="${artwork}" alt="${title} event artwork" loading="lazy" decoding="async"><span class="c5-experience-artwork-label mono">BRVTAL / NEXT EXPERIENCE</span>`
+    ? `<img src="${artwork}" alt="${title} de evento" loading="lazy" decoding="async"><span class="c5-experience-artwork-label mono">BRVTAL / PRÓXIMA EXPERIENCIA</span>`
     : '';
 
   return `<!doctype html>
@@ -37,9 +37,9 @@ function fixture({
       <div class="genesis-noise"></div>
       <div class="genesis-scanline"></div>
       <div class="genesis-copy">
-        <div class="eyebrow mono">NEXT EXPERIENCE / BRVTAL</div>
+        <div class="eyebrow mono">PRÓXIMA EXPERIENCIA / BRVTAL</div>
         <h2 data-text="${title}">${title}</h2>
-        <p class="genesis-tag">LAST TICKETS.</p>
+        <p class="genesis-tag">ÚLTIMAS ENTRADAS.</p>
         <div class="genesis-data mono">
           <span data-c5-fact="date" data-label="DATE">14.08.2026</span>
           <span data-c5-fact="time" data-label="TIME">21:00</span>
@@ -52,16 +52,16 @@ function fixture({
         <p class="c5-experience-note">${note}</p>
         <div class="experience-lineup"><span class="mono">LINEUP</span><p>HAKKI <i>/</i> CRIXXES'T <i>/</i> THEMIIME <i>/</i> DNL5 <i>/</i> SANTY KORE <i>/</i> PL0N3R</p></div>
         <div class="experience-actions">
-          <a class="enter magnetic" href="/events/genesis">ENTER EXPERIENCE <span>↗</span></a>
-          <a class="ticket-cta magnetic" href="https://tickets.example.test/genesis">TICKETS <span>↗</span></a>
+          <a class="enter magnetic" href="/events/genesis">ENTRAR <span>↗</span></a>
+          <a class="ticket-cta magnetic" href="https://tickets.example.test/genesis">ENTRADAS <span>↗</span></a>
         </div>
       </div>
       <div class="genesis-eyes"></div>
       <div class="genesis-orbit"></div>
     </section>
   </main>
-  <nav class="c5-bottom-nav" aria-label="Primary mobile">
-    <a href="#events">NIGHTS</a><a href="#artists">ARTISTS</a><a href="#sets">SOUND</a><a href="/releases">RECORDS</a><a href="#transmissions">JOURNAL</a>
+  <nav class="c5-bottom-nav" aria-label="Navegación móvil principal">
+    <a href="#events">NOCHES</a><a href="#artists">ARTISTAS</a><a href="#sets">SONIDO</a><a href="/releases">DISCOS</a><a href="#transmissions">JOURNAL</a>
   </nav>
 </body>
 </html>`;
@@ -511,10 +511,10 @@ test('PHP-rendered canonical Next Experience keeps published facts and captures 
   await page.setViewportSize({width:390,height:844});
   await page.setContent(canonicalPhpHome({published:false}));
   const section = page.locator('[data-c5-experience]');
-  await expect(section.locator('h2')).toHaveText('NEXT SIGNAL');
+  await expect(section.locator('h2')).toHaveText('PRÓXIMA SEÑAL');
   await expect(section.locator('.ticket-cta')).toHaveCount(0);
   await expect(section.locator('.c5-experience-ticket')).toHaveCount(0);
   await expect(section.locator('.c5-experience-artwork img')).toHaveCount(0);
-  await expect(section.locator('[data-c5-fact="date"]')).toHaveText('DATE TBA');
+  await expect(section.locator('[data-c5-fact="date"]')).toHaveText('FECHA POR ANUNCIAR');
   } finally { await inertContext.close(); }
 });

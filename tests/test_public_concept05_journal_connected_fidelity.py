@@ -91,8 +91,8 @@ class Concept05JournalConnectedFidelityTests(unittest.TestCase):
             "var EDGE_SPECS = [",
             "relations && typeof relations.counts === 'object'",
             "if (value < 1) return;",
-            "NO STRUCTURED LINKS YET.",
-            "NO STRUCTURED RELATIONSHIPS PUBLISHED YET.",
+            "AÚN NO HAY VÍNCULOS ESTRUCTURADOS.",
+            "AÚN NO HAY RELACIONES ESTRUCTURADAS PUBLICADAS.",
             "window.BRVTALPublicDataPromise",
         ):
             with self.subTest(marker=marker):

@@ -107,7 +107,7 @@ const source = {settings:{site:{
   assert.equal(requested[0],'/uploads/media/hero-face--display.webp');
   assert(sections.hero_face.image.srcset.includes('800w'));
   assert(sections.hero_face.image.srcset.includes('1280w'));
-  assert.equal(sections.hero_face.image.alt,'BRVTAL editorial hero face');
+  assert.equal(sections.hero_face.image.alt,'Editorial BRVTAL: imagen principal');
   assert.equal(sections.hero_face.image.width,384);
   assert.equal(sections.hero_face.image.height,240);
   assert.equal(observers.length,1);
