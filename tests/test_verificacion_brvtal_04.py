@@ -134,7 +134,7 @@ class VerificacionBrvtal04Tests(unittest.TestCase):
                                           "[PR #999999]", 1)),
             (matrix.replace(source, source.replace("NO_VERIFICABLE", "CUBIERTO"), 1),
              spec, report),
-            (matrix, spec.replace(case["requirement"], "INVALID_CLAUSE", 1), report),
+            (matrix, spec.replace("Site Settings centralizes global configuration.", "INVALID_CLAUSE", 1), report),
             (matrix, spec, report + "\n| " + TICK + "S99-R999" + TICK
              + " | A_LOCAL | NO_VERIFICABLE | invented | "
              + TICK + "tests/missing.py" + TICK
