@@ -348,6 +348,14 @@ jobs:
             echo "NO_VERIFICABLE: BRVTAL 21 acceptance sheet not yet merged into main"
           fi
 
+      - name: Verify BRVTAL 08 exact coverage contract (#1600)
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v node
+          command -v php
+          python3 -m unittest -v tests/test_verificacion_brvtal_08.py
+
       - name: Enforce image rights registry (BRVTAL #1356)
         shell: bash
         run: |
