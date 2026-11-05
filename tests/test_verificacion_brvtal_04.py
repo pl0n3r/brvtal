@@ -54,6 +54,7 @@ def report_rows(text: str) -> dict[str, list[str]]:
         ident = parts[0].strip(TICK)
         if ident in found:
             raise ValueError("Duplicate report row " + ident)
+        parts[0] = ident
         found[ident] = parts
     return found
 
@@ -157,11 +158,64 @@ class VerificacionBrvtal04Tests(unittest.TestCase):
         self.assertIn("UNKNOWN", report)
         self.assertNotIn("VALIDATED_IN_PRODUCTION", report)
 
+    def test_contratos_s28_s29_con_fuentes_php_js_reales(self):
+        """Exercise scoped SEO/settings/adapter behavior, not unrelated deployment."""
+        from tests import test_cobertura_brvtal_10 as prior
+
+        seo = prior.helper("seo").php_summary("warnings")
+        self.assertEqual(2, seo["issues"])
+        self.assertEqual(2, seo["warning_counts"]["MISSING_TITLE"])
+        self.assertEqual((1, 1), (seo["auto"], seo["manual"]))
+        self.assertNotEqual("UNAVAILABLE", prior.helper("seo").js_seo_view(seo)["state"])
+
+        development = prior.helper("development").php_fixture()
+        self.assertEqual(7, development["open_issues"])
+        self.assertEqual(2, development["open_prs"])
+        self.assertIsNone(prior.helper("development").php_fixture(fail=True)["open_issues"])
+        self.assertIsNone(prior.helper("sonar").fixture("failure")["quality_gate"])
+        self.assertEqual(
+            "unavailable", prior.helper("coderabbit").fixture("unavailable")["review_state"]
+        )
+
+        settings = prior.settings_projection()
+        self.assertEqual("Synthetic Site", settings["public"]["site"]["title"])
+        self.assertEqual("Synthetic Theme", settings["public"]["theme"]["name"])
+        self.assertEqual("GTM-W23PHGJG", settings["id"])
+        self.assertEqual("", settings["invalid_id"])
+        self.assertIn('data-gtm-id="GTM-W23PHGJG"', settings["markup"])
+        self.assertNotIn("analytics", settings["public"])
+        self.assertNotIn("security", settings["public"])
+        self.assertIn("WHERE setting_key IN", settings["query"])
+        self.assertNotIn("SYNTH_SECRET", json.dumps(settings["public"]))
+        self.assertNotIn("customCode", settings["public"]["theme"])
+
+        js = (ROOT / "discadmin/dashboard-v2.js").read_text(encoding="utf-8")
+        start = js.index("    const safeGithubLink = value => ")
+        end = js.index("    const repoUrl =", start)
+        program = (
+            "'use strict';\n" + js[start:end] + "\nconsole.log(JSON.stringify(["
+            "safeGithubLink('https://github.com/pl0n3r/brvtal/pull/5'),"
+            "safeGithubLink('https://github.com/attacker/brvtal/pull/5'),"
+            "safeSonarLink('https://sonarcloud.io/project/overview?id=pl0n3r_brvtal'),"
+            "safeSonarLink('https://evil.invalid/')]))"
+        )
+        output = subprocess.run(
+            ["node", "-e", program], cwd=ROOT, capture_output=True, text=True,
+            timeout=15, check=False,
+        )
+        self.assertEqual(0, output.returncode, output.stderr[-650:])
+        links = json.loads(output.stdout)
+        self.assertEqual("https://github.com/pl0n3r/brvtal/pull/5", links[0])
+        self.assertEqual("", links[1])
+        self.assertIn("https://sonarcloud.io/", links[2])
+        self.assertEqual("", links[3])
+
     def test_regresiones_de_codigo_con_fixtures_sinteticos(self):
         """Exercise prior PHP and JS behavior rather than scanning for text."""
         result = subprocess.run(
             [sys.executable, "-m", "unittest", "-q",
-             "tests.test_cobertura_brvtal_10", "tests.test_cobertura_brvtal_11",
+             "tests.test_cobertura_brvtal_10.CoberturaBrvtal10Tests.test_gate_validar_presente",
+             "tests.test_cobertura_brvtal_11",
              "tests.test_cobertura_brvtal_12"],
             cwd=ROOT, text=True, capture_output=True, check=False, timeout=240,
         )
