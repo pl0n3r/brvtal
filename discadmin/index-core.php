@@ -146,6 +146,7 @@ require_once __DIR__ . '/../config/deployment.php';
 <link rel="stylesheet" href="/discadmin/admin-modules.css?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>">
 <link rel="stylesheet" href="/discadmin/content-core.css?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>">
 <link rel="stylesheet" href="/discadmin/security.css?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>">
+<link rel="stylesheet" href="/discadmin/artist-hero-preview.css?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>">
 </head>
 <body>
 <div id="app"></div>
@@ -315,6 +316,54 @@ function checkbox(id,label,checked=false,help=''){
  </div>`;
 }
 function eventForm(r){r=r||{};document.getElementById('mcontent').innerHTML=`<div class="form"><div class="section"><div class="sectionhead"><strong>EVENT DATA</strong><span class="helper">Contenido y publicación</span></div><div class="grid2">${field('title','Title *',r.title)}${field('slug','Slug',r.slug)}${field('event_date','Date / time',r.event_date,'datetime-local')}${select('status','Status',r.status||'draft',[['draft','Draft'],['published','Published'],['archived','Archived']])}${field('venue','Venue',r.venue)}${field('city','City',r.city)}${area('description','Description',r.description)}</div></div><div class="section"><div class="sectionhead"><strong>EVENT SKIN</strong><span class="helper">Identidad visual</span></div><div class="grid2">${field('skin','Skin key',r.skin||'CORE')}${field('accent','Accent',r.accent||'#FF2038')}<div class="field full"><label>Cover image URL / path</label><div class="thumbcell" style="margin-bottom:8px">${thumb(r.cover_image,r.title,true)}<input id="f_cover_image" type="text" value="${esc(r.cover_image)}"></div></div>${field('ticket_url','Ticket URL',r.ticket_url)}${field('sort_order','Sort order',r.sort_order||0,'number')}</div></div></div>`}
+function artistHeroMarkup(r) {
+ const defaults = {zoom:1,x:50,y:50};
+ const current = r.hero_framing && typeof r.hero_framing === 'object' ? r.hero_framing : {};
+ const controls = ['desktop','mobile'].map(viewport => {
+  const values = {...defaults,...(current[viewport]||{})};
+  const slider = (key, caption, min, max, step, unit) => {
+   const raw = Number(values[key]);
+   const value = Number.isFinite(raw) && raw>=min && raw<=max ? raw : defaults[key];
+   const id = 'f_hero_'+viewport+'_'+key;
+   return `<label class="artist-hero-control" for="${id}">
+      <span>${caption}<output for="${id}" data-hero-output="${id}">${key==='zoom'?Math.round(value*100):value}${unit}</output></span>
+      <input id="${id}" type="range" min="${min}" max="${max}" step="${step}" value="${value}">
+     </label>`;
+  };
+  return `<div class="artist-hero-controls" data-hero-controls="${viewport}" ${viewport==='mobile'?'hidden':''}>
+    ${slider('zoom','TAMAÑO / ZOOM',0.8,2.2,0.05,'%')}
+    ${slider('x','POSICIÓN HORIZONTAL',0,100,1,'%')}
+    ${slider('y','POSICIÓN VERTICAL',0,100,1,'%')}
+  </div>`;
+ }).join('');
+ return `<div class="section artist-hero-section">
+  <div class="sectionhead">
+   <strong>ENCUADRE DE PORTADA</strong>
+   <span class="helper">Ajusta el tamaño y la posición del perfil. No cambia la tarjeta del listado.</span>
+  </div>
+  <div class="artist-hero-workspace" data-artist-hero data-viewport="desktop">
+   <div class="artist-hero-tabs" role="group" aria-label="Previsualizar portada">
+    <button type="button" data-hero-switch="desktop" aria-pressed="true">ESCRITORIO</button>
+    <button type="button" data-hero-switch="mobile" aria-pressed="false">MÓVIL</button>
+   </div>
+   <div class="artist-hero-stage">
+    <img data-hero-preview-img src="${esc(r.photo||'')}" alt="" loading="lazy">
+    <div class="artist-hero-stage-overlay"></div>
+    <div class="artist-hero-stage-copy">
+     <span>BRVTAL / ARTISTAS / PREVISUALIZACIÓN</span>
+     <strong data-hero-preview-name>${esc(r.name||'ARTISTA')}</strong>
+     <small>MIEMBRO DEL COLECTIVO</small>
+    </div>
+   </div>
+   <p class="artist-hero-help">Vista previa aproximada del encabezado público. Los cambios se aplican al pulsar GUARDAR.</p>
+   ${controls}
+   <div class="artist-hero-actions">
+    <button type="button" data-hero-reset>RESTABLECER ESTA VISTA</button>
+    <span>ZOOM 80–220 % · POSICIÓN 0–100 %</span>
+   </div>
+  </div>
+ </div>`;
+}
 function artistForm(r){
  r=r||{};
  document.getElementById('mcontent').innerHTML=`<div class="form">
@@ -337,6 +386,7 @@ function artistForm(r){
     ${field('sort_order','Sort order',r.sort_order||0,'number')}
    </div>
   </div>
+  ${artistHeroMarkup(r)}
   <div class="section">
    <div class="sectionhead">
     <strong>BRVTAL MEMBERSHIP</strong><span class="helper">Internal current-state flag</span>
@@ -1094,6 +1144,7 @@ scheduleTechRefresh();
 <script src="/discadmin/content-core-lineup.js?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>"></script>
 <script src="/discadmin/content-core.js?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>"></script>
 <script src="/discadmin/security.js?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>"></script>
+<script src="/discadmin/artist-hero-preview.js?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>"></script>
 <script src="/discadmin/admin-modules.js?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>"></script>
 <script src="/discadmin/totp-login.js?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>"></script>
 <script>restoreSession();</script>

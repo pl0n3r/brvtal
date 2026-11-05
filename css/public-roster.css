@@ -44,3 +44,17 @@
 
 .artist:focus-visible{outline-color:var(--acid);outline-offset:3px}
 .artist:active{transform:scale(.96)}
+
+/* Artist profile framing is independent of the Home artist cards. */
+body.cromo-page.entity-page--artist .entity-hero .entity-image img{
+  object-position:var(--artist-hero-desktop-x,50%) var(--artist-hero-desktop-y,50%);
+  transform-origin:var(--artist-hero-desktop-x,50%) var(--artist-hero-desktop-y,50%);
+  transform:scale(var(--artist-hero-desktop-zoom,1));
+}
+@media(max-width:700px){
+  body.cromo-page.entity-page--artist .entity-hero .entity-image img{
+    object-position:var(--artist-hero-mobile-x,50%) var(--artist-hero-mobile-y,50%);
+    transform-origin:var(--artist-hero-mobile-x,50%) var(--artist-hero-mobile-y,50%);
+    transform:scale(var(--artist-hero-mobile-zoom,1));
+  }
+}
