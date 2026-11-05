@@ -247,6 +247,12 @@ class CromoRedesignTests(unittest.TestCase):
         self.assertIn("aria-label", JS)
         self.assertIn("reduceMotion.matches", JS)
 
+    def test_sound_media_uses_blob_urls_allowed_by_the_production_csp(self) -> None:
+        # CSP media-src is 'self' blob: https: (no data:): a data: <audio> is blocked.
+        self.assertNotIn("new Audio(SILENT_WAV)", SOUND)
+        self.assertEqual(2, SOUND.count("new Audio(silentClip())"))
+        self.assertIn("URL.createObjectURL(new Blob([bytes]", SOUND)
+
     def test_sound_only_starts_after_a_click_and_is_accessible(self) -> None:
         self.assertIn("addEventListener('click', toggle)", SOUND)
         self.assertIn("aria-pressed", SOUND)

@@ -112,11 +112,22 @@
   // media playback; older iOS needs a silent <audio> started inside the gesture.
   let keepAlive = null;
   const SILENT_WAV = 'data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YSADAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA==';
+  // The production CSP allows media from 'self', blob: and https: but not data:,
+  // so the silent unlock clip is served from a blob: URL.
+  let silentUrl = null;
+  const silentClip = () => {
+    if (!silentUrl) {
+      const raw = atob(SILENT_WAV.slice(SILENT_WAV.indexOf(',') + 1));
+      const bytes = Uint8Array.from(raw, (c) => c.codePointAt(0));
+      silentUrl = URL.createObjectURL(new Blob([bytes], { type: 'audio/wav' }));
+    }
+    return silentUrl;
+  };
   const claimPlayback = () => {
     try {
       if (navigator.audioSession) { navigator.audioSession.type = 'playback'; return; }
       if (!keepAlive) {
-        keepAlive = new Audio(SILENT_WAV);
+        keepAlive = new Audio(silentClip());
         keepAlive.setAttribute('playsinline', '');
         keepAlive.loop = true;
       }
@@ -186,7 +197,7 @@
     mediaSession += 1;
     const session = mediaSession;
     if (!mediaEl) {
-      mediaEl = new Audio(SILENT_WAV);
+      mediaEl = new Audio(silentClip());
       mediaEl.setAttribute('playsinline', '');
       mediaEl.loop = true;
     }
