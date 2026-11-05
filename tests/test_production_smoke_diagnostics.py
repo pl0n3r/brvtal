@@ -217,6 +217,16 @@ class ProductionSmokeDiagnosticsTests(unittest.TestCase):
         self.assertNotIn("context.request.patch(", source)
         self.assertNotIn("context.request.delete(", source)
 
+    def test_theme_studio_waits_for_editor_hydration_not_empty_shell(self):
+        source = SMOKE.read_text(encoding="utf-8")
+        self.assertIn("async function coverageWorkspace(page, key, section, selector, readySelector = null)", source)
+        self.assertIn("page.locator(readySelector).first().waitFor({state:'visible',timeout:14_000})", source)
+        self.assertIn("await runOperation(key + ':render-ready'", source)
+        self.assertIn("key + ':render-ready'", source)
+        self.assertIn('[data-theme-tab="brand"].active', source)
+        self.assertIn("if (!item.pass) throw new Error(", source)
+        self.assertIn("if (evidence.serverErrors.length)", source)
+
     def test_dashboard_checkpoint_has_no_stale_server_errors_binding(self):
         source = SMOKE.read_text(encoding="utf-8")
         self.assertNotIn("    serverErrors,\n", source)
