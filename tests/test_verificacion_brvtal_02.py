@@ -73,6 +73,7 @@ def rows_of_report(text):
         key=parts[0].removeprefix("| `").removesuffix("`")
         if not re.fullmatch(r"S[0-9]{2}-R[0-9]{3}",key) or key in result: raise ValueError("id duplicado")
         if parts[2]!="NO_VERIFICABLE" or parts[3] not in ALLOWED: raise ValueError("cobertura inflada")
+        if not parts[5].removesuffix("|").strip(): raise ValueError("brecha sin límite explícito")
         result[key]=parts
     if len(result)!=50: raise ValueError("inventario faltante")
     return result
@@ -108,8 +109,15 @@ class VerificacionBrvtal02Tests(unittest.TestCase):
             original.replace(line,"",1),
             original.replace(line,line+chr(10)+line,1),
             original.replace(line,line.replace("NO_VERIFICABLE","CUBIERTO"),1),
+            original.replace(line,line.replace("Precisa navegación, privacidad, CRUD o persistencia real con autoridad; no se simula.", " "),1),
         ):
             with self.assertRaises(ValueError): rows_of_report(wrong)
+
+    def test_testigos_referencian_pruebas_reales(self):
+        for witness in sorted({case[3] for case in CASES}):
+            with self.subTest(testigo=witness):
+                content=(ROOT/witness).read_text(encoding="utf-8")
+                self.assertRegex(content, r"(?m)^\s+def test_[A-Za-z0-9_]+\(")
 
     def test_testigos_ejecutables_seleccionados(self):
         suite=unittest.defaultTestLoader.loadTestsFromNames((
