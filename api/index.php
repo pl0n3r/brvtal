@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/../config/admin_activity.php';
+require_once __DIR__ . '/../config/artist_hero_framing.php';
 require_once __DIR__ . '/../config/migration_reconcile.php';
 require_once __DIR__ . '/../config/event_lifecycle.php';
 require_once __DIR__ . '/../config/set_publication.php';
@@ -512,6 +513,7 @@ try {
         }
         if ($resource === 'artists' && is_array($rows)) {
             $rows = brvtalArtistCollectiveMembershipEnrichResult($rows);
+            $rows = brvtalArtistHeroEnrich($pdo, $rows);
         }
         $response = ['ok' => true, 'data' => $rows];
         if ($pagination !== null) {
@@ -727,6 +729,11 @@ try {
             }
             json_response(['ok' => true]);
         }
+        $heroIncluded = $resource === 'artists' && array_key_exists('hero_framing', $d);
+        $hero = $heroIncluded ? brvtalArtistHeroValidate($d['hero_framing']) : null;
+        if ($heroIncluded && $hero === null) {
+            json_response(['ok' => false, 'error' => 'INVALID_ARTIST_HERO_FRAMING', 'field' => 'hero_framing'], 422);
+        }
         $d = sanitize_payload($resource, $d);
         $allowed = allowed_fields($resource);
         $p = [];
@@ -835,6 +842,9 @@ try {
             $st = $pdo->prepare("INSERT INTO {$table} ({$cols}) VALUES ({$marks})");
             $st->execute(array_values($p));
             $newId = (int)$pdo->lastInsertId();
+            if ($heroIncluded) {
+                brvtalArtistHeroWrite($pdo, $newId, $hero);
+            }
             if ($audited) {
                 $after = brvtal_activity_fetch_resource($pdo, $table, $newId);
                 brvtal_activity_record(
@@ -870,7 +880,13 @@ try {
         }
     }
     if($method==='PUT'&&$id!==null){
-        $d = sanitize_payload($resource, input_json());
+        $d = input_json();
+        $heroIncluded = $resource === 'artists' && array_key_exists('hero_framing', $d);
+        $hero = $heroIncluded ? brvtalArtistHeroValidate($d['hero_framing']) : null;
+        if ($heroIncluded && $hero === null) {
+            json_response(['ok' => false, 'error' => 'INVALID_ARTIST_HERO_FRAMING', 'field' => 'hero_framing'], 422);
+        }
+        $d = sanitize_payload($resource, $d);
         $allowed = allowed_fields($resource);
         $p = [];
         foreach ($allowed as $f) {
@@ -897,6 +913,9 @@ try {
             $visualPublicationError=brvtalContentVisualPublicationError($resource,array_replace($before,$p));if($visualPublicationError!==null){$pdo->rollBack();json_response(['ok'=>false,'error'=>$visualPublicationError['error'],'field'=>$visualPublicationError['field']],422);}
             if(!$p){$pdo->rollBack();json_response(['ok'=>false,'error'=>'NO_FIELDS'],422);}
             $set=implode(', ',array_map(fn($f)=>"`{$f}` = ?",array_keys($p)));$vals=array_values($p);$vals[]=$id;$st=$pdo->prepare("UPDATE {$table} SET {$set} WHERE id=?");$st->execute($vals);$changed=(int)$st->rowCount();
+            if ($heroIncluded) {
+                brvtalArtistHeroWrite($pdo, $id, $hero);
+            }
             if($audited){$after=brvtal_activity_fetch_resource($pdo,$table,$id);if($after!==null)brvtal_activity_record($pdo,'update',$resource,$id,$before,$after,['source'=>'core_api']);}
             $pdo->commit();
             if ($audited && $changed > 0 && $after !== null) {
@@ -911,6 +930,10 @@ try {
             $before=brvtal_activity_fetch_resource($pdo,$table,$id,true);
             if($before===null){$pdo->rollBack();json_response(['ok'=>false,'error'=>'NOT_FOUND'],404);}
             $st=$pdo->prepare("DELETE FROM {$table} WHERE id=?");$st->execute([$id]);$deleted=(int)$st->rowCount();
+            if ($resource === 'artists' && $deleted === 1) {
+                $heroSetting = $pdo->prepare('DELETE FROM settings WHERE setting_key=?');
+                $heroSetting->execute([brvtalArtistHeroSettingKey($id)]);
+            }
             if($deleted!==1){$pdo->rollBack();json_response(['ok'=>false,'error'=>'NOT_FOUND'],404);}
             if($audited)brvtal_activity_record($pdo,'delete',$resource,$id,$before,null,['source'=>'core_api']);
             $pdo->commit();

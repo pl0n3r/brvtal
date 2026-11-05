@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/artist_collective_membership.php';
+require_once __DIR__ . '/artist_hero_framing.php';
 
 /** Public framing reads the same canonical current-membership field as DISCADMIN. */
 function brvtal_public_artist_roster_status(array $artist): string
@@ -51,6 +52,7 @@ function brvtal_public_artist_enhance_page(PDO $pdo, array $page): array
         true
     );
     $page['entity'] = array_merge($page['entity'], $detail);
+    $page['entity']['hero_framing'] = brvtalArtistHeroRead($pdo, $id);
     $page['facts'] = brvtal_public_artist_membership_facts($page['entity']);
 
     $eventGroups = brvtal_public_artist_partition_events($page['related']['EVENTS'] ?? []);
@@ -89,11 +91,44 @@ function brvtal_public_artist_decorate_html(string $html, array $page): string
         $stylesheet . "\n  <link rel=\"stylesheet\" href=\"/css/public-roster.css\">",
         $html
     );
+    $classes = 'entity-page--artist entity-page--artist-' . htmlspecialchars(
+        $status,
+        ENT_QUOTES | ENT_SUBSTITUTE,
+        'UTF-8'
+    );
+    $rosterStatus = htmlspecialchars($status, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    foreach (['entity-page cromo-page', 'entity-page'] as $baseClass) {
+        $html = str_replace(
+            '<body class="' . $baseClass . '">',
+            '<body class="' . $baseClass . ' ' . $classes .
+                '" data-artist-roster-status="' . $rosterStatus . '">',
+            $html
+        );
+    }
+    $framing = $page['entity']['hero_framing'] ?? brvtalArtistHeroDefault();
+    $style = htmlspecialchars(
+        brvtalArtistHeroCssVariables($framing),
+        ENT_QUOTES | ENT_SUBSTITUTE,
+        'UTF-8'
+    );
     $html = str_replace(
-        '<body class="entity-page">',
-        '<body class="entity-page entity-page--artist entity-page--artist-' . htmlspecialchars($status, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '" data-artist-roster-status="' . htmlspecialchars($status, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '">',
+        '<div class="entity-image">',
+        '<div class="entity-image" style="' . $style . '">',
         $html
     );
+    $original = trim((string)($page['entity']['image'] ?? ''));
+    if ($original !== '') {
+        $html = preg_replace_callback(
+            '/(<div class="entity-image"[^>]*><img src=")([^"]+)(")/',
+            static function (array $matches) use ($original): string {
+                $url = brvtalArtistHeroImageUrl($original, $matches[2]);
+                $escaped = htmlspecialchars($url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                return $matches[1] . $escaped . $matches[3];
+            },
+            $html,
+            1
+        ) ?? $html;
+    }
     $html = str_replace('← BACK TO ARCHIVE', '← BACK TO ROSTER', $html);
     $html = str_replace('ABOUT / INFORMATION', 'ARTIST / IDENTITY', $html);
     return $html;

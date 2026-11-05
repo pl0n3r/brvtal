@@ -377,6 +377,9 @@ window.BRVTALAdminModules = (() => {
       name:fieldValue('name'), slug:fieldValue('slug'), bio:fieldValue('bio'), photo:fieldValue('photo'),
       instagram_url:fieldValue('instagram_url'), soundcloud_url:fieldValue('soundcloud_url'),
       website_url:fieldValue('website_url'),
+      hero_framing:window.BRVTALArtistHeroPreview?.values() ?? {
+        desktop:{zoom:1,x:50,y:50}, mobile:{zoom:1,x:50,y:50}
+      },
       is_collective_member:Boolean(document.getElementById('f_is_collective_member')?.checked),
       status:fieldValue('status') || 'draft'
     };
