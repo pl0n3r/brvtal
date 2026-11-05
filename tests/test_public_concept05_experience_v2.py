@@ -56,6 +56,7 @@ class Concept05ExperienceV2Tests(unittest.TestCase):
     def test_no_published_event_has_explicit_empty_state(self) -> None:
         """AC-02: active lifecycle gate and live PHP renderer must fail closed."""
         expression = r'''
+require "tests/home-partials-composition.php";
 require "config/public_home.php";
 $now = new DateTimeImmutable("2026-10-10T12:00:00+00:00");
 $events = [
@@ -65,13 +66,13 @@ $events = [
 if (brvtal_public_select_next_experience($events, $now) !== null) {
   fwrite(STDERR, "Past/private CMS Event leaked through active filter\n"); exit(2);
 }
-$html = brvtal_public_render_next_experience(file_get_contents("index.html"), null);
+$html = brvtal_public_render_next_experience(brvtal_test_composed_home(), null);
 $start = strpos($html, "<section class=\"genesis scene");
 $end = $start === false ? false : strpos($html, "</section>", $start);
 if ($start === false || $end === false) { fwrite(STDERR, "Missing empty experience\n"); exit(3); }
 $section = substr($html, $start, $end - $start);
-$required = [">NEXT SIGNAL</h2>", "NEW DATE TO BE ANNOUNCED.",
-  "DATE TBA", "TIME TBA", "LOCATION TBA", "VIEW EVENTS"];
+$required = [">PRÓXIMA SEÑAL</h2>", "NUEVA FECHA POR ANUNCIAR.",
+  "FECHA POR ANUNCIAR", "HORA POR ANUNCIAR", "LUGAR POR ANUNCIAR", "VER EVENTOS"];
 foreach ($required as $expected) {
   if (!str_contains($section, $expected)) {
     fwrite(STDERR, "Missing neutral fallback: " . $expected . "\n"); exit(4);
