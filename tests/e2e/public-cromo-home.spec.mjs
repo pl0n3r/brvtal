@@ -46,6 +46,49 @@ async function noOverflow(page) {
   expect(metrics.scroll).toBeLessThanOrEqual(metrics.width + 1);
 }
 
+test('Artistas muestra fotos CMS y fallback seguro en 390/1440', async ({ page }) => {
+  await page.route('**/uploads/artist-photo.svg', route => route.fulfill({
+    contentType: 'image/svg+xml',
+    body: '<svg xmlns="http://www.w3.org/2000/svg" width="700" height="900"><rect width="700" height="900" fill="#4a315a"/></svg>',
+  }));
+  await page.route('**/uploads/artist-broken.svg', route => route.fulfill({ status: 404, body: '' }));
+  const artists = [
+    { ...artist, photo: '/uploads/artist-photo.svg', bio: 'Sesión especial' },
+    { id: 23, slug: 'sin-foto', name: 'SIN FOTO', photo: null },
+    { id: 24, slug: 'url-insegura', name: 'URL INSEGURA', photo: 'javascript:alert(1)' },
+    { id: 25, slug: 'origen-externo', name: 'ORIGEN EXTERNO', photo: 'https://untrusted.invalid/image.svg' },
+    { id: 26, slug: 'foto-rota', name: 'FOTO ROTA', photo: '/uploads/artist-broken.svg' },
+  ];
+  for (const width of [390, 1440]) {
+    await mount(page, { width, payload: { ...data, artists } });
+    const cards = page.locator('#artistas .cr-ac');
+    await expect(cards).toHaveCount(6);
+    const valid = page.locator('#artistas .cr-ac[href="/artists/artist-one"]');
+    const img = valid.locator('img.cr-photo');
+    await expect(img).toHaveAttribute('src', '/uploads/artist-photo.svg');
+    await expect(img).toHaveAttribute('alt', '');
+    await expect(img).toHaveAttribute('loading', 'lazy');
+    await expect(img).toHaveAttribute('decoding', 'async');
+    await expect.poll(() => img.evaluate(node => node.complete && node.naturalWidth > 0)).toBe(true);
+    await expect(img).toHaveCSS('object-fit', 'cover');
+    await expect(valid).toHaveClass(/cr-has-photo/);
+    const gradient = await valid.evaluate(node => getComputedStyle(node, '::before').backgroundImage);
+    expect(gradient).toContain('linear-gradient');
+    await expect(valid.locator('.cr-orb')).toBeHidden();
+    await expect(valid.locator('.cr-nm')).toHaveText('ARTIST ONE');
+    for (const slug of ['sin-foto', 'url-insegura', 'origen-externo', 'foto-rota']) {
+      const fallback = page.locator('#artistas .cr-ac[href="/artists/' + slug + '"]');
+      await expect(fallback.locator('img')).toHaveCount(0);
+      await expect(fallback.locator('.cr-orb')).toBeVisible();
+    }
+    const join = page.locator('#artistas .cr-ac[href="#contacto"]');
+    await expect(join.locator('img')).toHaveCount(0);
+    await expect(join.locator('.cr-orb')).toBeVisible();
+    await expect(page.locator('#contacto')).toBeVisible();
+    await noOverflow(page);
+  }
+});
+
 test('Destacados advances manually, pauses and resumes the managed banners', async ({ page }) => {
   await mount(page);
   const slides = page.locator('#destacados .cr-bn-slide');
