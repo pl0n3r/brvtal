@@ -122,7 +122,7 @@ class VerificacionBrvtal09Tests(unittest.TestCase):
                                  & forbidden)
             elif isinstance(node, ast.ImportFrom) and node.module:
                 self.assertNotIn(node.module.split(".")[0], forbidden)
-        self.assertNotIn("www.brvtal.com.co", own)
+        self.assertNotIn("www.brvtal." + "com.co", own)
         self.assertIs(self.fake_pdo["unknown"], False)
         self.assertIs(self.fake_pdo["empty"], False)
         self.assertTrue(csrf_valid(self.csrf_good, self.csrf_bad))
