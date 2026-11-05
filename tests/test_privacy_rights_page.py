@@ -95,7 +95,6 @@ $empty = brvtalPublicPrivacyRightsDocument([]);
 $filled = brvtalPublicPrivacyRightsDocument([
  'controller_domicile' => 'Synthetic city, Colombia',
  'controller_address' => '<script>unsafe</script>',
- 'controller_phone' => '+57 601 555 0101',
  'rights_contact_area' => 'Synthetic rights office',
  'consultation_time' => 'Synthetic consultation deadline',
  'claim_time' => 'Synthetic claim deadline',

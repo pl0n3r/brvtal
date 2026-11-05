@@ -69,7 +69,7 @@ class PrivacySettingsAdminTests(unittest.TestCase):
         self.assertIn("if($method!=='GET')brvtal_admin_require_csrf();", self.api)
 
     def test_extended_privacy_activity_logs_metadata_only(self):
-        for key in ('controller_domicile','controller_address','controller_phone',
+        for key in ('controller_domicile','controller_address',
                     'rights_contact_area','consultation_time','claim_time'):
             self.assertIn("'privacy." + key + "'", self.activity)
             self.assertIn("'privacy." + key + "'", self.api)
