@@ -587,14 +587,15 @@ window.BRVTALMediaLibrary = (() => {
       const term = (q || '').toLowerCase();
       const rows = items.filter(x => !term || [x.title,x.file_path,x.alt_text].join(' ').toLowerCase().includes(term));
       grid.innerHTML = rows.map(x => card(x,false)).join('') || '<div class="empty">No assets found.</div>';
-      grid.querySelectorAll('[data-media-id]').forEach(btn => {
-        btn.disabled = uploading;
-        btn.onclick = () => {
-          const item = rows.find(x => Number(x.id) === Number(btn.dataset.mediaId));
-          if (item) selectItem(item);
-        };
-      });
+      for (const btn of grid.querySelectorAll('[data-media-id]')) btn.disabled = uploading;
     };
+    grid.addEventListener('click', event => {
+      if (uploading) return;
+      const btn = event.target.closest('[data-media-id]');
+      if (!btn || !grid.contains(btn)) return;
+      const item = items.find(x => Number(x.id) === Number(btn.dataset.mediaId));
+      if (item) selectItem(item);
+    });
     draw('');
     const search = overlay.querySelector('[data-search]');
     search.oninput = e => draw(e.target.value);
