@@ -112,7 +112,7 @@ function brvtalPublicReleasesIndexPage(array $releases, array $seo, string $anal
   <main id="main-content" tabindex="-1">
     <article class="entity-hero">
       <div class="entity-image"><img src="{$heroImage}" alt="BRVTAL" loading="eager" fetchpriority="high" decoding="async"><span>DISCOS / BRVTAL</span></div>
-      <div class="entity-copy"><div class="entity-kicker">BRVTAL / ARCHIVO SONORO</div><h1 data-text="DISCOS">DISCOS</h1>
+      <div class="entity-copy"><div class="entity-kicker">BRVTAL / ARCHIVO SONORO</div><h1 data-text="DISCOS" aria-label="DISCOS">DISCOS</h1>
         <div class="entity-facts"><div><span>CATÁLOGO</span><b>LANZAMIENTOS PUBLICADOS</b></div></div>
         <div class="entity-actions">{$action}</div>
       </div>
