@@ -678,8 +678,8 @@ for (const [mode, expectedSource] of [['plays', 'blob'], ['loop-rejected', 'fall
     await button.click();
     await expect(button).toHaveAttribute('aria-pressed', 'true');
     await expect(button.locator('.cromo-sound-label')).toHaveText('Apagar el pulso');
-    // Primero el clip silencioso dentro del gesto; después el bucle renderizado.
-    expect(await page.evaluate(() => window.__mediaSources[0])).toMatch(/^data:audio\/wav/);
+    // Primero el clip silencioso (blob:, la CSP no permite data:) dentro del gesto; después el bucle.
+    expect(await page.evaluate(() => window.__mediaSources[0])).toMatch(/^blob:/);
     await expect.poll(() => page.evaluate(() => window.__mediaSources.at(-1))).toMatch(/^blob:/);
     // El contexto de Web Audio se prepara dentro del gesto para poder servir de respaldo.
     expect(await page.evaluate(() => window.__audioContextsCreated)).toBe(1);
