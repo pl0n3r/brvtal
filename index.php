@@ -14,6 +14,7 @@ require_once __DIR__ . '/config/public_not_found.php';
 require_once __DIR__ . '/config/public_unavailable.php';
 require_once __DIR__ . '/config/public_home.php';
 require_once __DIR__ . '/config/public_contact_page.php';
+require_once __DIR__ . '/config/public_releases_listing.php';
 require_once __DIR__ . '/config/public_privacy_rights.php';
 
 // Apply the same visible rights destination to every public HTML response,
@@ -128,6 +129,50 @@ if ($pageRoute === 'contact') {
     header('Content-Type: text/html; charset=utf-8');
     header('Cache-Control: public, max-age=60, stale-while-revalidate=300');
     echo $contactHtml;
+    exit;
+}
+
+// The public Records destination is a real CMS catalog, not a fallback Home/404.
+if ($pageRoute === 'releases') {
+    $route = brvtalPublicLocalizedRouteUrls($baseUrl, $routeLocale, '', '', 'releases');
+    if ($route === null || $type !== '' || $slug !== '') {
+        http_response_code(404);
+        header('X-Robots-Tag: noindex, follow');
+        exit;
+    }
+    $seo = brvtalPublicApplyLocalizedSeo(brvtalPublicReleasesIndexSeo($baseUrl), $route);
+    try {
+        $releasePdo = db();
+        $releases = brvtalPublicReleasesIndexRows($releasePdo);
+    } catch (Throwable $error) {
+        if (function_exists('brvtal_log')) {
+            brvtal_log('PUBLIC_RELEASES_LIST_ERROR', 'Published catalog query failed', [
+                'class' => $error::class,
+            ]);
+        }
+        http_response_code(503);
+        header('X-Robots-Tag: noindex, follow');
+        header('Content-Type: text/html; charset=utf-8');
+        header('Cache-Control: no-store');
+        echo brvtal_public_unavailable_page(brvtal_public_unavailable_seo($seo));
+        exit;
+    }
+    $analytics = '';
+    try {
+        $analytics = brvtal_public_analytics_markup(
+            brvtal_public_gtm_id($releasePdo), brvtalDeploymentCacheKey()
+        );
+    } catch (Throwable) {
+        // Analytics is optional; it must not turn published content into 503.
+    }
+    $html = brvtalPublicReleasesIndexPage($releases, $seo, $analytics);
+    $html = brvtalPublicApplyLocalizedDocument(
+        $html, $routeLocale, $route['paths'], $routeLocaleExplicit
+    );
+    $html = brvtal_public_version_assets($html, brvtalDeploymentCacheKey());
+    header('Content-Type: text/html; charset=utf-8');
+    header('Cache-Control: public, max-age=60, stale-while-revalidate=300');
+    echo $html;
     exit;
 }
 
