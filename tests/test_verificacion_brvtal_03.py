@@ -76,7 +76,7 @@ PYTHON_REGRESSIONS = (
     "tests.test_admin_development_signals.AdminDevelopmentSignalsTests.test_external_failure_is_unavailable_not_fake_healthy",
     "tests.test_admin_sonar_signals.AdminSonarSignalsTests.test_external_failure_or_incomplete_payload_is_unavailable_not_fake_healthy",
     "tests.test_admin_coderabbit_signals.AdminCodeRabbitSignalsTests.test_terminal_review_for_stale_head_is_pending",
-    "tests.test_admin_deploy_signals.AdminDeploySignalsTests.test_failures_degrade_without_fake_ready_state",
+    "tests.test_admin_deploy_signals.AdminDeploySignalsTests.test_reuses_canonical_readiness_without_mutation",
 )
 ROW_RE = re.compile(r"^\| \x60(S\d+-R\d{3})\x60 \| \x60([^\x60]+)\x60 \| ([A-Z_]+) \|")
 
@@ -125,6 +125,10 @@ class VerificacionBrvtal03Tests(unittest.TestCase):
         self.assertIn("sensitive", activity.lower())
         dashboard = (ROOT / PHP_CONTRACTS[3]).read_text(encoding="utf-8")
         self.assertIn("read-only", dashboard)
+        deploy = (ROOT / "config/admin_deploy_signals.php").read_text(encoding="utf-8")
+        self.assertIn("catch (Throwable)", deploy)
+        self.assertIn("'readiness'=>'degraded'", deploy)
+        self.assertIn("'schema_up_to_date'=>false", deploy)
 
     def test_mutaciones_sinteticas_del_inventario_fallan(self):
         report = REPORT.read_text(encoding="utf-8")
