@@ -49,7 +49,7 @@ def report_rows(text: str) -> dict[str, list[str]]:
         if not line.startswith("| " + TICK + "S"):
             continue
         parts = [item.strip() for item in line.strip().strip("|").split("|")]
-        if len(parts) != 7 or not re.fullmatch(r"${TICK}S\d+-R\d{3}${TICK}, parts[0]):
+        if len(parts) != 7 or not re.fullmatch(re.escape(TICK) + r"S\d+-R\d{3}" + re.escape(TICK), parts[0]):
             raise ValueError("Malformed report row")
         ident = parts[0].strip(TICK)
         if ident in found:
