@@ -283,12 +283,12 @@ try {
             $before = brvtal_release_fetch($pdo, $id);
             if (!$before) throw new RuntimeException('RELEASE_NOT_FOUND', 404);
             $st = $pdo->prepare(
-                "UPDATE releases SET title=?,slug=?,release_type=?,catalog_number=?,release_date=?,description=?,artwork=?,spotify_url=?,soundcloud_url=?,bandcamp_url=?,youtube_url=?,beatport_url=?,status=?,featured=?,sort_order=?,published_at=CASE WHEN ?='published' THEN COALESCE(published_at,CURRENT_TIMESTAMP) ELSE published_at END WHERE id=?"
+                "UPDATE releases SET title=?,slug=?,release_type=?,catalog_number=?,release_date=?,description=?,artwork=?,spotify_url=?,soundcloud_url=?,bandcamp_url=?,youtube_url=?,beatport_url=?,status=?,featured=?,sort_order=?,published_at=CASE WHEN ?=1 THEN COALESCE(published_at,CURRENT_TIMESTAMP) ELSE published_at END WHERE id=?"
             );
             $st->execute([
                 $data['title'],$data['slug'],$data['release_type'],$data['catalog_number'] ?: null,$data['release_date'],$data['description'] ?: null,
                 $data['artwork'] ?: null,$data['spotify_url'] ?: null,$data['soundcloud_url'] ?: null,$data['bandcamp_url'] ?: null,$data['youtube_url'] ?: null,$data['beatport_url'] ?: null,
-                $data['status'],$data['featured'],$data['sort_order'],$data['status'],$id,
+                $data['status'],$data['featured'],$data['sort_order'],(int)($data['status'] === 'published'),$id,
             ]);
         }
         brvtal_release_sync_artists($pdo, $id, $data['artists']);
@@ -332,7 +332,7 @@ try {
     brvtal_releases_json(['ok' => false, 'error' => $e->getMessage()], $status);
 } catch (Throwable $e) {
     if (function_exists('brvtal_log')) {
-        brvtal_log('RELEASES_API_ERROR', 'Releases API failure', ['class' => get_class($e), 'message' => $e->getMessage()]);
+        brvtal_log('RELEASES_API_ERROR', 'Releases API failure', ['class' => $e::class, 'message' => $e->getMessage()]);
     }
     brvtal_releases_json(['ok' => false, 'error' => 'INTERNAL_ERROR'], 500);
 }
