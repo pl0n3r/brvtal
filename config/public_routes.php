@@ -37,29 +37,13 @@ function brvtal_public_route_definition(
     ];
 }
 
-/**
- * Default route policy is unchanged. With the operator's one-slug opt-in,
- * only the selected page may resolve to its Spanish canonical source.
- * SQL values remain bound, never concatenated from environment input.
- *
- * @param null|callable(string):(?string) $environment
- */
-function brvtal_public_trial_page_definition(?callable $environment = null): array
+/** Canonical published Spanish Pages; no provider or trial feature flag. */
+function brvtal_public_page_definition(): array
 {
-    $selected = brvtal_public_trial_spanish_page_slug($environment);
-    if ($selected === null) {
-        return brvtal_public_route_definition(
-            'pages', 'title', 'content_json', '', 'WebPage',
-            "status='published' AND locale='en'"
-        );
-    }
-
-    $definition = brvtal_public_route_definition(
+    return brvtal_public_route_definition(
         'pages', 'title', 'content_json', '', 'WebPage',
-        "status='published' AND ((locale='en' AND slug<>?) OR (locale='es' AND slug=?))"
+        "status='published' AND locale='es'"
     );
-    $definition['parameters'] = [$selected, $selected];
-    return $definition;
 }
 
 /**
@@ -121,7 +105,7 @@ function brvtal_public_content_definitions(?callable $environment = null): array
             'cover_image',
             'BlogPosting'
         ),
-        'pages' => brvtal_public_trial_page_definition($environment),
+        'pages' => brvtal_public_page_definition(),
     ];
 }
 
