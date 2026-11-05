@@ -47,7 +47,7 @@ public_sets_library_expect(str_contains($script, "data-sets-mode=\"event\""), 'E
 public_sets_library_expect(str_contains($script, "routeUrl('sets', slug)"), 'Set title must navigate to canonical Set route');
 public_sets_library_expect(str_contains($runtime, "'js/public-sets-library.js'"), 'Sets library must be part of the versioned core runtime');
 public_sets_library_expect(str_contains($entry, 'css/public-sets-library.css'), 'Home must deliver Sets library styles');
-public_sets_library_expect(str_contains($entry, 'SET / ARCHIVE'), 'static Set fallback must not present hard-coded genre copy');
+public_sets_library_expect(str_contains($entry, 'SET / ARCHIVO'), 'static Set fallback must not present hard-coded genre copy');
 public_sets_library_expect(str_contains($page, "\$type === 'sets'"), 'canonical Set page branch must exist');
 public_sets_library_expect(str_contains($page, "'LISTEN' => \$detail['external_url']"), 'canonical Set page must keep external LISTEN action');
 public_sets_library_expect(str_contains($page, "\$data['related']['ARTIST']"), 'canonical Set page must connect published Artist');
