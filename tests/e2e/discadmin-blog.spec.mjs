@@ -167,6 +167,29 @@ test('new blog post uses Media Library and related content without manual taxono
   ]);
 });
 
+test('blog editor can upload a cover from local computer without saving or publishing the post', async ({ page }) => {
+  await loadHarness(page);
+  await page.getByRole('button', {name:'EDIT'}).click();
+  const original = await page.locator('#blog_cover_image').inputValue();
+  const file = {id:97, type:'image', title:'Nueva portada', file_path:'/uploads/media/2026/11/cover.png', status:'draft'};
+  await page.route('**/api/media-library.php?action=upload', route =>
+    route.fulfill({status:201, contentType:'application/json',body:JSON.stringify({ok:true,data:file})})
+  );
+  await page.locator('#blog-cover-picker').click();
+  await expect(page.locator('[data-media-upload]')).toHaveText('SUBIR DESDE MI EQUIPO');
+  await page.locator('[data-media-file]').setInputFiles({
+    name:'cover.png', mimeType:'image/png',
+    buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=','base64')
+  });
+  await expect(page.locator('#blog_cover_image')).toHaveValue('/uploads/media/2026/11/cover.png');
+  await expect(page.locator('.brvtal-media-picker')).toHaveCount(0);
+  await expect(page.getByText(/Imagen subida y seleccionada.*GUARDAR/)).toBeVisible();
+  expect(await page.locator('#blog_cover_image').inputValue()).not.toBe(original);
+  expect(await page.evaluate(() => window.__blogMutation)).toBeUndefined();
+  await page.locator('#saveBtn').click();
+  await expect.poll(() => page.evaluate(() => window.__blogMutation?.body?.cover_image)).toBe('/uploads/media/2026/11/cover.png');
+});
+
 test('editing a blog post leaves existing taxonomy untouched without exposing controls', async ({ page }) => {
   await loadHarness(page);
   await page.getByRole('button', { name: 'EDIT' }).click();

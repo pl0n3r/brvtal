@@ -529,25 +529,124 @@ window.BRVTALMediaLibrary = (() => {
       catch (e) { notify('error', 'Could not load Media Library.', {timeout:0}); return; }
     }
     if (options.imagesOnly !== false) items = items.filter(x => x.type === 'image');
+    const imagesOnly = options.imagesOnly !== false;
     const overlay = document.createElement('div'); overlay.className = 'brvtal-media-picker';
-    overlay.innerHTML = `<div class="brvtal-media-picker-box"><div class="brvtal-media-picker-head"><div><h3>SELECT MEDIA</h3><div class="meta">Reusable asset library</div></div><button class="btn ghost" type="button" data-close>CLOSE</button></div><input class="search" data-search aria-label="Search media library" placeholder="Search media…" style="margin-bottom:12px;width:100%"><div class="brvtal-media-picker-grid"></div></div>`;
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-label', 'SELECT MEDIA');
+    const accept = imagesOnly
+      ? 'image/jpeg,image/png,image/webp,image/gif'
+      : 'image/jpeg,image/png,image/webp,image/gif,video/mp4,audio/mpeg,audio/wav,application/pdf';
+    const formatLabel = imagesOnly ? 'JPG, PNG, WEBP, GIF' : 'IMAGEN, VIDEO, AUDIO, PDF';
+    overlay.innerHTML = `
+      <div class="brvtal-media-picker-box">
+        <div class="brvtal-media-picker-head">
+          <div><h3>SELECT MEDIA</h3><div class="meta">Reusable asset library</div></div>
+          <button class="btn ghost" type="button" data-close>CLOSE</button>
+        </div>
+        <div class="brvtal-media-picker-actions">
+          <button class="btn brvtal-media-picker-upload" type="button" data-media-upload>
+            SUBIR DESDE MI EQUIPO
+          </button>
+          <input type="file" data-media-file hidden
+            aria-label="Archivo multimedia local" accept="${accept}">
+          <span class="brvtal-media-picker-hint">${formatLabel} · MÁX. 25 MB</span>
+        </div>
+        <div class="brvtal-media-picker-status" data-media-upload-status
+          role="status" aria-live="polite"></div>
+        <input class="search" data-search aria-label="Search media library"
+          placeholder="Search media…" style="margin-bottom:12px;width:100%">
+        <div class="brvtal-media-picker-grid"></div>
+      </div>`;
     document.body.appendChild(overlay);
     const grid = overlay.querySelector('.brvtal-media-picker-grid');
-    const draw = q => {
-      const term = (q || '').toLowerCase(); const rows = items.filter(x => !term || [x.title,x.file_path,x.alt_text].join(' ').toLowerCase().includes(term));
-      grid.innerHTML = rows.map(x => card(x,false)).join('') || '<div class="empty">No assets found.</div>';
-      grid.querySelectorAll('[data-media-id]').forEach(btn => btn.onclick = () => {
-        const item = rows.find(x => Number(x.id) === Number(btn.dataset.mediaId)); if (!item) return;
-        input.value = original(item) || mediaUrl(item.file_path) || '';
-        input.dispatchEvent(new Event('input',{bubbles:true})); input.dispatchEvent(new Event('change',{bubbles:true}));
-        updateInputPreview(input, item);
-        overlay.remove();
-        notify('warning', 'Media selected. Press SAVE to persist this record.', {timeout:5200});
-      });
+    const uploadButton = overlay.querySelector('[data-media-upload]');
+    const uploadInput = overlay.querySelector('[data-media-file]');
+    const uploadStatus = overlay.querySelector('[data-media-upload-status]');
+    const closeButton = overlay.querySelector('[data-close]');
+    let uploading = false;
+    const setUploadState = (message, kind = '') => {
+      uploadStatus.textContent = message;
+      uploadStatus.dataset.state = kind;
+      uploadStatus.setAttribute('role', kind === 'error' ? 'alert' : 'status');
     };
-    draw(''); overlay.querySelector('[data-search]').oninput = e => draw(e.target.value);
-    overlay.querySelector('[data-close]').onclick = () => overlay.remove();
-    overlay.addEventListener('click',e => { if (e.target === overlay) overlay.remove(); });
+    const selectItem = (item, fromUpload = false) => {
+      if (uploading || !overlay.isConnected) return;
+      const path = original(item) || mediaUrl(item?.file_path);
+      if (!path) { setUploadState('El archivo no tiene una ruta válida.', 'error'); return; }
+      input.value = path;
+      input.dispatchEvent(new Event('input',{bubbles:true}));
+      input.dispatchEvent(new Event('change',{bubbles:true}));
+      updateInputPreview(input, item);
+      overlay.remove();
+      notify(fromUpload ? 'success' : 'warning', fromUpload
+        ? 'Imagen subida y seleccionada. Pulsa GUARDAR para conservar los cambios del artículo.'
+        : 'Media selected. Press SAVE to persist this record.', {timeout:5200});
+    };
+    const draw = q => {
+      const term = (q || '').toLowerCase();
+      const rows = items.filter(x => !term || [x.title,x.file_path,x.alt_text].join(' ').toLowerCase().includes(term));
+      grid.innerHTML = rows.map(x => card(x,false)).join('') || '<div class="empty">No assets found.</div>';
+      for (const btn of grid.querySelectorAll('[data-media-id]')) btn.disabled = uploading;
+    };
+    grid.addEventListener('click', event => {
+      if (uploading) return;
+      const btn = event.target.closest('[data-media-id]');
+      if (!btn || !grid.contains(btn)) return;
+      const item = items.find(x => Number(x.id) === Number(btn.dataset.mediaId));
+      if (item) selectItem(item);
+    });
+    draw('');
+    const search = overlay.querySelector('[data-search]');
+    search.oninput = e => draw(e.target.value);
+    const close = () => { if (!uploading) overlay.remove(); };
+    closeButton.onclick = close;
+    overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+    uploadButton.onclick = () => { if (!uploading) uploadInput.click(); };
+    uploadInput.onchange = async () => {
+      const file = uploadInput.files?.[0];
+      uploadInput.value = '';
+      if (!file || uploading) return;
+      const supportedTypes = imagesOnly
+        ? ['image/jpeg','image/png','image/webp','image/gif']
+        : ['image/jpeg','image/png','image/webp','image/gif','video/mp4','audio/mpeg','audio/wav','application/pdf'];
+      if (!supportedTypes.includes(file.type)) {
+        setUploadState('Formato no admitido. Selecciona un archivo compatible.', 'error');
+        return;
+      }
+      if (!file.size || file.size > 25 * 1024 * 1024) {
+        setUploadState('El archivo debe tener entre 1 byte y 25 MB.', 'error');
+        return;
+      }
+      uploading = true;
+      uploadButton.disabled = true;
+      closeButton.disabled = true;
+      overlay.querySelector('.brvtal-media-picker-box').setAttribute('aria-busy','true');
+      setUploadState('Subiendo ' + file.name + '…', 'loading');
+      draw(search.value);
+      try {
+        const body = new FormData();
+        body.append('file', file);
+        body.append('title', file.name.replace(/\.[^.]+$/, ''));
+        const result = await request('?action=upload', {method:'POST', body});
+        const item = result.data;
+        if (!item?.file_path || (imagesOnly && item.type !== 'image')) throw new Error('INVALID_UPLOAD_RESPONSE');
+        const index = store.items.findIndex(x => Number(x.id) === Number(item.id));
+        if (index >= 0) store.items[index] = {...store.items[index],...item};
+        else store.items.unshift(item);
+        uploading = false;
+        selectItem(item, true);
+      } catch (error) {
+        setUploadState('No se pudo subir: ' + (error.payload?.error || error.message || 'UPLOAD_FAILED'), 'error');
+        uploading = false;
+        draw(search.value);
+      } finally {
+        uploadButton.disabled = false;
+        closeButton.disabled = false;
+        overlay.querySelector('.brvtal-media-picker-box').removeAttribute('aria-busy');
+      }
+    };
+    uploadButton.focus();
   }
 
   function decoratePickerInputs(root = document) {

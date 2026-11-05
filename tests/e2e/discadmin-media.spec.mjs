@@ -279,6 +279,66 @@ test('media picker normalizes paths, updates inputs/previews, and shows guidance
   await expect(page.getByText('Media selected. Press SAVE to persist this record.')).toBeVisible();
 });
 
+test('media picker uploads a local image with CSRF and selects it without saving the parent form', async ({ page }) => {
+  await loadMediaLibraryHarness(page);
+  await page.locator('.media-picker-btn').first().click();
+  const uploaded = {
+    ...mediaItem, id: 32, title: 'Nueva portada',
+    file_path: '/uploads/media/2026/11/nueva-portada.png',
+    mime_type: 'image/png', status: 'draft'
+  };
+  let uploadRequest;
+  await page.route('**/api/media-library.php?action=upload', route => {
+    uploadRequest = route.request();
+    return route.fulfill({ status: 201, contentType:'application/json', body:JSON.stringify({ok:true, data:uploaded}) });
+  });
+  const fileChooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', {name:'SUBIR DESDE MI EQUIPO'}).click();
+  await (await fileChooser).setFiles({name:'nueva-portada.png', mimeType:'image/png', buffer:onePixelPng});
+  await expect(page.locator('#f_cover_image')).toHaveValue('/uploads/media/2026/11/nueva-portada.png');
+  await expect(page.locator('.thumbcell img').first()).toHaveAttribute('src','/uploads/media/2026/11/nueva-portada.png');
+  await expect(page.locator('.brvtal-media-picker')).toHaveCount(0);
+  expect(uploadRequest.method()).toBe('POST');
+  expect(uploadRequest.headers()['x-csrf-token']).toBe('csrf-token');
+  expect(uploadRequest.postData()).toContain('nueva-portada.png');
+  await expect(page.getByText(/Imagen subida y seleccionada.*GUARDAR/)).toBeVisible();
+});
+
+test('media picker keeps original cover and remains open on rejected or invalid local upload', async ({ page }) => {
+  await loadMediaLibraryHarness(page);
+  const cover = page.locator('#f_cover_image');
+  await cover.fill('/uploads/media/old-cover.jpg');
+  await page.locator('.media-picker-btn').first().click();
+  let requests = 0;
+  await page.route('**/api/media-library.php?action=upload', route => {
+    requests += 1;
+    return route.fulfill({status:422, contentType:'application/json', body:JSON.stringify({ok:false,error:'FILE_TOO_LARGE'})});
+  });
+  await page.locator('[data-media-file]').setInputFiles({name:'not-image.txt', mimeType:'text/plain', buffer:Buffer.from('invalid')});
+  await expect(page.locator('[data-media-upload-status]')).toContainText('Formato no admitido');
+  expect(requests).toBe(0);
+  await expect(cover).toHaveValue('/uploads/media/old-cover.jpg');
+  await page.locator('[data-media-file]').setInputFiles({name:'broken.png', mimeType:'image/png', buffer:onePixelPng});
+  await expect(page.locator('[data-media-upload-status]')).toContainText('FILE_TOO_LARGE');
+  await expect(page.locator('.brvtal-media-picker')).toHaveCount(1);
+  await expect(cover).toHaveValue('/uploads/media/old-cover.jpg');
+  expect(requests).toBe(1);
+  await page.getByRole('button', {name:/Genesis poster/}).click();
+  await expect(cover).toHaveValue('/uploads/media/2026/09/genesis.jpg');
+});
+
+test('media picker does not modify form when local file dialog is canceled', async ({ page }) => {
+  await loadMediaLibraryHarness(page);
+  await page.locator('.media-picker-btn').first().click();
+  const fileChooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', {name:'SUBIR DESDE MI EQUIPO'}).click();
+  await (await fileChooser).setFiles([]);
+  await expect(page.locator('.brvtal-media-picker')).toHaveCount(1);
+  await expect(page.locator('#f_cover_image')).toHaveValue('');
+  await page.getByRole('button', {name:'CLOSE'}).click();
+  await expect(page.locator('.brvtal-media-picker')).toHaveCount(0);
+});
+
 test('image fallback is consumed before a repeated failure degrades to a placeholder', async ({ page }) => {
   await loadHarness(page, `<script>${mediaLibraryJs}</script>`);
   await page.evaluate(() => {

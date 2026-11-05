@@ -35,4 +35,17 @@ media_library_dom_expect(
     'Browser coverage must verify trigger adjacency and one-shot fallback consumption.'
 );
 
+media_library_dom_expect(
+    str_contains($source, 'SUBIR DESDE MI EQUIPO')
+        && str_contains($source, "request('?action=upload', {method:'POST', body})")
+        && str_contains($source, "input.dispatchEvent(new Event('change'"),
+    'Media picker upload must reuse the authenticated upload endpoint and update parent inputs.'
+);
+media_library_dom_expect(
+    str_contains($browser, 'media picker uploads a local image with CSRF')
+        && str_contains($browser, 'media picker keeps original cover')
+        && str_contains($browser, 'local file dialog is canceled'),
+    'Browser tests must cover upload, error and cancellation in the existing Media picker.'
+);
+
 echo "Media Library DOM contract passed.\n";

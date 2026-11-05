@@ -16,3 +16,13 @@
 @media(prefers-reduced-motion:reduce){.media-dropzone{transition:none}}
 
 /* #1364: muted text meets WCAG AA against the dark admin surfaces. */
+
+/* Local image upload stays inside the shared Media picker; no alternate admin shell. */
+.brvtal-media-picker-actions{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin:0 0 10px}
+.brvtal-media-picker-upload{background:#f21f37;color:#fff;border:1px solid #f21f37;font:800 11px/1.2 monospace;letter-spacing:1px;padding:11px 14px;cursor:pointer}
+.brvtal-media-picker-upload:hover,.brvtal-media-picker-upload:focus-visible{background:#b91a2e;border-color:#e14655}
+.brvtal-media-picker-upload:disabled{opacity:.45;cursor:wait}
+.brvtal-media-picker-hint{color:#858d94;font:11px/1.5 monospace;letter-spacing:.5px}
+.brvtal-media-picker-status{min-height:18px;color:#aab1b8;font:11px/1.5 monospace;margin-bottom:8px}
+.brvtal-media-picker-status[data-state="error"]{color:#ff6a73}
+.brvtal-media-picker-status[data-state="loading"]{color:#efc67a}
