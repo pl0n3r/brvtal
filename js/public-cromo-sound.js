@@ -21,6 +21,7 @@
   let mediaEl = null;
   let mediaLoop = null;
   let mediaSession = 0;
+  let usingMedia = false;
 
   const kick = (t) => {
     const o = ctx.createOscillator();
@@ -103,6 +104,7 @@
     if (master && ctx) master.gain.setTargetAtTime(0, ctx.currentTime, .05);
     if (keepAlive) keepAlive.pause();
     mediaSession += 1;
+    usingMedia = false;
     if (mediaEl) mediaEl.pause();
     paint();
   };
@@ -190,16 +192,18 @@
     }
     // Starting playback inside the click unlocks the element for the real loop.
     const unlocked = mediaEl.play();
+    const fallbackReady = Promise.resolve(prepareWebAudio());
+    fallbackReady.catch(() => {});
     if (!mediaLoop) mediaLoop = renderLoop();
-    const run = async () => {
+    const playRendered = async () => {
       await unlocked;
       const url = await mediaLoop;
       if (session !== mediaSession) return;
       mediaEl.src = url;
-      mediaEl.currentTime = 0;
       await mediaEl.play();
       if (session !== mediaSession) return;
       on = true;
+      usingMedia = true;
       let last = -1;
       window.clearInterval(timer);
       timer = window.setInterval(() => {
@@ -209,10 +213,24 @@
       }, 20);
       paint();
     };
+    const run = async () => {
+      try {
+        await playRendered();
+      } catch (error) {
+        if (session !== mediaSession) return;
+        window.console?.warn?.('BRVTAL sonido: falló el audio renderizado, se usa Web Audio.', error);
+        mediaEl.pause();
+        await fallbackReady;
+        if (session !== mediaSession) return;
+        if (ctx.state === 'running') begin();
+        else stop();
+      }
+    };
     run().catch(() => { if (session === mediaSession) stop(); });
   };
-  const start = () => {
-    if (useMedia()) { startMedia(); return; }
+  // Creates and unlocks the Web Audio context. Must run inside the click gesture,
+  // also when it is only the fallback of the rendered-audio path.
+  const prepareWebAudio = () => {
     claimPlayback();
     if (!ctx) {
       ctx = new AudioCtx();
@@ -222,16 +240,20 @@
       // Calls, backgrounding or the OS can suspend the context while "on":
       // reflect it honestly instead of showing a sound that is not playing.
       ctx.addEventListener('statechange', () => {
-        if (on && ctx.state !== 'running') stop();
+        if (on && !usingMedia && ctx.state !== 'running') stop();
       });
     }
     master.gain.setTargetAtTime(.6, ctx.currentTime, .05);
     unlock();
-    const resumed = ctx.resume();
+    return ctx.resume();
+  };
+  const startWebAudio = () => {
+    const resumed = prepareWebAudio();
     const ready = () => (ctx.state === 'running' ? begin() : stop());
     if (resumed?.then) resumed.then(ready, stop);
     else ready();
   };
+  const start = () => (useMedia() ? startMedia() : startWebAudio());
   const toggle = () => (on ? stop() : start());
 
   const makeButton = () => {

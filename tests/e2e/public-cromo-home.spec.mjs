@@ -655,33 +655,33 @@ for (const [mode, expected] of [['running', 'true'], ['suspended', 'false'], ['r
   });
 }
 
-// #1575: en WebKit el sonido se reproduce con un <audio> y un bucle renderizado.
-for (const [mode, expected] of [['resolves', 'true'], ['rejects', 'false']]) {
-  test('El sonido en WebKit ' + (expected === 'true' ? 'reproduce el bucle renderizado con audio' : 'vuelve a apagado si el audio es rechazado'), async ({ page }) => {
+// #1575/#1577: en WebKit el sonido usa un <audio> con el bucle renderizado y, si falla, Web Audio.
+for (const [mode, expectedSource] of [['plays', 'blob'], ['loop-rejected', 'fallback']]) {
+  test('El sonido en WebKit ' + (mode === 'plays' ? 'reproduce el bucle renderizado con audio' : 'cae a Web Audio si el audio renderizado es rechazado'), async ({ page }) => {
     await page.addInitScript(playMode => {
       window.__cromoForceMediaSound = true;
       window.__audioContextsCreated = 0;
       window.__mediaSources = [];
       const RealAudioContext = window.AudioContext;
       window.AudioContext = class extends RealAudioContext { constructor(...args) { super(...args); window.__audioContextsCreated += 1; } };
+      HTMLMediaElement.prototype.pause = function () {};
       HTMLMediaElement.prototype.play = function () {
         window.__mediaSources.push(this.src);
-        return playMode === 'rejects' ? Promise.reject(new Error('blocked')) : Promise.resolve();
+        return playMode === 'loop-rejected' && this.src.startsWith('blob:') ? Promise.reject(new Error('blocked')) : Promise.resolve();
       };
-    }, mode === 'rejects' ? 'rejects' : 'resolves');
+    }, mode);
     await page.route('**/sound-e2e.html', route => route.fulfill({ contentType: 'text/html', body: '<!doctype html><html><body><button class="cromo-sound" type="button"><span class="cromo-sound-label">Activar sonido</span></button></body></html>' }));
     await page.goto('http://127.0.0.1:4173/sound-e2e.html');
     await page.addScriptTag({ content: soundRuntime });
     const button = page.locator('button.cromo-sound');
     await page.evaluate(() => window.BRVTALCromoSound.bind(document.querySelector('button.cromo-sound')));
     await button.click();
-    await expect(button).toHaveAttribute('aria-pressed', expected);
-    await expect(button.locator('.cromo-sound-label')).toHaveText(expected === 'true' ? 'Apagar el pulso' : 'Activar sonido');
-    // Primero el clip silencioso dentro del gesto; si el audio se acepta, después el bucle renderizado.
+    await expect(button).toHaveAttribute('aria-pressed', 'true');
+    await expect(button.locator('.cromo-sound-label')).toHaveText('Apagar el pulso');
+    // Primero el clip silencioso dentro del gesto; después el bucle renderizado.
     expect(await page.evaluate(() => window.__mediaSources[0])).toMatch(/^data:audio\/wav/);
-    if (expected === 'true') {
-      await expect.poll(() => page.evaluate(() => window.__mediaSources.at(-1))).toMatch(/^blob:/);
-    }
-    expect(await page.evaluate(() => window.__audioContextsCreated)).toBe(0);
+    await expect.poll(() => page.evaluate(() => window.__mediaSources.at(-1))).toMatch(/^blob:/);
+    // El contexto de Web Audio se prepara dentro del gesto para poder servir de respaldo.
+    expect(await page.evaluate(() => window.__audioContextsCreated)).toBe(1);
   });
 }
