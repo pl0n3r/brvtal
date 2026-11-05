@@ -56,15 +56,15 @@ html.cromo-home body>*:not(#cromo-home):not(#cromoGL):not(script):not(style):not
 #cromo-home .cr-btn:hover{background:var(--bone);color:var(--ink);transform:translate(-4px,-4px);box-shadow:6px 6px 0 var(--red)}
 #cromo-home .cr-btn.cr-r{background:var(--red);border-color:var(--red);color:#030303}
 /* The entire next-night poster is a semantic event link; keep the CMS copy on a solid plate. */
-#cromo-home .cr-next{position:absolute;right:28px;top:104px;z-index:4;width:min(400px,calc(100% - 56px));background:var(--ink);border:3px solid var(--bone);padding:22px 24px 24px;transform:rotate(-3deg);box-shadow:8px 8px 0 var(--red);color:var(--bone);overflow-wrap:anywhere}
+#cromo-home .cr-next{position:absolute;right:28px;top:104px;z-index:4;width:min(280px,calc(100% - 56px));background:var(--ink);border:3px solid var(--bone);padding:16px 20px;transform:rotate(-3deg);box-shadow:8px 8px 0 var(--red);color:var(--bone);overflow-wrap:anywhere}
 #cromo-home .cr-next::before{content:"";position:absolute;top:0;right:0;width:90px;height:8px;background:var(--red)}
-#cromo-home .cr-next-tag{display:block;font:700 16px/1.2 var(--body);letter-spacing:.17em;color:var(--bone);margin-bottom:12px}
-#cromo-home .cr-next-count{display:block;font:800 clamp(24px,2.5vw,32px)/1.05 var(--body);letter-spacing:.02em;text-transform:uppercase;color:var(--red);margin-bottom:5px}
-#cromo-home .cr-next-date{display:block;font:400 clamp(48px,5.2vw,80px)/.9 var(--disp);text-transform:uppercase;margin-bottom:16px}
-#cromo-home .cr-next-event{display:block;font:700 clamp(23px,2.1vw,32px)/1.05 var(--body);text-transform:uppercase;color:var(--bone);margin-bottom:8px}
-#cromo-home .cr-next-details{display:block;font:600 clamp(18px,1.4vw,22px)/1.25 var(--body);color:var(--bone);margin-bottom:16px}
-#cromo-home .cr-next-action{display:flex;align-items:center;justify-content:space-between;gap:14px;min-height:52px;padding:11px 16px;background:var(--red);color:var(--ink);font:800 22px/1 var(--body);letter-spacing:.05em;text-transform:uppercase}
-#cromo-home .cr-next-arrow{display:inline-block;font:700 28px/1 var(--body);will-change:transform}
+#cromo-home .cr-next-tag{display:block;font:700 13px/1.2 var(--body);letter-spacing:.17em;color:var(--bone);margin-bottom:8px}
+#cromo-home .cr-next-count{display:block;font:800 clamp(18px,1.7vw,22px)/1.05 var(--body);letter-spacing:.02em;text-transform:uppercase;color:var(--red);margin-bottom:4px}
+#cromo-home .cr-next-date{display:block;font:400 clamp(34px,3.4vw,48px)/.9 var(--disp);text-transform:uppercase;margin-bottom:10px}
+#cromo-home .cr-next-event{display:block;font:700 clamp(18px,1.5vw,21px)/1.05 var(--body);text-transform:uppercase;color:var(--bone);margin-bottom:6px}
+#cromo-home .cr-next-details{display:block;font:600 clamp(14px,1.1vw,16px)/1.25 var(--body);color:var(--bone);margin-bottom:12px}
+#cromo-home .cr-next-action{display:flex;align-items:center;justify-content:space-between;gap:14px;min-height:44px;padding:8px 14px;background:var(--red);color:var(--ink);font:800 17px/1 var(--body);letter-spacing:.05em;text-transform:uppercase}
+#cromo-home .cr-next-arrow{display:inline-block;font:700 22px/1 var(--body);will-change:transform}
 #cromo-home .cr-next-link{display:block;cursor:pointer;transition:transform var(--duration-fast) var(--ease-smooth-out),box-shadow var(--duration-fast) var(--ease-smooth-out),border-color var(--duration-quick) var(--ease-in-out)}
 @media(hover:hover){#cromo-home .cr-next-link:hover{transform:translateY(-5px) rotate(-1deg) scale(1.015);box-shadow:12px 12px 0 var(--red);border-color:#fff}}
 #cromo-home .cr-next-link:focus-visible{outline:4px solid var(--red);outline-offset:5px}
