@@ -12,21 +12,26 @@ function quick_win_assert(bool $condition, string $message): void
 require_once __DIR__ . '/../config/public_visibility.php';
 
 quick_win_assert(
-    brvtal_public_page_is_visible(['status'=>'published','locale'=>'en']),
-    'published English Pages must remain public'
+    !brvtal_public_page_is_visible(['status'=>'published','locale'=>'en']),
+    'published English Pages must not be public'
 );
 quick_win_assert(
-    !brvtal_public_page_is_visible(['status'=>'published','locale'=>'es']),
-    'published non-English Pages must not be classified as public'
+    brvtal_public_page_is_visible(['status'=>'published','locale'=>'es']),
+    'published Spanish Pages must be public'
 );
 quick_win_assert(
-    !brvtal_public_page_is_visible(['status'=>'draft','locale'=>'en']),
-    'draft English Pages must not be classified as public'
+    !brvtal_public_page_is_visible(['status'=>'draft','locale'=>'es']),
+    'draft Spanish Pages must not be public'
+);
+quick_win_assert(
+    !brvtal_public_page_is_visible(['status'=>'published','locale'=>'es','private'=>true])
+        && !brvtal_public_page_is_visible(['status'=>'published','locale'=>'es','trusted'=>false]),
+    'private or untrusted Spanish Pages must remain non-public'
 );
 
 $dashboard = (string)file_get_contents(__DIR__ . '/../api/dashboard-overview.php');
 quick_win_assert(
-    str_contains($dashboard, "status='published' AND locale='en'"),
+    str_contains($dashboard, "status='published' AND locale='es'"),
     'Dashboard Page public counts must match the canonical public locale'
 );
 quick_win_assert(
