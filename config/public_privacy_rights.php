@@ -10,7 +10,18 @@ require_once __DIR__ . '/public_cromo_chrome.php';
 const BRVTAL_PRIVACY_OWNER_PLACEHOLDER = '[COMPLETAR POR EL DUEÑO]';
 const BRVTAL_PRIVACY_LEGAL_STATUS = 'Texto legal pendiente de aprobación profesional (Condor #974).';
 
-/** @return array{controller_name:string,controller_email:string,response_time:string,controller_domicile:string,controller_address:string,rights_contact_area:string,consultation_time:string,claim_time:string} */
+/**
+ * @return array{
+ *   controller_name:string,
+ *   controller_email:string,
+ *   response_time:string,
+ *   controller_domicile:string,
+ *   controller_address:string,
+ *   rights_contact_area:string,
+ *   consultation_time:string,
+ *   claim_time:string
+ * }
+ */
 function brvtalPublicPrivacyRightsConfiguration(array $settings): array
 {
     $name = trim(is_string($settings['controller_name'] ?? null) ? $settings['controller_name'] : '');
