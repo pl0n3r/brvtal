@@ -14,6 +14,7 @@ const BRVTAL_PRIVACY_LEGAL_STATUS = 'Texto legal pendiente de aprobación profes
  * @return array{
  *   controller_name:string,
  *   controller_email:string,
+ *   controller_phone:string,
  *   response_time:string,
  *   controller_domicile:string,
  *   controller_address:string,
@@ -28,7 +29,12 @@ function brvtalPublicPrivacyRightsConfiguration(array $settings): array
     $email = trim(is_string($settings['controller_email'] ?? null) ? $settings['controller_email'] : '');
     $response = trim(is_string($settings['response_time'] ?? null) ? $settings['response_time'] : '');
 
-    $extra = [];
+    $phone = trim(is_string($settings['controller_phone'] ?? null) ? $settings['controller_phone'] : '');
+    $digits = preg_replace('/[^0-9]/', '', $phone);
+    $validPhone = $phone !== '' && strlen($phone) <= 40
+        && preg_match('/^\+?[0-9][0-9() .-]*$/D', $phone) === 1
+        && strlen((string)$digits) >= 7 && strlen((string)$digits) <= 20;
+    $extra = ['controller_phone' => $validPhone ? $phone : BRVTAL_PRIVACY_OWNER_PLACEHOLDER];
     foreach (['controller_domicile','controller_address',
               'rights_contact_area','consultation_time','claim_time'] as $key) {
         $raw = $settings[$key] ?? null;
@@ -61,6 +67,7 @@ function brvtalPublicPrivacyRightsDocument(
         'subtitle' => 'Information about personal data and how to request access, correction or erasure.',
         'owner' => 'Data controller',
         'contact' => 'Responsible contact email',
+        'phone' => 'Public controller phone',
         'domicile' => 'Legal domicile',
         'address' => 'Contact address',
         'area' => 'Area responsible for data rights',
@@ -76,6 +83,7 @@ function brvtalPublicPrivacyRightsDocument(
         'subtitle' => 'Información sobre datos personales y cómo solicitar acceso, corrección o borrado.',
         'owner' => 'Responsable del tratamiento',
         'contact' => 'Correo de contacto del responsable',
+        'phone' => 'Teléfono público del responsable',
         'domicile' => 'Domicilio del responsable',
         'address' => 'Dirección de contacto',
         'area' => 'Área responsable de solicitudes',
@@ -118,6 +126,8 @@ function brvtalPublicPrivacyRightsDocument(
 <p data-privacy-controller>{{OWNER_VALUE}}</p>
 <h3>{{CONTACT_LABEL}}</h3>
 <p data-privacy-email>{{EMAIL_VALUE}}</p>
+<h3>{{PHONE_LABEL}}</h3>
+<p data-privacy-phone>{{PHONE_VALUE}}</p>
 <h3>{{DOMICILE_LABEL}}</h3>
 <p data-privacy-domicile>{{DOMICILE_VALUE}}</p>
 <h3>{{ADDRESS_LABEL}}</h3>
@@ -156,6 +166,8 @@ HTML;
         '{{OWNER_VALUE}}' => $escape($values['controller_name']),
         '{{CONTACT_LABEL}}' => $escape($labels['contact']),
         '{{EMAIL_VALUE}}' => $emailHtml,
+        '{{PHONE_LABEL}}' => $escape($labels['phone']),
+        '{{PHONE_VALUE}}' => $escape($values['controller_phone']),
         '{{DOMICILE_LABEL}}' => $escape($labels['domicile']),
         '{{DOMICILE_VALUE}}' => $escape($values['controller_domicile']),
         '{{ADDRESS_LABEL}}' => $escape($labels['address']),

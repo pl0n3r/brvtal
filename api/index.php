@@ -554,9 +554,9 @@ try {
             }
             $isJson = (int)($d['is_json'] ?? 0);
             if (in_array($key, ['privacy.controller_name','privacy.controller_email','privacy.response_time',
-                'privacy.controller_domicile','privacy.controller_address',
+                'privacy.controller_phone','privacy.controller_domicile','privacy.controller_address',
                 'privacy.rights_contact_area','privacy.consultation_time','privacy.claim_time'], true)) {
-                $privacyLimit = 160;
+                $privacyLimit = $key === 'privacy.controller_phone' ? 40 : 160;
                 if (in_array($key, ['privacy.controller_email','privacy.controller_address'], true)) {
                     $privacyLimit = 254;
                 } elseif (in_array($key, ['privacy.controller_name','privacy.response_time'], true)) {
@@ -571,6 +571,12 @@ try {
                 if ($key === 'privacy.controller_email' && $plain !== ''
                     && filter_var($plain, FILTER_VALIDATE_EMAIL) === false) {
                     json_response(['ok' => false, 'error' => 'INVALID_PRIVACY_EMAIL', 'field' => 'setting_value'], 422);
+                }
+                if ($key === 'privacy.controller_phone' && $plain !== ''
+                    && (preg_match('/^\+?[0-9][0-9() .-]*$/D', $plain) !== 1
+                        || preg_match_all('/[0-9]/', $plain) < 7
+                        || preg_match_all('/[0-9]/', $plain) > 20)) {
+                    json_response(['ok' => false, 'error' => 'INVALID_PRIVACY_PHONE', 'field' => 'setting_value'], 422);
                 }
                 $value = $plain;
             }

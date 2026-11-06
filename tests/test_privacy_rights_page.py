@@ -111,6 +111,24 @@ echo json_encode(['empty'=>$empty,'filled'=>$filled]);
         self.assertIn('pendiente de aprobación profesional', data['filled'])
         self.assertGreaterEqual(data['empty'].count('[COMPLETAR POR EL DUEÑO]'), 8)
 
+    def test_controller_phone_validation_is_public_and_fail_closed(self) -> None:
+        data = invoke_php(r"""
+require 'config/public_privacy_rights.php';
+$blank = brvtalPublicPrivacyRightsConfiguration(['controller_phone' => 'javascript:alert(1)']);
+$short = brvtalPublicPrivacyRightsConfiguration(['controller_phone' => '+12']);
+$valid = brvtalPublicPrivacyRightsDocument(['controller_phone' => '+57 (601) 123-4567']);
+$unsafe = brvtalPublicPrivacyRightsDocument(['controller_phone' => '<script>bad</script>']);
+echo json_encode(['blank'=>$blank,'short'=>$short,'valid'=>$valid,'unsafe'=>$unsafe]);
+""")
+        marker = '[COMPLETAR POR EL DUEÑO]'
+        self.assertEqual(data['blank']['controller_phone'], marker)
+        self.assertEqual(data['short']['controller_phone'], marker)
+        self.assertIn('data-privacy-phone', data['valid'])
+        self.assertIn('+57 (601) 123-4567', data['valid'])
+        self.assertIn('data-privacy-legal-pending', data['valid'])
+        self.assertIn(marker, data['unsafe'])
+        self.assertNotIn('<script>bad</script>', data['unsafe'])
+
     def test_no_unapproved_legal_text(self) -> None:
         source = CONFIG.read_text(encoding="utf-8")
         self.assertIn("Condor #974", source)
