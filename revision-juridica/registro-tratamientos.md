@@ -154,6 +154,16 @@ Producto: `pl0n3r/brvtal`
 - Proveedores: ninguno_declarado
 - Retención: `review_required`
 
+## privacy_controller_contact
+
+- Categoría: `contact`
+- Campos de software: `phone`
+- Finalidad: `privacy_rights_contact_publication`
+- Base documentada: `review_required` (revisión jurídica requerida)
+- Consentimiento: `review_required`
+- Proveedores: ninguno_declarado
+- Retención: `review_required`
+
 ## public_gtm_measurement
 
 - Categoría: `usage`
