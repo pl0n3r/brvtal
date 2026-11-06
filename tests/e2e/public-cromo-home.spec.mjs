@@ -134,20 +134,59 @@ test('Conectado selects published relations, highlights linked items and changes
   await expect(page.locator('#conectado .cr-cn2-actions a')).toHaveAttribute('href', '/artists/artist-one');
 });
 
-test('Últimas noches and legacy hashes land on the archive; empty data stays safe at both sizes', async ({ page }) => {
+test('Legacy #archive and #events navigate to visible, keyboard-focusable Cromo destinations at 390/1440', async ({ page }) => {
+  const emptyArchive = { ...data, archive: { events: [] } };
   for (const width of [390, 1440]) {
+    // AC-01: with no published archive, fall back to the always-rendered #noches.
+    await mount(page, { width, hash: '#archive', payload: emptyArchive });
+    await expect(page.locator('#archivo')).toHaveCount(0);
+    await expect.poll(() => new URL(page.url()).hash).toBe('#noches');
+    const empty = page.locator('#noches');
+    await expect(empty).toBeVisible();
+    await expect(empty).toBeFocused();
+    await expect(empty).toHaveAttribute('tabindex', '-1');
+    const emptyMetrics = await empty.evaluate(node => ({
+      top: node.getBoundingClientRect().top,
+      scroll: window.scrollY,
+      margin: parseFloat(getComputedStyle(node).scrollMarginTop),
+    }));
+    expect(emptyMetrics.scroll).toBeGreaterThan(0);
+    expect(emptyMetrics.top).toBeGreaterThanOrEqual(0);
+    expect(emptyMetrics.top).toBeLessThan(180);
+    expect(emptyMetrics.margin).toBeGreaterThanOrEqual(60);
+    await page.keyboard.press('Tab');
+    await expect(page.locator('#noches a.cr-night').first()).toBeFocused();
+    await noOverflow(page);
+
+    // AC-02: with an archived event, keep #archivo and its first card.
     await mount(page, { width, hash: '#archive' });
     await expect(page.locator('#archivo .cr-pst')).toHaveCount(1);
     await expect(page.locator('#archivo .cr-pst')).toHaveAttribute('href', '/events/past-signal');
     await expect.poll(() => new URL(page.url()).hash).toBe('#archivo');
+    const populated = page.locator('#archivo');
+    await expect(populated).toBeVisible();
+    await expect(populated).toBeFocused();
+    await expect(populated).toHaveAttribute('tabindex', '-1');
+    const populatedMetrics = await populated.evaluate(node => ({
+      top: node.getBoundingClientRect().top,
+      scroll: window.scrollY,
+      margin: parseFloat(getComputedStyle(node).scrollMarginTop),
+    }));
+    expect(populatedMetrics.scroll).toBeGreaterThan(0);
+    expect(populatedMetrics.top).toBeGreaterThanOrEqual(0);
+    expect(populatedMetrics.top).toBeLessThan(180);
+    expect(populatedMetrics.margin).toBeGreaterThanOrEqual(60);
+    await page.keyboard.press('Tab');
+    await expect(page.locator('#archivo a.cr-pst').first()).toBeFocused();
     await noOverflow(page);
-    await mount(page, { width, hash: '#events' });
+
+    // AC-03: #events continues to lead to #noches even with an empty archive.
+    await mount(page, { width, hash: '#events', payload: emptyArchive });
     await expect.poll(() => new URL(page.url()).hash).toBe('#noches');
-    await mount(page, { width, payload: { events: [], artists: [], sets: [], memories: [], blog: [], archive: { events: [] }, relations: {} }, banners: { enabled: false, slides: [] } });
-    await expect(page.locator('#cromo-home')).toBeVisible();
-    await expect(page.locator('#destacados')).toHaveCount(0);
-    await expect(page.locator('#archivo')).toHaveCount(0);
-    await expect(page.locator('#conectado')).toBeVisible();
+    await expect(page.locator('#noches')).toBeFocused();
+    await expect(page.locator('#noches')).toBeVisible();
+    await page.keyboard.press('Tab');
+    await expect(page.locator('#noches a.cr-night').first()).toBeFocused();
     await noOverflow(page);
   }
 });
