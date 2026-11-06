@@ -958,15 +958,25 @@
       }, { rootMargin: '-45% 0px -50% 0px' });
       parts.home.querySelectorAll('section[id]').forEach((s) => io.observe(s));
     }
-    // Old deep links (#events, #archive) land on the matching part of the new home.
+    // Resolve legacy hashes after mounting: an empty archive has no #archivo.
     const legacyTarget = { '#events': 'noches', '#archive': 'archivo' }[window.location.hash];
     if (legacyTarget) {
-      const node = document.getElementById(legacyTarget);
+      // #archivo is only mounted when a published archive event exists.
+      const target = legacyTarget === 'archivo' && !document.getElementById('archivo')
+        ? 'noches' : legacyTarget;
+      const node = document.getElementById(target);
       if (node) {
-        window.history.replaceState(null, '', '#' + legacyTarget);
-        const go = () => node.scrollIntoView();
-        window.requestAnimationFrame(go);
-        window.setTimeout(go, 400); // once fonts and images have settled the layout
+        window.history.replaceState(null, '', '#' + target);
+        // Programmatic focus preserves the keyboard destination for old links.
+        if (!node.hasAttribute('tabindex')) node.setAttribute('tabindex', '-1');
+        window.requestAnimationFrame(() => {
+          node.focus({ preventScroll: true });
+          node.scrollIntoView();
+        });
+        // Fonts/images can shift layout; never steal focus after a user's Tab.
+        window.setTimeout(() => {
+          if (document.activeElement === node) node.scrollIntoView();
+        }, 400);
       }
     }
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
