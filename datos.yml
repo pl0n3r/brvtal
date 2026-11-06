@@ -240,6 +240,18 @@
       "providers": []
     },
     {
+      "id": "privacy_controller_contact",
+      "category": "contact",
+      "fields": [
+        "phone"
+      ],
+      "purpose": "privacy_rights_contact_publication",
+      "basis": "review_required",
+      "retention": "review_required",
+      "consent": "review_required",
+      "providers": []
+    },
+    {
       "id": "public_gtm_measurement",
       "category": "usage",
       "fields": [

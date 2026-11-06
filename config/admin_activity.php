@@ -103,6 +103,7 @@ function brvtalActivitySettingKeyAuditable(string $key): bool
         'public.soundcloud_url',
         'privacy.controller_name',
         'privacy.controller_email',
+        'privacy.controller_phone',
         'privacy.response_time',
         'privacy.controller_domicile',
         'privacy.controller_address',

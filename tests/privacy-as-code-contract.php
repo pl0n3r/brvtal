@@ -72,6 +72,7 @@ $expectedIds = [
     'contact_rate_limit',
     'internal_analytics_events',
     'legacy_admin_activity_ip',
+    'privacy_controller_contact',
     'public_gtm_measurement',
     'staff_access_metadata',
     'staff_contact',
@@ -85,6 +86,10 @@ foreach ($data['treatments'] as $row) {
     privacy_expect(($row['basis'] ?? null) === 'review_required', $row['id'] . ' basis must stay pending legal review');
     privacy_expect(($row['consent'] ?? null) === 'review_required', $row['id'] . ' consent must stay pending legal review');
 }
+
+$controllerPhone = privacy_treatment($data, 'privacy_controller_contact');
+privacy_expect($controllerPhone['category'] === 'contact' && $controllerPhone['fields'] === ['phone'], 'controller phone must be mapped to its actual contact treatment');
+privacy_expect($controllerPhone['purpose'] === 'privacy_rights_contact_publication' && $controllerPhone['retention'] === 'review_required' && $controllerPhone['providers'] === [], 'public legal contact cannot inherit staff/mail delivery treatment or presume approved retention');
 
 $staffIdentity = privacy_treatment($data, 'staff_identity');
 privacy_expect($staffIdentity['fields'] === ['staff_id','name','role','status'], 'staff identity fields drifted');

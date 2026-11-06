@@ -183,6 +183,7 @@
     const connected = /^GTM-[A-Z0-9]{4,20}$/.test(gtmId);
     const privacyName = String(row('privacy.controller_name')?.setting_value || '').trim();
     const privacyEmail = String(row('privacy.controller_email')?.setting_value || '').trim();
+    const privacyPhone = String(row('privacy.controller_phone')?.setting_value || '').trim();
     const privacyResponse = String(row('privacy.response_time')?.setting_value || '').trim();
     const privacyDomicile = String(row('privacy.controller_domicile')?.setting_value || '').trim();
     const privacyAddress = String(row('privacy.controller_address')?.setting_value || '').trim();
@@ -190,7 +191,7 @@
     const privacyConsultation = String(row('privacy.consultation_time')?.setting_value || '').trim();
     const privacyClaim = String(row('privacy.claim_time')?.setting_value || '').trim();
     const privacyConfigured = [privacyName,privacyEmail,privacyResponse].filter(Boolean).length;
-    const privacyAdditionalConfigured = [privacyDomicile,privacyAddress,privacyArea,privacyConsultation,privacyClaim].filter(Boolean).length;
+    const privacyAdditionalConfigured = [privacyPhone,privacyDomicile,privacyAddress,privacyArea,privacyConsultation,privacyClaim].filter(Boolean).length;
     return `<section class="sv2-pane ${V2.tab==='analytics'?'active':''}" data-settings-pane="analytics">
       <header class="sv2-section-head"><div><span>04 / ANALYTICS & PRIVACY</span><h3>Tag delivery</h3></div><p>Google Tag Manager is the single public tag-delivery layer and loads automatically on every public page.</p></header>
       <div class="sv2-grid two">${text('gtm_id','Google Tag Manager Container ID',gtmId,'Format: GTM-XXXXXXX. GA4, pixels and other optional tracking tags are managed inside GTM.')}
@@ -202,13 +203,14 @@
       <div class="sv2-grid two">
         ${text('privacy_controller_name','Data controller / responsible entity',privacyName,'Legal name of the person or organization (up to 160 characters).')}
         ${text('privacy_controller_email','Privacy contact email',privacyEmail,'A valid email address for privacy requests (up to 254 characters).','email')}
+        ${text('privacy_controller_phone','Public data controller phone',privacyPhone,'Only the verified public phone number, max 40 characters.')}
         ${text('privacy_response_time','Legacy general response deadline',privacyResponse,'Compatibility field: consultation and claim periods are configured separately below.')}
         ${text('privacy_controller_domicile','Legal domicile',privacyDomicile,'Verified city and country of the controller (max 160 characters).')}
         ${text('privacy_controller_address','Contact address',privacyAddress,'Verified correspondence address (max 254 characters).')}
         ${text('privacy_rights_contact_area','Area handling data rights',privacyArea,'Unit handling access, rectification, erasure and complaints (max 160 characters).')}
         ${text('privacy_consultation_time','Consultation response period',privacyConsultation,'Requires legal review: Law 1581/2012, article 14.')}
         ${text('privacy_claim_time','Claim response period',privacyClaim,'Requires legal review: Law 1581/2012, article 15.')}
-        <div class="sv2-readonly"><span>ADDITIONAL LEGAL DETAILS</span><strong>${privacyAdditionalConfigured}/5 CONFIGURED</strong><p>Final legal approval is still required even when all fields have values.</p></div>
+        <div class="sv2-readonly"><span>ADDITIONAL LEGAL DETAILS</span><strong>${privacyAdditionalConfigured}/6 CONFIGURED</strong><p>Final legal approval is still required even when all fields have values.</p></div>
         <div class="sv2-readonly" data-privacy-config-status data-testid="privacy-config-status"><span>PUBLIC PRIVACY STATUS</span><strong>${privacyConfigured === 3 ? '3/3 CONFIGURED' : `${privacyConfigured}/3 PENDING`}</strong><p>${privacyConfigured === 3 ? 'Configuration values are present. Legal review is still required.' : 'The public privacy page displays placeholders for each missing field.'}</p></div>
       </div>
       <div class="sv2-actions"><button type="button" class="btn red" data-settings-save="privacy" data-testid="privacy-save">SAVE PRIVACY DETAILS</button></div>
@@ -425,6 +427,12 @@
     return ![...value].some(character => /\s/.test(character));
   }
 
+  function validPrivacyPhone(value) {
+    if (!value) return true;
+    const digits = (value.match(/[0-9]/g) || []).length;
+    return /^\+?[0-9][0-9() .-]*$/.test(value) && value.length <= 40 && digits >= 7 && digits <= 20;
+  }
+
   async function persistPrivacyFields(fields,index=0) {
     if (index >= fields.length) return;
     const [key,value] = fields[index];
@@ -441,6 +449,7 @@
     const fields = [
       ['privacy.controller_name',read('privacy_controller_name'),160],
       ['privacy.controller_email',read('privacy_controller_email'),254],
+      ['privacy.controller_phone',read('privacy_controller_phone'),40],
       ['privacy.response_time',read('privacy_response_time'),160],
       ['privacy.controller_domicile',read('privacy_controller_domicile'),160],
       ['privacy.controller_address',read('privacy_controller_address'),254],
@@ -456,6 +465,10 @@
         && !validPrivacyEmail(value)) {
         throw new Error('A valid privacy contact email is required.');
       }
+    }
+    const phone = fields.find(([key]) => key === 'privacy.controller_phone')[1];
+    if (!validPrivacyPhone(phone)) {
+      throw new Error('A valid public contact phone is required (7–20 digits).');
     }
     await persistPrivacyFields(fields);
     const response = await req('/settings');

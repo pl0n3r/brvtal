@@ -22,6 +22,8 @@ class PrivacySettingsAdminTests(unittest.TestCase):
             self.assertIn("'" + key + "'", self.activity)
         for field in ('privacy_controller_name', 'privacy_controller_email', 'privacy_response_time'):
             self.assertIn("text('" + field + "'", self.ui)
+        self.assertIn("row('privacy.controller_phone')", self.ui)
+        self.assertIn("text('privacy_controller_phone'", self.ui)
         self.assertIn('data-privacy-config-status', self.ui)
         self.assertIn("privacyConfigured === 3", self.ui)
         self.assertIn('data-settings-save="privacy"', self.ui)
@@ -32,6 +34,9 @@ class PrivacySettingsAdminTests(unittest.TestCase):
         self.assertIn("key === 'privacy.controller_email'", self.ui)
         self.assertIn('filter_var($plain, FILTER_VALIDATE_EMAIL)', self.api)
         self.assertIn("'INVALID_PRIVACY_EMAIL'", self.api)
+        self.assertIn("'INVALID_PRIVACY_PHONE'", self.api)
+        self.assertIn("function validPrivacyPhone(value)", self.ui)
+        self.assertIn("'privacy.controller_phone'", self.api)
         self.assertIn("'INVALID_PRIVACY_VALUE'", self.api)
         self.assertIn("if ($isJson !== 0", self.api)
         self.assertIn("'field' => 'setting_value'", self.api)
@@ -71,13 +76,14 @@ class PrivacySettingsAdminTests(unittest.TestCase):
         self.assertIn("if($method!=='GET')brvtal_admin_require_csrf();", self.api)
 
     def test_extended_privacy_activity_logs_metadata_only(self):
-        for key in ('controller_domicile','controller_address',
+        for key in ('controller_phone','controller_domicile','controller_address',
                     'rights_contact_area','consultation_time','claim_time'):
             self.assertIn("'privacy." + key + "'", self.activity)
             self.assertIn("'privacy." + key + "'", self.api)
         self.assertIn("'value_changed' => true", self.api)
         self.assertNotIn("'setting_value' => $value", self.api)
         self.assertIn("'settings' => ['setting_key','is_json']", self.activity)
+        self.assertNotIn("'setting_value' => $value", self.api)
 
     def test_version_alignment(self):
         version_source = (ROOT/'config/version.php').read_text()

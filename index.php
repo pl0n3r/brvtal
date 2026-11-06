@@ -68,6 +68,7 @@ if ($pageRoute === 'privacy') {
     $privacySettings = [
         'controller_name' => '',
         'controller_email' => '',
+        'controller_phone' => '',
         'response_time' => '',
         'controller_domicile' => '',
         'controller_address' => '',
@@ -87,7 +88,7 @@ if ($pageRoute === 'privacy') {
         $privacySettings['response_time'] = brvtal_config_setting_text(
             $privacyPdo, 'privacy.response_time'
         );
-        foreach (['controller_domicile','controller_address',
+        foreach (['controller_phone','controller_domicile','controller_address',
                   'rights_contact_area','consultation_time','claim_time'] as $key) {
             $privacySettings[$key] = brvtal_config_setting_text($privacyPdo, 'privacy.' . $key);
         }
