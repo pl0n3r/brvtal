@@ -70,13 +70,25 @@ Esta guía explica lo que aparece en el sitio BRVTAL y en su administración. Es
 
 **Antes de empezar.** Deben existir artículos publicados y enlaces accesibles desde la portada u otras fichas.
 
-**Cómo se usa (paso a paso).** 1. Busca «JOURNAL» en los destinos del pie de página. 2. Abre el contenido editorial disponible. 3. Si un artículo muestra vínculos a otros contenidos, úsalos para seguir explorando.
+**Cómo se usa (paso a paso).** 1. Desplázate por la portada hasta encontrar «JOURNAL». 2. Abre una publicación desde su tarjeta, cuando muestre un enlace disponible. 3. Si el artículo incluye vínculos a otros contenidos, síguelos para explorar el archivo.
 
 **Avisos y mensajes.** La fecha y las relaciones visibles proceden de cada publicación.
 
 **Limitaciones.** No todos los artículos están publicados, y una sección de la portada no equivale necesariamente a un archivo de artículos completo.
 
-### 7. Páginas informativas
+### 7. Memorias de la portada
+
+**Para qué sirve.** Explorar las fotografías, vídeos y audios del archivo público «MEMORIAS».
+
+**Antes de empezar.** Desplázate por la portada hasta «MEMORIAS». Los resultados dependen del material que el equipo haya publicado; no necesitas una cuenta.
+
+**Cómo se usa (paso a paso).** 1. En «BUSCAR», escribe parte del título o la descripción de una memoria. 2. Utiliza «TODO» para ver todos los tipos disponibles o elige «IMÁGENES», «VÍDEO» o «AUDIO» para filtrar. 3. Abre una memoria cuando su tarjeta permita consultarla. 4. Si aparecen enlaces a eventos o artistas relacionados, síguelos para explorar su ficha.
+
+**Avisos y mensajes.** Cuando no hay coincidencias aparece «NINGUNA MEMORIA COINCIDE CON LOS FILTROS.». Selecciona «BORRAR FILTROS» para restablecer la búsqueda y mostrar los tipos disponibles.
+
+**Limitaciones.** Los filtros actúan sobre los registros cargados y publicados, no sobre toda la biblioteca privada del colectivo. Puede haber imágenes ilustrativas sin ficha enlazada, y que no aparezca un tipo de contenido no significa que haya fallado tu cuenta.
+
+### 8. Páginas informativas
 
 **Para qué sirve.** Consultar textos y páginas que el equipo publique para explicar BRVTAL.
 
@@ -88,19 +100,19 @@ Esta guía explica lo que aparece en el sitio BRVTAL y en su administración. Es
 
 **Limitaciones.** Un borrador de la administración no se convierte automáticamente en una página pública.
 
-### 8. Contacto
+### 9. Contacto
 
 **Para qué sirve.** Enviar un mensaje al equipo BRVTAL mediante el formulario público.
 
 **Antes de empezar.** Ten a mano una dirección de correo en la que puedas recibir respuesta.
 
-**Cómo se usa (paso a paso).** 1. Abre «CONTACTO». 2. Completa «NOMBRE», «EMAIL», «ASUNTO» y «MENSAJE». 3. Comprueba los datos y selecciona «ENVIAR SEÑAL ↗». 4. Revisa el aviso que muestre el formulario.
+**Cómo se usa (paso a paso).** 1. Abre «CONTACTO». 2. Completa «NOMBRE», «EMAIL», «ASUNTO» y «MENSAJE». 3. Espera la pregunta de «CONTROL ANTI-BOT» e introduce su resultado. 4. Selecciona «ENVIAR SEÑAL ↗» cuando el botón esté habilitado. 5. Comprueba el aviso «MENSAJE ENVIADO / SEÑAL RECIBIDA»; si hay un error, corrige los campos indicados.
 
-**Avisos y mensajes.** El formulario puede pedir corregir datos o informar que el envío no pudo completarse.
+**Avisos y mensajes.** Si «CONTROL ANTI-BOT» no está disponible, el botón de envío permanece deshabilitado. Si falla la verificación, el formulario puede pedir un nuevo resultado o mostrar «REVISA LOS CAMPOS MARCADOS.»; ante un fallo de red, informa que el mensaje no se envió.
 
 **Limitaciones.** Enviar el formulario no garantiza una respuesta inmediata ni una reserva para eventos. No incluyas contraseñas ni información confidencial.
 
-### 9. Privacidad
+### 10. Privacidad
 
 **Para qué sirve.** Consultar información sobre el uso de los datos personales y los canales de derechos.
 
@@ -114,7 +126,7 @@ Esta guía explica lo que aparece en el sitio BRVTAL y en su administración. Es
 
 ## Parte B. Para quien administra BRVTAL
 
-### 10. Acceso al panel
+### 11. Acceso al panel
 
 **Para qué sirve.** Entrar a la administración del sitio mediante una cuenta autorizada.
 
@@ -126,7 +138,7 @@ Esta guía explica lo que aparece en el sitio BRVTAL y en su administración. Es
 
 **Limitaciones.** No compartas claves ni códigos de recuperación. Si una cuenta no tiene autorización, la guía no puede concederle acceso.
 
-### 11. Resumen general
+### 12. Resumen general
 
 **Para qué sirve.** Revisar el estado general del contenido y encontrar acciones frecuentes.
 
@@ -138,19 +150,19 @@ Esta guía explica lo que aparece en el sitio BRVTAL y en su administración. Es
 
 **Limitaciones.** Un resumen no sustituye comprobar el estado de publicación de cada registro.
 
-### 12. Eventos
+### 13. Eventos
 
 **Para qué sirve.** Crear, actualizar y preparar la publicación de noches BRVTAL.
 
 **Antes de empezar.** Abre «EVENTS» y reúne los datos confirmados del evento. Una fecha o un precio de ejemplo no debe tratarse como real.
 
-**Cómo se usa (paso a paso).** 1. Pulsa «+ NEW EVENT». 2. Completa «Name *», «Date & time *» y «City *»; añade lugar e información adicional cuando corresponda. 3. Continúa con «NEXT →» o regresa con «← BACK». 4. Revisa entradas, horarios y participantes si los necesitas. 5. Utiliza «PUBLIC PREVIEW» para comprobar la presentación y «SAVE DRAFT» para conservar el trabajo.
+**Cómo se usa (paso a paso).** 1. En «EVENTS», selecciona «+ NEW EVENT» para crear una noche, o «EDIT» junto a un evento existente para modificarlo. 2. Completa «Name *», «Date & time *», «City *» y «Description» cuando corresponda. 3. En «Status», elige «draft» para mantenerlo privado o «published» para preparar su publicación. 4. Si necesitas diferirla, utiliza «Publish not before» cuando esté habilitado para un estado público. 5. Recorre las etapas con «NEXT →» y «← BACK», y revisa entradas, horarios y participantes. 6. Consulta «PUBLIC PREVIEW» y guarda con «SAVE», «SAVE DRAFT» o «SAVE EVENT» según el paso que veas; comprueba «Event saved.» y revisa por separado la ficha pública.
 
-**Avisos y mensajes.** Los datos obligatorios y las condiciones de publicación pueden impedir guardar o mostrar una ficha.
+**Avisos y mensajes.** Los datos obligatorios y las reglas de publicación pueden impedir guardar o mostrar una ficha. «SAVE DRAFT» es la etiqueta del botón durante algunas etapas: el estado elegido en «Status» define si se guarda un borrador o se intenta publicar.
 
-**Limitaciones.** Guardar un borrador no anuncia el evento ni vende entradas. No publiques datos sin confirmar.
+**Limitaciones.** Guardar un borrador no anuncia el evento ni vende entradas. Sin una fecha futura en «Publish not before», un evento con estado «published» puede hacerse visible al guardarlo si supera las validaciones; una fecha futura aplaza esa visibilidad. Comprueba siempre la ficha pública y no anuncies datos sin confirmar.
 
-### 13. Artistas
+### 14. Artistas
 
 **Para qué sirve.** Administrar perfiles y su presentación pública.
 
@@ -162,7 +174,7 @@ Esta guía explica lo que aparece en el sitio BRVTAL y en su administración. Es
 
 **Limitaciones.** La vista previa orienta el encuadre, pero no verifica cómo se ve cada dispositivo real. Un perfil guardado no confirma la participación en un evento.
 
-### 14. Sesiones y sets
+### 15. Sesiones y sets
 
 **Para qué sirve.** Registrar sesiones sonoras y vincularlas con artistas cuando corresponda.
 
@@ -174,7 +186,7 @@ Esta guía explica lo que aparece en el sitio BRVTAL y en su administración. Es
 
 **Limitaciones.** Registrar una sesión no sube automáticamente el audio ni confirma que una plataforma externa permita reproducirlo.
 
-### 15. Lanzamientos musicales
+### 16. Lanzamientos musicales
 
 **Para qué sirve.** Mantener las fichas del catálogo de discos.
 
@@ -186,7 +198,7 @@ Esta guía explica lo que aparece en el sitio BRVTAL y en su administración. Es
 
 **Limitaciones.** La ficha no distribuye música por sí misma ni garantiza presencia en servicios externos.
 
-### 16. Artículos y Blog
+### 17. Artículos y Blog
 
 **Para qué sirve.** Redactar y organizar publicaciones editoriales.
 
@@ -198,7 +210,7 @@ Esta guía explica lo que aparece en el sitio BRVTAL y en su administración. Es
 
 **Limitaciones.** No uses «DELETE FOREVER» sin comprobar las consecuencias: la eliminación definitiva no equivale a mover el artículo a la papelera.
 
-### 17. Páginas
+### 18. Páginas
 
 **Para qué sirve.** Administrar páginas informativas diferentes de las fichas de eventos o artistas.
 
@@ -210,7 +222,7 @@ Esta guía explica lo que aparece en el sitio BRVTAL y en su administración. Es
 
 **Limitaciones.** No se garantiza que una página aparezca en la navegación principal simplemente por haberla guardado.
 
-### 18. Biblioteca de archivos
+### 19. Biblioteca de archivos
 
 **Para qué sirve.** Cargar y seleccionar imágenes y otros archivos utilizados por el sitio.
 
@@ -222,7 +234,7 @@ Esta guía explica lo que aparece en el sitio BRVTAL y en su administración. Es
 
 **Limitaciones.** «DELETE» puede estar deshabilitado si un archivo sigue en uso. No confundas la ficha de un archivo con su publicación efectiva en el sitio.
 
-### 19. Memorias audiovisuales
+### 20. Memorias audiovisuales
 
 **Para qué sirve.** Organizar recuerdos y material audiovisual del colectivo y sus vínculos con publicaciones.
 
@@ -234,7 +246,7 @@ Esta guía explica lo que aparece en el sitio BRVTAL y en su administración. Es
 
 **Limitaciones.** Una memoria no crea automáticamente un evento, un artista ni permisos para usar fotografías ajenas.
 
-### 20. Banners de portada
+### 21. Banners de portada
 
 **Para qué sirve.** Preparar las imágenes y composiciones destacadas de la portada.
 
@@ -246,7 +258,7 @@ Esta guía explica lo que aparece en el sitio BRVTAL y en su administración. Es
 
 **Limitaciones.** La previsualización no garantiza el aspecto final en todos los teléfonos. No asumas que un borrador local ya está en el servidor.
 
-### 21. Apariencia y tema
+### 22. Apariencia y tema
 
 **Para qué sirve.** Ajustar colores, identidad visual y presentación del sitio.
 
@@ -258,7 +270,7 @@ Esta guía explica lo que aparece en el sitio BRVTAL y en su administración. Es
 
 **Limitaciones.** «EXPORT» produce una salida de configuración; no sustituye una copia de seguridad integral. Los cambios pueden afectar a todas las páginas.
 
-### 22. Aparición en buscadores
+### 23. Aparición en buscadores
 
 **Para qué sirve.** Revisar los títulos, descripciones e imágenes que pueden acompañar los enlaces del sitio.
 
@@ -270,7 +282,7 @@ Esta guía explica lo que aparece en el sitio BRVTAL y en su administración. Es
 
 **Limitaciones.** Guardar estos datos no garantiza una posición determinada en buscadores ni su actualización inmediata.
 
-### 23. Configuración general
+### 24. Configuración general
 
 **Para qué sirve.** Gestionar identidad, enlaces sociales y algunos ajustes generales del sitio.
 
@@ -282,7 +294,7 @@ Esta guía explica lo que aparece en el sitio BRVTAL y en su administración. Es
 
 **Limitaciones.** No actives integraciones sin autorización o sin una configuración válida. Algunos ajustes dependen de servicios ajenos al sitio.
 
-### 24. Seguridad de la cuenta
+### 25. Seguridad de la cuenta
 
 **Para qué sirve.** Proteger el acceso a la administración.
 
@@ -294,7 +306,7 @@ Esta guía explica lo que aparece en el sitio BRVTAL y en su administración. Es
 
 **Limitaciones.** No compartas códigos de acceso, recuperación o contraseñas. La guía no permite omitir verificaciones de seguridad.
 
-### 25. Estado del sistema y copias
+### 26. Estado del sistema y copias
 
 **Para qué sirve.** Consultar diagnósticos básicos y, si la sección está habilitada, crear copias privadas.
 
