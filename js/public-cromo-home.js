@@ -959,14 +959,14 @@
       parts.home.querySelectorAll('section[id]').forEach((s) => io.observe(s));
     }
     // Resolve legacy hashes after mounting: an empty archive has no #archivo.
-    const legacyHash = window.location.hash;
-    const legacyTarget = legacyHash === '#events' ? 'noches'
-      : legacyHash === '#archive' ? (document.getElementById('archivo') ? 'archivo' : 'noches')
-        : null;
+    const legacyTarget = { '#events': 'noches', '#archive': 'archivo' }[window.location.hash];
     if (legacyTarget) {
-      const node = document.getElementById(legacyTarget);
+      // #archivo is only mounted when a published archive event exists.
+      const target = legacyTarget === 'archivo' && !document.getElementById('archivo')
+        ? 'noches' : legacyTarget;
+      const node = document.getElementById(target);
       if (node) {
-        window.history.replaceState(null, '', '#' + legacyTarget);
+        window.history.replaceState(null, '', '#' + target);
         // Programmatic focus preserves the keyboard destination for old links.
         if (!node.hasAttribute('tabindex')) node.setAttribute('tabindex', '-1');
         window.requestAnimationFrame(() => {
