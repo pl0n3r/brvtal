@@ -46,7 +46,7 @@ try {
             $label
         );
     };
-    $result = $deleting ? brvtal_bulk_delete_sets($pdo,$request,$audit) : brvtal_bulk_apply($pdo,$request,$audit);
+    $result = $deleting ? brvtal_bulk_delete_sets($pdo,$request,$audit) : brvtal_bulk_apply($pdo, $request, $audit);
     try {
         foreach ((array)$result['ids'] as $changedId) {
             $changedId = (int)$changedId;
