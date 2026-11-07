@@ -12,7 +12,7 @@ function brvtal_soundcloud_track_url(mixed $value): string
     if (!is_array($parsed) || strtolower((string)($parsed['scheme'] ?? '')) !== 'https') return '';
     if (!in_array(strtolower((string)($parsed['host'] ?? '')), ['soundcloud.com', 'www.soundcloud.com'], true)) return '';
     if (isset($parsed['user'], $parsed['pass']) || isset($parsed['user']) || isset($parsed['port'])) return '';
-    $pieces = array_values(array_filter(explode('/', trim((string)($parsed['path'] ?? ''), '/')), 'strlen'));
+    $pieces = array_values(array_filter(explode('/', trim((string)($parsed['path'] ?? ''), '/')), strlen(...)));
     if (count($pieces) !== 2 && !(count($pieces) === 3 && $pieces[1] === 'sets')) return '';
     foreach ($pieces as $piece) if (!preg_match('/^[A-Za-z0-9_-]{1,120}$/D', $piece)) return '';
     if (in_array(strtolower($pieces[0]), ['discover', 'stream', 'search', 'you', 'charts', 'upload', 'tracks', 'settings'], true)) return '';
