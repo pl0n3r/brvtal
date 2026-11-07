@@ -40,3 +40,35 @@ a,button{color:inherit}.mono{font-family:"Space Mono",monospace;letter-spacing:.
 .brvtal-contact-page .cp-snd[aria-pressed="true"] i{background:#fff}
 .brvtal-contact-page .cp-snd:focus-visible{outline:3px solid var(--acid);outline-offset:3px}
 @media(max-width:560px){.contact-page-nav-actions{gap:7px}.brvtal-contact-page .cp-snd{gap:5px;padding:0 8px;font-size:12px}.contact-page-nav-actions .contact-page-home{font-size:11px}}
+
+/* Contact Cromo navigation: canonical links, six in one desktop row / two mobile rows. */
+.brvtal-contact-page .contact-page-nav{grid-template-rows:auto auto;row-gap:8px}
+.brvtal-contact-page .contact-page-nav .contact-page-nav-actions{grid-row:1;grid-column:3}
+.brvtal-contact-page .contact-page-nav .contact-page-cromo-nav{
+  grid-column:1/-1;grid-row:2;display:grid;grid-template-columns:repeat(6,max-content);
+  justify-content:center;align-items:center;column-gap:clamp(12px,2.6vw,36px);
+  width:100%;min-width:0;margin:0;padding:0
+}
+.brvtal-contact-page .contact-page-cromo-nav a{
+  display:flex;align-items:center;justify-content:center;min-height:34px;
+  color:var(--fg);text-decoration:none;text-transform:uppercase;
+  font:700 12px/1.15 "Barlow Condensed",Arial,sans-serif;letter-spacing:.05em;
+  white-space:nowrap;border-bottom:2px solid transparent
+}
+.brvtal-contact-page .contact-page-cromo-nav a:hover{border-bottom-color:var(--acid)}
+.brvtal-contact-page .contact-page-cromo-nav a:focus-visible{
+  outline:3px solid var(--acid);outline-offset:2px
+}
+@media(max-width:900px){
+  .brvtal-contact-page .contact-page-nav .contact-page-nav-actions{grid-column:2}
+}
+@media(max-width:560px){
+  .brvtal-contact-page .contact-page-nav{row-gap:6px}
+  .brvtal-contact-page .contact-page-nav .contact-page-cromo-nav{
+    grid-template-columns:repeat(3,minmax(0,1fr));gap:4px 8px
+  }
+  .brvtal-contact-page .contact-page-cromo-nav a{
+    min-height:32px;white-space:normal;text-align:center;font-size:12px;padding:4px 2px
+  }
+  .brvtal-contact-page .contact-page-hero{padding-top:188px}
+}

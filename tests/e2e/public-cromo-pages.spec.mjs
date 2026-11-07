@@ -146,3 +146,53 @@ test('contact sound toggles by touch at 390 without submitting form', async ({br
     await expect(page.locator('#brvtalContactForm')).toBeVisible();
   } finally { await context.close(); }
 });
+
+// Render /contact from its actual PHP generator and compare against the shared links.
+test('contact Cromo navigation is keyboard accessible and occupies two rows at 390px', async ({page}) => {
+  const sharedHrefs = Array.from(topbar.matchAll(/href="(\/#[^"]+)"/g), match => match[1]);
+  expect(sharedHrefs).toHaveLength(6);
+  for (const width of [390, 1440]) {
+    await openContactSound(page, width);
+    const links = page.locator('.contact-page-nav nav.contact-page-cromo-nav a');
+    await expect(links).toHaveCount(6);
+    expect(await links.evaluateAll(nodes => nodes.map(node => node.getAttribute('href')))).toEqual(sharedHrefs);
+    const boxes = await links.evaluateAll(nodes => nodes.map(node => {
+      const rect = node.getBoundingClientRect();
+      return {left:rect.left,right:rect.right,top:Math.round(rect.top),bottom:rect.bottom};
+    }));
+    const rows = [...new Set(boxes.map(box => box.top))];
+    expect(rows).toHaveLength(width === 390 ? 2 : 1);
+    if (width === 390) {
+      expect(rows.map(row => boxes.filter(box => box.top === row).length)).toEqual([3,3]);
+    }
+    for (const row of rows) {
+      const sorted = boxes.filter(box => box.top === row).sort((a,b) => a.left - b.left);
+      for (let index=1; index<sorted.length; index++) {
+        expect(sorted[index].left).toBeGreaterThanOrEqual(sorted[index-1].right - 1);
+      }
+    }
+    const bounds = await page.evaluate(() => {
+      const header = document.querySelector('.contact-page-nav').getBoundingClientRect();
+      const menu = document.querySelector('.contact-page-cromo-nav').getBoundingClientRect();
+      const title = document.querySelector('#contactTitle').getBoundingClientRect();
+      return {headerBottom:header.bottom,menuTop:menu.top,titleTop:title.top,
+        scrollWidth:document.documentElement.scrollWidth,viewport:document.documentElement.clientWidth};
+    });
+    expect(bounds.menuTop).toBeGreaterThan(35);
+    expect(bounds.titleTop).toBeGreaterThanOrEqual(bounds.headerBottom-1);
+    expect(bounds.scrollWidth).toBeLessThanOrEqual(bounds.viewport+1);
+    await links.first().focus();
+    for (let index=0; index<6; index++) {
+      await expect(links.nth(index)).toBeFocused();
+      if (index<5) await page.keyboard.press('Tab');
+    }
+    await expect(page.locator('.contact-page-nav [data-cromo-sound]')).toBeVisible();
+    await expect(page.locator('#brvtalContactForm')).toBeVisible();
+    await page.route('http://127.0.0.1:4173/', route => route.fulfill({
+      contentType:'text/html; charset=utf-8',
+      body:'<!doctype html><html><body><main id="noches">Noches</main></body></html>',
+    }));
+    await links.first().click();
+    await expect(page).toHaveURL(/\/#noches$/);
+  }
+});
