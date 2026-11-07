@@ -29,10 +29,11 @@ try {
         $beforeIndexRows[(int)$row['id']] = $row;
     }
 
-    $result = brvtal_bulk_apply($pdo, $request, static function (string $resource, int $id, array $before, array $after, string $label) use ($pdo, $request): void {
+    $deleting = $request['action'] === 'delete_selected';
+    $audit = static function (string $resource, int $id, array $before, array $after, string $label) use ($pdo, $request, $deleting): void {
         brvtal_activity_record(
             $pdo,
-            'bulk_status',
+            $deleting ? 'bulk_delete' : 'bulk_status',
             $resource,
             $id,
             $before,
@@ -40,11 +41,12 @@ try {
             [
                 'source'=>'bulk_actions',
                 'batch_size'=>count((array)$request['ids']),
-                'target_status'=>(string)$request['status'],
+                'target_status'=>$deleting ? null : (string)$request['status'],
             ],
             $label
         );
-    });
+    };
+    $result = $deleting ? brvtal_bulk_delete_sets($pdo,$request,$audit) : brvtal_bulk_apply($pdo,$request,$audit);
     try {
         foreach ((array)$result['ids'] as $changedId) {
             $changedId = (int)$changedId;
@@ -56,7 +58,7 @@ try {
             );
             $beforeStatus = is_array($beforeIndex) ? (string)($beforeIndex['status'] ?? '') : '';
             $afterStatus = is_array($afterIndex) ? (string)($afterIndex['status'] ?? '') : '';
-            if ($beforeStatus !== $afterStatus) {
+            if ($deleting || $beforeStatus !== $afterStatus) {
                 brvtalIndexNowNotifyChange(
                     $pdo,
                     (string)$result['resource'],
@@ -74,10 +76,12 @@ try {
 
     brvtal_log('ADMIN_BULK_STATUS', 'Bulk content status updated', [
         'resource' => $result['resource'],
-        'status' => $result['status'],
+        'action' => $request['action'],
+        'status' => $result['status'] ?? null,
         'ids' => $result['ids'],
         'matched' => $result['matched'],
-        'changed' => $result['changed'],
+        'changed' => $result['changed'] ?? null,
+        'deleted' => $result['deleted'] ?? null,
     ]);
     json_response(['ok'=>true,'data'=>$result]);
 } catch (InvalidArgumentException $e) {
@@ -85,6 +89,9 @@ try {
 } catch (RuntimeException $e) {
     if ($e->getMessage() === 'BULK_ITEMS_NOT_FOUND') {
         json_response(['ok'=>false,'error'=>'BULK_ITEMS_NOT_FOUND'], 409);
+    }
+    if ($e->getMessage() === 'BULK_SET_REFERENCED') {
+        json_response(['ok'=>false,'error'=>'BULK_SET_REFERENCED'], 409);
     }
     if ($e->getMessage() === 'ACTIVITY_SCHEMA_MISSING') {
         json_response(['ok'=>false,'error'=>'ACTIVITY_SCHEMA_MISSING'], 503);

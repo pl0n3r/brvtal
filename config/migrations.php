@@ -304,6 +304,18 @@ function brvtal_migration_record(
     ]);
 }
 
+/**
+ * Additive, idempotent backfill for the approved Set/DJ relationship.
+ * Runs only after the pivot DDL has been proven/appended by the migration runner.
+ */
+function brvtalSetArtistsBackfill(PDO $pdo): void
+{
+    $pdo->exec(
+        'INSERT IGNORE INTO set_artists (set_id,artist_id,sort_order) '
+        . 'SELECT id,artist_id,0 FROM sets_media WHERE artist_id IS NOT NULL'
+    );
+}
+
 function brvtal_migration_apply_file(
     PDO $pdo,
     string $path,
@@ -346,6 +358,9 @@ function brvtal_migration_apply_file(
     // automatic Factory planner invokes brvtalMigrationAssertAdditiveSql()
     // before selecting any migration for unattended deployment.
     $pdo->exec($sql);
+    if ($name === 'migration_set_artists_01.sql') {
+        brvtalSetArtistsBackfill($pdo);
+    }
 
     if (!brvtal_migration_registry_exists($pdo)) {
         throw new RuntimeException('MIGRATION_REGISTRY_NOT_CREATED');
@@ -388,6 +403,9 @@ function brvtal_migration_baseline_file(
         return ['migration' => $name, 'status' => 'already_applied', 'checksum_sha256' => $checksum];
     }
 
+    if ($name === 'migration_set_artists_01.sql') {
+        brvtalSetArtistsBackfill($pdo);
+    }
     brvtal_migration_record($pdo, $name, $checksum, $actor, $deploySha);
     return ['migration' => $name, 'status' => 'baselined', 'checksum_sha256' => $checksum];
 }

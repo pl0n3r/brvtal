@@ -170,6 +170,12 @@ function brvtalMigrationProofSpecifications(): array
             ],
             true
         ),
+        'migration_set_artists_01.sql' => brvtalMigrationObjectRequirements(
+            'set_artists',
+            ['set_id', 'artist_id', 'sort_order'],
+            ['PRIMARY', 'idx_set_artists_artist'],
+            true
+        ),
         'migration_set_duration_01.sql' => [
             'column:sets_media.duration_seconds',
             'column-unsigned-nullable:sets_media.duration_seconds',

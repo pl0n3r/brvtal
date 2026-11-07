@@ -59,7 +59,7 @@
     const enabled = container.dataset.orderEnabled !== '0';
     const copy = help.querySelector('[data-order-help-copy]');
     if (copy) copy.textContent = enabled
-      ? 'Drag to reorder · Arrow Up/Down on the handle · saves automatically'
+      ? 'Drag or use UP / DOWN to reorder · saves automatically'
       : 'Clear search/filter/sort to reorder the complete collection';
     help.classList.toggle('disabled', !enabled);
     return help;
@@ -170,6 +170,19 @@
     if (drag.moved) void save(drag.container, drag.previous);
   }
 
+  function moveByButton(container, item, direction) {
+    if (container.dataset.orderEnabled === '0' || container.dataset.orderSaving === '1') return;
+    const sibling = direction === 'up' ? item.previousElementSibling : item.nextElementSibling;
+    if (!sibling?.matches?.('[data-order-id]')) return;
+    const previous=ids(container);
+    if (direction === 'up') sibling.before(item);
+    else item.before(sibling);
+    updatePositions(container);
+    refresh(container);
+    item.querySelector('[data-order-move="'+direction+'"]')?.focus({preventScroll:true});
+    void save(container,previous);
+  }
+
   function configureItem(container, item) {
     item.dataset.orderItem = '1';
     let handle = item.querySelector(':scope > .content-order-handle');
@@ -177,7 +190,7 @@
       handle = document.createElement('button');
       handle.type = 'button';
       handle.className = 'content-order-handle';
-      handle.innerHTML = '<span aria-hidden="true">⠿</span>';
+      handle.innerHTML = '<span aria-hidden="true">↕</span>';
       item.appendChild(handle);
     }
     const identity = item.querySelector('.title,.release-title,.blog-title')?.textContent?.trim() || 'record';
@@ -186,6 +199,21 @@
     handle.title = 'Drag to reorder · Arrow Up/Down';
     handle.onkeydown = event => moveByKeyboard(event, container, item);
     handle.onpointerdown = event => pointerDown(event, container, item, handle);
+    if(container.dataset.orderResource==='sets'){
+      for (const [direction,label] of [['up','Move up'],['down','Move down']]){
+        let button=item.querySelector('[data-order-move="'+direction+'"]');
+        if(!button){
+          button=document.createElement('button');
+          button.type='button';button.className='content-order-move content-order-move-'+direction;
+          button.dataset.orderMove=direction;
+          button.textContent=direction==='up'?'↑':'↓';
+          item.appendChild(button);
+        }
+        button.setAttribute('aria-label',label+' '+identity);
+        button.title=label+' '+identity;
+        button.onclick=()=>moveByButton(container,item,direction);
+      }
+    }
   }
 
   function refresh(container) {
@@ -193,10 +221,16 @@
     const resource = String(container.dataset.orderResource || '').toLowerCase();
     if (!supported.has(resource)) return false;
     const enabled = container.dataset.orderEnabled !== '0' && container.dataset.orderSaving !== '1';
-    items(container).forEach(item => {
+    const all=items(container);
+    all.forEach((item,index) => {
       configureItem(container,item);
       const handle = item.querySelector(':scope > .content-order-handle');
       if (handle) { handle.disabled = !enabled; handle.hidden = container.dataset.orderEnabled === '0'; }
+      item.querySelectorAll('[data-order-move]').forEach(button=>{
+        const boundary=button.dataset.orderMove==='up' ? index===0 : index===all.length-1;
+        button.disabled=!enabled || boundary;
+        button.hidden=container.dataset.orderEnabled==='0';
+      });
     });
     updatePositions(container);
     setHelp(container);

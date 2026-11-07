@@ -11,7 +11,7 @@ require_once __DIR__ . '/../config/deployment.php';
 .shell{min-height:100vh;display:grid;grid-template-columns:245px 1fr}.side{border-right:1px solid #202326;background:#070707;padding:24px;position:sticky;top:0;height:100vh}.logo{font-size:38px;font-weight:950;letter-spacing:-3px}.sub{font-size:9px;letter-spacing:2.5px;color:#73787d;margin:3px 0 38px}.nav button{width:100%;display:block;text-align:left;background:none;border:0;color:#777;padding:11px 0;font-size:11px;letter-spacing:1px}.nav button:hover,.nav button.active{color:#fff}.nav button.active:before{content:"";display:inline-block;width:5px;height:5px;background:var(--red);margin:0 9px 2px 0}.sidefoot{position:absolute;left:24px;right:24px;bottom:24px}
 .main{padding:28px 32px;max-width:1500px}.top{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid #202326;padding-bottom:20px}.eyebrow{font-size:9px;letter-spacing:2.4px;color:#73787d}.top h1{font-size:34px;margin:7px 0 0;letter-spacing:-1.4px}.status{font-size:9px;border:1px solid #34393e;padding:8px 10px;letter-spacing:1px}.status i{display:inline-block;width:5px;height:5px;background:var(--green);border-radius:50%;margin-right:6px}
 .btn{border:0;background:#fff;color:#000;padding:12px 17px;font-weight:900}.btn.red{background:var(--red);color:#fff}.btn.ghost{background:transparent;color:#fff;border:1px solid #363b40}.toolbar{display:flex;justify-content:space-between;gap:12px;margin:22px 0}.search{width:min(400px,100%);background:#090a0b;border:1px solid #34383d;color:#fff;padding:12px}.table{border:1px solid #25292d;background:#080909}.thead,.tr{display:grid;grid-template-columns:2fr 1.1fr 1fr .8fr 165px;gap:12px;padding:13px 15px;align-items:center}.thead{font-size:9px;letter-spacing:1.5px;color:#656b71;background:#0d0f10}.tr{font-size:12px;border-top:1px solid #1d2023}.tr:hover{background:#0d0f10}.title{font-weight:800}.meta{color:#737980;font-size:10px;margin-top:4px}.pill{display:inline-block;border:1px solid #34393e;padding:5px 7px;font-size:9px;text-transform:uppercase}.actions{display:flex;gap:6px;justify-content:flex-end}.iconbtn{background:#111315;color:#fff;border:1px solid #34383c;padding:7px 9px;font-size:10px}.empty{padding:55px;text-align:center;color:#6f757b}.avatar{width:42px;height:42px;object-fit:cover;border:1px solid #333;background:#111}.cell{display:flex;gap:12px;align-items:center}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:22px 0}.stat{border:1px solid #24282c;background:#090a0b;padding:18px}.stat .n{font-size:36px;font-weight:900;margin-top:7px}
-.modal{position:fixed;inset:0;background:rgba(0,0,0,.88);backdrop-filter:blur(8px);display:none;align-items:center;justify-content:center;padding:18px;z-index:50}.modal.open{display:flex}.modalbox{width:min(1100px,100%);max-height:94vh;overflow:auto;background:#080909;border:1px solid #30353a}.modalhead{display:flex;justify-content:space-between;align-items:center;padding:20px 24px;border-bottom:1px solid #24282c}.modalhead h2{margin:0;font-size:20px}.micro{font-size:9px;letter-spacing:2px;color:#70767c;margin-top:5px}.form{padding:24px}.section{border:1px solid #24282c;background:#0a0b0c;padding:20px;margin-bottom:15px}.sectionhead{display:flex;justify-content:space-between;border-bottom:1px solid #24282c;padding-bottom:12px;margin-bottom:18px}.sectionhead strong{font-size:10px;letter-spacing:2px}.helper{font-size:10px;color:#747b82;line-height:1.5}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}.field{margin-bottom:14px}.field label{display:block;color:#8b9197;font-size:9px;text-transform:uppercase;letter-spacing:1.4px;margin-bottom:7px}.field input,.field textarea,.field select{width:100%;background:#050606;border:1px solid #353a3f;color:#fff;padding:11px}.field textarea{min-height:110px;resize:vertical}.full{grid-column:1/-1}.modalfoot{display:flex;justify-content:space-between;align-items:center;border-top:1px solid #25292d;padding:16px 24px}.footactions{display:flex;gap:8px}.notice{display:none;margin:0 24px 10px;padding:11px;border:1px solid #3a3f44;font-size:11px}.notice.show{display:block}.error{color:#ff5555}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.88);backdrop-filter:blur(8px);display:none;align-items:center;justify-content:center;padding:18px;z-index:50}.modal.open{display:flex}.modalbox{width:min(1100px,100%);max-height:94vh;overflow:auto;background:#080909;border:1px solid #30353a}.modalhead{display:flex;justify-content:space-between;align-items:center;padding:20px 24px;border-bottom:1px solid #24282c}.modalhead h2{margin:0;font-size:20px}.micro{font-size:9px;letter-spacing:2px;color:#70767c;margin-top:5px}.form{padding:24px}.section{border:1px solid #24282c;background:#0a0b0c;padding:20px;margin-bottom:15px}.sectionhead{display:flex;justify-content:space-between;border-bottom:1px solid #24282c;padding-bottom:12px;margin-bottom:18px}.sectionhead strong{font-size:10px;letter-spacing:2px}.helper{font-size:10px;color:#747b82;line-height:1.5}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}.field{margin-bottom:14px}.field label{display:block;color:#8b9197;font-size:9px;text-transform:uppercase;letter-spacing:1.4px;margin-bottom:7px}.field input,.field textarea,.field select{width:100%;background:#050606;border:1px solid #353a3f;color:#fff;padding:11px}.field textarea{min-height:110px;resize:vertical}.full{grid-column:1/-1}.modalfoot{display:flex;justify-content:space-between;align-items:center;border-top:1px solid #25292d;padding:16px 24px}.set-editor-modal .modalbox{display:flex;flex-direction:column;max-height:calc(100dvh - 36px);overflow:hidden}.set-editor-modal .modalhead,.set-editor-modal .modalfoot{flex:none}.set-editor-modal #mcontent{overflow-y:auto;min-height:0;overscroll-behavior:contain}.set-editor-modal .modalfoot{gap:9px;flex-wrap:wrap}.set-editor-modal #saveKeepOpenBtn{min-height:44px}.set-artist-choices{max-height:174px;overflow-y:auto;border:1px solid #353a3f;padding:6px}.set-artist-choice{display:flex!important;align-items:center;gap:10px;min-height:44px;padding:4px 6px;font-size:11px!important;letter-spacing:0!important;text-transform:none!important;color:#e0e0e0!important}.set-artist-choice[hidden]{display:none!important}.set-artist-choice input{width:18px!important;flex:none;accent-color:#ff2038}.set-artist-chips{display:flex;flex-wrap:wrap;gap:6px;min-height:36px;padding:7px 0;color:#aab0b5}.set-artist-chip{border:1px solid #a32a37;background:#281015;color:#fff;border-radius:3px;padding:6px 9px;min-height:32px}.set-artist-chip:focus-visible{outline:2px solid #fff;outline-offset:2px}.footactions{display:flex;gap:8px}.notice{display:none;margin:0 24px 10px;padding:11px;border:1px solid #3a3f44;font-size:11px}.notice.show{display:block}.error{color:#ff5555}
 .lineup{display:grid;grid-template-columns:1fr 1fr;gap:18px}.linebox{border:1px solid #25292d;background:#0a0b0c;padding:14px}.linebox h3{font-size:10px;letter-spacing:2px;color:#9aa0a6;margin:0 0 12px}.artistpick{display:flex;align-items:center;gap:10px;border:1px solid #25292d;background:#0e1011;padding:10px;margin-bottom:7px}.artistpick button{margin-left:auto}.drag{cursor:grab}.lineitem{display:flex;align-items:center;gap:10px;border:1px solid #30353a;background:#0d0f10;padding:10px;margin-bottom:7px}.handle{color:#777}.lineitem .remove{margin-left:auto}.role{width:100px!important;padding:7px!important}
 .login{min-height:100vh;display:grid;place-items:center}.loginbox{width:min(420px,90vw);background:#090a0b;border:1px solid #282c30;padding:30px}.loginbox h1{margin:0;font-size:38px;letter-spacing:-2px}.loginbox .sub{margin-bottom:28px}.loginbox input{width:100%;background:#050606;color:#fff;border:1px solid #34383d;padding:12px;margin:7px 0 14px}.syscheck{margin:18px 0;border:1px solid #24282c;background:#070808;padding:12px}.sysrow{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #181b1d;font-size:9px;letter-spacing:1.2px}.sysrow:last-child{border-bottom:0}.sysok{color:var(--green)}.syserr{color:#ff5555}.syswait{color:#8b9197}.navgroup{font-size:8px;letter-spacing:2px;color:#4f555a;margin:25px 0 7px}.thumb{width:58px;height:58px;object-fit:cover;border:1px solid #333;background:#111;flex:0 0 auto}.thumb.lg{width:84px;height:84px}.thumbph{width:58px;height:58px;border:1px solid #292e33;background:linear-gradient(135deg,#0c0d0e,#15181a);display:grid;place-items:center;color:#454b50;font:9px monospace;flex:0 0 auto}.dashgrid{display:grid;grid-template-columns:1.5fr 1fr;gap:14px;margin-top:14px}.dashlist{display:grid;gap:8px}.dashitem{display:flex;gap:12px;align-items:center;border:1px solid #24282c;background:#090a0b;padding:10px}.dashitem .grow{min-width:0;flex:1}.dashitem .title{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.metricrow{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.metric{border:1px solid #24282c;background:#080909;padding:12px}.metric b{display:block;font-size:18px;margin-top:6px}.bar{height:5px;background:#171a1d;margin-top:10px}.bar i{display:block;height:100%;background:var(--green);width:0}.quickgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.quickgrid button{min-height:58px}.dashsection{border:1px solid #24282c;background:#080909;padding:18px}.dashsection .sectionhead{margin-bottom:12px}.thumbcell{display:flex;gap:12px;align-items:center;min-width:0}.techgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.techcard{border:1px solid #24282c;background:#090a0b;padding:18px}.techcard h3{font-size:11px;letter-spacing:1.5px;margin:0 0 9px}.techcard p{font-size:10px;color:#737980;line-height:1.5;min-height:30px}.techvalue{font-size:18px;font-weight:900;margin:8px 0}.techactions{display:flex;gap:7px;flex-wrap:wrap}.logbox{background:#030404;border:1px solid #22272b;padding:15px;white-space:pre-wrap;word-break:break-word;font:10px/1.5 monospace;color:#aeb4b9;max-height:58vh;overflow:auto}.tester{display:grid;grid-template-columns:220px 1fr;gap:12px}.tester pre{margin:0;background:#030404;border:1px solid #22272b;padding:14px;overflow:auto;min-height:260px;font:10px/1.5 monospace}
 @media(max-width:850px){.dashgrid{grid-template-columns:1fr}.quickgrid{grid-template-columns:1fr 1fr}.metricrow{grid-template-columns:1fr 1fr}.shell{grid-template-columns:1fr}.side{position:static;height:auto;border-right:0;border-bottom:1px solid #202326}.sidefoot{position:static;margin-top:20px}.stats{grid-template-columns:1fr 1fr}.grid2,.lineup{grid-template-columns:1fr}.thead{display:none}.tr{grid-template-columns:1fr 1fr}.tr>div:nth-child(2),.tr>div:nth-child(3),.tr>div:nth-child(4){display:none}}
@@ -278,11 +278,29 @@ async function go(s){
  }
  render();
 }
-function openModal(type,id=null){state.editing=id;document.getElementById('modal').classList.add('open');document.getElementById('notice').className='notice';document.getElementById('mtitle').textContent=(id?'EDIT ':'NEW ')+type.toUpperCase();document.getElementById('saveBtn').onclick=()=>save(type,id);let r=id?state.rows.find(x=>Number(x.id)===Number(id)):null;
+function openModal(type,id=null){state.editing=id;document.getElementById('modal').classList.add('open');
+ document.getElementById('modal').classList.toggle('set-editor-modal',type==='sets');
+ const existingKeep=document.getElementById('saveKeepOpenBtn');existingKeep?.remove();
+ const saveButton=document.getElementById('saveBtn');
+ if(type==='sets'){
+   const keep=document.createElement('button');keep.id='saveKeepOpenBtn';keep.className='btn ghost';keep.type='button';keep.textContent='SAVE';
+   keep.onclick=()=>window.save('sets',state.editing,{close:false});
+   saveButton?.before(keep);
+   saveButton.textContent='SAVE & CLOSE';
+   saveButton.onclick=()=>window.save('sets',state.editing,{close:true});
+ }document.getElementById('notice').className='notice';document.getElementById('mtitle').textContent=(id?'EDIT ':'NEW ')+type.toUpperCase();if(type!=='sets')document.getElementById('saveBtn').onclick=()=>save(type,id);let r=id?state.rows.find(x=>Number(x.id)===Number(id)):null;
  if(type==='events')eventForm(r);else if(type==='artists')artistForm(r);else if(type==='sets')setForm(r);else if(type==='media')mediaForm(r);else if(type==='pages')pageForm(r);else settingsForm(r);
  replaceLegacySortOrderControl(type);
  window.BRVTALPublicPreview?.bindLegacy(type,r||{});
  void window.BRVTALLegacyDrafts?.bind?.(type,id,r||{});
+ if(type==='sets')requestAnimationFrame(()=>requestAnimationFrame(()=>{
+   const box=document.querySelector('#modal .modalbox');
+   if(box)box.scrollTop=0;
+   const content=document.querySelector('#modal #mcontent');
+   if(content)content.scrollTop=0;
+   const title=document.getElementById('mtitle');
+   if(title){title.tabIndex=-1;title.focus({preventScroll:true});}
+ }));
 }
 function replaceLegacySortOrderControl(type){
  const control=document.getElementById('f_sort_order');
@@ -413,6 +431,51 @@ function artistForm(r){
   </div>
  </div>`;
 }
+function selectedSetArtistIds() {
+  return [...document.querySelectorAll('#setArtistChoices input[data-set-artist]:checked')]
+    .sort((a,b)=>Number(a.dataset.selectionOrder||9999)-Number(b.dataset.selectionOrder||9999))
+    .map(input=>Number(input.value)).filter(id=>Number.isInteger(id)&&id>0);
+}
+function renderSetArtistChips() {
+  const target=document.getElementById('setArtistChips');
+  if(!target)return;
+  const names=new Map((state.artists||[]).map(a=>[Number(a.id),String(a.name||'')]));
+  target.replaceChildren();
+  const ids=selectedSetArtistIds();
+  for(const id of ids){
+    const button=document.createElement('button');
+    button.type='button';button.className='set-artist-chip';
+    button.textContent=(names.get(id)||'DJ')+' ×';
+    button.setAttribute('aria-label','Remove '+(names.get(id)||'DJ'));
+    button.addEventListener('click',()=>{
+      const choice=document.querySelector('#setArtistChoices input[value="'+id+'"]');
+      if(choice){choice.checked=false;renderSetArtistChips();choice.focus({preventScroll:true});}
+    });
+    target.appendChild(button);
+  }
+  if(!ids.length)target.textContent='Sin DJs asociados';
+}
+function filterSetArtists(query) {
+  const search=String(query||'').toLocaleLowerCase().trim();
+  document.querySelectorAll('#setArtistChoices .set-artist-choice').forEach(row=>{
+    row.hidden=!String(row.dataset.artistName||'').toLocaleLowerCase().includes(search);
+  });
+}
+function setArtistsPickerMarkup(record) {
+  const storedIds=(Array.isArray(record.artist_ids)?record.artist_ids:[record.artist_id])
+    .map(Number).filter(x=>Number.isInteger(x)&&x>0);
+  const ids=new Set(storedIds);
+  return `<div class="field full set-artists-field">
+    <label id="setArtistLabel" for="setArtistSearch">DJs asociados (selección múltiple)</label>
+    <input id="setArtistSearch" type="search" autocomplete="off" placeholder="Buscar DJ..." aria-controls="setArtistChoices">
+    <div id="setArtistChoices" role="group" aria-labelledby="setArtistLabel" class="set-artist-choices">
+      ${(state.artists||[]).map(a=>`<label class="set-artist-choice" data-artist-name="${esc(a.name)}">
+        <input type="checkbox" data-set-artist value="${Number(a.id)}" data-selection-order="${ids.has(Number(a.id)) ? storedIds.indexOf(Number(a.id))+1 : ''}" ${ids.has(Number(a.id))?'checked':''}>
+        <span>${esc(a.name)}</span></label>`).join('')}
+    </div>
+    <div id="setArtistChips" class="set-artist-chips" aria-live="polite"></div>
+  </div>`;
+}
 function setForm(r) {
   r = r || {};
   document.getElementById('mcontent').innerHTML = `
@@ -437,9 +500,7 @@ function setForm(r) {
               <input id="f_cover_image" type="text" value="${esc(r.cover_image)}">
             </div>
           </div>
-          ${select('artist_id','Artist',String(r.artist_id||''),[
-            ['','—'],...state.artists.map(a=>[String(a.id),a.name])
-          ])}
+          ${setArtistsPickerMarkup(r)}
           ${select('event_id','Event',String(r.event_id||''),[
             ['','—'],...state.events.map(a=>[String(a.id),a.title])
           ])}
@@ -455,6 +516,16 @@ function setForm(r) {
         </div>
       </div>
     </div>`;
+  document.getElementById('setArtistSearch')?.addEventListener('input', e=>filterSetArtists(e.target.value));
+  document.querySelectorAll('#setArtistChoices input[data-set-artist]').forEach(input=>
+    input.addEventListener('change',()=>{
+      if(input.checked){
+        const all=[...document.querySelectorAll('#setArtistChoices input[data-set-artist]')];
+        input.dataset.selectionOrder=String(1+Math.max(0,...all.map(item=>Number(item.dataset.selectionOrder||0))));
+      } else delete input.dataset.selectionOrder;
+      renderSetArtistChips();
+    }));
+  renderSetArtistChips();
 }
 function mediaForm(r){r=r||{};document.getElementById('mcontent').innerHTML=`<div class="form"><div class="section"><div class="sectionhead"><strong>MEDIA RECORD</strong><span class="helper">Use Upload in Media Library for real files</span></div><div class="grid2">${field('title','Title *',r.title)}${select('type','Type',r.type||'image',[['image','Image'],['video','Video'],['audio','Audio'],['document','Document']])}${field('file_path','File path / URL',r.file_path)}${field('mime_type','MIME type',r.mime_type)}${field('file_size','File size',r.file_size||0,'number')}${field('alt_text','Alt text',r.alt_text)}${select('status','Status',r.status||'published',[['published','Published'],['draft','Draft']])}</div></div></div>`}
 function pageForm(r){r=r||{};document.getElementById('mcontent').innerHTML=`<div class="form"><div class="section"><div class="sectionhead"><strong>PAGE BUILDER DATA</strong><span class="helper">JSON blocks — editor visual comes next</span></div><div class="grid2">${field('title','Title *',r.title)}${field('slug','Slug',r.slug)}${select('locale','Locale',r.locale||'es',[['es','Español'],['en','English']])}${select('status','Status',r.status||'draft',[['draft','Draft'],['published','Published']])}${area('content_json','Content JSON',r.content_json)}${field('seo_title','SEO title',r.seo_title)}${area('seo_description','SEO description',r.seo_description)}</div></div></div>`}
@@ -856,7 +927,7 @@ function setOrderRow(x){
      <div class="meta">${esc(x.artist_name||'—')} · ${esc(x.event_title||'—')}</div>
     </div>
    </div>
-   <div>${esc(x.artist_name||x.artist_id||'—')}</div>
+   <div>${esc((Array.isArray(x.artist_names)?x.artist_names.join(', '):x.artist_name)||'Sin artista')}</div>
    <div>${esc(x.event_title||x.event_id||'—')}</div>
    <div><span class="pill">${esc(x.status)}</span></div>
    <div class="actions">

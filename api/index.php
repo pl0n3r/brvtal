@@ -154,6 +154,88 @@ function allowed_fields(string $resource): array
         ],
     ][$resource] ?? [];
 }
+function brvtalSetArtistsReady(PDO $pdo): bool
+{
+    $st=$pdo->query("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='set_artists'");
+    return (int)$st->fetchColumn()===1;
+}
+
+/** @return ?list<int> Null means no relationship update was requested. */
+function brvtalSetArtistsInput(PDO $pdo,array $input,array &$fields): ?array
+{
+    if (!array_key_exists('artist_ids',$input) && !array_key_exists('artist_id',$input)) return null;
+    $raw=array_key_exists('artist_ids',$input) ? $input['artist_ids']
+        : ((($input['artist_id']??null)===null || $input['artist_id']==='') ? [] : [$input['artist_id']]);
+    if (!is_array($raw) || !array_is_list($raw) || count($raw)>30) {
+        json_response(['ok'=>false,'error'=>'INVALID_SET_ARTISTS','field'=>'artist_ids'],422);
+    }
+    $ids=[];
+    foreach ($raw as $value) {
+        $valid=is_int($value) || (is_string($value) && preg_match('/^[1-9][0-9]*$/D',$value));
+        if (!$valid || (int)$value<1 || (int)$value>2147483647) {
+            json_response(['ok'=>false,'error'=>'INVALID_SET_ARTISTS','field'=>'artist_ids'],422);
+        }
+        $ids[(int)$value]=(int)$value;
+    }
+    $ids=array_values($ids);
+    if (!brvtalSetArtistsReady($pdo)) {
+        json_response(['ok'=>false,'error'=>'SET_ARTISTS_SCHEMA_PENDING'],503);
+    }
+    if ($ids!==[]) {
+        $marks=implode(',',array_fill(0,count($ids),'?'));
+        $st=$pdo->prepare("SELECT id FROM artists WHERE id IN ({$marks})");
+        $st->execute($ids);
+        if (count($st->fetchAll(PDO::FETCH_COLUMN))!==count($ids)) {
+            json_response(['ok'=>false,'error'=>'SET_ARTIST_NOT_FOUND','field'=>'artist_ids'],422);
+        }
+    }
+    $fields['artist_id']=$ids[0]??null;
+    return $ids;
+}
+
+function brvtalSetArtistsSync(PDO $pdo,int $setId,array $ids): void
+{
+    $st=$pdo->prepare('DELETE FROM set_artists WHERE set_id=?');
+    $st->execute([$setId]);
+    $st=$pdo->prepare('INSERT INTO set_artists(set_id,artist_id,sort_order) VALUES(?,?,?)');
+    foreach ($ids as $order=>$artistId) $st->execute([$setId,$artistId,$order]);
+}
+
+/** @return mixed Fully populated rows for DiscAdmin, including unpublished DJs. */
+function brvtalSetArtistsEnrich(PDO $pdo,mixed $raw): mixed
+{
+    if (!is_array($raw) || $raw===[]) return $raw;
+    $single=!array_is_list($raw);
+    $rows=$single?[$raw]:$raw;
+    $setIds=array_values(array_unique(array_filter(array_map(static fn(array $r):int=>(int)($r['id']??0),$rows))));
+    $linked=[];
+    if ($setIds!==[] && brvtalSetArtistsReady($pdo)) {
+        $marks=implode(',',array_fill(0,count($setIds),'?'));
+        $st=$pdo->prepare("SELECT sa.set_id,sa.artist_id,a.name FROM set_artists sa JOIN artists a ON a.id=sa.artist_id WHERE sa.set_id IN ({$marks}) ORDER BY sa.sort_order,sa.artist_id");
+        $st->execute($setIds);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $a) $linked[(int)$a['set_id']][]=$a;
+    }
+    $legacyIds=[];
+    foreach ($rows as $r) if (empty($linked[(int)($r['id']??0)]) && (int)($r['artist_id']??0)>0) $legacyIds[(int)$r['artist_id']]=(int)$r['artist_id'];
+    $legacyNames=[];
+    if ($legacyIds!==[]) {
+        $marks=implode(',',array_fill(0,count($legacyIds),'?'));
+        $st=$pdo->prepare("SELECT id,name FROM artists WHERE id IN ({$marks})");
+        $st->execute(array_values($legacyIds));
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $a) $legacyNames[(int)$a['id']]=$a['name'];
+    }
+    foreach ($rows as &$r) {
+        $items=$linked[(int)($r['id']??0)]??[];
+        $legacy=(int)($r['artist_id']??0);
+        if (!$items && isset($legacyNames[$legacy])) $items=[['artist_id'=>$legacy,'name'=>$legacyNames[$legacy]]];
+        $r['artist_ids']=array_map(static fn(array $a):int=>(int)$a['artist_id'],$items);
+        $r['artist_names']=array_map(static fn(array $a):string=>(string)$a['name'],$items);
+        $r['artist_name']=implode(', ',$r['artist_names']);
+    }
+    unset($r);
+    return $single?$rows[0]:$rows;
+}
+
 function table_for(string $resource): string { return ['events'=>'events','artists'=>'artists','sets'=>'sets_media','media'=>'media','pages'=>'pages','ticket_types'=>'event_ticket_types','settings'=>'settings'][$resource] ?? ''; }
 function brvtal_activity_audited_resource(string $resource): bool { return in_array($resource,['events','artists','sets','pages','ticket_types'],true); }
 function brvtal_activity_fetch_resource(PDO $pdo, string $table, int $id, bool $lock = false): ?array {
@@ -511,6 +593,7 @@ try {
                 $rows = $pdo->query("SELECT * FROM {$table} ORDER BY {$orderBy}")->fetchAll();
             }
         }
+        if ($resource === 'sets') $rows=brvtalSetArtistsEnrich($pdo,$rows);
         if ($resource === 'artists' && is_array($rows)) {
             $rows = brvtalArtistCollectiveMembershipEnrichResult($rows);
             $rows = brvtalArtistHeroEnrich($pdo, $rows);
@@ -756,6 +839,7 @@ try {
                 $p[$f] = $d[$f];
             }
         }
+        $setArtistIds=$resource==='sets' ? brvtalSetArtistsInput($pdo,$d,$p) : null;
         if ($resource === 'artists') {
             $p = brvtalArtistCollectiveMembershipStoragePayload($pdo, $p);
         }
@@ -856,6 +940,7 @@ try {
             $st = $pdo->prepare("INSERT INTO {$table} ({$cols}) VALUES ({$marks})");
             $st->execute(array_values($p));
             $newId = (int)$pdo->lastInsertId();
+            if ($resource==='sets' && $setArtistIds!==null) brvtalSetArtistsSync($pdo,$newId,$setArtistIds);
             if ($heroIncluded) {
                 brvtalArtistHeroWrite($pdo, $newId, $hero);
             }
@@ -908,6 +993,7 @@ try {
                 $p[$f] = $d[$f];
             }
         }
+        $setArtistIds=$resource==='sets' ? brvtalSetArtistsInput($pdo,$d,$p) : null;
         if ($resource === 'artists') {
             $p = brvtalArtistCollectiveMembershipStoragePayload($pdo, $p);
         }
@@ -927,6 +1013,7 @@ try {
             $visualPublicationError=brvtalContentVisualPublicationError($resource,array_replace($before,$p));if($visualPublicationError!==null){$pdo->rollBack();json_response(['ok'=>false,'error'=>$visualPublicationError['error'],'field'=>$visualPublicationError['field']],422);}
             if(!$p){$pdo->rollBack();json_response(['ok'=>false,'error'=>'NO_FIELDS'],422);}
             $set=implode(', ',array_map(fn($f)=>"`{$f}` = ?",array_keys($p)));$vals=array_values($p);$vals[]=$id;$st=$pdo->prepare("UPDATE {$table} SET {$set} WHERE id=?");$st->execute($vals);$changed=(int)$st->rowCount();
+            if ($resource==='sets' && $setArtistIds!==null) { brvtalSetArtistsSync($pdo,$id,$setArtistIds); $changed=max(1,$changed); }
             if ($heroIncluded) {
                 brvtalArtistHeroWrite($pdo, $id, $hero);
             }

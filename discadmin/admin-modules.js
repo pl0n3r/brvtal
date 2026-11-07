@@ -386,7 +386,8 @@ window.BRVTALAdminModules = (() => {
     if (type === 'sets') return {
       title:fieldValue('title'), slug:fieldValue('slug'), platform:fieldValue('platform') || 'soundcloud',
       external_url:fieldValue('external_url'), embed_url:fieldValue('embed_url'), cover_image:fieldValue('cover_image'),
-      artist_id:fieldValue('artist_id') ? Number(fieldValue('artist_id')) : null,
+      artist_ids:typeof selectedSetArtistIds==='function' ? selectedSetArtistIds() : [],
+      artist_id:typeof selectedSetArtistIds==='function' ? (selectedSetArtistIds()[0]??null) : null,
       event_id:fieldValue('event_id') ? Number(fieldValue('event_id')) : null,
       status:fieldValue('status') || 'draft',
       duration_seconds:fieldValue('duration_seconds') === '' ? null : fieldValue('duration_seconds'),
@@ -437,10 +438,16 @@ window.BRVTALAdminModules = (() => {
     return false;
   }
 
-  window.save = async function(type, id = null) {
+  let setSavePending = false;
+  window.save = async function(type, id = null, options = {}) {
+    if (type==='sets' && setSavePending) return;
+    const keepOpen=type==='sets' && options.close===false;
     if (type === 'sets' && !validOptionalSetDuration()) return;
     const saveBtn = document.getElementById('saveBtn');
     const previousLabel = saveBtn?.textContent || 'SAVE';
+    const keepBtn = document.getElementById('saveKeepOpenBtn');
+    if(type==='sets')setSavePending=true;
+    if(keepBtn)keepBtn.disabled=true;
     if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'SAVING…'; }
     const payload = formPayload(type);
     const orderValue = visualOrderValue(type,id);
@@ -458,13 +465,22 @@ window.BRVTALAdminModules = (() => {
       const draftState = await window.BRVTALLegacyDrafts?.serverSaved?.({
         type,id,payload,result
       });
-      if (draftState?.keepOpen) {
-        const savedId = draftState.id ?? id;
-        if (savedId !== null && savedId !== '' && Number(savedId) > 0) {
-          state.editing = Number(savedId);
-          if (saveBtn?.isConnected) saveBtn.onclick = () => window.save(type,Number(savedId));
+      const savedId = draftState?.id ?? result?.id ?? id;
+      if (savedId !== null && savedId !== '' && Number(savedId) > 0) {
+        state.editing = Number(savedId);
+        if (type==='sets') {
+          if (saveBtn?.isConnected) saveBtn.onclick = () => window.save('sets',state.editing,{close:true});
+          if (keepBtn?.isConnected) keepBtn.onclick = () => window.save('sets',state.editing,{close:false});
+        } else if (draftState?.keepOpen && saveBtn?.isConnected) {
+          saveBtn.onclick = () => window.save(type,Number(savedId));
         }
+      }
+      if (draftState?.keepOpen) {
         Feedback.info('Server save completed; newer edits remain in the local draft.','legacy-draft');
+        return;
+      }
+      if (keepOpen) {
+        Feedback.success('Set saved. Continue editing or choose SAVE & CLOSE.','sets-save');
         return;
       }
 
@@ -475,7 +491,12 @@ window.BRVTALAdminModules = (() => {
       if (typeof show === 'function') show(error?.message || 'SAVE_FAILED');
       if (!document.querySelector('.brvtal-feedback.error')) Feedback.error(readableError({error:error?.message || 'SAVE_FAILED'},500),'mutation');
     } finally {
-      if (saveBtn?.isConnected) { saveBtn.disabled = false; saveBtn.textContent = previousLabel; }
+      if(type==='sets')setSavePending=false;
+      if (keepBtn?.isConnected) keepBtn.disabled=false;
+      if (saveBtn?.isConnected) {
+        saveBtn.disabled = false;
+        saveBtn.textContent = type==='sets' ? 'SAVE & CLOSE' : previousLabel;
+      }
     }
   };
 

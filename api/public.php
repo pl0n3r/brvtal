@@ -426,6 +426,39 @@ try {
     // a published Set from leaking the ID or title/name of a private Event or Artist.
     $sets = brvtal_public_sanitize_set_relations($sets, $artists, $events, $archiveEvents);
 
+    // Deliver *only published* associated DJ names. The legacy single-artist
+    // relation remains a safe fallback until the additive pivot migration is run.
+    $setArtistsBySet = [];
+    if ($sets !== []) {
+        $tableProbe = $pdo->query(
+            "SELECT COUNT(*) FROM information_schema.TABLES "
+            . "WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='set_artists'"
+        );
+        if ((int)$tableProbe->fetchColumn() === 1) {
+            $setIds = array_map(static fn(array $set): int => (int)$set['id'], $sets);
+            $marks = implode(',', array_fill(0, count($setIds), '?'));
+            $linkStmt = $pdo->prepare(
+                "SELECT sa.set_id,a.name FROM set_artists sa "
+                . "JOIN artists a ON a.id=sa.artist_id AND a.status='published' "
+                . "WHERE sa.set_id IN ({$marks}) ORDER BY sa.sort_order,sa.artist_id"
+            );
+            $linkStmt->execute($setIds);
+            foreach ($linkStmt->fetchAll(PDO::FETCH_ASSOC) as $link) {
+                $setArtistsBySet[(int)$link['set_id']][] = (string)$link['name'];
+            }
+        }
+    }
+    foreach ($sets as &$publicSet) {
+        $names = $setArtistsBySet[(int)$publicSet['id']] ?? [];
+        if ($names === [] && !empty($publicSet['artist_name'])) {
+            $names = [(string)$publicSet['artist_name']];
+        }
+        $publicSet['artist_names'] = array_values($names);
+        $publicSet['artist_name'] = $names === [] ? null : implode(', ', $names);
+    }
+    unset($publicSet);
+
+
     $archiveIds = [];
     foreach ($archiveEvents as $event) $archiveIds[(int)$event['id']] = true;
 
