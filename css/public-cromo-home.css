@@ -122,7 +122,14 @@ html.cromo-home body>*:not(#cromo-home):not(#cromoGL):not(script):not(style):not
 @keyframes cromo-spin{to{transform:rotate(360deg)}}
 #cromo-home .cr-feat h3{font:400 clamp(52px,6vw,96px)/.92 var(--disp);text-transform:uppercase;position:relative;-webkit-text-stroke:.04em #030303;paint-order:stroke fill}
 #cromo-home .cr-feat p,#cromo-home .cr-sl p{font:600 22px/1.35 var(--body);color:#d7dbe4;position:relative}
-#cromo-home .cr-sl{display:flex;flex-direction:column;gap:14px}
+#cromo-home .cr-sl{display:flex;flex-direction:column;gap:14px;min-width:0}
+#cromo-home .cr-sets-catalog{display:flex;flex-direction:column;gap:14px;min-width:0}
+#cromo-home .cr-set-count{margin:0;color:#9fb2c2;font:700 17px/1.35 var(--body);letter-spacing:.03em;overflow-wrap:anywhere}
+#cromo-home .cr-set-more{align-self:flex-start;min-width:170px;min-height:48px;padding:12px 20px;border:3px solid var(--bone);background:#030303;color:var(--bone);font:700 20px/1.1 var(--body);text-transform:uppercase;cursor:pointer;transition:background var(--duration-quick) var(--ease-in-out),color var(--duration-quick) var(--ease-in-out)}
+#cromo-home .cr-set-more:hover{background:var(--bone);color:#030303}
+#cromo-home .cr-set-more:focus-visible{outline:3px solid var(--red);outline-offset:4px}
+@media(max-width:820px){#cromo-home .cr-set-more{width:100%}}
+@media(prefers-reduced-motion:reduce){#cromo-home .cr-set-more{transition:none}}
 #cromo-home .cr-sl a{padding:20px 22px;display:flex;justify-content:space-between;align-items:center;gap:16px;transition:background var(--duration-quick) var(--ease-in-out),color var(--duration-quick) var(--ease-in-out)}
 #cromo-home .cr-sl a:hover{background:#f2efe8;color:#030303}
 #cromo-home .cr-sl b{font:400 clamp(30px,2.4vw,38px)/1 var(--disp);text-transform:uppercase;display:block}

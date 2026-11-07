@@ -173,33 +173,76 @@
       return actions;
     };
 
+    // The public API already filters published records and applies the
+    // editorial sort_order. The first record is the featured Set, not
+    // necessarily the most recently published one.
+    const publishedArtistNames = (set) => {
+      const names = Array.isArray(set.artist_names)
+        ? set.artist_names.filter((name) => typeof name === 'string').map((name) => text(name)).filter(Boolean)
+        : [];
+      return names.length ? joinNames(names) : text(set.artist_name);
+    };
+    const makeRow = (set) => {
+      const art = artwork(set);
+      const row = el('article', { class: 'plate chrome-b sound-row' },
+        art.box,
+        el('span', { class: 'sound-row-meta' },
+          el('b', { text: text(set.title) }),
+          el('small', { text: publishedArtistNames(set) })));
+      row.append(makeActions(set, row, art));
+      return row;
+    };
+
     let setsSec = el('section', { class: 'sec', id: 'discos' },
       el('h2', { class: 'u', text: 'Sets' }),
-      el('p', { class: 'm', text: 'Los próximos sets aparecerán aquí cuando estén publicados.' }));
+      el('p', { class: 'm', text: 'Los próximos sets aparecerán aquí cuando estén publicados.' }),
+      el('p', { class: 'set-count', role: 'status', 'aria-live': 'polite', text: '0 sets publicados' }));
     if (sets.length) {
       const [first, ...rest] = sets;
       const featureArt = artwork(first, true);
       const featBody = el('div', { class: 'sound-feature-meta' },
-        el('p', { text: 'Último set publicado' }),
+        el('p', { text: 'Set destacado' }),
         featureArt.box,
         el('h3', { text: text(first.title) }),
-        el('p', { text: [text(first.artist_name), first.event_title ? 'en ' + text(first.event_title) : ''].filter(Boolean).join(', ') }));
+        el('p', { text: [publishedArtistNames(first), first.event_title ? 'en ' + text(first.event_title) : ''].filter(Boolean).join(', ') }));
       const feat = el('article', { class: 'feat plate chrome-b' },
         el('div', { class: 'disc', 'aria-hidden': 'true' }),
         featBody);
       feat.append(makeActions(first, feat, featureArt));
-      const rows = rest.slice(0, 4).map((set) => {
-        const art = artwork(set);
-        const row = el('article', { class: 'plate chrome-b sound-row' },
-          art.box,
-          el('span', { class: 'sound-row-meta' },
-            el('b', { text: text(set.title) }), el('small', { text: text(set.artist_name) })));
-        row.append(makeActions(set, row, art));
-        return row;
+
+      let visible = Math.min(4, rest.length);
+      const list = el('div', { class: 'sl', id: 'cromo-set-list',
+        'aria-live': 'polite', 'aria-relevant': 'additions' }, rest.slice(0, visible).map(makeRow));
+      const count = el('p', { class: 'set-count', role: 'status', 'aria-live': 'polite', tabindex: '-1' });
+      const more = el('button', {
+        class: 'set-more', type: 'button', 'aria-controls': 'cromo-set-list',
+        'aria-expanded': 'false', text: 'VER MÁS SETS',
       });
+      const updateCount = () => {
+        count.textContent = (visible + 1) + ' de ' + sets.length + ' ' +
+          (sets.length === 1 ? 'set publicado' : 'sets publicados') +
+          (visible >= rest.length ? ' · Catálogo completo' : '');
+        more.hidden = visible >= rest.length;
+      };
+      more.addEventListener('click', () => {
+        if (visible >= rest.length) return;
+        const added = rest.slice(visible, visible + 4).map(makeRow);
+        added.forEach((row) => list.append(row));
+        visible += added.length;
+        more.setAttribute('aria-expanded', 'true');
+        updateCount();
+        // Do not strand keyboard focus on a button removed from the tab order.
+        if (more.hidden) {
+          const nextFocus = added.map((row) =>
+            row.querySelector('button.cr-sound-listen:not([disabled]), a.cr-sound-external')).find(Boolean);
+          (nextFocus || count).focus();
+        }
+      });
+      updateCount();
       setsSec = el('section', { class: 'sec', id: 'discos' },
         el('h2', { class: 'u', text: 'Sets' }),
-        el('div', { class: 'sets' }, feat, el('div', { class: 'sl' }, rows)));
+        el('div', { class: 'sets' },
+          feat, el('div', { class: 'sets-catalog' }, list, count, more)));
     }
     return setsSec;
   };

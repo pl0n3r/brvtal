@@ -824,3 +824,86 @@ test('Cromo: listening stops ambient audio and ambient activation closes iframe'
   await expect(page.locator('#cromo-home .cr-set-player iframe')).toHaveCount(0);
   await expect(page.locator('#cromo-home .cr-feat button.cr-sound-listen')).toHaveAttribute('aria-expanded', 'false');
 });
+
+
+// 0/1/5/6/30 published Sets must be reachable, without discarding anything
+// beyond the initially visible four rows. The provider is mocked for every row.
+test('Cromo catalog 0/1/5/6/30 preserves editorial order, multi-DJs and keyboard at 390/1440', async ({ page }) => {
+  test.setTimeout(120_000);
+  await mockSoundCloud(page);
+  for (const width of [390, 1440]) {
+    for (const size of [0, 1, 5, 6, 30]) {
+      const catalog = Array.from({ length: size }, (_, index) => ({
+        ...soundSets[0], id: 900 + index, slug: 'catalog-' + index,
+        title: 'EDITORIAL ' + (size - index), sort_order: index,
+        artist_names: ['DJ PUBLICADO', 'DJ INVITADO'], artist_name: 'SOLO LEGACY',
+        external_url: 'https://soundcloud.com/official/catalog-' + index,
+      }));
+      await mount(page, { width, reduced: size === 30, payload: { ...data, sets: catalog } });
+      const section = page.locator('#cromo-home #discos');
+      const feature = section.locator('.cr-feat');
+      const rows = section.locator('.cr-sound-row');
+      const more = section.locator('button.cr-set-more');
+      if (size === 0) {
+        await expect(feature).toHaveCount(0);
+        await expect(more).toHaveCount(0);
+        await expect(section.locator('.cr-set-count')).toHaveText('0 sets publicados');
+        await noOverflow(page);
+        continue;
+      }
+      await expect(feature.locator('h3')).toHaveText(catalog[0].title);
+      await expect(feature).toContainText('Set destacado');
+      await expect(feature).toContainText('DJ PUBLICADO y DJ INVITADO');
+      await expect(feature).not.toContainText('SOLO LEGACY');
+      await expect(rows).toHaveCount(Math.min(4, size - 1));
+      let batches = 0;
+      while (await more.isVisible()) {
+        if (batches === 0) {
+          await more.focus();
+          await page.keyboard.press('Enter');
+        } else {
+          await more.click();
+        }
+        batches++;
+        if (batches > 10) throw new Error('Catalog button failed to reach final state');
+      }
+      expect(batches).toBe(Math.max(0, Math.ceil((size - 5) / 4)));
+      await expect(rows).toHaveCount(size - 1);
+      await expect(more).toBeHidden();
+      await expect(section.locator('.cr-set-count')).toContainText(size + ' de ' + size);
+      await expect(section.locator('.cr-set-count')).toContainText('Catálogo completo');
+      await noOverflow(page);
+
+      if (size >= 6) {
+        await feature.locator('button.cr-sound-listen').click();
+        await expect(section.locator('.cr-set-player iframe')).toHaveCount(1);
+        await rows.last().locator('button.cr-sound-listen').click();
+        await expect(feature.locator('iframe')).toHaveCount(0);
+        await expect(section.locator('.cr-set-player iframe')).toHaveCount(1);
+        await rows.last().locator('button.cr-sound-listen').click();
+        await expect(section.locator('.cr-set-player iframe')).toHaveCount(0);
+        await noOverflow(page);
+      }
+    }
+  }
+});
+
+test('Cromo revealed row retains SoundCloud fallback when URL is not embeddable', async ({ page }) => {
+  await mockSoundCloud(page);
+  const catalog = [...soundSets,
+    { id: 35, slug: 'valid-revealed', title: 'VALID REVEALED',
+      artist_names: ['DJ A', 'DJ B'], external_url: 'https://soundcloud.com/official/new-track', platform: 'soundcloud' },
+    { id: 36, slug: 'profile-revealed', title: 'PROFILE REVEALED',
+      artist_names: ['DJ C'], external_url: 'https://soundcloud.com/official', platform: 'soundcloud' },
+  ];
+  await mount(page, { width: 390, payload: { ...data, sets: catalog } });
+  await page.locator('#cromo-home button.cr-set-more').click();
+  const rows = page.locator('#cromo-home .cr-sound-row');
+  await expect(rows).toHaveCount(5);
+  const last = rows.last();
+  await expect(last.locator('button.cr-sound-listen')).toBeDisabled();
+  await expect(last.locator('.cr-set-art.cr-is-empty')).toBeVisible();
+  await expect(last.locator('a.cr-sound-external')).toHaveAttribute('href', 'https://soundcloud.com/official');
+  await expect(page.locator('#cromo-home .cr-set-player iframe')).toHaveCount(0);
+  await noOverflow(page);
+});
