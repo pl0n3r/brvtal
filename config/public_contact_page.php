@@ -31,6 +31,18 @@ function brvtal_public_contact_page(array $seo, string $analytics = ''): string
     $description = $escape((string)($seo['description'] ?? 'Contact BRVTAL.'));
     $seoTags = brvtal_public_seo_tags($seo);
 
+    // Reuse the canonical six destinations from the shared Cromo top bar.
+    // Fail closed if the shared contract changes rather than inventing links here.
+    if (preg_match('~<nav class="cp-nav" aria-label="Secciones">.*?</nav>~s',
+        brvtalPublicCromoTopbar(), $sharedMenu) !== 1) {
+        throw new LogicException('Shared Cromo navigation is unavailable');
+    }
+    $contactCromoNav = str_replace(
+        'class="cp-nav"',
+        'class="cp-nav contact-page-cromo-nav"',
+        $sharedMenu[0]
+    );
+
     $fontHref = 'https://fonts.googleapis.com/css2?family=Barlow+Condensed:'
         . 'wght@400;500;600;700;800;900'
         . '&family=Space+Mono:wght@400;700&display=swap';
@@ -67,6 +79,7 @@ function brvtal_public_contact_page(array $seo, string $analytics = ''): string
       <span data-contact-i18n-key="contact.nav">CONTACTO / 01</span>
       <span>PEREIRA — COLOMBIA</span>
     </div>
+    ' . $contactCromoNav . '
     <div class="contact-page-nav-actions">
       ' . brvtalPublicCromoSoundButton() . '
       <a class="contact-page-home mono" href="/" data-contact-i18n-key="contact.home">INICIO ↙</a>
