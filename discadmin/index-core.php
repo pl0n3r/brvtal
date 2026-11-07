@@ -314,7 +314,12 @@ function replaceLegacySortOrderControl(type){
 }
 function closeModal(force=false){
  const modal=document.getElementById('modal');
- const close=()=>modal.classList.remove('open');
+ const close=()=>{
+  modal.classList.remove('open','set-editor-modal');
+  document.getElementById('saveKeepOpenBtn')?.remove();
+  const save=document.getElementById('saveBtn');
+  if(save)save.textContent='GUARDAR';
+ };
  if(window.BRVTALUnsavedChanges?.requestClose){
   return window.BRVTALUnsavedChanges.requestClose(modal,close,{force});
  }
@@ -440,6 +445,10 @@ function renderSetArtistChips() {
   const target=document.getElementById('setArtistChips');
   if(!target)return;
   const names=new Map((state.artists||[]).map(a=>[Number(a.id),String(a.name||'')]));
+  document.querySelectorAll('#setArtistChoices input[data-set-artist]').forEach(input=>{
+    const id=Number(input.value);
+    if(!names.has(id))names.set(id,String(input.closest('label')?.querySelector('span')?.textContent||'DJ asociado'));
+  });
   target.replaceChildren();
   const ids=selectedSetArtistIds();
   for(const id of ids){
@@ -465,11 +474,19 @@ function setArtistsPickerMarkup(record) {
   const storedIds=(Array.isArray(record.artist_ids)?record.artist_ids:[record.artist_id])
     .map(Number).filter(x=>Number.isInteger(x)&&x>0);
   const ids=new Set(storedIds);
+  const choices=[...(state.artists||[])];
+  const knownIds=new Set(choices.map(a=>Number(a.id)));
+  const storedNames=Array.isArray(record.artist_names)?record.artist_names:[];
+  for(const [index,id] of storedIds.entries()){
+    if(knownIds.has(id))continue;
+    choices.push({id,name:String(storedNames[index]||'DJ asociado (no cargado)')});
+    knownIds.add(id);
+  }
   return `<div class="field full set-artists-field">
     <label id="setArtistLabel" for="setArtistSearch">DJs asociados (selección múltiple)</label>
     <input id="setArtistSearch" type="search" autocomplete="off" placeholder="Buscar DJ..." aria-controls="setArtistChoices">
     <div id="setArtistChoices" role="group" aria-labelledby="setArtistLabel" class="set-artist-choices">
-      ${(state.artists||[]).map(a=>`<label class="set-artist-choice" data-artist-name="${esc(a.name)}">
+      ${choices.map(a=>`<label class="set-artist-choice" data-artist-name="${esc(a.name)}">
         <input type="checkbox" data-set-artist value="${Number(a.id)}" data-selection-order="${ids.has(Number(a.id)) ? storedIds.indexOf(Number(a.id))+1 : ''}" ${ids.has(Number(a.id))?'checked':''}>
         <span>${esc(a.name)}</span></label>`).join('')}
     </div>
