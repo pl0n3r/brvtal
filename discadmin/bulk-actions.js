@@ -362,7 +362,7 @@
       selectAll.disabled = !state.ready || ids.length === 0;
     }
     const button = overlay.querySelector('.brvtal-bulk-apply');
-    if (button) button.disabled = state.pendingMutation || !state.ready || !status || count < 1 || count > MAX_SELECTED;
+    if (button) button.disabled = !state.ready || state.pendingMutation || !status || count < 1 || count > MAX_SELECTED;
     const deleteButton=overlay.querySelector('.brvtal-bulk-delete');
     if(deleteButton)deleteButton.disabled = state.pendingMutation || state.module!=='sets' || !state.ready || count<1 || count>MAX_SELECTED;
   }
