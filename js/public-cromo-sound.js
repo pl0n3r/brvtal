@@ -21,6 +21,7 @@
   let mediaEl = null;
   let mediaLoop = null;
   let mediaSession = 0;
+  let webAudioSession = 0;
   let usingMedia = false;
 
   const kick = (t) => {
@@ -104,6 +105,7 @@
     if (master && ctx) master.gain.setTargetAtTime(0, ctx.currentTime, .05);
     if (keepAlive) keepAlive.pause();
     mediaSession += 1;
+    webAudioSession += 1;
     usingMedia = false;
     if (mediaEl) mediaEl.pause();
     paint();
@@ -259,13 +261,26 @@
     return ctx.resume();
   };
   const startWebAudio = () => {
+    const session = ++webAudioSession;
     const resumed = prepareWebAudio();
-    const ready = () => (ctx.state === 'running' ? begin() : stop());
-    if (resumed?.then) resumed.then(ready, stop);
+    const ready = () => {
+      // An async resume must not revive the ambient loop after a Set starts.
+      if (session !== webAudioSession) return;
+      if (ctx.state === 'running') begin();
+      else stop();
+    };
+    const failed = () => { if (session === webAudioSession) stop(); };
+    if (resumed?.then) resumed.then(ready, failed);
     else ready();
   };
   const start = () => (useMedia() ? startMedia() : startWebAudio());
-  const toggle = () => (on ? stop() : start());
+  const toggle = () => {
+    if (on) stop();
+    else {
+      window.dispatchEvent(new CustomEvent('brvtal:cromo-ambient-start'));
+      start();
+    }
+  };
 
   const makeButton = () => {
     const b = document.createElement('button');
@@ -280,6 +295,7 @@
 
   // The Cromo home builds its own switches later and registers them here.
   window.BRVTALCromoSound = {
+    stop,
     bind: (button) => {
       if (!button || buttons.includes(button)) return;
       button.addEventListener('click', toggle);

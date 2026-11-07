@@ -724,3 +724,103 @@ for (const [mode, expectedSource] of [['plays', 'blob'], ['loop-rejected', 'fall
     expect(await page.evaluate(() => window.__audioContextsCreated)).toBe(1);
   });
 }
+
+// #1631 — Cromo players use their own CMS SoundCloud URLs and official artwork.
+const soundSets = [
+  { id: 31, slug: 'first-set', title: 'FIRST SET', artist_name: 'DJ ONE',
+    external_url: 'https://soundcloud.com/official/first-set', platform: 'soundcloud',
+    cover_image: '/cms-first.jpg' },
+  { id: 32, slug: 'second-set', title: 'SECOND SET', artist_name: 'DJ TWO',
+    external_url: 'https://soundcloud.com/official/second-set', platform: 'soundcloud',
+    cover_image: '/cms-second.jpg' },
+  { id: 33, slug: 'broken-set', title: 'BROKEN SET', artist_name: 'DJ THREE',
+    external_url: 'https://soundcloud.com/example/broken-set', platform: 'soundcloud',
+    cover_image: '/cms-missing.jpg' },
+  { id: 34, slug: 'profile', title: 'PROFILE IS NOT A SET', artist_name: 'DJ FOUR',
+    external_url: 'https://soundcloud.com/official', platform: 'soundcloud' },
+];
+async function mockSoundCloud(page) {
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="500" height="500"><rect width="500" height="500" fill="#b30"/></svg>';
+  await page.route('https://i1.sndcdn.com/**', route => route.fulfill({ contentType: 'image/svg+xml', body: svg }));
+  await page.route('**/cms-first.jpg', route => route.fulfill({ contentType: 'image/svg+xml', body: svg }));
+  await page.route('**/cms-second.jpg', route => route.fulfill({ contentType: 'image/svg+xml', body: svg }));
+  await page.route('**/cms-missing.jpg', route => route.fulfill({ status: 404, body: '' }));
+  await page.route('https://w.soundcloud.com/player/**', route => route.fulfill({
+    contentType: 'text/html', body: '<!doctype html><html><body>PLAYER</body></html>',
+  }));
+  await page.route('**/api/soundcloud-artwork.php?**', route => {
+    const track = new URL(route.request().url()).searchParams.get('url');
+    if (track === soundSets[2].external_url) {
+      return route.fulfill({ status: 404, contentType: 'application/json',
+        body: JSON.stringify({ ok: false, error: 'TRACK_UNAVAILABLE' }) });
+    }
+    const marker = track === soundSets[0].external_url ? 'ONE' : 'TWO';
+    return route.fulfill({ contentType: 'application/json',
+      body: JSON.stringify({ ok: true, artwork_url: 'https://i1.sndcdn.com/artworks-' + marker + '-t500x500.jpg' }) });
+  });
+}
+
+test('Cromo: no iframe before click, official artwork and player switches at 390, 1440', async ({ page }) => {
+  test.setTimeout(90_000);
+  await mockSoundCloud(page);
+  for (const width of [390, 1440]) {
+    await mount(page, { width, payload: { ...data, sets: soundSets } });
+    const feat = page.locator('#cromo-home .cr-feat');
+    const rows = page.locator('#cromo-home .cr-sl .cr-sound-row');
+    await expect(rows).toHaveCount(3);
+    await expect(page.locator('#cromo-home .cr-set-player iframe')).toHaveCount(0);
+    await expect(feat.locator('.cr-set-art img')).toHaveAttribute('src', 'https://i1.sndcdn.com/artworks-ONE-t500x500.jpg');
+    await expect(rows.nth(0).locator('.cr-set-art img')).toHaveAttribute('src', 'https://i1.sndcdn.com/artworks-TWO-t500x500.jpg');
+    await expect(rows.nth(2).locator('.cr-set-art.cr-is-empty')).toBeVisible();
+    await noOverflow(page);
+
+    const mainButton = feat.locator('button.cr-sound-listen');
+    await mainButton.focus();
+    await expect(mainButton).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(mainButton).toHaveAttribute('aria-expanded', 'true');
+    const firstFrame = feat.locator('iframe');
+    await expect(firstFrame).toHaveAttribute('src', /soundcloud\.com%2Fofficial%2Ffirst-set/);
+    expect(new URL(page.url()).host).toBe('127.0.0.1:4173');
+
+    // player switches: selecting second Set destroys the first provider iframe.
+    await rows.nth(0).locator('button.cr-sound-listen').click();
+    await expect(feat.locator('iframe')).toHaveCount(0);
+    await expect(rows.nth(0).locator('iframe')).toHaveCount(1);
+    await expect(rows.nth(0).locator('iframe')).toHaveAttribute('src', /soundcloud\.com%2Fofficial%2Fsecond-set/);
+    await expect(page.locator('#cromo-home .cr-set-player iframe')).toHaveCount(1);
+    await rows.nth(0).locator('button.cr-sound-listen').click();
+    await expect(page.locator('#cromo-home .cr-set-player iframe')).toHaveCount(0);
+    await expect(rows.nth(0).locator('a.cr-sound-external')).toHaveAttribute('href', soundSets[1].external_url);
+    await noOverflow(page);
+  }
+});
+
+test('Cromo: broken SoundCloud links use CMS/placeholder, no unsafe iframe or extra navigation', async ({ page }) => {
+  await mockSoundCloud(page);
+  await mount(page, { width: 390, payload: { ...data, sets: soundSets } });
+  const rows = page.locator('#cromo-home .cr-sl .cr-sound-row');
+  await expect(rows.nth(1).locator('button.cr-sound-listen')).toBeDisabled();
+  await rows.nth(1).scrollIntoViewIfNeeded(); // The CMS cover is lazy-loaded.
+  await expect(rows.nth(1).locator('.cr-set-art.cr-is-empty')).toBeVisible();
+  await expect(rows.nth(1).locator('a.cr-sound-external')).toHaveAttribute('href', soundSets[2].external_url);
+  await expect(rows.nth(2).locator('button.cr-sound-listen')).toBeDisabled();
+  await expect(rows.nth(2).locator('.cr-set-art.cr-is-empty')).toBeVisible();
+  await expect(page.locator('#cromo-home iframe[src^="https://w.soundcloud.com"]')).toHaveCount(0);
+  await noOverflow(page);
+});
+
+test('Cromo: listening stops ambient audio and ambient activation closes iframe', async ({ page }) => {
+  await mockSoundCloud(page);
+  await mount(page, { width: 1440, payload: { ...data, sets: soundSets } });
+  await page.evaluate(() => {
+    window.__ambientStopped = 0;
+    window.BRVTALCromoSound = { stop() { window.__ambientStopped += 1; } };
+  });
+  await page.locator('#cromo-home .cr-feat button.cr-sound-listen').click();
+  expect(await page.evaluate(() => window.__ambientStopped)).toBe(1);
+  await expect(page.locator('#cromo-home .cr-set-player iframe')).toHaveCount(1);
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('brvtal:cromo-ambient-start')));
+  await expect(page.locator('#cromo-home .cr-set-player iframe')).toHaveCount(0);
+  await expect(page.locator('#cromo-home .cr-feat button.cr-sound-listen')).toHaveAttribute('aria-expanded', 'false');
+});

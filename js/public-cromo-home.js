@@ -63,26 +63,144 @@
     return joinNames(names);
   };
 
+  // SoundCloud-only track/playlist embeds. Profiles, untrusted origins and CMS
+  // iframe HTML must never become an in-page player.
+  const soundcloudTrackUrl = (raw) => {
+    try {
+      const url = new URL(String(raw || ''));
+      if (url.protocol !== 'https:' || !['soundcloud.com', 'www.soundcloud.com'].includes(url.hostname)
+        || url.username || url.password || url.port) return '';
+      const path = url.pathname.split('/').filter(Boolean);
+      if (!(path.length === 2 || (path.length === 3 && path[1] === 'sets'))) return '';
+      if (path.some((part) => !/^[a-z0-9_-]{1,120}$/i.test(part))
+        || ['discover', 'stream', 'search', 'you', 'charts', 'upload', 'tracks', 'settings'].includes(path[0].toLowerCase())) return '';
+      return 'https://soundcloud.com/' + path.join('/');
+    } catch (_) { return ''; }
+  };
+  const soundcloudArtworkUrl = (raw) => {
+    try {
+      const url = new URL(String(raw || ''));
+      return url.protocol === 'https:' && /^i[0-9]{1,2}\.sndcdn\.com$/i.test(url.hostname)
+        && /^\/artworks-[a-z0-9_-]+\.(?:jpg|jpeg|png|webp)$/i.test(url.pathname)
+        && !url.username && !url.password && !url.port ? url.origin + url.pathname : '';
+    } catch (_) { return ''; }
+  };
   const buildSets = (sets) => {
-    // --- Sets
+    let active = null;
+    const stop = () => {
+      if (!active) return;
+      active.player.remove(); // Destroy the actual provider iframe; stops audio.
+      active.button.textContent = 'ESCUCHAR';
+      active.button.setAttribute('aria-expanded', 'false');
+      active.card.classList.remove('cr-is-playing');
+      active = null;
+    };
+    window.addEventListener('brvtal:cromo-ambient-start', stop);
+
+    const artwork = (set, featured = false) => {
+      const fallback = safeUrl(set.cover_image);
+      const box = el('span', { class: 'set-art is-empty' + (featured ? ' set-art-featured' : ''), 'aria-hidden': 'true' });
+      const image = el('img', { alt: '', loading: featured ? 'eager' : 'lazy', decoding: 'async' });
+      const show = (source) => {
+        if (!source) { image.removeAttribute('src'); box.classList.add('cr-is-empty'); return; }
+        image.src = source;
+        box.classList.remove('cr-is-empty');
+      };
+      image.addEventListener('error', () => {
+        if (fallback && image.getAttribute('src') !== fallback) show(fallback);
+        else show('');
+      });
+      box.append(image);
+      show(fallback);
+
+      const url = soundcloudTrackUrl(set.external_url);
+      const ready = (button) => {
+        if (!url) return;
+        // Requests are to our same-origin, allowlisted and cached oEmbed adapter.
+        fetch('/api/soundcloud-artwork.php?url=' + encodeURIComponent(url),
+          { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+          .then(async (response) => ({ status: response.status, body: await response.json() }))
+          .then(({ status, body }) => {
+            if (!box.isConnected) return;
+            const original = body?.ok ? soundcloudArtworkUrl(body.artwork_url) : '';
+            if (original) show(original);
+            if (status === 404 && button) {
+              button.disabled = true;
+              button.textContent = 'NO DISPONIBLE';
+              button.title = 'El enlace de SoundCloud no permite reproducir este set';
+              if (active?.button === button) stop();
+            }
+          }).catch(() => { /* Keep CMS artwork and external link on metadata failure. */ });
+      };
+      return { box, ready, url };
+    };
+
+    const makeActions = (set, card, art) => {
+      const actions = el('div', { class: 'sound-actions' });
+      const playerId = 'cromo-set-player-' + String(set.id || Math.random()).replace(/[^a-z0-9_-]/gi, '');
+      const button = el('button', {
+        class: 'pl sound-listen', type: 'button', 'aria-expanded': 'false',
+        'aria-controls': playerId, text: art.url ? 'ESCUCHAR' : 'NO DISPONIBLE',
+      });
+      button.disabled = !art.url;
+      button.addEventListener('click', () => {
+        if (active?.card === card) { stop(); return; }
+        stop();
+        window.BRVTALCromoSound?.stop?.();
+        const player = el('div', { class: 'set-player', id: playerId });
+        const embed = 'https://w.soundcloud.com/player/?url=' + encodeURIComponent(art.url)
+          + '&auto_play=true&show_artwork=true&show_comments=false&hide_related=true';
+        const iframe = el('iframe', {
+          src: embed, title: 'Escuchar ' + text(set.title || 'set BRVTAL'),
+          loading: 'eager', allow: 'autoplay; encrypted-media',
+          sandbox: 'allow-scripts allow-same-origin allow-presentation',
+          referrerpolicy: 'no-referrer',
+        });
+        player.append(iframe);
+        card.append(player);
+        card.classList.add('cr-is-playing');
+        button.textContent = 'CERRAR';
+        button.setAttribute('aria-expanded', 'true');
+        active = { card, player, button };
+      });
+      actions.append(button);
+      const external = safeUrl(set.external_url);
+      if (external) actions.append(el('a', {
+        class: 'sound-external', href: external, target: '_blank', rel: 'noopener noreferrer',
+        text: 'ABRIR EN ' + (String(set.platform || 'SOUNDCLOUD').toUpperCase()) + ' ↗',
+      }));
+      art.ready(button);
+      return actions;
+    };
+
     let setsSec = el('section', { class: 'sec', id: 'discos' },
       el('h2', { class: 'u', text: 'Sets' }),
       el('p', { class: 'm', text: 'Los próximos sets aparecerán aquí cuando estén publicados.' }));
     if (sets.length) {
       const [first, ...rest] = sets;
-      const firstUrl = safeUrl(first.external_url);
-      const featBody = el('div', { style: 'position:relative' }, el('p', { text: 'Último set publicado' }), el('h3', { text: text(first.title) }),
-        el('p', { style: 'margin-top:12px', text: [text(first.artist_name), first.event_title ? 'en ' + text(first.event_title) : ''].filter(Boolean).join(', ') + '.' }));
-      const listen = el('a', Object.assign({ class: 'btn r', text: 'Escuchar' + (first.platform ? ' en ' + titleCase(text(first.platform)) : ''), href: firstUrl || '/sets/' + encodeURIComponent(first.slug) }, firstUrl ? { target: '_blank', rel: 'noopener noreferrer' } : {}));
-      const feat = el('article', { class: 'feat plate chrome-b' }, el('div', { class: 'disc', 'aria-hidden': 'true' }), featBody, el('div', { style: 'position:relative' }, listen));
-      const list = el('div', { class: 'sl' }, rest.slice(0, 4).map((s) => {
-        const url = safeUrl(s.external_url);
-        return el('a', Object.assign({ class: 'plate chrome-b', href: url || '/sets/' + encodeURIComponent(s.slug) }, url ? { target: '_blank', rel: 'noopener noreferrer' } : {}),
-          el('span', {}, el('b', { text: text(s.title) }), el('small', { text: text(s.artist_name) })), el('span', { class: 'pl', text: 'Escuchar' }));
-      }));
-      setsSec = el('section', { class: 'sec', id: 'discos' }, el('h2', { class: 'u', text: 'Sets' }), el('div', { class: 'sets' }, feat, list));
+      const featureArt = artwork(first, true);
+      const featBody = el('div', { class: 'sound-feature-meta' },
+        el('p', { text: 'Último set publicado' }),
+        featureArt.box,
+        el('h3', { text: text(first.title) }),
+        el('p', { text: [text(first.artist_name), first.event_title ? 'en ' + text(first.event_title) : ''].filter(Boolean).join(', ') }));
+      const feat = el('article', { class: 'feat plate chrome-b' },
+        el('div', { class: 'disc', 'aria-hidden': 'true' }),
+        featBody);
+      feat.append(makeActions(first, feat, featureArt));
+      const rows = rest.slice(0, 4).map((set) => {
+        const art = artwork(set);
+        const row = el('article', { class: 'plate chrome-b sound-row' },
+          art.box,
+          el('span', { class: 'sound-row-meta' },
+            el('b', { text: text(set.title) }), el('small', { text: text(set.artist_name) })));
+        row.append(makeActions(set, row, art));
+        return row;
+      });
+      setsSec = el('section', { class: 'sec', id: 'discos' },
+        el('h2', { class: 'u', text: 'Sets' }),
+        el('div', { class: 'sets' }, feat, el('div', { class: 'sl' }, rows)));
     }
-
     return setsSec;
   };
 
