@@ -30,7 +30,9 @@ try {
     }
 
     $deleting = $request['action'] === 'delete_selected';
-    $audit = static function (string $resource, int $id, array $before, array $after, string $label) use ($pdo, $request, $deleting): void {
+    $deletedBefore = [];
+    $audit = static function (string $resource, int $id, array $before, array $after, string $label) use ($pdo, $request, $deleting, &$deletedBefore): void {
+        if ($deleting) $deletedBefore[$id] = $before; // Locked row, not the pre-lock snapshot.
         brvtal_activity_record(
             $pdo,
             $deleting ? 'bulk_delete' : 'bulk_status',
@@ -50,7 +52,7 @@ try {
     try {
         foreach ((array)$result['ids'] as $changedId) {
             $changedId = (int)$changedId;
-            $beforeIndex = $beforeIndexRows[$changedId] ?? null;
+            $beforeIndex = $deleting ? ($deletedBefore[$changedId] ?? null) : ($beforeIndexRows[$changedId] ?? null);
             $afterIndex = brvtalIndexNowFetchEntity(
                 $pdo,
                 (string)$result['resource'],
@@ -74,7 +76,8 @@ try {
         ]);
     }
 
-    brvtal_log('ADMIN_BULK_STATUS', 'Bulk content status updated', [
+    brvtal_log($deleting ? 'ADMIN_BULK_DELETE' : 'ADMIN_BULK_STATUS',
+        $deleting ? 'Bulk content deleted' : 'Bulk content status updated', [
         'resource' => $result['resource'],
         'action' => $request['action'],
         'status' => $result['status'] ?? null,

@@ -98,6 +98,10 @@ class SetsAdminMultiArtistsTests(unittest.TestCase):
         self.assertIn("DELETE SELECTED", ui)
         self.assertIn("window.confirm(message)", ui)
         self.assertIn("action:'delete_selected'", ui)
+        self.assertIn("pendingMutation:false", ui)
+        self.assertIn("state.dialogEpoch!==dialogEpoch", ui)
+        self.assertIn("ADMIN_BULK_DELETE", api)
+        self.assertIn("$deletedBefore[$changedId]", api)
 
     def test_artist_names_are_rendered_without_ids(self):
         js = source("discadmin/admin-data-grid.js")

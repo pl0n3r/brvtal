@@ -20,6 +20,7 @@
     open:false, module:null, rows:[], selected:new Set(), query:'',
     pageIndex:0, cursorStack:[''], nextCursor:'', pagination:null,
     ready:false, unavailable:false, loadId:0, loadController:null, searchTimer:null,
+    pendingMutation:false, dialogEpoch:0,
   };
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => (
     {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]
@@ -241,6 +242,7 @@
     ensureStyle();
     const overlay = ensureOverlay();
     clearSearchTimer(); cancelLoad();
+    state.dialogEpoch++;
     state.open = true; state.module = module; state.rows = []; state.query = ''; state.ready = false; state.unavailable = false;
     state.selected = new Set(
       [...new Set((Array.isArray(initialIds) ? initialIds : []).map(Number))]
@@ -268,6 +270,7 @@
     const overlay = document.getElementById('brvtal-bulk-actions');
     if (!overlay) return;
     clearSearchTimer(); cancelLoad();
+    state.dialogEpoch++;
     state.open = false; state.module = null; state.rows = []; state.selected.clear(); state.query = '';
     state.ready = false; state.unavailable = false; resetNavigation();
     overlay.classList.remove('open'); overlay.setAttribute('aria-hidden','true'); document.body.style.overflow = '';
@@ -359,13 +362,13 @@
       selectAll.disabled = !state.ready || ids.length === 0;
     }
     const button = overlay.querySelector('.brvtal-bulk-apply');
-    if (button) button.disabled = !state.ready || !status || count < 1 || count > MAX_SELECTED;
+    if (button) button.disabled = state.pendingMutation || !state.ready || !status || count < 1 || count > MAX_SELECTED;
     const deleteButton=overlay.querySelector('.brvtal-bulk-delete');
-    if(deleteButton)deleteButton.disabled = state.module!=='sets' || !state.ready || count<1 || count>MAX_SELECTED;
+    if(deleteButton)deleteButton.disabled = state.pendingMutation || state.module!=='sets' || !state.ready || count<1 || count>MAX_SELECTED;
   }
 
   async function deleteSelected() {
-    if (state.module !== 'sets' || !state.ready || state.selected.size<1 || state.selected.size>MAX_SELECTED) return;
+    if (state.pendingMutation || state.module !== 'sets' || !state.ready || state.selected.size<1 || state.selected.size>MAX_SELECTED) return;
     const ids=[...state.selected];
     const labels=new Map(state.rows.map(row=>[Number(row.id),String(row.label||'')]));
     const selectedSummary=ids.map(id=>labels.has(id) ? labels.get(id)+' (#'+id+')' : '#'+id);
@@ -373,11 +376,12 @@
       +(ids.length>12?' (and '+(ids.length-12)+' more)':'')+'\nConfirm only after reviewing associated references.';
     if (!window.confirm(message)) return;
     const intentId=state.loadId;
-    const button=document.querySelector('.brvtal-bulk-delete');
-    if(button)button.disabled=true;
+    const dialogEpoch=state.dialogEpoch;
+    state.pendingMutation=true;
+    updateControls();
     try {
       const token=await getCsrf();
-      if (!state.open || state.module!=='sets' || !state.ready || state.loadId!==intentId) return;
+      if (!state.open || state.module!=='sets' || !state.ready || state.loadId!==intentId || state.dialogEpoch!==dialogEpoch) return;
       const response=await fetch(MUTATION_ENDPOINT,{
         method:'POST',credentials:'same-origin',cache:'no-store',
         headers:{'Content-Type':'application/json','X-CSRF-Token':token},
@@ -385,29 +389,35 @@
       });
       const payload=await response.json().catch(()=>({ok:false,error:'INVALID_RESPONSE'}));
       if(!response.ok || payload.ok===false) throw new Error(payload.error||('HTTP_'+response.status));
+      window.BRVTALFeedback?.success?.((payload.data?.deleted??ids.length)+' Sets deleted.','bulk-actions');
+      // Never dismiss a newer dialog that replaced the initiating session.
+      if(state.dialogEpoch!==dialogEpoch || !state.open || state.loadId!==intentId) return;
       close();
       window.BRVTALDataGrid?.clearSelection?.('sets');
-      window.BRVTALFeedback?.success?.((payload.data?.deleted??ids.length)+' Sets deleted.','bulk-actions');
       if(typeof window.go==='function') await window.go('sets');
     } catch(error) {
       window.BRVTALFeedback?.error?.('Bulk deletion failed: '+(error?.message||'UNKNOWN_ERROR'),'bulk-actions');
+    } finally {
+      state.pendingMutation=false;
       updateControls();
     }
   }
 
   async function apply() {
     const module = state.module;
-    if (!module || !SPECS[module] || !state.ready) return;
+    if (state.pendingMutation || !module || !SPECS[module] || !state.ready) return;
     const overlay = ensureOverlay();
     const status = overlay.querySelector('.brvtal-bulk-status')?.value || '';
     const ids = [...state.selected];
     if (!status || !ids.length || ids.length > MAX_SELECTED || ids.some(id => !Number.isInteger(id) || id < 1)) return;
     const intentId = state.loadId;
+    const dialogEpoch = state.dialogEpoch;
     if (!window.confirm(`Set ${ids.length} ${SPECS[module].label.toLowerCase()} item${ids.length===1?'':'s'} to ${status.toUpperCase()}?`)) return;
-    const button = overlay.querySelector('.brvtal-bulk-apply'); if (button) button.disabled = true;
+    state.pendingMutation=true;
+    updateControls();
     try {
       const token = await getCsrf();
-      if (!state.open || state.module !== module || !state.ready || state.loadId !== intentId) return;
+      if (!state.open || state.module !== module || !state.ready || state.loadId !== intentId || state.dialogEpoch!==dialogEpoch) return;
       const response = await fetch(MUTATION_ENDPOINT,{
         method:'POST', credentials:'same-origin', cache:'no-store',
         headers:{'Content-Type':'application/json','X-CSRF-Token':token},
@@ -415,12 +425,15 @@
       });
       const payload = await response.json().catch(() => ({ok:false,error:'INVALID_RESPONSE'}));
       if (!response.ok || payload.ok === false) throw new Error(payload.error || ('HTTP_' + response.status));
+      window.BRVTALFeedback?.success?.(`${payload.data?.matched ?? ids.length} ${SPECS[module].label.toLowerCase()} updated to ${status}.`,'bulk-actions');
+      if(state.dialogEpoch!==dialogEpoch || !state.open || state.loadId!==intentId) return;
       close();
       window.BRVTALDataGrid?.clearSelection?.(module);
-      window.BRVTALFeedback?.success?.(`${payload.data?.matched ?? ids.length} ${SPECS[module].label.toLowerCase()} updated to ${status}.`,'bulk-actions');
       if (typeof window.go === 'function') await window.go(module);
     } catch (error) {
       window.BRVTALFeedback?.error?.('Bulk action failed: ' + (error?.message || 'UNKNOWN_ERROR'),'bulk-actions');
+    } finally {
+      state.pendingMutation=false;
       updateControls();
     }
   }
