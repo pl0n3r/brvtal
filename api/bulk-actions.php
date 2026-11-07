@@ -70,7 +70,7 @@ try {
     } catch (Throwable $indexNowError) {
         brvtal_log('INDEXNOW_BULK_NOTIFY_FAILED', 'Bulk IndexNow notification failed', [
             'resource' => (string)$result['resource'],
-            'class' => get_class($indexNowError),
+            'class' => $indexNowError::class,
         ]);
     }
 
@@ -99,6 +99,6 @@ try {
     brvtal_log('API_ERROR', 'Bulk action failed', ['message'=>$e->getMessage()]);
     json_response(['ok'=>false,'error'=>'BULK_ACTION_FAILED'], 500);
 } catch (Throwable $e) {
-    brvtal_log('API_ERROR', 'Bulk action failed', ['class'=>get_class($e),'message'=>$e->getMessage()]);
+    brvtal_log('API_ERROR', 'Bulk action failed', ['class'=>$e::class,'message'=>$e->getMessage()]);
     json_response(['ok'=>false,'error'=>'BULK_ACTION_FAILED'], 500);
 }
