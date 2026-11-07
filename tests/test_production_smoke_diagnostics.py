@@ -308,5 +308,33 @@ class ProductionSmokeDiagnosticsTests(unittest.TestCase):
         )
 
 
+
+    def test_sets_relations_target_current_multi_artist_picker(self):
+        source = SMOKE.read_text(encoding="utf-8")
+        picker = (ROOT / "discadmin" / "index-core.php").read_text(encoding="utf-8")
+        self.assertIn('id="setArtistChoices"', picker)
+        self.assertIn('type="checkbox" data-set-artist', picker)
+        self.assertIn('input[type="checkbox"][data-set-artist][value=', source)
+        self.assertNotIn('#f_artist_id option[value=', source)
+
+    def test_sets_relations_fail_closed_and_preserve_event_scope(self):
+        source = SMOKE.read_text(encoding="utf-8")
+        self.assertIn("artist.status === 'published'", source)
+        self.assertIn("event.status === 'published'", source)
+        self.assertIn('#f_event_id option[value=', source)
+        self.assertIn("artistOption === 1 && eventOption === 1", source)
+        self.assertIn("relationState.artistIds.includes(Number(publishedArtist.id))", source)
+        self.assertIn("relationState.eventIds.includes(Number(publishedEvent.id))", source)
+        self.assertIn("if (!evidence.checks.setRelations.pass)", source)
+        self.assertIn("#124 failed: published relation options missing", source)
+
+    def test_smoke_stays_authenticated_read_only(self):
+        source = SMOKE.read_text(encoding="utf-8")
+        self.assertIn("await context.route('**/*'", source)
+        self.assertIn("evidence.blockedMutations.push", source)
+        self.assertIn("if (evidence.blockedMutations.length)", source)
+        self.assertIn("method === 'POST' && url.origin === baseUrl", source)
+        self.assertIn("if (response.status() >= 500)", source)
+
 if __name__ == "__main__":
     unittest.main()
