@@ -102,6 +102,22 @@ echo json_encode(compact('invalid','good','artbad','n','a','b'));
         self.assertIn("focus-visible", CSS)
         self.assertIn("#cromo-home .cr-set-art", CSS)
 
+    def test_featured_compact_layout_contract(self):
+        # The featured plate must not inherit the height of all visible list rows.
+        self.assertIn("grid-template-columns:1.4fr 1fr;gap:24px;align-items:start", CSS)
+        self.assertIn("justify-content:flex-start", CSS)
+        self.assertIn("min-height:0;min-width:0;align-self:start", CSS)
+        self.assertIn('grid-template-areas:"eyebrow eyebrow" "artwork title" "artwork artists"', CSS)
+        self.assertIn("#cromo-home .cr-feat .cr-sound-feature-meta>h3{grid-area:title", CSS)
+        self.assertIn("#cromo-home .cr-feat .cr-sound-feature-meta>p:last-child", CSS)
+        self.assertIn("grid-area:artwork;width:100%;height:auto;aspect-ratio:1;margin:0", CSS)
+        self.assertIn("cr-sound-actions{position:relative;z-index:3;margin-top:0}", CSS)
+
+    def test_featured_responsive_e2e_contract(self):
+        self.assertIn("Cromo featured card has compact grouped content at 390/768/900/1440", BROWSER)
+        self.assertIn("for (const width of [390, 768, 900, 1440])", BROWSER)
+        self.assertIn("await noOverflow(page)", BROWSER)
+
     def test_catalog_all_published_reachable(self):
         self.assertNotIn("rest.slice(0, 4).map", HOME)
         self.assertIn("rest.slice(visible, visible + 4).map(makeRow)", HOME)

@@ -907,3 +907,47 @@ test('Cromo revealed row retains SoundCloud fallback when URL is not embeddable'
   await expect(page.locator('#cromo-home .cr-set-player iframe')).toHaveCount(0);
   await noOverflow(page);
 });
+
+
+test('Cromo featured card has compact grouped content at 390/768/900/1440', async ({page}) => {
+  test.setTimeout(120_000);
+  await mockSoundCloud(page);
+  for (const width of [390, 768, 900, 1440]) {
+    for (const count of [1, 30]) {
+      const catalog = Array.from({length:count}, (_,index) => ({
+        ...soundSets[0], id:6000 + index, title:index===0 ? 'INDUSTRIAL SIGNAL' : 'SESSION ' + index,
+        artist_names:['DJ PRINCIPAL','DJ INVITADO'],
+      }));
+      await mount(page, {width, reduced:width===390, payload:{...data, sets:catalog}});
+      const feature=page.locator('#cromo-home #discos .cr-feat');
+      await expect(feature).toContainText('DJ PRINCIPAL y DJ INVITADO');
+      const measurements=await feature.evaluate(card => {
+        const rect=node=>node.getBoundingClientRect();
+        const outer=rect(card);
+        const meta=rect(card.querySelector('.cr-sound-feature-meta'));
+        const cover=rect(card.querySelector('.cr-set-art-featured'));
+        const title=rect(card.querySelector('h3'));
+        const actions=rect(card.querySelector('.cr-sound-actions'));
+        return {
+          height:outer.height,
+          between:actions.top-meta.bottom,
+          bottom:outer.bottom-actions.bottom,
+          artRight:cover.right,
+          titleLeft:title.left,
+        };
+      });
+      expect(measurements.height).toBeLessThan(510);
+      expect(measurements.between).toBeLessThan(55);
+      expect(measurements.bottom).toBeLessThan(50);
+      expect(measurements.titleLeft).toBeGreaterThanOrEqual(measurements.artRight);
+      await noOverflow(page);
+      if (count===30) {
+        await expect(page.locator('#cromo-home #discos .cr-sound-row')).toHaveCount(4);
+        await expect(page.locator('#cromo-home #discos button.cr-set-more')).toBeVisible();
+        await feature.locator('button.cr-sound-listen').click();
+        await expect(feature.locator('iframe')).toHaveCount(1);
+        await noOverflow(page);
+      }
+    }
+  }
+});
