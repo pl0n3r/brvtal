@@ -115,12 +115,12 @@ html.cromo-home body>*:not(#cromo-home):not(#cromoGL):not(script):not(style):not
 #cromo-home .cr-ac .cr-nm{position:relative;font:400 clamp(38px,3.8vw,60px)/.95 var(--disp);text-transform:uppercase;color:#fff;-webkit-text-stroke:.05em #030303;paint-order:stroke fill}
 #cromo-home .cr-ac .cr-rl{position:relative;font:600 21px/1.35 var(--body);margin-top:8px;color:#d7dbe4}
 @keyframes cromo-float{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(14px) rotate(6deg)}}
-#cromo-home .cr-sets{display:grid;grid-template-columns:1.4fr 1fr;gap:24px;align-items:stretch}
-#cromo-home .cr-feat{padding:32px;display:flex;flex-direction:column;justify-content:space-between;gap:22px;min-height:360px;position:relative;overflow:hidden}
+#cromo-home .cr-sets{display:grid;grid-template-columns:1.4fr 1fr;gap:24px;align-items:start}
+#cromo-home .cr-feat{padding:32px;display:flex;flex-direction:column;justify-content:flex-start;gap:clamp(16px,2vw,24px);min-height:0;min-width:0;align-self:start;position:relative;overflow:hidden}
 #cromo-home .cr-feat .cr-disc{position:absolute;right:-60px;bottom:-60px;width:320px;height:320px;border-radius:50%;background:repeating-radial-gradient(circle,#0b0b0e 0 3px,#222733 4px 5px);box-shadow:0 0 0 3px rgba(255,255,255,.12);animation:cromo-spin 8s linear infinite}
 #cromo-home .cr-feat .cr-disc::after{content:"";position:absolute;inset:34%;border-radius:50%;background:#ff3b1f;box-shadow:0 0 0 10px #030303 inset}
 @keyframes cromo-spin{to{transform:rotate(360deg)}}
-#cromo-home .cr-feat h3{font:400 clamp(52px,6vw,96px)/.92 var(--disp);text-transform:uppercase;position:relative;-webkit-text-stroke:.04em #030303;paint-order:stroke fill}
+#cromo-home .cr-feat h3{font:400 clamp(36px,4.5vw,76px)/.95 var(--disp);margin:0;min-width:0;overflow-wrap:anywhere;text-transform:uppercase;position:relative;-webkit-text-stroke:.04em #030303;paint-order:stroke fill}
 #cromo-home .cr-feat p,#cromo-home .cr-sl p{font:600 22px/1.35 var(--body);color:#d7dbe4;position:relative}
 #cromo-home .cr-sl{display:flex;flex-direction:column;gap:14px;min-width:0}
 #cromo-home .cr-sets-catalog{display:flex;flex-direction:column;gap:14px;min-width:0}
@@ -471,11 +471,22 @@ html.cromo-home body>*:not(#cromo-home):not(#cromoGL):not(script):not(style):not
   content:"BRVTAL / SOUND";position:absolute;inset:auto 4px 4px;
   color:#f2efe8;font:700 12px/1.1 var(--body);text-align:center;
 }
-#cromo-home .cr-feat .cr-sound-feature-meta{position:relative;z-index:2;min-width:0}
-#cromo-home .cr-feat .cr-set-art-featured{
-  width:148px;height:148px;margin:14px 0 18px;border-color:var(--red,#ff2a1a);
+/* The feature follows its own content instead of inheriting the taller Sets list. */
+#cromo-home .cr-feat .cr-sound-feature-meta{
+  position:relative;z-index:2;min-width:0;display:grid;
+  grid-template-columns:clamp(116px,13vw,176px) minmax(0,1fr);
+  grid-template-areas:"eyebrow eyebrow" "artwork title" "artwork artists";
+  align-items:center;gap:8px clamp(14px,2vw,24px);
 }
-#cromo-home .cr-feat .cr-sound-actions{position:relative;z-index:3}
+#cromo-home .cr-feat .cr-sound-feature-meta>p:first-child{grid-area:eyebrow;margin:0 0 6px}
+#cromo-home .cr-feat .cr-sound-feature-meta>h3{grid-area:title;align-self:end}
+#cromo-home .cr-feat .cr-sound-feature-meta>p:last-child{
+  grid-area:artists;align-self:start;margin:0;overflow-wrap:anywhere
+}
+#cromo-home .cr-feat .cr-set-art-featured{
+  grid-area:artwork;width:100%;height:auto;aspect-ratio:1;margin:0;border-color:var(--red,#ff2a1a);
+}
+#cromo-home .cr-feat .cr-sound-actions{position:relative;z-index:3;margin-top:0}
 #cromo-home .cr-sound-row{
   display:grid;grid-template-columns:76px minmax(0,1fr);
   align-items:center;gap:12px;padding:14px 16px;min-width:0;
@@ -514,6 +525,6 @@ html.cromo-home body>*:not(#cromo-home):not(#cromoGL):not(script):not(style):not
 @media(max-width:820px){
   #cromo-home .cr-sound-row{grid-template-columns:64px minmax(0,1fr)}
   #cromo-home .cr-sound-row .cr-set-art{width:64px;height:64px}
-  #cromo-home .cr-feat .cr-set-art-featured{width:120px;height:120px}
+  #cromo-home .cr-feat .cr-set-art-featured{width:100%;height:auto}
   #cromo-home .cr-feat .cr-disc{opacity:.5}
 }
