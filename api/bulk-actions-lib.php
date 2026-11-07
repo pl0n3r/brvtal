@@ -282,12 +282,12 @@ function brvtal_bulk_normalize_request(array $input): array
     }
 
     $action = strtolower(trim((string)($input['action'] ?? 'set_status')));
-    if ($action !== 'set_status') {
+    if ($action !== 'set_status' && !($action === 'delete_selected' && $resource === 'sets')) {
         throw new InvalidArgumentException('INVALID_BULK_ACTION');
     }
 
     $status = strtolower(trim((string)($input['status'] ?? '')));
-    if (!in_array($status, $specs[$resource]['statuses'], true)) {
+    if ($action === 'set_status' && !in_array($status, $specs[$resource]['statuses'], true)) {
         throw new InvalidArgumentException('INVALID_BULK_STATUS');
     }
 
@@ -319,11 +319,50 @@ function brvtal_bulk_normalize_request(array $input): array
     }
 
     return [
-        'action' => 'set_status',
+        'action' => $action,
         'resource' => $resource,
         'status' => $status,
         'ids' => array_values($ids),
     ];
+}
+
+/** Fully transactional, reference-aware deletion of Sets only, on a disposable test
+ * database or after explicit user authorization for a production bulk deletion. */
+function brvtal_bulk_delete_sets(PDO $pdo, array $request, ?callable $audit = null): array
+{
+    if (($request['action'] ?? '') !== 'delete_selected' || ($request['resource'] ?? '') !== 'sets') {
+        throw new InvalidArgumentException('INVALID_BULK_ACTION');
+    }
+    $ids=array_values(array_unique(array_map(intval(...),(array)($request['ids'] ?? []))));
+    if ($ids === [] || count($ids) > 100 || min($ids)<1) {
+        throw new InvalidArgumentException('INVALID_BULK_IDS');
+    }
+    $marks=implode(',',array_fill(0,count($ids),'?'));
+    $pdo->beginTransaction();
+    try {
+        $st=$pdo->prepare("SELECT * FROM sets_media WHERE id IN ({$marks}) ORDER BY id FOR UPDATE");
+        $st->execute($ids);
+        $rows=$st->fetchAll(PDO::FETCH_ASSOC);
+        if (count($rows)!==count($ids)) throw new RuntimeException('BULK_ITEMS_NOT_FOUND');
+        // Non-FK relation tables may contain pointers to Sets; never orphan them.
+        foreach (['blog_post_relations','memory_relations'] as $table) {
+            $present=$pdo->prepare('SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=?');
+            $present->execute([$table]);
+            if ((int)$present->fetchColumn()===0) continue;
+            $ref=$pdo->prepare("SELECT COUNT(*) FROM {$table} WHERE related_type='set' AND related_id IN ({$marks})");
+            $ref->execute($ids);
+            if ((int)$ref->fetchColumn()>0) throw new RuntimeException('BULK_SET_REFERENCED');
+        }
+        $delete=$pdo->prepare("DELETE FROM sets_media WHERE id IN ({$marks})");
+        $delete->execute($ids);
+        if ($delete->rowCount()!==count($ids)) throw new RuntimeException('BULK_DELETE_COUNT_MISMATCH');
+        if ($audit) foreach ($rows as $row) $audit('sets',(int)$row['id'],$row,[],(string)$row['title']);
+        $pdo->commit();
+        return ['action'=>'delete_selected','resource'=>'sets','ids'=>$ids,'matched'=>count($ids),'deleted'=>count($ids)];
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
 }
 
 function brvtal_bulk_apply(PDO $pdo, array $request, ?callable $audit = null): array

@@ -93,7 +93,12 @@
       orderable:true,
       columns:[
         {key:'primary',label:'SET',width:'minmax(230px,1.5fr)',sort:true,value:r=>r.title||'',render:r=>imageCell(r.cover_image,r.title,r.slug)},
-        {key:'artist',label:'ARTIST',width:'minmax(150px,.8fr)',sort:true,value:r=>r.artist_name||r.artist_id||'',render:r=>esc(r.artist_name||r.artist_id||'—')},
+        {key:'artist',label:'ARTISTS',width:'minmax(150px,.8fr)',sort:true,
+          value:r=>(Array.isArray(r.artist_names)?r.artist_names.join(', '):r.artist_name)||'',
+          render:r=>{
+            const names=Array.isArray(r.artist_names)?r.artist_names:(r.artist_name?[r.artist_name]:[]);
+            return names.length ? names.map(name=>'<span class="pill admin-set-artist-chip">'+esc(name)+'</span>').join(' ') : 'Sin artista';
+          }},
         {key:'event',label:'EVENT',width:'minmax(160px,.9fr)',sort:true,value:r=>r.event_title||r.event_id||'',render:r=>esc(r.event_title||r.event_id||'—')},
         {key:'status',label:'STATUS',width:'110px',sort:true,value:r=>r.status||'',render:r=>statusCell(r.status)},
         {key:'position',label:'POSITION',width:'90px',sort:false,value:r=>Number(r.sort_order||0),render:()=>'<span data-order-position>—</span>'}
@@ -483,6 +488,9 @@
     state.host.querySelector('[data-grid-bulk]')?.addEventListener('click',() => {
       window.BRVTALBulkActions?.open?.(state.module,[...selected]);
     });
+    state.host.querySelector('[data-grid-delete]')?.addEventListener('click',() => {
+      window.BRVTALBulkActions?.open?.('sets',[...selected],{delete:true});
+    });
     state.host.querySelectorAll('[data-grid-action]').forEach(button => {
       button.addEventListener('click',() => {
         runAction(state.module,button.dataset.gridAction,Number(button.dataset.gridId));
@@ -545,6 +553,7 @@
           <strong>${selectedCount} SELECTED</strong>
           <span class="admin-grid-selection-actions">
             ${bulkButton}
+            ${state.module==='sets' ? '<button type="button" class="btn ghost" data-grid-delete>DELETE SELECTED</button>' : ''}
             <button type="button" class="btn ghost" data-grid-clear>CLEAR</button>
           </span>
         </div>

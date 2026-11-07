@@ -136,6 +136,16 @@ CREATE TABLE sets_media (
   FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
+CREATE TABLE set_artists (
+  set_id INT UNSIGNED NOT NULL,
+  artist_id INT UNSIGNED NOT NULL,
+  sort_order INT UNSIGNED NOT NULL DEFAULT 0,
+  PRIMARY KEY (set_id, artist_id),
+  KEY idx_set_artists_artist (artist_id),
+  CONSTRAINT fk_set_artists_set FOREIGN KEY (set_id) REFERENCES sets_media(id) ON DELETE CASCADE,
+  CONSTRAINT fk_set_artists_artist FOREIGN KEY (artist_id) REFERENCES artists(id) ON DELETE RESTRICT
+) ENGINE=InnoDB;
+
 CREATE TABLE media (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   type ENUM('image','video','audio','document') NOT NULL,

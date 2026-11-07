@@ -29,10 +29,13 @@ try {
         $beforeIndexRows[(int)$row['id']] = $row;
     }
 
-    $result = brvtal_bulk_apply($pdo, $request, static function (string $resource, int $id, array $before, array $after, string $label) use ($pdo, $request): void {
+    $deleting = $request['action'] === 'delete_selected';
+    $deletedBefore = [];
+    $audit = static function (string $resource, int $id, array $before, array $after, string $label) use ($pdo, $request, $deleting, &$deletedBefore): void {
+        if ($deleting) $deletedBefore[$id] = $before; // Locked row, not the pre-lock snapshot.
         brvtal_activity_record(
             $pdo,
-            'bulk_status',
+            $deleting ? 'bulk_delete' : 'bulk_status',
             $resource,
             $id,
             $before,
@@ -40,15 +43,16 @@ try {
             [
                 'source'=>'bulk_actions',
                 'batch_size'=>count((array)$request['ids']),
-                'target_status'=>(string)$request['status'],
+                'target_status'=>$deleting ? null : (string)$request['status'],
             ],
             $label
         );
-    });
+    };
+    $result = $deleting ? brvtal_bulk_delete_sets($pdo,$request,$audit) : brvtal_bulk_apply($pdo, $request, $audit);
     try {
         foreach ((array)$result['ids'] as $changedId) {
             $changedId = (int)$changedId;
-            $beforeIndex = $beforeIndexRows[$changedId] ?? null;
+            $beforeIndex = $deleting ? ($deletedBefore[$changedId] ?? null) : ($beforeIndexRows[$changedId] ?? null);
             $afterIndex = brvtalIndexNowFetchEntity(
                 $pdo,
                 (string)$result['resource'],
@@ -56,7 +60,7 @@ try {
             );
             $beforeStatus = is_array($beforeIndex) ? (string)($beforeIndex['status'] ?? '') : '';
             $afterStatus = is_array($afterIndex) ? (string)($afterIndex['status'] ?? '') : '';
-            if ($beforeStatus !== $afterStatus) {
+            if ($deleting || $beforeStatus !== $afterStatus) {
                 brvtalIndexNowNotifyChange(
                     $pdo,
                     (string)$result['resource'],
@@ -68,16 +72,19 @@ try {
     } catch (Throwable $indexNowError) {
         brvtal_log('INDEXNOW_BULK_NOTIFY_FAILED', 'Bulk IndexNow notification failed', [
             'resource' => (string)$result['resource'],
-            'class' => get_class($indexNowError),
+            'class' => $indexNowError::class,
         ]);
     }
 
-    brvtal_log('ADMIN_BULK_STATUS', 'Bulk content status updated', [
+    brvtal_log($deleting ? 'ADMIN_BULK_DELETE' : 'ADMIN_BULK_STATUS',
+        $deleting ? 'Bulk content deleted' : 'Bulk content status updated', [
         'resource' => $result['resource'],
-        'status' => $result['status'],
+        'action' => $request['action'],
+        'status' => $result['status'] ?? null,
         'ids' => $result['ids'],
         'matched' => $result['matched'],
-        'changed' => $result['changed'],
+        'changed' => $result['changed'] ?? null,
+        'deleted' => $result['deleted'] ?? null,
     ]);
     json_response(['ok'=>true,'data'=>$result]);
 } catch (InvalidArgumentException $e) {
@@ -86,12 +93,15 @@ try {
     if ($e->getMessage() === 'BULK_ITEMS_NOT_FOUND') {
         json_response(['ok'=>false,'error'=>'BULK_ITEMS_NOT_FOUND'], 409);
     }
+    if ($e->getMessage() === 'BULK_SET_REFERENCED') {
+        json_response(['ok'=>false,'error'=>'BULK_SET_REFERENCED'], 409);
+    }
     if ($e->getMessage() === 'ACTIVITY_SCHEMA_MISSING') {
         json_response(['ok'=>false,'error'=>'ACTIVITY_SCHEMA_MISSING'], 503);
     }
     brvtal_log('API_ERROR', 'Bulk action failed', ['message'=>$e->getMessage()]);
     json_response(['ok'=>false,'error'=>'BULK_ACTION_FAILED'], 500);
 } catch (Throwable $e) {
-    brvtal_log('API_ERROR', 'Bulk action failed', ['class'=>get_class($e),'message'=>$e->getMessage()]);
+    brvtal_log('API_ERROR', 'Bulk action failed', ['class'=>$e::class,'message'=>$e->getMessage()]);
     json_response(['ok'=>false,'error'=>'BULK_ACTION_FAILED'], 500);
 }

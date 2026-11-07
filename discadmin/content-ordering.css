@@ -22,3 +22,14 @@
 .content-order-help :is(time,[data-count],.metric,.stat){font-variant-numeric:tabular-nums}
 
 @media (prefers-reduced-motion:reduce){.content-order-help,.content-order-help *{animation:none!important;transition:none!important}}
+
+
+/* #1634: visible keyboard/touch reorder controls for the Sets collection. */
+[data-order-resource="sets"] [data-order-item]{padding-right:86px!important}
+[data-order-resource="sets"] .content-order-move{position:absolute;z-index:3;top:50%;transform:translateY(-50%);width:32px;min-height:38px;border:1px solid var(--admin-line,#34383d);background:var(--admin-panel,#101214);color:#fff;font-size:18px;cursor:pointer}
+[data-order-resource="sets"] .content-order-move-up{right:48px}
+[data-order-resource="sets"] .content-order-move-down{right:10px}
+[data-order-resource="sets"] .content-order-move:disabled{opacity:.32;cursor:not-allowed}
+[data-order-resource="sets"] .content-order-move:focus-visible{outline:2px solid #b8ff00;outline-offset:2px}
+@media(max-width:550px){[data-order-resource="sets"] [data-order-item]{padding-right:84px!important}}
+@media(prefers-reduced-motion:reduce){[data-order-resource="sets"] [data-order-item]{transition:none!important;transform:none!important}}

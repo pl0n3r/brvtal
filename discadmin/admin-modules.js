@@ -386,7 +386,8 @@ window.BRVTALAdminModules = (() => {
     if (type === 'sets') return {
       title:fieldValue('title'), slug:fieldValue('slug'), platform:fieldValue('platform') || 'soundcloud',
       external_url:fieldValue('external_url'), embed_url:fieldValue('embed_url'), cover_image:fieldValue('cover_image'),
-      artist_id:fieldValue('artist_id') ? Number(fieldValue('artist_id')) : null,
+      artist_ids:typeof selectedSetArtistIds==='function' ? selectedSetArtistIds() : [],
+      artist_id:typeof selectedSetArtistIds==='function' ? (selectedSetArtistIds()[0]??null) : null,
       event_id:fieldValue('event_id') ? Number(fieldValue('event_id')) : null,
       status:fieldValue('status') || 'draft',
       duration_seconds:fieldValue('duration_seconds') === '' ? null : fieldValue('duration_seconds'),
@@ -437,10 +438,26 @@ window.BRVTALAdminModules = (() => {
     return false;
   }
 
-  window.save = async function(type, id = null) {
+  let setSavePending = false;
+  window.save = async function(type, id = null, options = {}) {
+    if (type==='sets' && setSavePending) return;
+    const keepOpen=type==='sets' && options.close===false;
     if (type === 'sets' && !validOptionalSetDuration()) return;
     const saveBtn = document.getElementById('saveBtn');
     const previousLabel = saveBtn?.textContent || 'SAVE';
+    const keepBtn = document.getElementById('saveKeepOpenBtn');
+    // A Set response belongs to the form instance that sent it, not to whichever
+    // Set may have been opened while the request was in flight.
+    const editorForm = type === 'sets' ? document.querySelector('#modal #mcontent .form') : null;
+    let editorExpectedId = state.editing;
+    const editorCurrent = () => type !== 'sets' || Boolean(
+      editorForm?.isConnected &&
+      document.getElementById('modal')?.classList.contains('open') &&
+      document.querySelector('#modal #mcontent .form') === editorForm &&
+      String(state.editing ?? '') === String(editorExpectedId ?? '')
+    );
+    if(type==='sets')setSavePending=true;
+    if(keepBtn)keepBtn.disabled=true;
     if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'SAVING…'; }
     const payload = formPayload(type);
     const orderValue = visualOrderValue(type,id);
@@ -455,27 +472,68 @@ window.BRVTALAdminModules = (() => {
         result = await req(path,{method:id !== null && id !== '' ? 'PUT' : 'POST',body:JSON.stringify(payload)});
       }
 
+      if (!editorCurrent()) {
+        if (type === 'sets') Feedback.info('Set saved; the editor changed. Refresh the list to see the result.', 'sets-save');
+        return;
+      }
       const draftState = await window.BRVTALLegacyDrafts?.serverSaved?.({
         type,id,payload,result
       });
-      if (draftState?.keepOpen) {
-        const savedId = draftState.id ?? id;
-        if (savedId !== null && savedId !== '' && Number(savedId) > 0) {
-          state.editing = Number(savedId);
-          if (saveBtn?.isConnected) saveBtn.onclick = () => window.save(type,Number(savedId));
+      if (!editorCurrent()) return;
+      const savedId = draftState?.id ?? result?.id ?? id;
+      if (savedId !== null && savedId !== '' && Number(savedId) > 0) {
+        state.editing = Number(savedId);
+        if (type === 'sets') editorExpectedId = state.editing;
+        if (type==='sets') {
+          if (saveBtn?.isConnected) saveBtn.onclick = () => window.save('sets',state.editing,{close:true});
+          if (keepBtn?.isConnected) keepBtn.onclick = () => window.save('sets',state.editing,{close:false});
+        } else if (draftState?.keepOpen && saveBtn?.isConnected) {
+          saveBtn.onclick = () => window.save(type,Number(savedId));
         }
+      }
+      // Keep the grid's row canonical while the editor stays open. The GET
+      // includes saved artist_ids/names from the server; editing a second time
+      // must not use the pre-save snapshot from state.rows.
+      if (type === 'sets' && (keepOpen || draftState?.keepOpen) && Number(savedId) > 0) {
+        try {
+          const persisted = (await req('/sets/' + encodeURIComponent(savedId)))?.data;
+          if (!editorCurrent()) return;
+          if (persisted && typeof persisted === 'object' && !Array.isArray(persisted) && Array.isArray(state.rows)) {
+            const index = state.rows.findIndex(row => Number(row.id) === Number(savedId));
+            if (index < 0) state.rows.unshift(persisted);
+            else state.rows[index] = {...state.rows[index], ...persisted};
+            if (typeof renderNativeDataGrid === 'function') renderNativeDataGrid(state.search);
+          }
+        } catch (_) {
+          if (editorCurrent()) Feedback.info('Set saved, but the list could not be refreshed.', 'sets-grid');
+        }
+      }
+      if (draftState?.keepOpen) {
         Feedback.info('Server save completed; newer edits remain in the local draft.','legacy-draft');
+        return;
+      }
+      if (keepOpen) {
+        Feedback.success('Set saved. Continue editing or choose SAVE & CLOSE.','sets-save');
         return;
       }
 
       if (typeof closeModal === 'function') closeModal(true);
       if (typeof go === 'function') await go(type);
     } catch (error) {
+      if (!editorCurrent()) {
+        Feedback.error('A previous Set save failed; reload the Sets list to verify its state.', 'sets-save');
+        return;
+      }
       await window.BRVTALLegacyDrafts?.saveFailed?.({type,id,payload});
       if (typeof show === 'function') show(error?.message || 'SAVE_FAILED');
       if (!document.querySelector('.brvtal-feedback.error')) Feedback.error(readableError({error:error?.message || 'SAVE_FAILED'},500),'mutation');
     } finally {
-      if (saveBtn?.isConnected) { saveBtn.disabled = false; saveBtn.textContent = previousLabel; }
+      if(type==='sets')setSavePending=false;
+      if (editorCurrent() && keepBtn?.isConnected) keepBtn.disabled=false;
+      if (editorCurrent() && saveBtn?.isConnected) {
+        saveBtn.disabled = false;
+        saveBtn.textContent = type==='sets' ? 'SAVE & CLOSE' : previousLabel;
+      }
     }
   };
 

@@ -99,6 +99,10 @@
   function syncSaveLabel() {
     const button = saveButton();
     if (!button || saving) return;
+    if (document.getElementById('saveKeepOpenBtn')) {
+      button.textContent='SAVE & CLOSE';
+      return;
+    }
     const value = String(statusSelect()?.value || '').toLowerCase();
     const next = value === 'published'
       ? 'SAVE & PUBLISH'

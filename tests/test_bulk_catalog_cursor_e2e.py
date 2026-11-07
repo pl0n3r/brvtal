@@ -67,7 +67,9 @@ class BulkCatalogCursorE2ETests(unittest.TestCase):
             self.assertIn(snippet, self.e2e)
         for snippet in ("FOR UPDATE", "beginTransaction()", "rollBack()"):
             self.assertIn(snippet, self.lib)
-        self.assertNotIn("DELETE FROM", self.lib)
+        self.assertIn("DELETE FROM sets_media WHERE id IN", self.lib)
+        self.assertIn("($action === 'delete_selected' && $resource === 'sets')", self.lib)
+        self.assertIn("BULK_SET_REFERENCED", self.lib)
 
     def test_keyboard_mobile_and_incomplete_response_regressions_remain_fail_closed(self) -> None:
         for snippet in (

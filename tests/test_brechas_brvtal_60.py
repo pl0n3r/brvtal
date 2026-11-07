@@ -234,8 +234,18 @@ def evaluate(key: object, sources: object, result: object) -> str:
             return UNKNOWN
         if key == "S39B-R011":
             return LOCAL
-        return LOCAL if ("NO BULK DELETE" in sources[BULK]
-                         and "DELETE FROM" not in sources[BULK_LIB]) else UNKNOWN
+        # #1634 upgrades Bulk Actions v1: destructive actions remain forbidden
+        # everywhere except authenticated Sets deletion with reference guards.
+        legacy_safe = ("NO BULK DELETE" in sources[BULK]
+                       and "DELETE FROM" not in sources[BULK_LIB])
+        sets_delete_safe = (
+            "DELETE SELECTED" in sources[BULK]
+            and "($action === 'delete_selected' && $resource === 'sets')" in sources[BULK_LIB]
+            and "BULK_SET_REFERENCED" in sources[BULK_LIB]
+            and "DELETE FROM sets_media WHERE id IN" in sources[BULK_LIB]
+            and "window.confirm(message)" in sources[BULK]
+        )
+        return LOCAL if (legacy_safe or sets_delete_safe) else UNKNOWN
     for name in ("artists", "sets", "releases", "blog", "media"):
         row = captured.get(name)
         if (type(row) is not dict or row.get("yes") is not True

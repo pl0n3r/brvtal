@@ -74,6 +74,9 @@
       label:'set',
       read() {
         const value = id => document.getElementById('f_' + id)?.value ?? '';
+        const multiArtist = document.querySelector('#setArtistChoices input[data-set-artist]');
+        const artistIds = multiArtist && typeof selectedSetArtistIds === 'function' ? selectedSetArtistIds() : [];
+        const durationInput = document.getElementById('f_duration_seconds');
         return {
           title:value('title'),
           slug:value('slug'),
@@ -81,8 +84,11 @@
           external_url:value('external_url'),
           embed_url:value('embed_url'),
           cover_image:value('cover_image'),
-          artist_id:value('artist_id') ? Number(value('artist_id')) : null,
+          ...(multiArtist ? {artist_ids:artistIds} : {}),
+          artist_id:multiArtist ? (artistIds[0] ?? null) :
+            (value('artist_id') ? Number(value('artist_id')) : null),
           event_id:value('event_id') ? Number(value('event_id')) : null,
+          ...(durationInput ? {duration_seconds:value('duration_seconds') === '' ? null : value('duration_seconds')} : {}),
           status:value('status') || 'draft',
           description:value('description')
         };
@@ -95,15 +101,30 @@
           external_url:data.external_url,
           embed_url:data.embed_url,
           cover_image:data.cover_image,
-          artist_id:data.artist_id,
           event_id:data.event_id,
           status:data.status,
+          duration_seconds:data.duration_seconds,
           description:data.description
         };
         Object.entries(values).forEach(([name,next]) => {
           const control = document.getElementById('f_' + name);
           if (control && next !== undefined && next !== null) control.value = String(next);
+          if (control && name === 'duration_seconds' && next === null) control.value = '';
         });
+        const legacyArtist = document.getElementById('f_artist_id');
+        if (legacyArtist && data.artist_id !== undefined) {
+          legacyArtist.value = data.artist_id === null ? '' : String(data.artist_id);
+        }
+        const restoredIds = Array.isArray(data.artist_ids) ? data.artist_ids :
+          (data.artist_id ? [data.artist_id] : []);
+        const order = new Map(restoredIds.map((id,index)=>[Number(id),index + 1]));
+        document.querySelectorAll('#setArtistChoices input[data-set-artist]').forEach(input=>{
+          const position = order.get(Number(input.value));
+          input.checked = position !== undefined;
+          if (position !== undefined) input.dataset.selectionOrder=String(position);
+          else delete input.dataset.selectionOrder;
+        });
+        if (typeof renderSetArtistChips === 'function') renderSetArtistChips();
       }
     }],
     ['releases', {
