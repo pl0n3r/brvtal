@@ -102,6 +102,45 @@ echo json_encode(compact('invalid','good','artbad','n','a','b'));
         self.assertIn("focus-visible", CSS)
         self.assertIn("#cromo-home .cr-set-art", CSS)
 
+    def test_catalog_all_published_reachable(self):
+        self.assertNotIn("rest.slice(0, 4).map", HOME)
+        self.assertIn("rest.slice(visible, visible + 4).map(makeRow)", HOME)
+        self.assertIn("visible += added.length", HOME)
+        self.assertIn("VER MÁS SETS", HOME)
+        self.assertIn("0 sets publicados", HOME)
+        self.assertIn("Catálogo completo", HOME)
+
+    def test_catalog_editorial_order_and_public_artists(self):
+        self.assertIn("const [first, ...rest] = sets;", HOME)
+        self.assertIn("Set destacado", HOME)
+        self.assertNotIn("Último set publicado", HOME)
+        self.assertIn("set.artist_names", HOME)
+        self.assertIn("publishedArtistNames(first)", HOME)
+        self.assertIn("publishedArtistNames(set)", HOME)
+        public = (ROOT / "api/public.php").read_text()
+        self.assertIn("WHERE s.status='published'", public)
+        self.assertIn("a.status='published'", public)
+        self.assertIn("$publicSet['artist_names']", public)
+
+    def test_catalog_uses_existing_player_and_artwork(self):
+        self.assertIn("row.append(makeActions(set, row, art))", HOME)
+        self.assertIn("const art = artwork(set);", HOME)
+        self.assertIn("active.player.remove()", HOME)
+        self.assertIn("rest.slice(0, visible).map(makeRow)", HOME)
+        self.assertIn("const added = rest.slice(visible, visible + 4).map(makeRow)", HOME)
+        self.assertIn("Cromo revealed row retains SoundCloud fallback", BROWSER)
+
+    def test_catalog_accessibility_and_responsive_fixtures(self):
+        self.assertIn("'aria-live': 'polite'", HOME)
+        self.assertIn("'aria-controls': 'cromo-set-list'", HOME)
+        self.assertIn("'aria-expanded': 'false'", HOME)
+        self.assertIn("nextFocus || count", HOME)
+        self.assertIn(".cr-set-more:focus-visible", CSS)
+        self.assertIn("prefers-reduced-motion:reduce", CSS)
+        self.assertIn("0/1/5/6/30", BROWSER)
+        self.assertIn("390, 1440", BROWSER)
+        self.assertIn("await noOverflow(page)", BROWSER)
+
 
 if __name__ == "__main__":
     unittest.main()
