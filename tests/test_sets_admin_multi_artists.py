@@ -59,6 +59,12 @@ class SetsAdminMultiArtistsTests(unittest.TestCase):
         self.assertIn("if (typeof closeModal === 'function') closeModal(true)", admin)
         self.assertIn("if (type==='sets' && setSavePending) return", admin)
         self.assertIn("draftState?.keepOpen", admin)
+        self.assertIn("editorCurrent()", admin)
+        self.assertIn("await req('/sets/'", admin)
+        drafts = source("discadmin/legacy-editor-drafts.js")
+        self.assertIn("artist_ids:artistIds", drafts)
+        self.assertIn("const order = new Map(restoredIds", drafts)
+        self.assertIn("renderSetArtistChips()", drafts)
         self.assertIn("button.textContent='SAVE & CLOSE'", source("discadmin/admin-form-dialogs.js"))
 
     def test_bulk_delete_is_transactional_and_safe(self):

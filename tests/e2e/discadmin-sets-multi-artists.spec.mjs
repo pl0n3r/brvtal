@@ -17,19 +17,22 @@ test('multi-DJ selection, chips, keyboard and search work at 390/1440', async ({
       const state={artists:[{id:2,name:'DJ Uno'},{id:4,name:'DJ Dos'},{id:7,name:'DJ Tres'}]};
       const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[char]));
       ${picker}
-      document.getElementById('chooser').innerHTML=setArtistsPickerMarkup({artist_ids:[2,4]});
-      document.getElementById('setArtistSearch').addEventListener('input',e=>filterSetArtists(e.target.value));
-      document.querySelectorAll('#setArtistChoices input[data-set-artist]').forEach(input=>input.addEventListener('change',renderSetArtistChips));
-      renderSetArtistChips();
+      document.getElementById('chooser').innerHTML=setArtistsPickerMarkup({artist_ids:[7,4]});
+      bindSetArtistPicker();
     `});
     await expect(page.locator('.set-artist-chip')).toHaveCount(2);
+    expect(await page.evaluate(() => selectedSetArtistIds())).toEqual([7,4]);
     await page.locator('#setArtistSearch').fill('Tres');
     await expect(page.locator('.set-artist-choice:not([hidden])')).toHaveCount(1);
-    await page.locator('.set-artist-choice:not([hidden]) input').check();
-    await expect(page.locator('.set-artist-chip')).toHaveCount(3);
-    expect(await page.evaluate(() => selectedSetArtistIds())).toEqual([2,4,7]);
+    const chosen = page.locator('.set-artist-choice:not([hidden]) input');
+    await chosen.uncheck();
+    await chosen.check();
+    expect(await page.evaluate(() => selectedSetArtistIds())).toEqual([4,7]);
+    await page.locator('#setArtistSearch').fill('');
+    await page.locator('#setArtistChoices input[value="2"]').check();
+    expect(await page.evaluate(() => selectedSetArtistIds())).toEqual([4,7,2]);
     await page.getByRole('button',{name:'Remove DJ Dos'}).click();
-    expect(await page.evaluate(() => selectedSetArtistIds())).toEqual([2,7]);
+    expect(await page.evaluate(() => selectedSetArtistIds())).toEqual([7,2]);
     expect(await page.evaluate(() => document.documentElement.scrollWidth<=document.documentElement.clientWidth+1)).toBe(true);
   }
 });

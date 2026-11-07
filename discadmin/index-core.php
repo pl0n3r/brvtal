@@ -493,6 +493,18 @@ function setArtistsPickerMarkup(record) {
     <div id="setArtistChips" class="set-artist-chips" aria-live="polite"></div>
   </div>`;
 }
+function bindSetArtistPicker() {
+  document.getElementById('setArtistSearch')?.addEventListener('input',e=>filterSetArtists(e.target.value));
+  document.querySelectorAll('#setArtistChoices input[data-set-artist]').forEach(input=>
+    input.addEventListener('change',()=>{
+      if(input.checked){
+        const all=[...document.querySelectorAll('#setArtistChoices input[data-set-artist]')];
+        input.dataset.selectionOrder=String(1+Math.max(0,...all.map(item=>Number(item.dataset.selectionOrder||0))));
+      } else delete input.dataset.selectionOrder;
+      renderSetArtistChips();
+    }));
+  renderSetArtistChips();
+}
 function setForm(r) {
   r = r || {};
   document.getElementById('mcontent').innerHTML = `
@@ -533,16 +545,7 @@ function setForm(r) {
         </div>
       </div>
     </div>`;
-  document.getElementById('setArtistSearch')?.addEventListener('input', e=>filterSetArtists(e.target.value));
-  document.querySelectorAll('#setArtistChoices input[data-set-artist]').forEach(input=>
-    input.addEventListener('change',()=>{
-      if(input.checked){
-        const all=[...document.querySelectorAll('#setArtistChoices input[data-set-artist]')];
-        input.dataset.selectionOrder=String(1+Math.max(0,...all.map(item=>Number(item.dataset.selectionOrder||0))));
-      } else delete input.dataset.selectionOrder;
-      renderSetArtistChips();
-    }));
-  renderSetArtistChips();
+  bindSetArtistPicker();
 }
 function mediaForm(r){r=r||{};document.getElementById('mcontent').innerHTML=`<div class="form"><div class="section"><div class="sectionhead"><strong>MEDIA RECORD</strong><span class="helper">Use Upload in Media Library for real files</span></div><div class="grid2">${field('title','Title *',r.title)}${select('type','Type',r.type||'image',[['image','Image'],['video','Video'],['audio','Audio'],['document','Document']])}${field('file_path','File path / URL',r.file_path)}${field('mime_type','MIME type',r.mime_type)}${field('file_size','File size',r.file_size||0,'number')}${field('alt_text','Alt text',r.alt_text)}${select('status','Status',r.status||'published',[['published','Published'],['draft','Draft']])}</div></div></div>`}
 function pageForm(r){r=r||{};document.getElementById('mcontent').innerHTML=`<div class="form"><div class="section"><div class="sectionhead"><strong>PAGE BUILDER DATA</strong><span class="helper">JSON blocks — editor visual comes next</span></div><div class="grid2">${field('title','Title *',r.title)}${field('slug','Slug',r.slug)}${select('locale','Locale',r.locale||'es',[['es','Español'],['en','English']])}${select('status','Status',r.status||'draft',[['draft','Draft'],['published','Published']])}${area('content_json','Content JSON',r.content_json)}${field('seo_title','SEO title',r.seo_title)}${area('seo_description','SEO description',r.seo_description)}</div></div></div>`}
