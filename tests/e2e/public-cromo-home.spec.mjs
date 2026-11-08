@@ -1002,7 +1002,7 @@ test('Cromo mosaic removes left column gap after revealing 9 and 30 sets', async
 
 test('Cromo mosaic optional GSAP reveal never blocks keyboard or reduced motion', async ({page}) => {
   await mockSoundCloud(page);
-  const catalog=Array.from({length:9}, (_,index)=>({
+  const catalog=Array.from({length:10}, (_,index)=>({
     ...soundSets[0],id:8100+index,slug:'motion-'+index,
     title:'MOTION '+index,external_url:'https://soundcloud.com/official/motion-'+index,
   }));
@@ -1030,7 +1030,12 @@ test('Cromo mosaic optional GSAP reveal never blocks keyboard or reduced motion'
     await more.focus();
     await page.keyboard.press('Enter');
     await expect(more).toBeHidden();
-    await expect(page.locator('#cromo-home #discos .cr-sound-row')).toHaveCount(8);
+    await expect(page.locator('#cromo-home #discos .cr-sound-row')).toHaveCount(9);
+    const focusInLastBatch=await page.evaluate(()=>{
+      const el=document.activeElement;
+      return !!el?.closest('.cr-sound-row')?.textContent?.includes('MOTION 9');
+    });
+    expect(focusInLastBatch).toBe(true);
     await noOverflow(page);
   }
 });

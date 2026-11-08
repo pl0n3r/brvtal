@@ -111,7 +111,8 @@ echo json_encode(compact('invalid','good','artbad','n','a','b'));
         self.assertIn("#cromo-home .cr-feat .cr-sound-feature-meta>h3{grid-area:title", CSS)
         self.assertIn("#cromo-home .cr-feat .cr-sound-feature-meta>p:last-child", CSS)
         self.assertIn("grid-area:artwork;width:100%;height:auto;aspect-ratio:1;margin:0", CSS)
-        self.assertIn("cr-sound-actions{position:relative;z-index:3;margin-top:0}", CSS)
+        self.assertIn("#cromo-home .cr-feat .cr-sound-actions{", CSS)
+        self.assertIn("justify-self:end;align-self:end", CSS)
 
     def test_featured_responsive_e2e_contract(self):
         self.assertIn("Cromo featured card has compact grouped content at 390/768/900/1440", BROWSER)
