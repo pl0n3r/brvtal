@@ -48,7 +48,7 @@ class CromoSetsPlayerTests(unittest.TestCase):
     def test_ambient_sound_mutual_exclusion(self):
         self.assertIn("stop,", AMBIENT[AMBIENT.index("window.BRVTALCromoSound = {"):])
         self.assertIn("brvtal:cromo-ambient-start", AMBIENT)
-        self.assertIn("window.addEventListener('brvtal:cromo-ambient-start', stop)", HOME)
+        self.assertIn("window.addEventListener('brvtal:cromo-ambient-start', () => stop())", HOME)
 
     def test_soundcloud_artwork_and_cms_fallback(self):
         self.assertIn("soundcloudArtworkUrl(body.artwork_url)", HOME)
@@ -95,7 +95,7 @@ echo json_encode(compact('invalid','good','artbad','n','a','b'));
 
     def test_accessibility_and_390_1440_e2e_contract(self):
         self.assertIn("'aria-expanded': 'false'", HOME)
-        self.assertIn("'aria-controls': playerId", HOME)
+        self.assertIn("button.setAttribute('aria-controls', playerId)", HOME)
         self.assertIn("iframe", BROWSER)
         self.assertIn("390, 1440", BROWSER)
         self.assertIn("await noOverflow(page)", BROWSER)
@@ -199,37 +199,41 @@ echo json_encode(compact('invalid','good','artbad','n','a','b'));
 
 
     def test_shared_audio_deck_never_expands_set_cards(self):
-        self.assertIn("const playerId = 'cromo-audio-deck'", HOME)
-        self.assertIn("setsSec.append(player)", HOME)
-        self.assertNotIn("card.append(player)", HOME)
-        self.assertIn("class: 'set-player audio-deck'", HOME)
-        self.assertIn("const deck = page.locator('#cromo-home #cromo-audio-deck')", BROWSER)
-        self.assertIn("never resizes Set cards", BROWSER)
-        self.assertIn("#cromo-home #discos>.cr-audio-deck{", CSS)
-        self.assertIn("position:fixed;z-index:85", CSS)
+        # Legacy pinned acceptance name. The replacement must be inline, not floating.
+        self.assertIn("actions.append(player)", HOME)
+        self.assertNotIn("setsSec.append(player)", HOME)
+        self.assertIn("class: 'set-player inline-player'", HOME)
+        self.assertIn("playerId = 'cromo-inline-player-' + (++playerSequence)", HOME)
+        self.assertIn("Cromo SoundCloud player stays inline beside ESCUCHAR", BROWSER)
+        self.assertIn(".cr-sound-actions>.cr-inline-player", CSS)
+        self.assertNotIn("position:fixed;z-index:85", CSS)
 
     def test_audio_deck_preserves_official_soundcloud_widget_and_artwork(self):
         self.assertIn("window.BRVTALCromoSound?.stop?.()", HOME)
         self.assertIn("https://w.soundcloud.com/player/?url=", HOME)
         self.assertIn("&show_artwork=false", HOME)
         self.assertIn("soundcloudArtworkUrl(body.artwork_url)", HOME)
-        self.assertIn("const syncCover = () => {", HOME)
-        self.assertIn("sourceImage?.addEventListener('load', syncCover)", HOME)
-        self.assertIn("ABRIR EN SOUNDCLOUD", HOME)
+        self.assertIn("const fallback = safeUrl(set.cover_image)", HOME)
+        self.assertIn("ABRIR EN ", HOME)
         self.assertIn("filter:invert(1) hue-rotate(180deg)", CSS)
         self.assertIn("role: 'region'", HOME)
+        self.assertIn("¿No se reproduce?", HOME)
 
     def test_audio_deck_minimize_close_and_reduced_motion(self):
-        self.assertIn("const minimized = player.classList.toggle('cr-is-minimized')", HOME)
-        self.assertIn("stop(true)", HOME)
+        # New inline player has no floating minimize behavior.
+        self.assertIn("if (active?.card === card) { stop(true); return; }", HOME)
+        self.assertIn("active.player.remove()", HOME)
+        self.assertIn("button.removeAttribute('aria-controls')", HOME)
         self.assertIn("if (event.key === 'Escape')", HOME)
         self.assertIn("window.matchMedia('(prefers-reduced-motion: reduce)').matches", HOME)
         self.assertIn("typeof window.gsap?.fromTo === 'function'", HOME)
-        self.assertIn("min-height:44px", CSS)
-        self.assertIn("max-height:calc(100dvh - 90px)", CSS)
-        self.assertIn("Cromo Audio Deck is shared, dark, minimizable", BROWSER)
-        self.assertIn("native.inert = minimized", HOME)
-        self.assertIn("native.setAttribute('aria-hidden', String(minimized))", HOME)
+        self.assertIn("Cromo SoundCloud player stays inline beside ESCUCHAR", BROWSER)
+        self.assertNotIn("cr-deck-minimize", HOME)
+
+    def test_inline_404_focus_recovery(self):
+        self.assertIn("const focusedInside = wasActive && (", HOME)
+        self.assertIn("querySelector('a.cr-sound-external')?.focus()", HOME)
+        self.assertIn("const playerId = 'cromo-inline-player-' + (++playerSequence)", HOME)
 
 
 if __name__ == "__main__":
