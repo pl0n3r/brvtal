@@ -72,7 +72,7 @@ test('Artistas muestra fotos CMS y fallback seguro en 390/1440', async ({ page }
     await expect(img).toHaveAttribute('loading', 'lazy');
     await expect(img).toHaveAttribute('decoding', 'async');
     await expect.poll(() => img.evaluate(node => node.complete && node.naturalWidth > 0)).toBe(true);
-    await expect(img).toHaveCSS('object-fit', 'cover');
+    await expect(img).toHaveCSS('object-fit', 'contain');
     await expect(valid).toHaveClass(/cr-has-photo/);
     const gradient = await valid.evaluate(node => getComputedStyle(node, '::before').backgroundImage);
     expect(gradient).toContain('linear-gradient');
