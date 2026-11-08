@@ -57,7 +57,7 @@
   }
 
   function membershipCell(row) {
-    return statusCell(Number(row.is_collective_member || 0) === 1 ? 'MIEMBRO BRVTAL' : 'ARTISTA INVITADO');
+    return statusCell(Number(row.is_collective_member || 0) === 1 ? 'MIEMBRO DEL COLECTIVO BRVTAL' : 'ARTISTA INVITADO');
   }
 
   // A rejected/unsupported Meta request never leaves a broken-image icon in the list.
