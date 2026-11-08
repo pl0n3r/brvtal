@@ -616,115 +616,50 @@ html.cromo-home body>*:not(#cromo-home):not(#cromoGL):not(script):not(style):not
 }
 
 
-/* #1647 — BRVTAL Audio Deck. The real SoundCloud widget lives in a single
-   floating, opt-in surface, never in a feature or catalog card. The iframe
-   remains functional and focusable in the open state. */
-#cromo-home #discos>.cr-audio-deck{
-  position:fixed;z-index:85;
-  right:clamp(14px,3vw,46px);bottom:clamp(14px,2vw,30px);
-  width:min(568px,calc(100vw - 28px));max-width:100%;
-  margin:0;padding:0;min-width:0;
-  border:2px solid var(--red,#ff2a1a);
-  background:linear-gradient(135deg,rgba(55,5,5,.44),transparent 55%),#030303;
-  box-shadow:0 18px 70px rgba(0,0,0,.9),0 0 0 1px rgba(0,0,0,.8);
+/* #1649: SoundCloud's official player is inside the clicked Set card.
+   No popup, floating dock, fixed/absolute panel or duplicate cover/title. */
+#cromo-home #discos .cr-sound-actions>.cr-inline-player{
+  display:block;position:relative;z-index:2;box-sizing:border-box;
+  flex:0 0 100%;width:100%;max-width:100%;min-width:0;
+  margin:3px 0 0;padding:9px;
+  background:linear-gradient(115deg,rgba(84,9,12,.4),transparent 60%),#030303;
+  border:1px solid var(--red,#ff2a1a);
+  box-shadow:inset 0 1px 0 rgba(242,239,232,.15);
   color:var(--bone,#f2efe8);
-  isolation:isolate;
 }
-#cromo-home #discos .cr-audio-deck .cr-deck-header{
-  display:grid;grid-template-columns:78px minmax(0,1fr) auto;
-  align-items:center;gap:14px;padding:14px;
-  border-bottom:1px solid rgba(242,239,232,.28);
+#cromo-home #discos .cr-inline-player-label{
+  margin:0 0 9px;padding:0;color:var(--red,#ff2a1a);
+  font:700 12px/1.3 var(--body);letter-spacing:.1em;
 }
-#cromo-home #discos .cr-deck-cover{
-  display:grid;place-items:center;aspect-ratio:1/1;overflow:hidden;
-  border:1px solid var(--red,#ff2a1a);background:#210405;
+#cromo-home #discos .cr-inline-player-body{
+  display:block;width:100%;min-width:0;overflow:hidden;background:#101010;
 }
-#cromo-home #discos .cr-deck-cover img{
-  display:block;width:100%;height:100%;object-fit:cover;
-}
-#cromo-home #discos .cr-deck-cover.cr-is-empty::after{
-  content:"BRVTAL";font:700 14px/1 var(--body);letter-spacing:.14em;color:var(--red,#ff2a1a);
-}
-#cromo-home #discos .cr-deck-details{
-  display:flex;flex-direction:column;gap:3px;min-width:0;overflow-wrap:anywhere;
-}
-#cromo-home #discos .cr-deck-kicker{
-  color:var(--red,#ff2a1a);font:700 12px/1.2 var(--body);letter-spacing:.12em;
-}
-#cromo-home #discos .cr-deck-title{
-  font:400 clamp(24px,2vw,34px)/.97 var(--disp);
-  color:var(--bone,#f2efe8);text-transform:uppercase;text-wrap:balance;
-}
-#cromo-home #discos .cr-deck-artist{
-  color:var(--bone,#f2efe8);font:600 17px/1.25 var(--body);
-  opacity:.8;overflow-wrap:anywhere;
-}
-#cromo-home #discos .cr-deck-actions{
-  display:flex;flex-direction:column;gap:6px;align-self:start;
-}
-#cromo-home #discos .cr-deck-close,
-#cromo-home #discos .cr-deck-minimize{
-  display:inline-flex;align-items:center;justify-content:center;
-  border:1px solid rgba(242,239,232,.55);padding:8px 10px;
-  min-height:44px;background:#030303;color:var(--bone,#f2efe8);
-  font:700 14px/1.2 var(--body);text-transform:uppercase;cursor:pointer;
-  transition:background-color var(--duration-quick) var(--ease-in-out),
-    border-color var(--duration-quick) var(--ease-in-out),
-    color var(--duration-quick) var(--ease-in-out);
-}
-#cromo-home #discos .cr-deck-close{border-color:var(--red,#ff2a1a);background:var(--red,#ff2a1a);color:#030303}
-#cromo-home #discos .cr-deck-native{padding:12px 14px 8px;background:#030303}
-#cromo-home #discos .cr-deck-native iframe{
+#cromo-home #discos .cr-inline-player-body iframe{
   display:block;width:100%;height:166px;border:0;background:#fff;
-  /* A compositing filter, not an attempt to style cross-origin DOM.
-     No album image is inside the widget; the authentic cover is above. */
+  /* Compositing filter only; SoundCloud controls remain cross-origin. */
   filter:invert(1) hue-rotate(180deg) saturate(.78) contrast(1.04);
 }
-#cromo-home #discos .cr-deck-footer{
-  display:flex;align-items:center;justify-content:space-between;
-  flex-wrap:wrap;gap:8px 16px;padding:10px 14px;
-  border-top:1px solid rgba(242,239,232,.2);
-  color:rgba(242,239,232,.7);font:700 12px/1.3 var(--body);letter-spacing:.025em;
+#cromo-home #discos .cr-inline-player-help{
+  margin:8px 0 0;color:rgba(242,239,232,.7);
+  font:600 12px/1.35 var(--body);overflow-wrap:anywhere;
 }
-#cromo-home #discos .cr-deck-external{
-  color:var(--bone,#f2efe8);text-decoration:underline;
-  text-decoration-color:var(--red,#ff2a1a);text-underline-offset:4px;
-  font:700 13px/1.3 var(--body);
+#cromo-home #discos .cr-feat .cr-sound-actions{
+  width:100%;max-width:100%;
 }
-#cromo-home #discos .cr-deck-close:hover,
-#cromo-home #discos .cr-deck-minimize:hover{
-  background:var(--bone,#f2efe8);border-color:var(--bone,#f2efe8);color:#030303;
+#cromo-home #discos .cr-sound-row.cr-is-playing .cr-sound-actions{
+  width:100%;min-width:0;
 }
-#cromo-home #discos .cr-deck-close:focus-visible,
-#cromo-home #discos .cr-deck-minimize:focus-visible,
-#cromo-home #discos .cr-deck-external:focus-visible{
-  outline:3px solid var(--red,#ff2a1a);outline-offset:3px;
-}
-#cromo-home #discos>.cr-audio-deck.cr-is-minimized .cr-deck-native{
-  /* Preserve the live iframe when minimizing; never replace or reload audio. */
-  position:absolute;inset:auto 0 0;clip-path:inset(100%);
-  pointer-events:none;opacity:0;
-}
-#cromo-home #discos>.cr-audio-deck.cr-is-minimized .cr-deck-footer{display:none}
-#cromo-home #discos>.cr-audio-deck.cr-is-minimized .cr-deck-header{border-bottom:0}
-@media(max-width:640px){
-  #cromo-home #discos>.cr-audio-deck{
-    left:12px;right:12px;bottom:max(12px,env(safe-area-inset-bottom));
-    width:auto;max-height:calc(100dvh - 90px);overflow-y:auto;
+@media(min-width:1260px){
+  /* Open cards reclaim the narrow right-side button column, so the full
+     native player can display below those buttons without clipping. */
+  #cromo-home #discos .cr-sound-row.cr-is-playing{
+    grid-template-columns:86px minmax(0,1fr);
   }
-  #cromo-home #discos .cr-audio-deck .cr-deck-header{
-    grid-template-columns:64px minmax(0,1fr);gap:10px;padding:10px;
+  #cromo-home #discos .cr-sound-row.cr-is-playing .cr-sound-actions{
+    grid-column:1/-1;grid-row:2;justify-self:stretch;
+    justify-content:flex-start;flex-wrap:wrap;
   }
-  #cromo-home #discos .cr-deck-actions{
-    grid-column:1/-1;grid-row:2;flex-direction:row;justify-content:flex-end;
-  }
-  #cromo-home #discos .cr-deck-minimize,
-  #cromo-home #discos .cr-deck-close{min-width:94px}
-  #cromo-home #discos .cr-deck-native{padding:7px 10px}
-  #cromo-home #discos .cr-deck-footer{padding:10px}
-  #cromo-home #discos .cr-deck-title{font-size:clamp(22px,7vw,30px)}
 }
 @media(prefers-reduced-motion:reduce){
-  #cromo-home #discos .cr-deck-minimize,
-  #cromo-home #discos .cr-deck-close{transition:none}
+  #cromo-home #discos .cr-sound-actions>.cr-inline-player{scroll-behavior:auto}
 }

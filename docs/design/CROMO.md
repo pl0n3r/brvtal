@@ -87,10 +87,33 @@ El **glitch rojo** duplica el título en dos pseudocapas con `data-text`, recort
 Contenido y datos del CMS, rutas, formularios, comprobaciones anti-robots, estados vacíos, enlaces canónicos y funciones existentes. El boceto es una referencia visual: sus textos y tarjetas de ejemplo no son contenido real.
 
 
-## BRVTAL Audio Deck (decisión del dueño 2026-11-07; #1647)
+## BRVTAL Audio Deck (diseño anterior, reemplazado por #1649)
 
 En el Home Cromo, al elegir **ESCUCHAR** el widget oficial SoundCloud deja de estar dentro de las tarjetas. Se crea una sola superficie de escucha compartida, flotante, negro/rojo y con información auténtica del set: carátula SoundCloud con respaldo CMS, título, artistas, atribución y enlace externo al recurso oficial. Las tarjetas del destacado y del catálogo nunca incorporan iframes ni alteran su altura cuando se escucha, cambia o cierra un set. Solo se crea el iframe tras la interacción explícita del visitante; cerrar o cambiar de set desmonta el anterior y detiene el audio.
 
 El Audio Deck puede minimizarse/expandirse sin sustituir el iframe activo, y cerrarse completamente (también con Escape) restaurando el foco al disparador. El pulso sintetizado y el audio del set se excluyen mutuamente. SoundCloud controla la forma de onda y el audio desde su reproductor nativo; la presentación del iframe se oscurece visualmente con un filtro CSS, sin modificar contenido cross-origin. Si el proveedor o su reproductor no están disponibles, permanece el enlace original. No se simulan ondas de audio, duración o estados de reproducción que la integración no pueda demostrar.
 
 El diseño usa las variables existentes `--red`, `--bone`, Broken Glass y Barlow Condensed; GSAP es una mejora optativa en la entrada de panel con alternativa sin animación y respeto a `prefers-reduced-motion`. No afecta el CMS, el orden editorial, el mosaico de otros sets, VER MÁS SETS ni Concept 05.
+
+## Decisión vigente: SoundCloud integrado en ESCUCHAR (#1649)
+
+El dueño reemplazó expresamente el *Audio Deck* flotante de #1647: **no debe
+abrirse ningún popup, dock fijo, modal o ventana superpuesta**. Al pulsar
+ESCUCHAR, la zona de botones de esa misma tarjeta muestra un reproductor
+compacto oficial de SoundCloud, con base negro/rojo. La portada/título/DJs
+permanecen visibles y no se duplican; el botón pasa a CERRAR y el enlace
+ABRIR EN SOUNDCLOUD se conserva. Los demás sets no montan reproductores.
+
+El iframe se crea solo con un clic y se desmonta al cerrar, al cambiar de
+set o al comenzar la música ambiente. La cuadrícula mantiene el orden
+editorial; el set activo puede aumentar únicamente lo necesario para sus
+controles nativos. En escritorio ancho, las acciones de una tarjeta activa
+usan su propia fila para dar ancho útil al reproductor; en móvil lo muestran
+bajo los botones dentro de la misma tarjeta. Reducir movimiento no altera
+controles y GSAP es progresivo.
+
+La interfaz del iframe pertenece a SoundCloud (cross-origin): las teclas
+pulsadas dentro de ese frame no llegan al contenedor BRVTAL, por lo que
+el botón CERRAR se mantiene accesible por Tab. En caso de falta de
+disponibilidad se informa cómo abrir el set directamente en SoundCloud;
+un 404 tardío conserva el enlace y restaura allí el foco si procede.
