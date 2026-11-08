@@ -4,6 +4,7 @@ This validates reproducibility of the matrix, not production screenshots or
 owner visual approval. A separate authenticated screenshot sign-off is required.
 """
 from pathlib import Path
+import re
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -50,6 +51,21 @@ class DiscadminFourSkillsAuditTests(unittest.TestCase):
             self.assertIn(f"| {size} px |", AUDIT)
         self.assertIn("PENDIENTE", AUDIT)
         self.assertIn("no se ha ejecutado una prueba visual autenticada", AUDIT)
+
+    def test_public_login_evidence_remains_unauthenticated(self):
+        # This metadata is a real browser observation, not an admin sign-off.
+        start = AUDIT.index("## Observación de navegador real")
+        end = AUDIT.index("## Protocolo de evaluación visual pendiente", start)
+        section = AUDIT[start:end]
+        for size in ("360×844", "390×844", "430×844", "768×1024",
+                     "1024×900", "1440×900"):
+            self.subTest(size=size)
+            self.assertIn("| " + size + " |", section)
+        self.assertEqual(len(re.findall(r"`[0-9a-f]{64}`", section)), 6)
+        self.assertIn("**no son autenticadas**", section)
+        self.assertIn("14 px", section)
+        self.assertIn("PENDIENTES", section)
+        self.assertIn("sin credenciales", section.lower())
 
     def test_issue_backlog(self):
         for issue in ("#1638", "#1651", "#1655", "#1656", "#1657"):

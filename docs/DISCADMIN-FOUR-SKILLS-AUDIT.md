@@ -86,6 +86,23 @@ Medición realizada sobre `main` 0.1.235 con expresiones sobre archivos rastread
 - #1651 navegación móvil pública — fusionado a 0.1.235, fuera del alcance DISCADMIN.
 - #1656 Cromo Conectado/Contacto — frontend **público**, no confundir con DISCADMIN.
 
+## Observación de navegador real — **solo login sin autenticar** (8-nov-2026)
+
+**Procedencia verificable, no sign-off:** Mac autorizado del propietario, Google Chrome 156 headless con perfil de usuario **nuevo y vacío**, seis emulaciones de viewport mediante Chrome DevTools Protocol y `Page.captureScreenshot`. URL pública fija `https://www.brvtal.com.co/discadmin/`; sesión **sin credenciales, sin cookies previas ni datos de CMS**. Momento de la ejecución: **`2026-11-08T14:27:27.646Z`**. Cada medición procede del DOM renderizado (`document.documentElement.scrollWidth`, `innerWidth`, `getBoundingClientRect()`, `getComputedStyle()`); no son números inferidos del CSS fuente. Las imágenes PNG y `measurement.json` se guardaron **solo en el Mac autorizado**, bajo `~/Desktop/BRVTAL-DISCADMIN-AUDIT-2026-11-08/`, con perfil temporal de navegador eliminado. **No** se incorporan capturas del navegador ni biblioteca `transitions.dev` al repositorio.
+
+| Viewport CSS (px) | Contenido observado | Ancho documento / overflow X (px) | Controles visibles | Enlace recuperación (ancho × alto) | SHA-256 captura local |
+|---|---|---|---:|---|---|
+| 360×844 | Intersticial «Checking your browser», **no** login | 360 / 0 | 0 | No observado | `8e943b89018444d66929cca81d4f8dd86415cd82cbc1d38f40078399ab606e89` |
+| 390×844 | Login BRVTAL | 390 / 0 | 7 | 289 × **14 px** | `24e8aef91d016fe0268aeb90922b346d8002191c00bcbde5601affbd07eb39a4` |
+| 430×844 | Login BRVTAL | 430 / 0 | 7 | 325 × **14 px** | `5a9cb268765cd3672e4008c93a9c83e2bb45aa23885b063a28d8f1fe0057d969` |
+| 768×1024 | Login BRVTAL | 768 / 0 | 7 | 358 × **14 px** | `df48ddd5cf1d4dce6e66d72762c97437ce989c9d980d4072f59f26e6b2ae6531` |
+| 1024×900 | Login BRVTAL | 1024 / 0 | 7 | 358 × **14 px** | `dd664d0115abefc1353f10f3b8f799ee4257c87b23decfca76c1ba5c752d8aff` |
+| 1440×900 | Login BRVTAL | 1440 / 0 | 7 | 358 × **14 px** | `b8ed1990fccea950adcdb1c4ed68e2a907e19db03d2b79ad85553148f6c4bb5e` |
+
+**Resultado acotado:** el login público no presentó desbordamiento horizontal en los cinco anchos donde se cargó, pero el enlace «¿OLVIDASTE TU CONTRASEÑA?» tiene caja de enlace de **14 px de alto** según la medición, por debajo de la referencia operativa de 44 px de este Issue. Clasificar como **P1 candidato a corrección de hit-area**, sujeto a inspección de separación entre targets y a una prueba de teclado/táctil: una caja pequeña por sí sola no permite declarar incumplimiento WCAG definitivo. A 360 px se documentó la **verificación de acceso del proveedor/CDN**, no un defecto comprobado de la pantalla de login; es obligatorio repetir la captura del login de ese ancho antes del sign-off.
+
+**Límite de AC-06:** estas capturas son reales, pero **no son autenticadas**. No verifican Dashboard, Sets, Artistas, Media ni el resto de DISCADMIN; tampoco prueban CSS computado del CMS tras login, Safari, teclado, accesibilidad AA de todo el flujo, comparativas antes/después o aprobación visual del dueño. Los seis viewports de la matriz siguiente continúan **PENDIENTES** para esos criterios. Sin credenciales y ventana de prueba autorizadas no se altera estado de producción ni se declara la auditoría completa.
+
 ## Protocolo de evaluación visual pendiente
 
 Estos son los **6 viewports requeridos** por el dueño. Los registros debajo son matriz de ejecución, **no capturas simuladas**:
