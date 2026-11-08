@@ -861,7 +861,7 @@ try {
     eventIds: Array.isArray(window.state?.events) ? window.state.events.map(item => Number(item.id)).filter(Number.isFinite) : []
   })));
   const { artistOption, eventOption } = await runOperation('sets-relation-options', async () => ({
-    artistOption: await page.locator(`#f_artist_id option[value="${Number(publishedArtist.id)}"]`).count(),
+    artistOption: await page.locator(`#setArtistChoices input[type="checkbox"][data-set-artist][value="${Number(publishedArtist.id)}"]`).count(),
     eventOption: await page.locator(`#f_event_id option[value="${Number(publishedEvent.id)}"]`).count()
   }));
   evidence.checks.setRelations = {
@@ -873,10 +873,12 @@ try {
     eventStateContainsExpected: relationState.eventIds.includes(Number(publishedEvent.id)),
     artistOptionPresent: Boolean(artistOption),
     eventOptionPresent: Boolean(eventOption),
-    pass: Boolean(artistOption && eventOption)
+    pass: artistOption === 1 && eventOption === 1
+      && relationState.artistIds.includes(Number(publishedArtist.id))
+      && relationState.eventIds.includes(Number(publishedEvent.id))
   };
   writeEvidence();
-  if (!artistOption || !eventOption) {
+  if (!evidence.checks.setRelations.pass) {
     throw new Error(
       `#124 failed: published relation options missing (artist=${Boolean(artistOption)}, event=${Boolean(eventOption)}, artistState=${relationState.artistIds.length}, eventState=${relationState.eventIds.length}).`
     );
