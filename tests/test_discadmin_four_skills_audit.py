@@ -61,8 +61,11 @@ class DiscadminFourSkillsAuditTests(unittest.TestCase):
                      "1024×900", "1440×900"):
             with self.subTest(size=size):
                 self.assertIn("| " + size + " |", section)
+        viewport_labels = ("360×844", "390×844", "430×844", "768×1024",
+                           "1024×900", "1440×900")
         screenshot_rows = [line for line in section.splitlines()
-                           if re.match(r"^\\| (?:360×844|390×844|430×844|768×1024|1024×900|1440×900) \\|", line)]
+                           if any(line.startswith("| " + size + " |")
+                                  for size in viewport_labels)]
         self.assertEqual(len(screenshot_rows), 6)
         for row in screenshot_rows:
             self.assertEqual(len(re.findall(r"`[0-9a-f]{64}`", row)), 1)
