@@ -23,9 +23,9 @@ class PublicNavVisibilityTests(unittest.TestCase):
         self.assertIn('Cromo mobile menu is visible', BROWSER)
 
     def test_sections_hidden_when_no_published_content(self):
-        for term in ('sets.length ? sound : null', 'sets.length ? setsSec : null',
-                     'artists.length ? artistsSec : null', 'memories.length ? memoriesSec : null',
-                     'posts.length ? journalSec : null', 'hasNights ? nights : null'):
+        for term in ('const sound = sets.length ? el(', 'const setsSec = sets.length ? buildSets(sets) : null',
+                     'const artistsSec = artists.length ? buildArtists(artists) : null', 'const memoriesSec = memories.length ? buildMemories(memories) : null',
+                     'const journalSec = posts.length ? buildJournal(posts) : null', 'const nights = hasNights ? buildNights('):
             self.assertIn(term, JS)
         self.assertIn('hides every empty editorial section', BROWSER)
 

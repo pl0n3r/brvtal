@@ -1119,28 +1119,28 @@
     const { word, hero: heroSec, band } = buildHero(next, artists, data.settings?.site, sets.length > 0);
 
     // --- Noches
-    const nights = buildNights(upcoming, next, artists, data.archive && data.archive.events);
+    const nights = hasNights ? buildNights(upcoming, next, artists, data.archive && data.archive.events) : null;
     const experience = buildExperience(next, artists, data.relations || {});
-    const connected = buildConnected(data);
+    const connected = (hasNights || artists.length || sets.length) ? buildConnected(data) : null;
     const banners = slider ? buildBanners(slider) : null;
 
     // --- Artistas
-    const artistsSec = buildArtists(artists);
+    const artistsSec = artists.length ? buildArtists(artists) : null;
 
     // --- Sonido
     const snd2Label = el('span', { 'data-cromo-sound-label': true, text: 'Encender el pulso' });
     const snd2 = el('button', { class: 'btn r', id: 'snd2', type: 'button', 'aria-pressed': 'false', 'data-cromo-sound': true, 'data-cromo-sound-off': 'Encender el pulso', 'data-cromo-sound-on': 'Apagar el pulso' }, snd2Label);
-    const sound = el('section', { class: 'sound', id: 'sonido' }, el('h2', { class: 'u', text: 'Sonido' }),
-      el('p', { text: 'Enciende el pulso y el metal líquido late con la pista.' }), el('div', {}, snd2));
+    const sound = sets.length ? el('section', { class: 'sound', id: 'sonido' }, el('h2', { class: 'u', text: 'Sonido' }),
+      el('p', { text: 'Enciende el pulso y el metal líquido late con la pista.' }), el('div', {}, snd2)) : null;
 
     // --- Sets
-    const setsSec = buildSets(sets);
+    const setsSec = sets.length ? buildSets(sets) : null;
 
     // --- Memorias
-    const memoriesSec = buildMemories(memories);
+    const memoriesSec = memories.length ? buildMemories(memories) : null;
 
     // --- Journal
-    const journalSec = buildJournal(posts);
+    const journalSec = posts.length ? buildJournal(posts) : null;
 
     // --- Contacto
     const { end, loadChallenge } = buildContact(data.settings?.social);
@@ -1154,16 +1154,8 @@
     if (cookieBtn) cookieBtn.addEventListener('click', () => cookiePrefs.click());
 
     home.append(el('a', { class: 'skip', href: hasNights ? '#noches' : '#cromo-top', text: 'Saltar al contenido' }), header,
-      el('main', { id: 'cromo-top' }, heroSec, band, banners,
-        hasNights ? nights : null,
-        artists.length ? artistsSec : null,
-        experience,
-        sets.length ? sound : null,
-        sets.length ? setsSec : null,
-        memories.length ? memoriesSec : null,
-        posts.length ? journalSec : null,
-        connected && (hasNights || artists.length || sets.length) ? connected : null,
-        end), footer);
+      el('main', { id: 'cromo-top' }, heroSec, band, banners, nights, artistsSec, experience,
+        sound, setsSec, memoriesSec, journalSec, connected, end), footer);
     return { home, snd, snd2: sets.length ? snd2 : null, nav, loadChallenge, word };
   };
 
