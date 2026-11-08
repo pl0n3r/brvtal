@@ -543,7 +543,8 @@
 
   const buildArtists = (artists) => {
     // --- Artistas
-    const roster = [...artists].sort((a, b) => (b.is_collective_member ? 1 : 0) - (a.is_collective_member ? 1 : 0)).slice(0, 5);
+    const isCollective = (a) => a.is_collective_member === true || Number(a.is_collective_member) === 1;
+    const roster = [...artists].sort((a, b) => Number(isCollective(b)) - Number(isCollective(a))).slice(0, 5);
     const artistCard = (a) => {
       const card = el('a', { class: 'ac plate chrome-b', href: '/artists/' + encodeURIComponent(a.slug) });
       const fallback = el('i', { class: 'orb', 'aria-hidden': 'true' });
