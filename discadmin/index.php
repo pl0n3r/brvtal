@@ -64,6 +64,7 @@ $enhancements = '<link rel="stylesheet" href="/discadmin/system-status-v2.css' .
     . '<script src="/discadmin/seo-metadata.js' . $suffix . '"></script>'
     . '<script src="/discadmin/event-workflow-seo.js' . $suffix . '"></script>'
     . '<script src="/discadmin/global-search.js' . $suffix . '"></script>'
+    . '<script src="/discadmin/soundcloud-artwork.js' . $suffix . '" data-admin-soundcloud="1"></script>'
     . '<script src="/discadmin/admin-data-grid.js' . $suffix . '" data-admin-data-grid="1"></script>'
     . '<script src="/discadmin/bulk-actions.js' . $suffix . '"></script>'
     . '<script src="/discadmin/admin-activity.js' . $suffix . '"></script>'

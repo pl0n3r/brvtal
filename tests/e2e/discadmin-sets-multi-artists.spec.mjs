@@ -111,3 +111,76 @@ test('Sets bulk delete confirms IDs and names, includes CSRF and respects refere
   await expect.poll(()=>page.evaluate(()=>window.refreshes)).toBe(1);
   await expect(dialog).toBeHidden();
 });
+
+
+const soundcloudAdmin = readFileSync(join(root,'discadmin/soundcloud-artwork.js'),'utf8');
+
+test('Sets SoundCloud oEmbed suggestions preserve authored fields and identify one artist', async ({page}) => {
+  await page.setViewportSize({width:390,height:844});
+  await page.setContent(`<!doctype html><html><body>
+    <div id="modal" class="open"><div id="mcontent"><div class="form">
+      <div><input id="f_title" aria-label="Title"></div>
+      <div><input id="f_slug" aria-label="Slug"></div>
+      <div><select id="f_platform"><option value="soundcloud">SoundCloud</option></select></div>
+      <div><input id="f_external_url" aria-label="Listening URL"></div>
+      <div><input id="f_embed_url" aria-label="Embed URL"></div>
+      <div><input id="f_cover_image" aria-label="Cover image"></div>
+      <div><input id="f_duration_seconds" aria-label="Duration"></div>
+      <div id="setArtistChoices">
+        <label class="set-artist-choice" data-artist-name="PL0N3R"><input data-set-artist type="checkbox" value="5"></label>
+        <label class="set-artist-choice" data-artist-name="CRIX"><input data-set-artist type="checkbox" value="6"></label>
+      </div>
+    </div></div></div>
+  </body></html>`);
+  await page.evaluate(() => {
+    window.calls = [];
+    window.fetch = async url => {
+      window.calls.push(String(url));
+      return new Response(JSON.stringify({ok:true,title:'BRVTAL Podcast #1 - PL0N3R',
+        author_name:'pl0n3r', artwork_url:'https://i1.sndcdn.com/artworks-ABC-t500x500.jpg'}),
+        {status:200,headers:{'Content-Type':'application/json'}});
+    };
+  });
+  await page.addScriptTag({content:soundcloudAdmin});
+  await page.evaluate(() => window.BRVTALAdminSoundCloud.bindSetEditor());
+  await page.getByLabel('Listening URL').fill('https://soundcloud.com/pl0n3r/brvtal-podcast-1');
+  await expect(page.getByLabel('Title')).toHaveValue('BRVTAL Podcast #1 - PL0N3R');
+  await expect(page.getByLabel('Slug')).toHaveValue('brvtal-podcast-1-pl0n3r');
+  await expect(page.getByLabel('Cover image')).toHaveValue('https://i1.sndcdn.com/artworks-ABC-t500x500.jpg');
+  await expect(page.locator('#setArtistChoices input[value="5"]')).toBeChecked();
+  await expect(page.getByLabel('Duration')).toHaveValue('');
+  await expect(page.locator('.admin-soundcloud-meta-status')).toContainText('Metadatos disponibles');
+  await page.getByLabel('Title').fill('Mi título manual');
+  await page.getByLabel('Listening URL').fill('https://soundcloud.com/pl0n3r/another-track');
+  await expect(page.locator('.admin-soundcloud-meta-status')).toContainText('SoundCloud consultado');
+  await expect(page.getByLabel('Title')).toHaveValue('Mi título manual');
+  expect(await page.evaluate(() => window.calls.length)).toBe(2);
+});
+
+test('Sets SoundCloud thumbnails are safe, memoized, and do not invent artwork', async ({page}) => {
+  const asset='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==';
+  await page.route('https://i1.sndcdn.com/**', route => route.fulfill({
+    status:200,contentType:'image/png',body:Buffer.from(asset,'base64')
+  }));
+  await page.setContent(`<!doctype html><html><body>
+    <div id="rows">
+      <span class="admin-grid-thumb admin-grid-thumb-ph" data-soundcloud-url="https://soundcloud.com/pl0n3r/my-set" data-soundcloud-title="My Set">NO IMG</span>
+      <span class="admin-grid-thumb admin-grid-thumb-ph" data-soundcloud-url="https://soundcloud.com/pl0n3r/my-set" data-soundcloud-title="My Set">NO IMG</span>
+      <span class="admin-grid-thumb admin-grid-thumb-ph" data-soundcloud-url="https://evil.test/steal" data-soundcloud-title="Invalid">NO IMG</span>
+    </div>
+  </body></html>`);
+  await page.evaluate(() => {
+    window.calls = [];
+    window.fetch = async url => {
+      window.calls.push(String(url));
+      return new Response(JSON.stringify({ok:true,artwork_url:'https://i1.sndcdn.com/artworks-ABC-t500x500.jpg'}),
+        {status:200,headers:{'Content-Type':'application/json'}});
+    };
+  });
+  await page.addScriptTag({content:soundcloudAdmin});
+  await expect(page.locator('#rows img')).toHaveCount(2);
+  await expect(page.locator('#rows [data-soundcloud-url="https://evil.test/steal"]')).toHaveText('NO IMG');
+  expect(await page.evaluate(() => window.calls.length)).toBe(1);
+  await page.evaluate(() => window.BRVTALAdminSoundCloud.hydrate(document.getElementById('rows')));
+  expect(await page.evaluate(() => window.calls.length)).toBe(1);
+});
