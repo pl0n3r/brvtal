@@ -14,8 +14,10 @@
   const imageUrl = value => {
     const raw = String(value ?? '').trim();
     if (!raw) return '';
-    if (/^https?:\/\//i.test(raw) || raw.startsWith('/')) return raw;
-    return raw.replace(/^\.?\//, '');
+    try {
+      const resolved = new URL(raw.startsWith('/') ? raw : '/' + raw.replace(/^\.?\//, ''), location.origin);
+      return ['https:', 'http:'].includes(resolved.protocol) && resolved.origin === location.origin ? resolved.href : '';
+    } catch (_) { return ''; }
   };
 
   const isMember = artist =>
