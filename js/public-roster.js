@@ -57,10 +57,16 @@
     }
     document.querySelectorAll('.artist[data-image]').forEach(artist => {
       artist.addEventListener('mouseenter', () => {
-        if (preview && artist.dataset.image) preview.src = artist.dataset.image;
+        if (preview && artist.dataset.image) {
+          preview.dataset.cmsFallback = artist.dataset.imageCms || '';
+          preview.src = artist.dataset.image;
+        }
       });
       artist.addEventListener('focus', () => {
-        if (preview && artist.dataset.image) preview.src = artist.dataset.image;
+        if (preview && artist.dataset.image) {
+          preview.dataset.cmsFallback = artist.dataset.imageCms || '';
+          preview.src = artist.dataset.image;
+        }
       });
     });
   };
