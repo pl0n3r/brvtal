@@ -95,11 +95,13 @@
     }).join('');
 
     list.innerHTML = markup;
-    const firstPhoto = ordered
-      .map(artist => imageUrl(artist.photo ?? artist.image ?? artist.cover_image ?? ''))
-      .find(Boolean);
+    const firstArtist = ordered.find(artist =>
+      imageUrl(artist.photo || artist.instagram_photo_url || artist.image || artist.cover_image || ''));
     const preview = document.querySelector('.artist-preview img');
-    if (preview && firstPhoto) preview.src = firstPhoto;
+    if (preview && firstArtist) {
+      preview.dataset.cmsFallback = imageUrl(firstArtist.photo_cms || firstArtist.photo || '');
+      preview.src = imageUrl(firstArtist.photo || firstArtist.instagram_photo_url || firstArtist.image || firstArtist.cover_image || '');
+    }
 
     const sectionCount = document.querySelector('.artists .section-head > span:first-child');
     if (sectionCount) sectionCount.textContent = `BRVTAL ROSTER / ${String(artists.length).padStart(2, '0')}`;
