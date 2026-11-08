@@ -124,17 +124,114 @@ test('Conectado selects published relations, highlights linked items and changes
   const eventButton = page.locator('#conectado [data-key="e7"]');
   const artistButton = page.locator('#conectado [data-key="a2"]');
   const setButton = page.locator('#conectado [data-key="s3"]');
-  await expect(eventButton).toHaveAttribute('aria-pressed', 'true');
-  await expect(artistButton).toHaveClass(/cr-is-linked/);
-  await expect(setButton).toHaveClass(/cr-is-linked/);
+  await expect(eventButton).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('#conectado [aria-pressed="true"]')).toHaveCount(0);
+  await expect(page.locator('#conectado .cr-cn2-groups')).toBeEmpty();
   await artistButton.click();
   await expect(artistButton).toHaveAttribute('aria-pressed', 'true');
   await expect(eventButton).toHaveClass(/cr-is-linked/);
-  await expect(page.locator('#conectado .cr-cn2-sentence')).toContainText('GENESIS');
+  await expect(page.locator('#conectado .cr-cn2-sentence')).toContainText('Noches (1)');
+  await expect(page.locator('#conectado .cr-cn2-related').first()).toContainText('GENESIS');
+  await expect(page.locator('#conectado .cr-cn2-lines path')).toHaveCount(0);
   await expect(page.locator('#conectado .cr-cn2-actions a')).toHaveAttribute('href', '/artists/artist-one');
 });
 
-test('Legacy #archive and #events navigate to visible, keyboard-focusable Cromo destinations at 390/1440', async ({ page }) => {
+test('Conectado resume 25 vínculos por categoría, permite ampliar y limpiar con Escape', async ({ page }) => {
+  const many = Array.from({ length: 25 }, (_, i) => ({
+    id: 100 + i, slug: 'set-' + i, title: 'SET REAL ' + (i + 1), artist_name: 'ARTIST ONE',
+  }));
+  await mount(page, { width: 390, payload: {
+    ...data, sets: many,
+    relations: { artists: { 2: { sets: many.map((x) => x.id), events: [7] } } },
+  } });
+  const artistButton = page.locator('#conectado [data-key="a2"]');
+  await artistButton.click();
+  await expect(page.locator('#conectado .cr-cn2-sentence')).toContainText('Sets (25)');
+  await expect(page.locator('#conectado .cr-cn2-sentence')).not.toContainText('SET REAL 20');
+  const group = page.locator('#conectado .cr-cn2-related[aria-label="Sets"]');
+  await expect(group.locator('a:visible')).toHaveCount(2);
+  await group.getByRole('button', { name: 'Ver todos (25)' }).click();
+  await expect(group.locator('a:visible')).toHaveCount(25);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#conectado .cr-cn2-groups')).toBeEmpty();
+  await noOverflow(page);
+});
+
+test('Contacto recupera el captcha fallido, anuncia errores 422 y preserva el envío', async ({ page }) => {
+  for (const width of [390, 768, 900, 1440]) {
+    await mount(page, { width });
+    const form = page.locator('#contacto form');
+    const submit = form.getByRole('button', { name: 'Enviar mensaje' });
+    await expect(submit).toBeDisabled();
+    const retry = form.getByRole('button', { name: 'Reintentar verificación' });
+    await expect(retry).toBeVisible();
+    await page.route('**/api/contact.php', route => {
+      if (route.request().method() === 'GET') {
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, data: { token: 'safe-fixture', question: '2 + 3 = ?' } }) });
+      }
+      return route.fulfill({ status: 422, contentType: 'application/json', body: JSON.stringify({ ok: false, fields: { captcha_answer: 'incorrecto' } }) });
+    });
+    await retry.click();
+    await expect(submit).toBeEnabled();
+    await form.locator('[name="name"]').fill('Persona');
+    await form.locator('[name="email"]').fill('persona@example.org');
+    await form.locator('[name="message"]').fill('Mensaje de prueba');
+    await form.locator('[name="captcha_answer"]').fill('0');
+    await submit.click();
+    await expect(form.locator('#cromo-c')).toHaveAttribute('aria-invalid', 'true');
+    await expect(form.locator('#cromo-err-captcha')).toContainText('Revisa este campo');
+    await noOverflow(page);
+  }
+});
+
+test('Contacto conserva el éxito si falla cargar el captcha siguiente', async ({ page }) => {
+  await mount(page);
+  let challenges = 0;
+  await page.route('**/api/contact.php', route => {
+    if (route.request().method() === 'POST') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
+    }
+    challenges += 1;
+    return route.fulfill({
+      status: challenges === 1 ? 200 : 503,
+      contentType: 'application/json',
+      body: challenges === 1 ? JSON.stringify({ ok: true, data: { token: 'first-challenge', question: '2 + 3 = ?' } }) : '{}',
+    });
+  });
+  const form = page.locator('#contacto form');
+  await form.getByRole('button', { name: 'Reintentar verificación' }).click();
+  await form.locator('[name="name"]').fill('Persona');
+  await form.locator('[name="email"]').fill('persona@example.org');
+  await form.locator('[name="message"]').fill('Mensaje de prueba');
+  await form.locator('[name="captcha_answer"]').fill('5');
+  await form.getByRole('button', { name: 'Enviar mensaje' }).click();
+  await expect(form.locator('.cr-form-status')).toContainText('Mensaje enviado');
+  await expect(form.locator('.cr-form-status')).toHaveAttribute('data-state', 'success');
+  await expect(form.getByRole('button', { name: 'Reintentar verificación' })).toBeVisible();
+  await expect(form.getByRole('button', { name: 'Enviar mensaje' })).toBeDisabled();
+});
+
+test('Sonido conserva altura por contenido sin margen gigante a 390/768/900/1440', async ({ page }) => {
+  for (const width of [390, 768, 900, 1440]) {
+    await mount(page, { width });
+    const section = page.locator('#sonido');
+    await expect(section).toBeVisible();
+    const dimensions = await section.evaluate(node => {
+      const heading = node.querySelector('h2');
+      const margin = getComputedStyle(heading);
+      return {
+        height: node.getBoundingClientRect().height,
+        marginTop: parseFloat(margin.marginTop), marginBottom: parseFloat(margin.marginBottom),
+      };
+    });
+    expect(dimensions.marginTop).toBe(0);
+    expect(dimensions.marginBottom).toBe(0);
+    expect(dimensions.height).toBeLessThan(720);
+    await noOverflow(page);
+  }
+});
+
+test('Legacy #archive and #events navigate to visible, keyboard-focusable Cromo destinations at 390/1440', async ({ page, browserName }) => {
   const emptyArchive = { ...data, archive: { events: [] } };
   for (const width of [390, 1440]) {
     // AC-01: with no published archive, fall back to the always-rendered #noches.
@@ -154,7 +251,7 @@ test('Legacy #archive and #events navigate to visible, keyboard-focusable Cromo 
     expect(emptyMetrics.top).toBeGreaterThanOrEqual(0);
     expect(emptyMetrics.top).toBeLessThan(180);
     expect(emptyMetrics.margin).toBeGreaterThanOrEqual(60);
-    await page.keyboard.press('Tab');
+    await page.keyboard.press(browserName === 'webkit' ? 'Alt+Tab' : 'Tab');
     await expect(page.locator('#noches a.cr-night').first()).toBeFocused();
     await noOverflow(page);
 
@@ -176,7 +273,7 @@ test('Legacy #archive and #events navigate to visible, keyboard-focusable Cromo 
     expect(populatedMetrics.top).toBeGreaterThanOrEqual(0);
     expect(populatedMetrics.top).toBeLessThan(180);
     expect(populatedMetrics.margin).toBeGreaterThanOrEqual(60);
-    await page.keyboard.press('Tab');
+    await page.keyboard.press(browserName === 'webkit' ? 'Alt+Tab' : 'Tab');
     await expect(page.locator('#archivo a.cr-pst').first()).toBeFocused();
     await noOverflow(page);
 
@@ -185,7 +282,7 @@ test('Legacy #archive and #events navigate to visible, keyboard-focusable Cromo 
     await expect.poll(() => new URL(page.url()).hash).toBe('#noches');
     await expect(page.locator('#noches')).toBeFocused();
     await expect(page.locator('#noches')).toBeVisible();
-    await page.keyboard.press('Tab');
+    await page.keyboard.press(browserName === 'webkit' ? 'Alt+Tab' : 'Tab');
     await expect(page.locator('#noches a.cr-night').first()).toBeFocused();
     await noOverflow(page);
   }

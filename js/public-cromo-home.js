@@ -364,34 +364,49 @@
     const status = el('p', { class: 'form-status', role: 'status', 'aria-live': 'polite', 'data-state': 'idle' });
     const captchaLabel = el('label', { for: 'cromo-c', text: 'Cargando…' });
     const token = el('input', { type: 'hidden', name: 'captcha_token' });
-    const submit = el('button', { class: 'btn r', type: 'submit', text: 'Enviar mensaje' });
-    const field = (id, label, control, name) => el('div', {}, el('label', { for: id, text: label }), control, el('span', { class: 'form-err', 'data-error-for': name }));
+    const submit = el('button', { class: 'btn r', type: 'submit', text: 'Enviar mensaje', disabled: true });
+    const retry = el('button', { class: 'form-retry', type: 'button', text: 'Reintentar verificación', hidden: true });
+    const field = (id, label, control, name) => {
+      control.setAttribute('aria-describedby', 'cromo-err-' + name);
+      return el('div', { class: 'form-field' }, el('label', { for: id, text: label }), control,
+        el('span', { class: 'form-err', id: 'cromo-err-' + name, 'data-error-for': name }));
+    };
     const form = el('form', { class: 'form plate chrome-b', novalidate: true },
       field('cromo-n', 'Nombre', el('input', { id: 'cromo-n', name: 'name', type: 'text', autocomplete: 'name', maxlength: '100', required: true }), 'name'),
       field('cromo-e', 'Correo', el('input', { id: 'cromo-e', name: 'email', type: 'email', autocomplete: 'email', maxlength: '190', required: true }), 'email'),
       field('cromo-m', 'Mensaje', el('textarea', { id: 'cromo-m', name: 'message', rows: '4', maxlength: '5000', required: true }), 'message'),
       el('div', { class: 'hp', 'aria-hidden': 'true' }, el('input', { name: 'website', tabindex: '-1', autocomplete: 'off' })),
       token,
-      el('div', { style: 'display:grid;grid-template-columns:140px 1fr;gap:14px;align-items:end' },
-        el('div', {}, captchaLabel, el('input', { id: 'cromo-c', name: 'captcha_answer', type: 'text', inputmode: 'numeric', pattern: '[0-9]*', required: true, autocomplete: 'off' }), el('span', { class: 'form-err', 'data-error-for': 'captcha' })),
-        submit),
+      el('div', { class: 'form-challenge' },
+        el('div', { class: 'form-field' }, captchaLabel,
+          el('input', { id: 'cromo-c', name: 'captcha_answer', type: 'text', inputmode: 'numeric', pattern: '[0-9]*', required: true, autocomplete: 'off', 'aria-describedby': 'cromo-err-captcha' }),
+          el('span', { class: 'form-err', id: 'cromo-err-captcha', 'data-error-for': 'captcha' })),
+        el('div', { class: 'form-buttons' }, submit, retry)),
       status);
     const setStatus = (msg, state) => { status.textContent = msg; status.dataset.state = state; };
     const loadChallenge = async () => {
-      captchaLabel.textContent = 'Cargando…';
+      captchaLabel.textContent = 'Cargando verificación…';
       token.value = '';
+      submit.disabled = true;
+      retry.hidden = true;
       form.elements.captcha_answer.value = '';
       try {
         const res = await fetch('/api/contact.php', { credentials: 'same-origin', headers: { Accept: 'application/json' }, cache: 'no-store' });
         const payload = await res.json();
-        if (!res.ok || !payload.data || !payload.data.token) throw new Error('captcha');
+        if (!res.ok || !payload.data || !payload.data.token || !text(payload.data.question)) throw new Error('captcha');
         captchaLabel.textContent = text(payload.data.question).replace(/\?\s*$/, '');
         token.value = String(payload.data.token);
+        if (status.dataset.state === 'error' && status.textContent.includes('anti-bot')) setStatus('', 'idle');
       } catch (error) {
-        captchaLabel.textContent = 'Control anti-bot';
-        setStatus('El control anti-bot no está disponible. Intenta más tarde.', 'error');
+        captchaLabel.textContent = 'Verificación anti-bot no disponible';
+        // A completed message stays completed even if the next challenge cannot load.
+        if (status.dataset.state !== 'success') setStatus('No pudimos cargar la verificación anti-bot. Usa Reintentar verificación.', 'error');
+        retry.hidden = false;
+      } finally {
+        submit.disabled = !token.value;
       }
     };
+    retry.addEventListener('click', loadChallenge);
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       form.querySelectorAll('[aria-invalid]').forEach((n) => n.removeAttribute('aria-invalid'));
@@ -406,21 +421,23 @@
         if (res.ok && payload.ok !== false) { form.reset(); setStatus('Mensaje enviado. Gracias, te respondemos pronto.', 'success'); await loadChallenge(); return; }
         if (res.status === 422) {
           Object.keys(payload.fields || {}).forEach((name) => {
-            const key = name === 'form' ? 'captcha' : name;
+            const key = ['form', 'captcha_answer', 'captcha'].includes(name) ? 'captcha' : name;
             const control = form.elements[key === 'captcha' ? 'captcha_answer' : key];
             const slot = form.querySelector('[data-error-for="' + key + '"]');
             if (slot) slot.textContent = 'Revisa este campo.';
             if (control) control.setAttribute('aria-invalid', 'true');
           });
           setStatus('Revisa los campos marcados.', 'error');
-          if (payload.fields && payload.fields.captcha) await loadChallenge();
+          const firstInvalid = form.querySelector('[aria-invalid="true"]');
+          if (payload.fields && (payload.fields.captcha || payload.fields.captcha_answer || payload.fields.form)) await loadChallenge();
+          firstInvalid?.focus();
           return;
         }
         setStatus(res.status === 429 ? 'Demasiados intentos. Espera un momento e inténtalo de nuevo.' : 'No pudimos enviar el mensaje. Inténtalo de nuevo.', 'error');
       } catch (error) {
         setStatus('No pudimos enviar el mensaje. Revisa tu conexión.', 'error');
       } finally {
-        submit.disabled = false;
+        submit.disabled = !token.value;
       }
     });
     const end = el('section', { class: 'end', id: 'contacto' }, el('a', { class: 'u', href: '#contacto', text: 'Hablemos' }), form, buildSocialLinks(social));
@@ -637,8 +654,6 @@
     }, Math.max(ms('--text-soft-dur'), ms('--text-soft-resize-dur')) + 40);
   };
 
-  const SVG_NS = 'http://www.w3.org/2000/svg';
-
   const buildConnected = (data) => {
     // --- Conectado: an explorer of real connections. Three columns (noches, artistas, sonido) list the
     // actual items; choosing one highlights what it is linked to, draws the links and says it in a sentence.
@@ -705,64 +720,83 @@
     });
 
     const related = (key) => [...(adjacency.get(key) || [])].map((k) => entities.get(k)).filter(Boolean);
-    const labels = (items) => joinNames(items.map((x) => x.label));
+    // Summary never serializes whole CMS catalogs into a single paragraph.
+    const groupsFor = (entity) => {
+      const around = related(entity.key);
+      return [
+        { title: 'Noches', items: around.filter((x) => x.kind === 'noche') },
+        { title: 'Artistas', items: around.filter((x) => x.kind === 'artista') },
+        { title: 'Sets', items: around.filter((x) => x.kind === 'set') },
+        { title: 'Releases', items: around.filter((x) => x.kind === 'disco') },
+        { title: 'Memorias', items: around.filter((x) => x.kind === 'memoria') },
+      ].filter((group) => group.items.length);
+    };
     const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
     const memoryCaption = (entity, memories) => {
       if (!memories.length) return '';
       const verb = entity.kind === 'noche' ? 'Quedó registrada' : 'Aparece';
-      return verb + ' en ' + plural(memories.length, 'memoria', 'memorias') + ': ' + labels(memories) + '.';
+      return verb + ' en ' + plural(memories.length, 'memoria', 'memorias') + '.';
     };
-    const detailForNight = ({ artists, sounds }) => [
-      artists.length ? 'Tocan ' + labels(artists) + '.' : 'Aún no tiene artistas enlazados.',
-      sounds.length ? 'Quedó registrada en ' + plural(sounds.length, 'pieza de sonido', 'piezas de sonido') + ': ' + labels(sounds) + '.' : ''
+    const detailForMemory = (groups) => [
+      groups.find((g) => g.title === 'Noches') ? 'Recuerda ' + plural(groups.find((g) => g.title === 'Noches').items.length, 'noche', 'noches') + '.' : '',
+      groups.find((g) => g.title === 'Artistas') ? 'Conecta con ' + plural(groups.find((g) => g.title === 'Artistas').items.length, 'artista', 'artistas') + '.' : '',
+      groups.find((g) => g.title === 'Sets') ? 'Incluye ' + plural(groups.find((g) => g.title === 'Sets').items.length, 'set', 'sets') + '.' : '',
     ].filter(Boolean).join(' ');
-    const detailForArtist = (entity, { nights, sounds }) => [
-      nights.length ? entity.label + ' toca en ' + labels(nights) + '.' : entity.label + ' aún no tiene noches publicadas.',
-      sounds.length ? 'Puedes escuchar ' + labels(sounds) + '.' : ''
-    ].filter(Boolean).join(' ');
-    const detailForMemory = ({ nights, artists, sounds }) => [
-      nights.length ? 'Recuerda ' + labels(nights) + '.' : '',
-      artists.length ? 'Conecta con ' + labels(artists) + '.' : '',
-      sounds.length ? 'Incluye ' + labels(sounds) + '.' : ''
-    ].filter(Boolean).join(' ');
-    const detailForSound = (entity, { nights, artists }) => [
-      artists.length ? 'Lo hace ' + labels(artists) + '.' : '',
-      nights.length ? 'Se grabó en ' + labels(nights) + '.' : ''
-    ].filter(Boolean).join(' ') || entity.label + '.';
-
     const sentenceOf = (entity) => {
-      const around = related(entity.key);
-      if (!around.length) return entity.label + ' todavía no tiene conexiones publicadas.';
-      const groups = {
-        nights: around.filter((x) => x.kind === 'noche'),
-        artists: around.filter((x) => x.kind === 'artista'),
-        sounds: around.filter((x) => x.column === 'sonido'),
-        memories: around.filter((x) => x.kind === 'memoria')
-      };
-      let message;
-      if (entity.kind === 'noche') message = detailForNight(groups);
-      else if (entity.kind === 'artista') message = detailForArtist(entity, groups);
-      else if (entity.kind === 'memoria') message = detailForMemory(groups);
-      else message = detailForSound(entity, groups);
-      const memoryText = memoryCaption(entity, groups.memories);
+      const groups = groupsFor(entity);
+      if (!groups.length) return entity.label + ' todavía no tiene conexiones publicadas.';
+      const count = (title) => groups.find((group) => group.title === title)?.items.length || 0;
+      let context = '';
+      if (entity.kind === 'noche' && count('Artistas')) {
+        context = count('Artistas') === 1 ? 'Toca 1 artista. ' : 'Tocan ' + count('Artistas') + ' artistas. ';
+      } else if (entity.kind === 'artista') {
+        if (count('Noches')) context += entity.label + ' toca en ' + count('Noches') + ' ' + (count('Noches') === 1 ? 'noche. ' : 'noches. ');
+        if (count('Sets')) context += 'Puedes escuchar ' + count('Sets') + ' ' + (count('Sets') === 1 ? 'set. ' : 'sets. ');
+      } else if (entity.kind === 'memoria') {
+        context += detailForMemory(groups) + ' ';
+      }
+      const memoryText = memoryCaption(entity, groups.find((g) => g.title === 'Memorias')?.items || []);
       const withMemories = (message) => memoryText ? message + ' ' + memoryText : message;
-      return withMemories(message);
+      return withMemories(context + 'Conexiones publicadas: '
+        + groups.map(({ title, items }) => title + ' (' + items.length + ')').join(' · ')
+        + '. Explora los vínculos debajo.');
+    };
+    const relatedCard = (entity) => entity.href
+      ? el('a', { href: entity.href, text: entity.label })
+      : el('span', { text: entity.label });
+    const renderGroups = (entity) => {
+      const fragment = document.createDocumentFragment();
+      groupsFor(entity).forEach(({ title, items }) => {
+        const visible = el('ul', { class: 'cn2-links' }, items.slice(0, 2).map((item) => el('li', {}, relatedCard(item))));
+        const hidden = el('ul', { class: 'cn2-links', hidden: true }, items.slice(2).map((item) => el('li', {}, relatedCard(item))));
+        const more = items.length > 2 ? el('button', {
+          class: 'cn2-more', type: 'button', 'aria-expanded': 'false',
+          text: 'Ver todos (' + items.length + ')',
+        }) : null;
+        if (more) more.addEventListener('click', () => {
+          hidden.hidden = !hidden.hidden;
+          more.setAttribute('aria-expanded', String(!hidden.hidden));
+          more.textContent = hidden.hidden ? 'Ver todos (' + items.length + ')' : 'Ver menos';
+        });
+        fragment.append(el('section', { class: 'cn2-related', 'aria-label': title },
+          el('h4', { text: title + ' · ' + items.length }), visible, hidden, more));
+      });
+      return fragment;
     };
     const actionOf = (entity) => ({ noche: 'Ver la noche', artista: 'Ver el artista', set: 'Escuchar el set', disco: 'Ver el disco', memoria: 'Ver la memoria' }[entity.kind]);
 
     let selected = null;
-    let hovered = null;
     const items = new Map();
-    const narrow = window.matchMedia('(max-width: 700px)');
     const TITLES = { noches: 'Noches', artistas: 'Artistas', sonido: 'Sonido', memorias: 'Memorias' };
     const LIMIT = 6;
     const board = el('div', { class: 'cn2-board' });
     if (columns.memorias.length) board.classList.add('cr-has-memories');
+    // Preserve the SVG accessibility host without drawing crossing lines.
+    const SVG_NS = 'http://www.w3.org/2000/svg';
     const svg = document.createElementNS(SVG_NS, 'svg');
     svg.setAttribute('class', 'cr-cn2-lines');
     svg.setAttribute('aria-hidden', 'true');
-    svg.setAttribute('focusable', 'false');
-
+    board.append(svg);
     const columnNodes = Object.keys(columns).filter((name) => columns[name].length).map((name) => {
       const ul = el('ul', { class: 'cn2-list' });
       const more = columns[name].length > LIMIT ? el('button', { class: 'cn2-more', type: 'button', 'aria-expanded': 'false', text: 'Ver todos (' + columns[name].length + ')' }) : null;
@@ -771,10 +805,6 @@
           el('strong', { text: entity.label }), entity.sub ? el('small', { text: entity.sub }) : null);
         if (i >= LIMIT) button.classList.add('cr-is-extra');
         items.set(entity.key, button);
-        button.addEventListener('pointerenter', () => { hovered = entity.key; paint(); });
-        button.addEventListener('pointerleave', () => { hovered = null; paint(); });
-        button.addEventListener('focus', () => { hovered = entity.key; paint(); });
-        button.addEventListener('blur', () => { hovered = null; paint(); });
         button.addEventListener('click', () => choose(entity.key));
         ul.append(el('li', {}, button));
       });
@@ -783,11 +813,10 @@
         const open = column.classList.toggle('cr-is-open');
         more.setAttribute('aria-expanded', String(open));
         more.textContent = open ? 'Ver menos' : 'Ver todos (' + columns[name].length + ')';
-        window.requestAnimationFrame(drawLines);
       });
       return column;
     });
-    board.append(svg, ...columnNodes);
+    board.append(...columnNodes);
 
     const heading = el('p', { class: 'cn2-sel u' });
     const headingText = document.createElement('span');
@@ -797,45 +826,14 @@
     const sentenceText = document.createElement('span');
     sentenceText.className = 't-text-soft';
     sentence.append(sentenceText);
+    const groups = el('div', { class: 'cn2-groups', 'aria-label': 'Relaciones publicadas' });
     const open = el('a', { class: 'btn r', href: '#', hidden: true });
     const clear = el('button', { class: 'btn', type: 'button', text: 'Quitar selección', hidden: true });
     const intro = el('p', { class: 'cn2-intro', text: columns.memorias.length
       ? 'Toca una noche, un artista, un set o una memoria y mira con qué se conecta.'
       : 'Toca una noche, un artista o un set y mira con qué se conecta.' });
 
-    const focusKey = () => hovered || selected;
-    const visibleEl = (button) => button && button.offsetParent !== null;
-    function drawLines() {
-      svg.replaceChildren();
-      const key = focusKey();
-      if (!key || narrow.matches) return;
-      const from = items.get(key);
-      if (!visibleEl(from)) return;
-      const area = board.getBoundingClientRect();
-      const a = from.getBoundingClientRect();
-      const order = Object.keys(columns).filter((name) => columns[name].length);
-      const fromIndex = order.indexOf(entities.get(key).column);
-      related(key).forEach((other, i) => {
-        const target = items.get(other.key);
-        const toIndex = order.indexOf(other.column);
-        if (!visibleEl(target) || toIndex === fromIndex) return;
-        const b = target.getBoundingClientRect();
-        const forward = toIndex > fromIndex;
-        const x1 = (forward ? a.right : a.left) - area.left;
-        const x2 = (forward ? b.left : b.right) - area.left;
-        const y1 = a.top + a.height / 2 - area.top;
-        const y2 = b.top + b.height / 2 - area.top;
-        const bend = (x2 - x1) / 2;
-        const path = document.createElementNS(SVG_NS, 'path');
-        path.setAttribute('d', 'M' + x1 + ' ' + y1 + ' C' + (x1 + bend) + ' ' + y1 + ' ' + (x2 - bend) + ' ' + y2 + ' ' + x2 + ' ' + y2);
-        path.setAttribute('pathLength', '1');
-        path.setAttribute('class', 'cr-cn2-path');
-        path.style.setProperty('--i', String(i));
-        svg.append(path);
-      });
-      svg.setAttribute('width', area.width);
-      svg.setAttribute('height', area.height);
-    }
+    const focusKey = () => selected;
     function paint() {
       const key = focusKey();
       const around = key ? new Set((adjacency.get(key) || [])) : new Set();
@@ -845,7 +843,6 @@
         button.classList.toggle('cr-is-linked', around.has(k));
         button.classList.toggle('cr-is-dim', Boolean(key) && k !== key && !around.has(k));
       });
-      window.requestAnimationFrame(drawLines);
     }
 
     function choose(key) {
@@ -857,35 +854,35 @@
         if (column && items.get(key).classList.contains('cr-is-extra')) { column.classList.add('cr-is-open'); const more = column.querySelector('.cr-cn2-more'); if (more) { more.setAttribute('aria-expanded', 'true'); more.textContent = 'Ver menos'; } }
       }
       softSwap(headingText, entity ? entity.label : 'Elige un punto de partida');
-      softSwap(sentenceText, entity ? sentenceOf(entity) : 'Cada noche enlaza a sus artistas y cada artista a su música. Elige uno y míralo.');
+      softSwap(sentenceText, entity ? sentenceOf(entity) : 'Selecciona una noche, un artista o un set para explorar sus vínculos publicados.');
+      groups.replaceChildren();
+      if (entity) groups.append(renderGroups(entity));
       open.hidden = !entity?.href;
       if (entity?.href) { open.setAttribute('href', entity.href); open.textContent = actionOf(entity); }
       clear.hidden = !entity;
+      // Safari/WebKit may leave focus on body after tapping an expand button.
+      // Escape must still clear the current relation without requiring pointer focus.
+      document.removeEventListener('keydown', clearOnEscape);
+      if (selected) document.addEventListener('keydown', clearOnEscape);
       paint();
+    }
+    function clearOnEscape(event) {
+      if (!section.isConnected) {
+        document.removeEventListener('keydown', clearOnEscape);
+        return;
+      }
+      if (event.key === 'Escape' && selected && !event.defaultPrevented) choose(selected);
     }
     clear.addEventListener('click', () => choose(selected));
 
     headingText.textContent = 'Elige un punto de partida';
     headingText.dataset.text = headingText.textContent;
-    sentenceText.textContent = 'Cada noche enlaza a sus artistas y cada artista a su música. Elige uno y míralo.';
+    sentenceText.textContent = 'Selecciona una noche, un artista o un set para explorar sus vínculos publicados.';
     sentenceText.dataset.text = sentenceText.textContent;
-    window.addEventListener('resize', () => window.requestAnimationFrame(drawLines), { passive: true });
-    narrow.addEventListener('change', drawLines);
-
-    // Start with a real example so the section says something before any click: the next night.
-    const first = columns.noches[0] || columns.artistas[0] || columns.sonido[0];
     const section = el('section', { class: 'sec', id: 'conectado' }, el('h2', { class: 'u', text: 'Conectado' }), intro, board,
-      el('div', { class: 'cn2-sum plate chrome-b' }, heading, sentence, el('div', { class: 'cn2-actions' }, open, clear)));
-    if (first) choose(first.key);
-
-    // One authored moment: the lines draw in the first time the explorer scrolls into view.
-    const reveal = () => { board.classList.add('cr-is-in'); window.requestAnimationFrame(drawLines); };
-    if (reduced() || !('IntersectionObserver' in window)) reveal();
-    else {
-      const io = new IntersectionObserver((entriesSeen) => { if (entriesSeen.some((x) => x.isIntersecting)) { reveal(); io.disconnect(); } }, { threshold: .2 });
-      io.observe(board);
-    }
-    section.addEventListener('keydown', (event) => { if (event.key === 'Escape' && selected) choose(selected); });
+      el('div', { class: 'cn2-sum plate chrome-b' }, heading, sentence, groups,
+        el('div', { class: 'cn2-actions' }, open, clear)));
+    // Escape is handled at document level only during an active selection.
     return section;
   };
 

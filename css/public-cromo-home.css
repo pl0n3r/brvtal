@@ -721,3 +721,41 @@ html.cromo-home body>*:not(#cromo-home):not(#cromoGL):not(script):not(style):not
 @media(prefers-reduced-motion:reduce){
   #cromo-home .cr-top nav{transition:none!important;transform:none!important}
 }
+
+/* #1656 — Content-sized Cromo sections and readable connections. */
+#cromo-home .cr-sound{min-height:0;padding:clamp(48px,7vh,96px) 28px;gap:clamp(12px,2vw,24px)}
+#cromo-home .cr-sound h2{margin:0;line-height:.92}
+#cromo-home .cr-sound p,#cromo-home .cr-sound>div{margin:0}
+#cromo-home .cr-end{padding:clamp(56px,8vh,112px) 28px clamp(32px,5vh,72px)}
+#cromo-home #conectado{padding-top:clamp(48px,7vh,100px);padding-bottom:clamp(40px,6vh,80px)}
+#cromo-home .cr-cn2-board,#cromo-home .cr-cn2-board.cr-has-memories{gap:clamp(14px,2vw,28px);padding:clamp(16px,2vw,28px)}
+#cromo-home .cr-cn2-col{gap:10px}
+#cromo-home .cr-cn2-list{gap:8px}
+#cromo-home .cr-cn2-lines{display:none}
+#cromo-home .cr-cn2-sentence{min-height:0;max-width:56ch;text-wrap:pretty}
+#cromo-home .cr-cn2-groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr));gap:16px}
+#cromo-home .cr-cn2-groups:empty{display:none}
+#cromo-home .cr-cn2-related{min-width:0;padding:16px;border:1px solid rgba(242,239,232,.35);background:#08090b}
+#cromo-home .cr-cn2-related h4{margin:0 0 12px;font:800 19px/1.2 var(--body);text-transform:uppercase;color:var(--steel)}
+#cromo-home .cr-cn2-links{margin:0;padding:0;list-style:none;display:grid;gap:8px}
+#cromo-home .cr-cn2-links a,#cromo-home .cr-cn2-links span{display:flex;min-height:44px;align-items:center;padding:8px 10px;overflow-wrap:anywhere;font:600 19px/1.2 var(--body);border:1px solid rgba(242,239,232,.3)}
+#cromo-home .cr-cn2-links a:hover{color:var(--red);border-color:var(--red)}
+#cromo-home .cr-cn2-related .cr-cn2-more{margin-top:12px}
+#cromo-home .cr-form{gap:clamp(12px,1.6vw,18px);max-width:760px;margin:clamp(20px,3vw,36px) auto 0;padding:clamp(18px,2.3vw,30px)}
+#cromo-home .cr-form label{font-size:clamp(17px,1.5vw,20px);line-height:1.25}
+#cromo-home .cr-form input,#cromo-home .cr-form textarea{min-height:48px;border:2px solid var(--bone);font-size:clamp(18px,1.6vw,21px);padding:10px 12px}
+#cromo-home .cr-form textarea{resize:vertical;min-height:118px}
+#cromo-home .cr-form-challenge{display:grid;grid-template-columns:minmax(0,180px) minmax(0,1fr);gap:16px;align-items:end}
+#cromo-home .cr-form-buttons{display:flex;gap:10px;align-items:stretch;flex-wrap:wrap}
+#cromo-home .cr-form-buttons .cr-btn{flex:1;min-width:min(100%,190px);min-height:48px}
+#cromo-home .cr-form-retry{min-height:44px;padding:10px 16px;color:var(--bone);background:#08090b;border:2px solid var(--steel);font:700 17px/1 var(--body);cursor:pointer}
+#cromo-home .cr-form button:disabled{opacity:.55;cursor:not-allowed}
+#cromo-home .cr-form-err:empty{display:none}
+@media(max-width:700px){
+  #cromo-home .cr-sound,#cromo-home .cr-end{padding-left:18px;padding-right:18px}
+  #cromo-home .cr-form-challenge{grid-template-columns:minmax(0,1fr)}
+  #cromo-home .cr-form-buttons{display:grid;grid-template-columns:minmax(0,1fr)}
+  #cromo-home .cr-form-buttons .cr-btn{min-width:0}
+  #cromo-home .cr-cn2-groups{grid-template-columns:minmax(0,1fr)}
+}
+@media(prefers-reduced-motion:reduce){#cromo-home .cr-cn2-links a{transition:none}}

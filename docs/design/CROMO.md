@@ -54,15 +54,11 @@ Origen: `GET /api/hero-slider.php`. Si el endpoint falla, el slider está desact
 
 Respeta los parámetros editoriales reales: capas de texto, imagen, logo o CTA; posiciones `x/y/width`, overrides y ocultación móvil, alineación, `fade`/`slide-up`/`slide-left`/`zoom`; sin capas se usa la composición heredada de entradilla, título, texto y CTA. Las transiciones entre slides son `fade`/`slide`/`zoom`. Con varias slides hay contador, barras de progreso, anterior/siguiente y pausa; con una sola no se muestran controles innecesarios. Autoplay e intervalo vienen del CMS, pero la rotación se detiene en pausa, hover/foco, pestaña oculta o movimiento reducido. URLs validadas y texto CMS insertado como texto, no HTML arbitrario.
 
-### Conectado: un grafo de relaciones verificadas
+### Conectado: relaciones publicadas, sin saturación (#1656)
 
-`/api/public.php` entrega `events`, `artists`, `sets`, `releases` y `relations` públicos. Tres columnas «Noches / Artistas / Sonido» agrupan las fichas reales; Sonido mezcla sets y discos. Las aristas nacen solo si los dos extremos aparecen publicados en esas listas:
+El explorador recibe únicamente relaciones reales desde `/api/public.php`. Muestra columnas Noches, Artistas, Sonido y, cuando existen, Memorias. Se presentan hasta seis elementos por columna, con expansión voluntaria. **No selecciona automáticamente** ninguno: el estado inicial explica cómo navegar. Al seleccionar una entidad, se destacan sus vecinos y el resumen presenta conteos por categoría (Noches, Artistas, Sets, Releases y Memorias) y hasta dos enlaces canónicos reales por categoría, con «Ver todos» progresivo. No inventar vínculos ni enumerar 20+ sets en un párrafo. Se eliminan las líneas SVG cruzadas; Escape o «Quitar selección» restaura el estado inicial. En móvil, teclado y reduced-motion, la información y los enlaces siguen disponibles.
 
-- `relations.events[id].artists/sets`: noche–artista / noche–set.
-- `relations.artists[id].events/sets/releases`: artista–noche / set / disco.
-- `relations.sets[id].artist/event` y `relations.releases[id].artist(s)/event`: vínculos de música con artistas o noches.
-
-Al escoger un elemento con clic/foco, se resaltan sus vecinos y se atenúan los demás; el dibujo SVG enlaza columnas en escritorio, con líneas reveladas al entrar a la vista. El resumen muestra una frase derivada de los vínculos y un CTA a la página canónica cuando existe. Se inicia con el primer elemento real, muestra seis por columna antes de «Ver todos» y permite limpiar con Escape o botón. En móvil las columnas se apilan y se ocultan las líneas, **no** la información. Sin entidades queda el texto de orientación; si una entidad no tiene aristas se declara «sin conexiones publicadas». No crear relaciones sintéticas.
+Contacto conserva `/api/contact.php`, honeypot y el reto anti-bot, con tamaños táctiles y etiquetas asociadas a errores. Si el reto no carga, se bloquea el envío y se ofrece reintento manual, sin simular envío exitoso. Sonido y Contacto tienen altura basada en contenido, no espacios forzados; las secciones vacías se ocultan de acuerdo con #1651.
 
 ## Páginas interiores Cromo
 
