@@ -159,7 +159,7 @@ function brvtal_available_set_slug(PDO $pdo, string $title, ?int $excludeId = nu
 {
     $base = substr(slugify($title), 0, 180);
     if ($base === '') $base = 'set';
-    $sql = 'SELECT COUNT(*) FROM sets WHERE slug = ?';
+    $sql = 'SELECT COUNT(*) FROM sets_media WHERE slug = ?';
     if ($excludeId !== null) $sql .= ' AND id <> ?';
     $check = $pdo->prepare($sql);
     for ($n = 0; $n < 1000; ++$n) {
@@ -959,7 +959,7 @@ try {
                     throw new RuntimeException('SETS_CREATE_BUSY');
                 }
                 $setCreateLocked = true;
-                $p['sort_order'] = (int)$pdo->query('SELECT COALESCE(MIN(sort_order), 0) - 1 FROM sets')->fetchColumn();
+                $p['sort_order'] = (int)$pdo->query('SELECT COALESCE(MIN(sort_order), 0) - 1 FROM sets_media')->fetchColumn();
                 if (trim((string)($p['slug'] ?? '')) === '') {
                     $p['slug'] = brvtal_available_set_slug($pdo, (string)($p['title'] ?? 'Set'));
                 }

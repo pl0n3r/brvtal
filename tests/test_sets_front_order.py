@@ -15,7 +15,7 @@ class SetsFrontOrderTests(unittest.TestCase):
         self.assertIn("'brvtal.sets.create'", API)
         self.assertIn("SELECT GET_LOCK(?, 5)", API)
         self.assertIn("SELECT RELEASE_LOCK('brvtal.sets.create')", API)
-        self.assertIn("SELECT COALESCE(MIN(sort_order), 0) - 1 FROM sets", API)
+        self.assertIn("SELECT COALESCE(MIN(sort_order), 0) - 1 FROM sets_media", API)
         self.assertIn("$p['sort_order'] = (int)", API)
         self.assertIn("$pdo->beginTransaction()", API)
         self.assertIn("$pdo->commit()", API)
