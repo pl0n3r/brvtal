@@ -860,7 +860,18 @@
       open.hidden = !entity?.href;
       if (entity?.href) { open.setAttribute('href', entity.href); open.textContent = actionOf(entity); }
       clear.hidden = !entity;
+      // Safari/WebKit may leave focus on body after tapping an expand button.
+      // Escape must still clear the current relation without requiring pointer focus.
+      document.removeEventListener('keydown', clearOnEscape);
+      if (selected) document.addEventListener('keydown', clearOnEscape);
       paint();
+    }
+    function clearOnEscape(event) {
+      if (!section.isConnected) {
+        document.removeEventListener('keydown', clearOnEscape);
+        return;
+      }
+      if (event.key === 'Escape' && selected && !event.defaultPrevented) choose(selected);
     }
     clear.addEventListener('click', () => choose(selected));
 
@@ -871,7 +882,7 @@
     const section = el('section', { class: 'sec', id: 'conectado' }, el('h2', { class: 'u', text: 'Conectado' }), intro, board,
       el('div', { class: 'cn2-sum plate chrome-b' }, heading, sentence, groups,
         el('div', { class: 'cn2-actions' }, open, clear)));
-    section.addEventListener('keydown', (event) => { if (event.key === 'Escape' && selected) choose(selected); });
+    // Escape is handled at document level only during an active selection.
     return section;
   };
 
