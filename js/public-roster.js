@@ -15,7 +15,7 @@
     const raw = String(value ?? '').trim();
     if (!raw) return '';
     try {
-      const resolved = new URL(raw.startsWith('/') ? raw : '/' + raw.replace(/^\.?\//, ''), location.origin);
+      const resolved = new URL(raw.startsWith('/') || /^https?:\/\//i.test(raw) ? raw : '/' + raw.replace(/^\.?\//, ''), location.origin);
       return ['https:', 'http:'].includes(resolved.protocol) && resolved.origin === location.origin ? resolved.href : '';
     } catch (_) { return ''; }
   };
