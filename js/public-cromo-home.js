@@ -732,9 +732,18 @@
     };
     const sentenceOf = (entity) => {
       const groups = groupsFor(entity);
-      return groups.length
-        ? 'Conexiones publicadas: ' + groups.map(({ title, items }) => title + ' (' + items.length + ')').join(' · ') + '. Explora los vínculos debajo.'
-        : entity.label + ' todavía no tiene conexiones publicadas.';
+      if (!groups.length) return entity.label + ' todavía no tiene conexiones publicadas.';
+      const count = (title) => groups.find((group) => group.title === title)?.items.length || 0;
+      let context = '';
+      if (entity.kind === 'noche' && count('Artistas')) {
+        context = count('Artistas') === 1 ? 'Toca 1 artista. ' : 'Tocan ' + count('Artistas') + ' artistas. ';
+      } else if (entity.kind === 'artista') {
+        if (count('Noches')) context += entity.label + ' toca en ' + count('Noches') + ' ' + (count('Noches') === 1 ? 'noche. ' : 'noches. ');
+        if (count('Sets')) context += 'Puedes escuchar ' + count('Sets') + ' ' + (count('Sets') === 1 ? 'set. ' : 'sets. ');
+      }
+      return context + 'Conexiones publicadas: '
+        + groups.map(({ title, items }) => title + ' (' + items.length + ')').join(' · ')
+        + '. Explora los vínculos debajo.';
     };
     const relatedCard = (entity) => entity.href
       ? el('a', { href: entity.href, text: entity.label })
