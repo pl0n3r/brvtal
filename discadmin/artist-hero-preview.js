@@ -53,14 +53,14 @@ window.BRVTALArtistHeroPreview = (() => {
     const img = root.querySelector('[data-hero-preview-img]');
     if (!img) return;
     const cms = safeImageUrl(document.getElementById('f_photo')?.value);
-    const photo = root.dataset.igPreview || cms;
-    if (img.src !== photo) {
-      if (photo) img.src = photo;
+    const safeUrl = root.dataset.igPreview || cms;
+    if (img.src !== safeUrl) {
+      if (safeUrl) img.src = safeUrl;
       else img.removeAttribute('src');
     }
     const card = root.querySelector('[data-artist-card-preview-img]');
-    if (card && card.src !== photo) {
-      if (photo) card.src = photo;
+    if (card && card.src !== safeUrl) {
+      if (safeUrl) card.src = safeUrl;
       else card.removeAttribute('src');
     }
     const focus = frame.x + '% ' + frame.y + '%';
