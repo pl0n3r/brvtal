@@ -924,14 +924,16 @@ test('Cromo featured card has compact grouped content at 390/768/900/1440', asyn
       const measurements=await feature.evaluate(card => {
         const rect=node=>node.getBoundingClientRect();
         const outer=rect(card);
-        const meta=rect(card.querySelector('.cr-sound-feature-meta'));
+        const copy=card.querySelector('.cr-sound-feature-copy');
+        const copyRect=rect(copy);
+        const artistRect=rect(copy.querySelector('p'));
         const cover=rect(card.querySelector('.cr-set-art-featured'));
         const title=rect(card.querySelector('h3'));
         const actions=rect(card.querySelector('.cr-sound-actions'));
         return {
           height:outer.height,
-          between:actions.top-meta.bottom,
-          bottom:outer.bottom-actions.bottom,
+          between:actions.top-artistRect.bottom,
+          bottom:copyRect.bottom-actions.bottom,
           artRight:cover.right,
           titleLeft:title.left,
         };
