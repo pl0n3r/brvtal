@@ -724,6 +724,8 @@ html.cromo-home body>*:not(#cromo-home):not(#cromoGL):not(script):not(style):not
 
 /* #1656 — Content-sized Cromo sections and readable connections. */
 #cromo-home .cr-sound{min-height:0;padding:clamp(48px,7vh,96px) 28px;gap:clamp(12px,2vw,24px)}
+#cromo-home .cr-sound h2{margin:0;line-height:.92}
+#cromo-home .cr-sound p,#cromo-home .cr-sound>div{margin:0}
 #cromo-home .cr-end{padding:clamp(56px,8vh,112px) 28px clamp(32px,5vh,72px)}
 #cromo-home #conectado{padding-top:clamp(48px,7vh,100px);padding-bottom:clamp(40px,6vh,80px)}
 #cromo-home .cr-cn2-board,#cromo-home .cr-cn2-board.cr-has-memories{gap:clamp(14px,2vw,28px);padding:clamp(16px,2vw,28px)}

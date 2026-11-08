@@ -211,6 +211,26 @@ test('Contacto conserva el éxito si falla cargar el captcha siguiente', async (
   await expect(form.getByRole('button', { name: 'Enviar mensaje' })).toBeDisabled();
 });
 
+test('Sonido conserva altura por contenido sin margen gigante a 390/768/900/1440', async ({ page }) => {
+  for (const width of [390, 768, 900, 1440]) {
+    await mount(page, { width });
+    const section = page.locator('#sonido');
+    await expect(section).toBeVisible();
+    const dimensions = await section.evaluate(node => {
+      const heading = node.querySelector('h2');
+      const margin = getComputedStyle(heading);
+      return {
+        height: node.getBoundingClientRect().height,
+        marginTop: parseFloat(margin.marginTop), marginBottom: parseFloat(margin.marginBottom),
+      };
+    });
+    expect(dimensions.marginTop).toBe(0);
+    expect(dimensions.marginBottom).toBe(0);
+    expect(dimensions.height).toBeLessThan(720);
+    await noOverflow(page);
+  }
+});
+
 test('Legacy #archive and #events navigate to visible, keyboard-focusable Cromo destinations at 390/1440', async ({ page }) => {
   const emptyArchive = { ...data, archive: { events: [] } };
   for (const width of [390, 1440]) {

@@ -17,6 +17,8 @@ class CromoVisualReviewTests(unittest.TestCase):
         self.assertRegex(CSS, r"\.cr-sound\{min-height:0;")
         self.assertRegex(CSS, r"\.cr-end\{padding:clamp")
         self.assertIn("#cromo-home [hidden]{display:none !important}", CSS)
+        self.assertIn(".cr-sound h2{margin:0;line-height:.92}", CSS)
+        self.assertIn("Sonido conserva altura por contenido", BROWSER)
 
     def test_connected_grouped_entities(self):
         for heading in ("Noches", "Artistas", "Sets", "Releases", "Memorias"):
