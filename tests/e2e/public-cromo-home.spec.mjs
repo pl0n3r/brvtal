@@ -422,8 +422,10 @@ test('Cromo tablet 821–900px keeps every published link accessible in compact 
     await expect(page).toHaveURL(/#artistas$/);
     await expect(nav).toBeHidden();
     await trigger.click();
-    await nav.locator('a[href="#journal"]').click();
-    await expect(page).toHaveURL(/#journal$/);
+    // The fixture has published Sets but no Blog: Journal must not be linked.
+    await expect(nav.locator('a[href="#journal"]')).toHaveCount(0);
+    await nav.locator('a[href="#discos"]').click();
+    await expect(page).toHaveURL(/#discos$/);
     await noOverflow(page);
   }
 });
