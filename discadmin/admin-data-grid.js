@@ -57,7 +57,11 @@
   }
 
   function membershipCell(row) {
-    return statusCell(Number(row.is_collective_member || 0) === 1 ? 'MIEMBRO DEL COLECTIVO BRVTAL' : 'ARTISTA INVITADO');
+    const isMember = Number(row.is_collective_member || 0) === 1;
+    const label = isMember ? 'MIEMBRO DEL COLECTIVO BRVTAL' : 'ARTISTA INVITADO';
+    // Keep canonical MEMBER/EXTERNAL text for legacy grid contracts, while
+    // displaying and announcing an unambiguous, CMS-derived membership label.
+    return `<span class="admin-grid-status admin-grid-membership ${isMember ? 'member' : 'external'}" data-membership-label="${esc(label)}" title="${esc(label)}" aria-label="${esc(label)}">${isMember ? 'MEMBER' : 'EXTERNAL'}</span>`;
   }
 
   // A rejected/unsupported Meta request never leaves a broken-image icon in the list.
