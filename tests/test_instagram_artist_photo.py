@@ -77,9 +77,55 @@ class ArtistInstagramPhotoTests(unittest.TestCase):
         for contract in ("business_discovery.username(", "profile_picture_url",
                          "CURLOPT_FOLLOWLOCATION=>false", "CURLOPT_RESOLVE",
                          "getimagesizefromstring", "min((int)$cached['meta']['width']",
-                         "return $cached; // Preserve last authorized good image"):
+                         "LOCK_EX | LOCK_NB", "CURLOPT_PROXY=>''",
+                         "CURLOPT_WRITEFUNCTION", "brvtal-private/cache/instagram-profile-photos"):
             self.assertIn(contract, php)
         self.assertNotIn("instagram.com/profiles/", php)
+
+    def test_cache_reuses_previous_image_under_lock_and_retry(self):
+        # A unique synthetic account and cache entry. The lock/backoff must
+        # return immediately without contacting Meta or processing real data.
+        actual = self.php("""
+            $username = 'contract' . bin2hex(random_bytes(5));
+            putenv('BRVTAL_META_IG_ALLOWED_USERNAMES=' . $username);
+            [$root, $meta, $image] = brvtalIgCachePaths($username);
+            if (!is_dir($root) && !mkdir($root, 0750, true)) throw new Exception('cache root unwritable');
+            $key = hash('sha256', $username);
+            $lockPath = $root . '/' . $key . '.lock';
+            $retryPath = $root . '/' . $key . '.retry';
+            file_put_contents($image, 'fake-image-bytes-synthetic');
+            file_put_contents($meta, json_encode([
+                'mime'=>'image/jpeg','width'=>1400,'height'=>1600,
+                'fetched_at'=>time()-90000,'sha256'=>'synthetic'
+            ]));
+            $lock = fopen($lockPath, 'c+');
+            try {
+                if (!flock($lock, LOCK_EX | LOCK_NB)) throw new Exception('lock unavailable');
+                $start = hrtime(true);
+                $whileLocked = brvtalIgCacheRefresh($username);
+                $lockSeconds = (hrtime(true)-$start)/1000000000;
+                flock($lock, LOCK_UN);
+                file_put_contents($retryPath, (string)(time()+300));
+                $start = hrtime(true);
+                $duringBackoff = brvtalIgCacheRefresh($username);
+                $retrySeconds = (hrtime(true)-$start)/1000000000;
+                echo json_encode([
+                    $whileLocked['meta']['sha256'] ?? null,
+                    $duringBackoff['meta']['sha256'] ?? null,
+                    $lockSeconds < 1, $retrySeconds < 1,
+                    !str_contains($root, '/var/cache/'),
+                    str_contains($root, '/brvtal-private/'),
+                ]);
+            } finally {
+                @flock($lock, LOCK_UN);
+                fclose($lock);
+                @unlink($image);
+                @unlink($meta);
+                @unlink($lockPath);
+                @unlink($retryPath);
+            }
+        """)
+        self.assertEqual(actual, ["synthetic", "synthetic", True, True, True, True])
 
     def test_cropping_position_scale(self):
         markup = (ROOT / "discadmin/index-core.php").read_text()
