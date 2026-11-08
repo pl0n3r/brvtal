@@ -85,3 +85,12 @@ El **glitch rojo** duplica el título en dos pseudocapas con `data-text`, recort
 
 ## Lo que no cambia
 Contenido y datos del CMS, rutas, formularios, comprobaciones anti-robots, estados vacíos, enlaces canónicos y funciones existentes. El boceto es una referencia visual: sus textos y tarjetas de ejemplo no son contenido real.
+
+
+## BRVTAL Audio Deck (decisión del dueño 2026-11-07; #1647)
+
+En el Home Cromo, al elegir **ESCUCHAR** el widget oficial SoundCloud deja de estar dentro de las tarjetas. Se crea una sola superficie de escucha compartida, flotante, negro/rojo y con información auténtica del set: carátula SoundCloud con respaldo CMS, título, artistas, atribución y enlace externo al recurso oficial. Las tarjetas del destacado y del catálogo nunca incorporan iframes ni alteran su altura cuando se escucha, cambia o cierra un set. Solo se crea el iframe tras la interacción explícita del visitante; cerrar o cambiar de set desmonta el anterior y detiene el audio.
+
+El Audio Deck puede minimizarse/expandirse sin sustituir el iframe activo, y cerrarse completamente (también con Escape) restaurando el foco al disparador. El pulso sintetizado y el audio del set se excluyen mutuamente. SoundCloud controla la forma de onda y el audio desde su reproductor nativo; la presentación del iframe se oscurece visualmente con un filtro CSS, sin modificar contenido cross-origin. Si el proveedor o su reproductor no están disponibles, permanece el enlace original. No se simulan ondas de audio, duración o estados de reproducción que la integración no pueda demostrar.
+
+El diseño usa las variables existentes `--red`, `--bone`, Broken Glass y Barlow Condensed; GSAP es una mejora optativa en la entrada de panel con alternativa sin animación y respeto a `prefers-reduced-motion`. No afecta el CMS, el orden editorial, el mosaico de otros sets, VER MÁS SETS ni Concept 05.

@@ -98,13 +98,18 @@
         overwrite: 'auto', clearProps: 'opacity,transform',
       });
     };
-    const stop = () => {
+    // One SoundCloud widget for the entire section. Never place the embed inside
+    // the feature or catalog cards: their geometry must not change on playback.
+    const stop = (restoreFocus = false) => {
       if (!active) return;
-      active.player.remove(); // Destroy the actual provider iframe; stops audio.
-      active.button.textContent = 'ESCUCHAR';
-      active.button.setAttribute('aria-expanded', 'false');
+      const button = active.button;
+      active.player.remove(); // Destroy the official iframe and stop playback.
+      active.disconnectCover?.();
+      button.textContent = button.disabled ? 'NO DISPONIBLE' : 'ESCUCHAR';
+      button.setAttribute('aria-expanded', 'false');
       active.card.classList.remove('cr-is-playing');
       active = null;
+      if (restoreFocus && button.isConnected && !button.disabled) button.focus();
     };
     window.addEventListener('brvtal:cromo-ambient-start', stop);
 
@@ -148,31 +153,113 @@
 
     const makeActions = (set, card, art) => {
       const actions = el('div', { class: 'sound-actions' });
-      const playerId = 'cromo-set-player-' + String(set.id || Math.random()).replace(/[^a-z0-9_-]/gi, '');
+      // The sole player is hosted by #discos itself, never by a Set card.
+      const playerId = 'cromo-audio-deck';
       const button = el('button', {
         class: 'pl sound-listen', type: 'button', 'aria-expanded': 'false',
         'aria-controls': playerId, text: art.url ? 'ESCUCHAR' : 'NO DISPONIBLE',
       });
       button.disabled = !art.url;
       button.addEventListener('click', () => {
-        if (active?.card === card) { stop(); return; }
+        if (active?.card === card) { stop(true); return; }
         stop();
         window.BRVTALCromoSound?.stop?.();
-        const player = el('div', { class: 'set-player', id: playerId });
+
+        const player = el('aside', {
+          class: 'set-player audio-deck', id: playerId,
+          role: 'region', 'aria-label': 'BRVTAL Audio Deck',
+        });
+        const cover = el('span', { class: 'deck-cover', 'aria-hidden': 'true' });
+        const sourceImage = art.box.querySelector('img');
+        const deckImage = el('img', { alt: '', decoding: 'async' });
+        const syncCover = () => {
+          const src = sourceImage?.getAttribute('src');
+          if (src) {
+            deckImage.src = src;
+            if (!cover.contains(deckImage)) cover.append(deckImage);
+            cover.classList.remove('cr-is-empty');
+          } else {
+            deckImage.removeAttribute('src');
+            cover.classList.add('cr-is-empty');
+          }
+        };
+        syncCover();
+        sourceImage?.addEventListener('load', syncCover);
+        const disconnectCover = () => sourceImage?.removeEventListener('load', syncCover);
+
+        const title = el('strong', {
+          class: 'deck-title', text: text(set.title || 'SET BRVTAL'),
+        });
+        const names = el('span', {
+          class: 'deck-artist', text: publishedArtistNames(set),
+        });
+        const details = el('span', { class: 'deck-details' },
+          el('span', { class: 'deck-kicker', text: 'BRVTAL / AUDIO DECK' }),
+          title, names);
+        const minimize = el('button', {
+          class: 'deck-minimize', type: 'button',
+          'aria-expanded': 'true', 'aria-controls': 'cromo-deck-native',
+          'aria-label': 'Minimizar reproductor', text: 'MINIMIZAR',
+        });
+        const close = el('button', {
+          class: 'deck-close', type: 'button',
+          'aria-label': 'Cerrar reproductor y detener audio', text: 'CERRAR ×',
+        });
+        const header = el('div', { class: 'deck-header' },
+          cover, details, el('span', { class: 'deck-actions' }, minimize, close));
+
+        // The artwork is shown outside the widget, so the official waveform
+        // can be darkened without inverting the authentic SoundCloud cover.
         const embed = 'https://w.soundcloud.com/player/?url=' + encodeURIComponent(art.url)
-          + '&auto_play=true&show_artwork=true&show_comments=false&hide_related=true';
+          + '&auto_play=true&visual=false&color=%23ff2a1a'
+          + '&show_artwork=false&show_comments=false&show_user=false&hide_related=true';
         const iframe = el('iframe', {
-          src: embed, title: 'Escuchar ' + text(set.title || 'set BRVTAL'),
+          src: embed, title: 'Reproductor SoundCloud: ' + text(set.title || 'set BRVTAL'),
           loading: 'eager', allow: 'autoplay; encrypted-media',
           sandbox: 'allow-scripts allow-same-origin allow-presentation',
           referrerpolicy: 'no-referrer',
         });
-        player.append(iframe);
-        card.append(player);
+        const native = el('div', { class: 'deck-native', id: 'cromo-deck-native' }, iframe);
+        const external = el('a', {
+          class: 'deck-external', href: art.url, target: '_blank', rel: 'noopener noreferrer',
+          text: 'ABRIR EN SOUNDCLOUD ↗',
+        });
+        const footer = el('div', { class: 'deck-footer' },
+          el('span', { text: 'REPRODUCCIÓN OFICIAL / SOUNDCLOUD' }), external);
+        player.append(header, native, footer);
+
+        minimize.addEventListener('click', () => {
+          const minimized = player.classList.toggle('cr-is-minimized');
+          // Keep the same live iframe for audio continuity, but remove its
+          // invisible controls from keyboard navigation when collapsed.
+          native.inert = minimized;
+          native.setAttribute('aria-hidden', String(minimized));
+          minimize.textContent = minimized ? 'EXPANDIR' : 'MINIMIZAR';
+          minimize.setAttribute('aria-expanded', String(!minimized));
+          minimize.setAttribute('aria-label', minimized ? 'Expandir reproductor' : 'Minimizar reproductor');
+        });
+        close.addEventListener('click', () => stop(true));
+        player.addEventListener('keydown', (event) => {
+          if (event.key === 'Escape') {
+            event.stopPropagation();
+            stop(true);
+          }
+        });
+        setsSec.append(player); // A floating shared deck, not part of .cr-feat or .cr-sl.
         card.classList.add('cr-is-playing');
         button.textContent = 'CERRAR';
         button.setAttribute('aria-expanded', 'true');
-        active = { card, player, button };
+        active = { card, player, button, disconnectCover };
+
+        // GSAP is progressive enhancement; native controls and focus work
+        // with JavaScript alone, and reduced-motion users see no entrance.
+        if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches
+          && typeof window.gsap?.fromTo === 'function') {
+          window.gsap.fromTo(player, { y: 16, opacity: 0 }, {
+            y: 0, opacity: 1, duration: .35, ease: 'power3.out',
+            overwrite: 'auto', clearProps: 'opacity,transform',
+          });
+        }
       });
       actions.append(button);
       const external = safeUrl(set.external_url);
