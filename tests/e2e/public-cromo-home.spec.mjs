@@ -951,3 +951,86 @@ test('Cromo featured card has compact grouped content at 390/768/900/1440', asyn
     }
   }
 });
+
+
+test('Cromo mosaic removes left column gap after revealing 9 and 30 sets', async ({page}) => {
+  test.setTimeout(120_000);
+  await mockSoundCloud(page);
+  for (const width of [390, 768, 900, 1440]) {
+    for (const total of [5, 9, 30]) {
+      const catalog=Array.from({length:total}, (_,index)=>({
+        ...soundSets[0], id:7000+index, slug:'mosaic-'+index,
+        title:index ? 'SESSION '+index : 'FEATURED SESSION',
+        artist_names:['DJ PRINCIPAL', 'DJ INVITADO'],
+        external_url:'https://soundcloud.com/official/session-'+index,
+      }));
+      await mount(page,{width,reduced:width===390,payload:{...data,sets:catalog}});
+      const section=page.locator('#cromo-home #discos');
+      const feature=section.locator('.cr-feat');
+      const list=section.locator('.cr-sl');
+      const rows=section.locator('.cr-sound-row');
+      await expect(feature).toContainText('DJ PRINCIPAL y DJ INVITADO');
+      await expect(rows).toHaveCount(4);
+      let geometry=await page.evaluate(()=>{
+        const section=document.querySelector('#cromo-home #discos');
+        const f=section.querySelector('.cr-feat').getBoundingClientRect();
+        const l=section.querySelector('.cr-sl').getBoundingClientRect();
+        const r=[...section.querySelectorAll('.cr-sound-row')].map(el=>el.getBoundingClientRect());
+        return {fLeft:f.left,fRight:f.right,fBottom:f.bottom,lLeft:l.left,lRight:l.right,lTop:l.top,
+          firstY:r[0].top,secondY:r[1].top,firstX:r[0].left,secondX:r[1].left};
+      });
+      expect(Math.abs(geometry.fLeft-geometry.lLeft)).toBeLessThan(2);
+      expect(Math.abs(geometry.fRight-geometry.lRight)).toBeLessThan(2);
+      expect(geometry.lTop-geometry.fBottom).toBeGreaterThanOrEqual(0);
+      expect(geometry.lTop-geometry.fBottom).toBeLessThan(40);
+      if(width<=640)expect(geometry.secondY).toBeGreaterThan(geometry.firstY+30);
+      else{
+        expect(Math.abs(geometry.secondY-geometry.firstY)).toBeLessThan(3);
+        expect(geometry.secondX).toBeGreaterThan(geometry.firstX+80);
+      }
+      await noOverflow(page);
+      const more=section.locator('button.cr-set-more');
+      while(await more.isVisible()) await more.click();
+      await expect(rows).toHaveCount(total-1);
+      await expect(more).toBeHidden();
+      const count=section.locator('.cr-set-count');
+      await expect(count).toContainText(total+' de '+total);
+      await noOverflow(page);
+    }
+  }
+});
+
+test('Cromo mosaic optional GSAP reveal never blocks keyboard or reduced motion', async ({page}) => {
+  await mockSoundCloud(page);
+  const catalog=Array.from({length:9}, (_,index)=>({
+    ...soundSets[0],id:8100+index,slug:'motion-'+index,
+    title:'MOTION '+index,external_url:'https://soundcloud.com/official/motion-'+index,
+  }));
+  for(const reduced of [false,true]){
+    await mount(page,{width:1440,reduced,payload:{...data,sets:catalog}});
+    await page.evaluate(()=>{
+      window.__revealCalls=[];
+      window.gsap={
+        fromTo(targets,from,to){
+          window.__revealCalls.push({length:targets.length,from,to});
+          return {kill(){}};
+        },
+      };
+    });
+    const more=page.locator('#cromo-home #discos button.cr-set-more');
+    await more.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#cromo-home #discos .cr-sound-row')).toHaveCount(8);
+    const calls=await page.evaluate(()=>window.__revealCalls);
+    expect(calls.length).toBe(reduced?0:1);
+    if(!reduced){
+      expect(calls[0].length).toBe(4);
+      expect(calls[0].to.stagger).toBe(.045);
+    }
+    await more.focus();
+    await page.keyboard.press('Enter');
+    await expect(more).toBeHidden();
+    await expect(page.locator('#cromo-home #discos .cr-sound-row')).toHaveCount(8);
+    await noOverflow(page);
+  }
+});

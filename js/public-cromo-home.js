@@ -87,6 +87,17 @@
   };
   const buildSets = (sets) => {
     let active = null;
+    // Transitions.dev timing + optional GSAP: progressive enhancement only.
+    // All cards are already in the DOM and usable without animation or GSAP.
+    const revealBatch = (cards) => {
+      if (!cards.length || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      const gsap = window.gsap;
+      if (typeof gsap?.fromTo !== 'function') return;
+      gsap.fromTo(cards, { opacity: 0, y: 12 }, {
+        opacity: 1, y: 0, duration: .36, ease: 'power3.out', stagger: .045,
+        overwrite: 'auto', clearProps: 'opacity,transform',
+      });
+    };
     const stop = () => {
       if (!active) return;
       active.player.remove(); // Destroy the actual provider iframe; stops audio.
@@ -231,12 +242,15 @@
         visible += added.length;
         more.setAttribute('aria-expanded', 'true');
         updateCount();
-        // Do not strand keyboard focus on a button removed from the tab order.
+        // Keep the first newly focused card visible during the GSAP reveal.
+        // A hidden final button must not strand keyboard focus.
+        let nextFocus = null;
         if (more.hidden) {
-          const nextFocus = added.map((row) =>
+          nextFocus = added.map((row) =>
             row.querySelector('button.cr-sound-listen:not([disabled]), a.cr-sound-external')).find(Boolean);
           (nextFocus || count).focus();
         }
+        revealBatch(nextFocus ? added.filter((row) => !row.contains(nextFocus)) : added);
       });
       updateCount();
       setsSec = el('section', { class: 'sec', id: 'discos' },
