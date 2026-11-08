@@ -82,7 +82,8 @@
         index += 1;
         const name = String(artist.name ?? artist.title ?? 'UNKNOWN');
         const slug = String(artist.slug ?? '').trim();
-        const photo = imageUrl(artist.photo ?? artist.image ?? artist.cover_image ?? '');
+        const photo = imageUrl(artist.photo || artist.instagram_photo_url || artist.image || artist.cover_image || '');
+        const cms = imageUrl(artist.photo_cms || artist.photo || '');
         const href = slug ? `/artists/${encodeURIComponent(slug)}` : '/#artists';
         return `<a class="artist artist--${status}" href="${escapeHtml(href)}" data-roster-status="${status}"${photo ? ` data-image="${escapeHtml(photo)}"` : ''}>
           <span>${String(index).padStart(2, '0')}</span><strong>${escapeHtml(name)}</strong><i>${escapeHtml(rowMeta(artist))}</i>
