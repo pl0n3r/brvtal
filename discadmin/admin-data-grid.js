@@ -17,13 +17,29 @@
     return '/' + raw.replace(/^\.?\//,'').replace(/^\/+/, '');
   }
 
-  function imageCell(src, title, meta = '', soundcloudUrl = '') {
+  function instagramUser(value) {
+    try {
+      const url = new URL(String(value || ''));
+      if (url.protocol !== 'https:' || !['instagram.com','www.instagram.com'].includes(url.hostname)
+        || url.username || url.password || url.port) return '';
+      const username = url.pathname.replace(/^\/+|\/+$/g, '').toLowerCase();
+      return /^[a-z0-9._]{1,30}$/.test(username) && !['p','reel','stories','explore'].includes(username)
+        ? username : '';
+    } catch (_) { return ''; }
+  }
+
+  // Never put access tokens in the DOM or request a personal-account avatar by scraping.
+  function imageCell(src, title, meta = '', soundcloudUrl = '', instagramUrl = '') {
+    const username = instagramUser(instagramUrl);
+    const proxy = username ? '/api/instagram-profile-photo.php?username=' + encodeURIComponent(username) : '';
     const url = imgSrc(src);
     const visual = url
       ? `<img class="admin-grid-thumb" src="${esc(url)}" alt="${esc(title || '')}" loading="lazy">`
-      : (soundcloudUrl
-        ? `<span class="admin-grid-thumb admin-grid-thumb-ph" data-soundcloud-url="${esc(soundcloudUrl)}" data-soundcloud-title="${esc(title || '')}">NO IMG</span>`
-        : '<span class="admin-grid-thumb admin-grid-thumb-ph">NO IMG</span>');
+      : (proxy
+        ? `<img class="admin-grid-thumb" data-instagram-photo src="${esc(proxy)}" alt="${esc(title || '')}" loading="lazy">`
+        : (soundcloudUrl
+          ? `<span class="admin-grid-thumb admin-grid-thumb-ph" data-soundcloud-url="${esc(soundcloudUrl)}" data-soundcloud-title="${esc(title || '')}">NO IMG</span>`
+          : '<span class="admin-grid-thumb admin-grid-thumb-ph">NO IMG</span>'));
     return `<div class="admin-grid-primary">${visual}<span><strong class="title">${esc(title || 'Untitled')}</strong><small>${esc(meta || '')}</small></span></div>`;
   }
 
@@ -41,8 +57,19 @@
   }
 
   function membershipCell(row) {
-    return statusCell(Number(row.is_collective_member || 0) === 1 ? 'MEMBER' : 'EXTERNAL');
+    return statusCell(Number(row.is_collective_member || 0) === 1 ? 'MIEMBRO BRVTAL' : 'ARTISTA INVITADO');
   }
+
+  // A rejected/unsupported Meta request never leaves a broken-image icon in the list.
+  document.addEventListener('error', event => {
+    const img = event.target;
+    if (!(img instanceof HTMLImageElement) || !img.matches('[data-instagram-photo]')) return;
+    const replacement = document.createElement('span');
+    replacement.className = 'admin-grid-thumb admin-grid-thumb-ph';
+    replacement.title = 'Instagram no permite esta foto sin cuenta profesional y permisos Meta. Importa una imagen autorizada al CMS.';
+    replacement.textContent = 'SIN FOTO';
+    img.replaceWith(replacement);
+  }, true);
 
   function artistsLabel(row) {
     const names = Array.isArray(row.artists) ? row.artists.map(item => item?.name).filter(Boolean) : [];
@@ -73,7 +100,7 @@
     artists: {
       orderable:true,
       columns:[
-        {key:'primary',label:'ARTIST',width:'minmax(230px,1.6fr)',sort:true,value:r=>r.name||'',render:r=>imageCell(r.photo,r.name,r.slug)},
+        {key:'primary',label:'ARTIST',width:'minmax(230px,1.6fr)',sort:true,value:r=>r.name||'',render:r=>imageCell(r.photo,r.name,r.slug,'',r.instagram_url)},
         {key:'links',label:'LINKS',width:'minmax(150px,.8fr)',sort:false,value:r=>linksCell(r),render:r=>linksCell(r)},
         {key:'collective',label:'BRVTAL',width:'120px',sort:true,numeric:true,value:r=>Number(r.is_collective_member||0),render:r=>membershipCell(r)},
         {key:'status',label:'STATUS',width:'minmax(110px,.65fr)',sort:true,value:r=>r.status||'',render:r=>statusCell(r.status)},
