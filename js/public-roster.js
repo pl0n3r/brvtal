@@ -16,7 +16,10 @@
     if (!raw) return '';
     try {
       const resolved = new URL(raw.startsWith('/') || /^https?:\/\//i.test(raw) ? raw : '/' + raw.replace(/^\.?\//, ''), location.origin);
-      return ['https:', 'http:'].includes(resolved.protocol) && resolved.origin === location.origin ? resolved.href : '';
+      // Preserve safe original local path in the DOM for editorial/source fidelity.
+      // The attribute is HTML-escaped by the caller; the URL is validated here.
+      return ['https:', 'http:'].includes(resolved.protocol) && resolved.origin === location.origin
+        ? (raw.startsWith('/') ? raw : resolved.href) : '';
     } catch (_) { return ''; }
   };
 
