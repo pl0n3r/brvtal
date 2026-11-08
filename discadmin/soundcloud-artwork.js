@@ -62,7 +62,8 @@
         img.className = placeholder.classList.contains('admin-grid-thumb') ? 'admin-grid-thumb'
           : (placeholder.classList.contains('lg') ? 'thumb lg' : 'thumb');
         img.decoding = 'async';
-        img.loading = 'lazy';
+        // Off-DOM lazy images never start loading; the placeholder would remain forever.
+        // Preload eagerly and swap only after load succeeds, preserving the visible fallback.
         img.addEventListener('load', () => {
           if (!placeholder.isConnected) return;
           placeholder.replaceWith(img);
