@@ -259,7 +259,13 @@ function brvtalSeoWorkspaceRootImagePathIsSafe(string $value): bool
     ) {
         return false;
     }
-    return array_all(["\0","\r","\n",'..','?','#'], fn($blocked) => !str_contains($value, $blocked));
+    // array_all requires PHP 8.4; some CLI runners use PHP 8.2.
+    foreach (["\0","\r","\n",'..','?','#'] as $blocked) {
+        if (str_contains($value, $blocked)) {
+            return false;
+        }
+    }
+    return true;
 }
 
 function brvtalSeoWorkspaceImageValue(mixed $value): string

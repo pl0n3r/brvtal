@@ -610,7 +610,8 @@ function brvtalMediaWriteVariant(
     }
 
     $ok = function_exists('imagewebp') && @imagewebp($canvas, $target, $quality);
-    imagedestroy($canvas);
+    // GdImage is managed by PHP; imagedestroy() is deprecated in PHP 8.5.
+    unset($canvas);
     if ($ok) {
         @chmod($target, 0644);
     }
@@ -755,7 +756,8 @@ function brvtalMediaGenerateVariants(
             $result['optimization'][$bucket][] = $name;
             $result['optimization']['generated_bytes_this_run'] += (int)$entry['bytes'];
         }
-        imagedestroy($source);
+        // Release the decoded source only after all variant writes.
+        unset($source);
     }
 
     foreach ($specs as $name => $spec) {

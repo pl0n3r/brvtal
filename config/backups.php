@@ -88,10 +88,22 @@ function brvtal_backup_order_columns(PDO $pdo, string $quotedTable, array $colum
     return $ordered !== [] ? array_values(array_unique($ordered)) : $columnNames;
 }
 
+/** Unlink an existing partial file, without warning when retrying a missing artifact. */
+function brvtal_backup_unlink_if_exists(string $path): void
+{
+    if (is_file($path) || is_link($path)) {
+        @unlink($path);
+    }
+}
+
 function brvtal_backup_export_database(PDO $pdo, string $target): array
 {
+    // A failed retry must never erase a previously valid backup.
+    if (file_exists($target) || is_link($target)) {
+        throw new RuntimeException('BACKUP_TARGET_EXISTS');
+    }
     $part = $target . '.part';
-    @unlink($part);
+    brvtal_backup_unlink_if_exists($part);
     $handle = @fopen($part, 'xb');
     if (!is_resource($handle)) throw new RuntimeException('BACKUP_DATABASE_OPEN_FAILED');
 
@@ -193,8 +205,8 @@ function brvtal_backup_export_database(PDO $pdo, string $target): array
             try { $pdo->rollBack(); } catch (Throwable) {}
         }
         if (is_resource($handle)) fclose($handle);
-        @unlink($part);
-        @unlink($target);
+        brvtal_backup_unlink_if_exists($part);
+        brvtal_backup_unlink_if_exists($target);
         throw $error;
     }
 }
@@ -259,8 +271,11 @@ function brvtal_backup_create_media_archive(string $uploadsDir, array $inventory
         return ['status'=>'ready', 'file'=>null, 'bytes'=>0, 'size'=>'0 B', 'sha256'=>null, 'files'=>0];
     }
 
+    if (file_exists($target) || is_link($target)) {
+        return ['status'=>'unavailable', 'reason'=>'MEDIA_ARCHIVE_TARGET_EXISTS'];
+    }
     $part = $target . '.part';
-    @unlink($part);
+    brvtal_backup_unlink_if_exists($part);
     $zip = new ZipArchive();
     $opened = $zip->open($part, ZipArchive::CREATE | ZipArchive::OVERWRITE);
     if ($opened !== true) return ['status'=>'unavailable', 'reason'=>'MEDIA_ARCHIVE_OPEN_FAILED'];
@@ -291,8 +306,8 @@ function brvtal_backup_create_media_archive(string $uploadsDir, array $inventory
         ];
     } catch (Throwable $error) {
         try { $zip->close(); } catch (Throwable) {}
-        @unlink($part);
-        @unlink($target);
+        brvtal_backup_unlink_if_exists($part);
+        brvtal_backup_unlink_if_exists($target);
         return ['status'=>'unavailable', 'reason'=>$error->getMessage() === '' ? 'MEDIA_ARCHIVE_FAILED' : $error->getMessage()];
     }
 }
@@ -323,6 +338,11 @@ function brvtal_backup_create(PDO $pdo, array $options = []): array
     $mediaManifestPath = $baseDir . '/' . $id . '.media.json';
     $mediaArchivePath = $baseDir . '/' . $id . '.media.zip';
     $manifestPath = $baseDir . '/' . $id . '.manifest.json';
+    foreach ([$databasePath, $mediaManifestPath, $mediaArchivePath, $manifestPath] as $candidate) {
+        if (file_exists($candidate) || is_link($candidate)) {
+            throw new RuntimeException('BACKUP_ID_COLLISION');
+        }
+    }
     $createdFiles = [];
 
     try {
@@ -404,10 +424,12 @@ function brvtal_backup_create(PDO $pdo, array $options = []): array
         $createdFiles[] = $manifestPath;
         return $manifest;
     } catch (Throwable $error) {
-        foreach ($createdFiles as $file) @unlink($file);
-        @unlink($databasePath . '.part');
-        @unlink($mediaArchivePath . '.part');
-        @unlink($manifestPath);
+        foreach ($createdFiles as $file) {
+            brvtal_backup_unlink_if_exists($file);
+        }
+        brvtal_backup_unlink_if_exists($databasePath . '.part');
+        brvtal_backup_unlink_if_exists($mediaArchivePath . '.part');
+        brvtal_backup_unlink_if_exists($manifestPath);
         throw $error;
     }
 }
