@@ -947,7 +947,7 @@ test('Cromo featured card has compact grouped content at 390/768/900/1440', asyn
         await expect(page.locator('#cromo-home #discos .cr-sound-row')).toHaveCount(4);
         await expect(page.locator('#cromo-home #discos button.cr-set-more')).toBeVisible();
         await feature.locator('button.cr-sound-listen').click();
-        await expect(feature.locator('iframe')).toHaveCount(1);
+        await expect(page.locator('#cromo-home #cromo-audio-deck iframe')).toHaveCount(1);
         await noOverflow(page);
       }
     }
