@@ -1071,7 +1071,7 @@
 
     // The mobile navigation is an actual keyboard/touch surface, not a hidden desktop nav.
     // A small interruptible transition follows the authorised transitions.dev dropdown rules.
-    const mobileMenu = window.matchMedia('(max-width: 820px)');
+    const mobileMenu = window.matchMedia('(max-width: 900px)');
     const setMenuOpen = (open, restoreFocus = false) => {
       const active = Boolean(open && mobileMenu.matches);
       nav.classList.toggle('cr-nav-open', active);

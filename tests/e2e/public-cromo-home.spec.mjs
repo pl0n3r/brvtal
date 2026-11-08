@@ -408,32 +408,20 @@ test('Experiencia Cromo apila poster y ficha en 375/390/430/900, conserva escrit
   }
 });
 
-test('Cromo keeps all section links accessible in the 821–900px header', async ({ page }) => {
+test('Cromo tablet 821–900px keeps every published link accessible in compact menu', async ({ page }) => {
   for (const width of [821, 850, 900]) {
     await mount(page, { width });
     const nav = page.locator('#cromo-home .cr-top nav');
+    const trigger = page.locator('#cromo-home .cr-nav-toggle');
+    await expect(trigger).toBeVisible();
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    await trigger.click();
     await expect(nav).toBeVisible();
-    const positions = await nav.evaluate(node => {
-      const rect = el => el.getBoundingClientRect().toJSON();
-      const header = node.parentElement;
-      return {
-        brand: rect(header.querySelector('a.cr-u')),
-        nav: rect(node),
-        actions: rect(header.querySelector('div')),
-        links: [...node.querySelectorAll('a')].map(rect),
-      };
-    });
-    expect(positions.brand.right).toBeLessThanOrEqual(positions.nav.left + 1);
-    expect(positions.nav.right).toBeLessThanOrEqual(positions.actions.left + 1);
-    expect(positions.actions.right).toBeLessThanOrEqual(width + 1);
-    for (const link of positions.links) {
-      expect(link.left).toBeGreaterThanOrEqual(positions.nav.left - 1);
-      expect(link.right).toBeLessThanOrEqual(positions.nav.right + 1);
-      expect(link.height).toBeGreaterThanOrEqual(44);
-      expect(link.width).toBeGreaterThanOrEqual(44);
-    }
+    await expect(nav.locator('a[href="#discos"]')).toBeVisible();
     await nav.locator('a[href="#artistas"]').click();
     await expect(page).toHaveURL(/#artistas$/);
+    await expect(nav).toBeHidden();
+    await trigger.click();
     await nav.locator('a[href="#journal"]').click();
     await expect(page).toHaveURL(/#journal$/);
     await noOverflow(page);
@@ -626,7 +614,7 @@ test('Hero Description de Discadmin usa texto CMS seguro sin cambiar cinta ni na
     expect(await heroText.evaluate(node => node.childElementCount)).toBe(0);
     await expect(page.locator('#cromo-home .cr-band span').first()).toHaveText('Rave till grave');
     await expect(page.locator('#cromo-home .cr-cta a[href="#noches"]')).toHaveText('Ver la próxima noche');
-    await expect(page.locator('#cromo-home .cr-cta a[href="#sonido"]')).toHaveText('Escuchar');
+    await expect(page.locator('#cromo-home .cr-cta a[href="#discos"]')).toHaveText('Escuchar sets');
     await expect(page.locator('#cromo-home .cr-next-link')).toHaveAttribute('href', '/events/genesis');
     await noOverflow(page);
   }
@@ -850,7 +838,8 @@ test('Cromo catalog 0/1/5/6/30 preserves editorial order, multi-DJs and keyboard
       if (size === 0) {
         await expect(feature).toHaveCount(0);
         await expect(more).toHaveCount(0);
-        await expect(section.locator('.cr-set-count')).toHaveText('0 sets publicados');
+        await expect(section).toHaveCount(0);
+        await expect(page.locator('#cromo-section-nav a[href="#discos"]')).toHaveCount(0);
         await noOverflow(page);
         continue;
       }
@@ -1174,7 +1163,7 @@ test('Cromo SoundCloud player stays inline beside ESCUCHAR, never floating', asy
 
 test('Cromo mobile menu is visible, keyboard-safe and opens real Sets destination', async ({ page }) => {
   test.setTimeout(120_000);
-  for (const width of [360, 390, 430, 768]) {
+  for (const width of [360, 390, 430, 768, 900]) {
     await mount(page, { width, payload: data, reduced: width === 430 });
     const trigger = page.locator('#cromo-home .cr-nav-toggle');
     const menu = page.locator('#cromo-section-nav');
