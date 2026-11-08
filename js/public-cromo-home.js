@@ -543,19 +543,26 @@
 
   const buildArtists = (artists) => {
     // --- Artistas
-    const roster = [...artists].sort((a, b) => (b.is_collective_member ? 1 : 0) - (a.is_collective_member ? 1 : 0)).slice(0, 5);
+    const isCollective = (a) => a.is_collective_member === true || Number(a.is_collective_member) === 1;
+    const roster = [...artists].sort((a, b) => Number(isCollective(b)) - Number(isCollective(a))).slice(0, 5);
     const artistCard = (a) => {
       const card = el('a', { class: 'ac plate chrome-b', href: '/artists/' + encodeURIComponent(a.slug) });
       const fallback = el('i', { class: 'orb', 'aria-hidden': 'true' });
-      const photo = safeUrl(a.photo);
-      // CMS uploads are public same-origin media; never inject untrusted remote URLs.
-      if (photo && new URL(photo, location.origin).origin === location.origin) {
+      const photo = safeUrl(a.photo) || safeUrl(a.instagram_photo_url);
+      const cms = safeUrl(a.photo_cms || a.photo);
+      const sameOrigin = (value) => value && new URL(value, location.origin).origin === location.origin;
+      // Only same-origin CMS media or the authenticated, server-side Meta proxy are usable.
+      if (sameOrigin(photo)) {
         const image = el('img', { class: 'photo', alt: '', loading: 'lazy', decoding: 'async' });
         image.addEventListener('error', () => {
+          if (sameOrigin(cms) && image.src !== new URL(cms, location.origin).href) {
+            image.src = cms; // Official Meta photo failed: preserve editorial CMS source.
+            return;
+          }
           image.remove();
           card.classList.remove('cr-has-photo');
           fallback.hidden = false;
-        }, { once: true });
+        });
         image.src = photo;
         fallback.hidden = true;
         card.classList.add('cr-has-photo');
@@ -563,7 +570,8 @@
       }
       card.append(fallback,
         el('span', { class: 'nm', text: text(a.name) }),
-        el('span', { class: 'rl', text: (a.is_collective_member ? 'Colectivo. ' : 'Colaborador. ') + text(a.bio, 90) }));
+        el('span', { class: 'cr-artist-membership', text: isCollective(a) ? 'MIEMBRO DEL COLECTIVO BRVTAL' : 'ARTISTA INVITADO' }),
+        el('span', { class: 'rl', text: text(a.bio, 90) }));
       return card;
     };
     const artistsGrid = el('div', { class: 'artists' }, roster.map(artistCard));
@@ -674,8 +682,8 @@
       add('noches', 'e' + e.id, 'noche', text(e.title, 60),
         [when ? two(when.getDate()) + ' ' + MONTHS[when.getMonth()] + ' ' + when.getFullYear() : '', text(e.city)].filter(Boolean).join(' · '), route('events', e.slug));
     });
-    list('artists').slice().sort((a, b) => (b.is_collective_member ? 1 : 0) - (a.is_collective_member ? 1 : 0)).forEach((a) =>
-      add('artistas', 'a' + a.id, 'artista', text(a.name, 60), a.is_collective_member ? 'Colectivo' : 'Colaborador', route('artists', a.slug)));
+    list('artists').slice().sort((a, b) => Number(b.is_collective_member) - Number(a.is_collective_member)).forEach((a) =>
+      add('artistas', 'a' + a.id, 'artista', text(a.name, 60), (a.is_collective_member === true || Number(a.is_collective_member) === 1) ? 'Miembro del colectivo BRVTAL' : 'Artista invitado', route('artists', a.slug)));
     list('sets').forEach((x) => add('sonido', 's' + x.id, 'set', text(x.title, 60), 'Set' + (x.artist_name ? ' · ' + text(x.artist_name, 30) : ''), route('sets', x.slug)));
     list('releases').forEach((r) => add('sonido', 'r' + r.id, 'disco', text(r.title, 60), 'Disco' + (r.release_type ? ' · ' + text(r.release_type, 20) : ''), route('releases', r.slug)));
 

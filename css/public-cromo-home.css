@@ -759,3 +759,9 @@ html.cromo-home body>*:not(#cromo-home):not(#cromoGL):not(script):not(style):not
   #cromo-home .cr-cn2-groups{grid-template-columns:minmax(0,1fr)}
 }
 @media(prefers-reduced-motion:reduce){#cromo-home .cr-cn2-links a{transition:none}}
+
+/* Artist photograph is displayed in full; never crop a face just to fill a card. */
+#cromo-home .cr-ac.cr-has-photo .cr-photo{object-fit:contain;object-position:center;background:rgba(0,0,0,.76)}
+#cromo-home .cr-artist-membership{position:relative;z-index:3;display:block;max-width:100%;width:fit-content;padding:7px 9px;margin-top:8px;background:#080808;color:#f6f1e7;border:1px solid rgba(255,255,255,.58);font:800 clamp(10px,1vw,12px)/1.35 var(--body);letter-spacing:.06em;text-transform:uppercase;text-wrap:pretty}
+#cromo-home .cr-ac:focus-visible .cr-artist-membership{outline:2px solid var(--acid,#b8ff00);outline-offset:3px}
+@media(prefers-reduced-motion:reduce){#cromo-home .cr-ac .cr-photo{transition:none}}

@@ -11,8 +11,8 @@
   width:100%;height:min(45vw,400px);min-height:240px;border:2px solid #6c7379;
 }
 .artist-hero-stage img{
-  position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;
-  filter:grayscale(1) contrast(1.3) brightness(1.05);
+  position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none;
+  filter:none;object-fit:contain;
 }
 .artist-hero-stage-overlay{
   position:absolute;inset:0;pointer-events:none;
@@ -50,3 +50,21 @@
   .artist-hero-stage{height:290px;min-height:200px}
   .artist-hero-stage-copy strong{font-size:55px}
 }
+
+/* Same source, two honest previews: card shows complete portrait, hero has independent framing. */
+.artist-card-preview-layout{display:grid;grid-template-columns:minmax(155px,260px) minmax(0,1fr);gap:20px;align-items:start;margin:18px 0}
+.artist-card-preview{margin:0;background:#050505;border:1px solid #4b5053;min-width:0;overflow:hidden}
+.artist-card-preview-image{aspect-ratio:4/5;display:grid;place-items:center;overflow:hidden;background:#080808}
+.artist-card-preview-image img{display:block;width:100%;height:100%;object-fit:contain;object-position:center}
+.artist-card-preview figcaption{padding:13px;display:grid;gap:8px;color:#eee8e0}
+.artist-card-preview figcaption strong{font:900 clamp(20px,3vw,30px)/1 "Barlow Condensed",sans-serif;overflow-wrap:anywhere}
+.artist-card-preview figcaption span{font:800 10px/1.5 "Space Mono",monospace;letter-spacing:.04em;color:#f7f1e5}
+.artist-card-preview-notes{display:grid;align-content:start;gap:10px;color:#bac0c2;font:12px/1.55 "Space Mono",monospace}
+.artist-card-preview-notes strong{color:#f5f0e7;letter-spacing:.06em}
+.artist-card-preview-notes p{margin:0;max-width:64ch}
+.artist-card-preview-notes [role="status"]{padding:10px 12px;background:#17191a;border:1px solid #51565b;min-height:44px}
+.artist-ig-try{justify-self:start;min-height:44px;padding:10px 14px;background:#17191a;color:#fff;border:1px solid #676f76;font:800 11px/1.3 "Space Mono",monospace;cursor:pointer}
+.artist-ig-try:focus-visible,.artist-hero-tabs button:focus-visible,.artist-hero-actions button:focus-visible{outline:2px solid #b8ff00;outline-offset:3px}
+.artist-ig-try:hover{border-color:#fff}
+@media(max-width:680px){.artist-card-preview-layout{grid-template-columns:1fr}.artist-card-preview{max-width:270px}}
+@media(prefers-reduced-motion:reduce){.artist-ig-try,.artist-card-preview *{transition:none!important;animation:none!important}}

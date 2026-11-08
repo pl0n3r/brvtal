@@ -16,6 +16,12 @@ require_once __DIR__ . '/../config/deployment.php';
 .login{min-height:100vh;display:grid;place-items:center}.loginbox{width:min(420px,90vw);background:#090a0b;border:1px solid #282c30;padding:30px}.loginbox h1{margin:0;font-size:38px;letter-spacing:-2px}.loginbox .sub{margin-bottom:28px}.loginbox input{width:100%;background:#050606;color:#fff;border:1px solid #34383d;padding:12px;margin:7px 0 14px}.syscheck{margin:18px 0;border:1px solid #24282c;background:#070808;padding:12px}.sysrow{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #181b1d;font-size:9px;letter-spacing:1.2px}.sysrow:last-child{border-bottom:0}.sysok{color:var(--green)}.syserr{color:#ff5555}.syswait{color:#8b9197}.navgroup{font-size:8px;letter-spacing:2px;color:#4f555a;margin:25px 0 7px}.thumb{width:58px;height:58px;object-fit:cover;border:1px solid #333;background:#111;flex:0 0 auto}.thumb.lg{width:84px;height:84px}.thumbph{width:58px;height:58px;border:1px solid #292e33;background:linear-gradient(135deg,#0c0d0e,#15181a);display:grid;place-items:center;color:#454b50;font:9px monospace;flex:0 0 auto}.dashgrid{display:grid;grid-template-columns:1.5fr 1fr;gap:14px;margin-top:14px}.dashlist{display:grid;gap:8px}.dashitem{display:flex;gap:12px;align-items:center;border:1px solid #24282c;background:#090a0b;padding:10px}.dashitem .grow{min-width:0;flex:1}.dashitem .title{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.metricrow{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.metric{border:1px solid #24282c;background:#080909;padding:12px}.metric b{display:block;font-size:18px;margin-top:6px}.bar{height:5px;background:#171a1d;margin-top:10px}.bar i{display:block;height:100%;background:var(--green);width:0}.quickgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.quickgrid button{min-height:58px}.dashsection{border:1px solid #24282c;background:#080909;padding:18px}.dashsection .sectionhead{margin-bottom:12px}.thumbcell{display:flex;gap:12px;align-items:center;min-width:0}.techgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.techcard{border:1px solid #24282c;background:#090a0b;padding:18px}.techcard h3{font-size:11px;letter-spacing:1.5px;margin:0 0 9px}.techcard p{font-size:10px;color:#737980;line-height:1.5;min-height:30px}.techvalue{font-size:18px;font-weight:900;margin:8px 0}.techactions{display:flex;gap:7px;flex-wrap:wrap}.logbox{background:#030404;border:1px solid #22272b;padding:15px;white-space:pre-wrap;word-break:break-word;font:10px/1.5 monospace;color:#aeb4b9;max-height:58vh;overflow:auto}.tester{display:grid;grid-template-columns:220px 1fr;gap:12px}.tester pre{margin:0;background:#030404;border:1px solid #22272b;padding:14px;overflow:auto;min-height:260px;font:10px/1.5 monospace}
 @media(max-width:850px){.dashgrid{grid-template-columns:1fr}.quickgrid{grid-template-columns:1fr 1fr}.metricrow{grid-template-columns:1fr 1fr}.shell{grid-template-columns:1fr}.side{position:static;height:auto;border-right:0;border-bottom:1px solid #202326}.sidefoot{position:static;margin-top:20px}.stats{grid-template-columns:1fr 1fr}.grid2,.lineup{grid-template-columns:1fr}.thead{display:none}.tr{grid-template-columns:1fr 1fr}.tr>div:nth-child(2),.tr>div:nth-child(3),.tr>div:nth-child(4){display:none}}
 
+/* Preserve the tested MEMBER/EXTERNAL value while rendering explicit membership. */
+.admin-grid-status.admin-grid-membership{font-size:0;letter-spacing:0;white-space:normal}
+.admin-grid-status.admin-grid-membership::after{
+ content:attr(data-membership-label);font:800 10px/1.4 Arial,Helvetica,sans-serif;
+ letter-spacing:.03em;display:inline-block;max-width:100%;white-space:normal
+}
 .membership-check{
  display:flex;
  gap:12px;
@@ -367,8 +373,8 @@ function artistHeroMarkup(r) {
   </div>
   <div class="artist-hero-workspace" data-artist-hero data-viewport="desktop">
    <div class="artist-hero-tabs" role="group" aria-label="Previsualizar portada">
-    <button type="button" data-hero-switch="desktop" aria-pressed="true">ESCRITORIO</button>
-    <button type="button" data-hero-switch="mobile" aria-pressed="false">MÓVIL</button>
+    <button type="button" data-hero-switch="desktop" aria-pressed="true">ESCRITORIO / 1440</button>
+    <button type="button" data-hero-switch="mobile" aria-pressed="false">MÓVIL / 390</button>
    </div>
    <div class="artist-hero-stage">
     <img data-hero-preview-img src="${esc(r.photo||'')}" alt="" loading="lazy">
@@ -376,11 +382,24 @@ function artistHeroMarkup(r) {
     <div class="artist-hero-stage-copy">
      <span>BRVTAL / ARTISTAS / PREVISUALIZACIÓN</span>
      <strong data-hero-preview-name>${esc(r.name||'ARTISTA')}</strong>
-     <small>MIEMBRO DEL COLECTIVO</small>
+     <small data-hero-preview-member>${Number(r.is_collective_member||0)===1?'MIEMBRO DEL COLECTIVO BRVTAL':'ARTISTA INVITADO'}</small>
     </div>
    </div>
-   <p class="artist-hero-help">Vista previa aproximada del encabezado público.
-    Los cambios se aplican al pulsar GUARDAR.</p>
+   <p class="artist-hero-help">Vista previa del encabezado a 1440 px y 390 px. Ajusta el foco sin cambiar la foto original; los cambios se aplican al pulsar GUARDAR.</p>
+   <div class="artist-card-preview-layout">
+    <figure class="artist-card-preview" aria-label="Previsualización de tarjeta sin recortar">
+     <div class="artist-card-preview-image"><img data-artist-card-preview-img src="${esc(r.photo||'')}" alt="" loading="lazy"></div>
+     <figcaption><strong data-artist-card-preview-name>${esc(r.name||'ARTISTA')}</strong>
+      <span data-artist-card-preview-member>${Number(r.is_collective_member||0)===1?'MIEMBRO DEL COLECTIVO BRVTAL':'ARTISTA INVITADO'}</span>
+     </figcaption>
+    </figure>
+    <div class="artist-card-preview-notes">
+     <strong>VISTA DE TARJETA / FOTO COMPLETA</strong>
+     <p>La tarjeta mantiene la proporción de la fotografía sin ampliar ni cortar rostros. El encuadre de portada se ajusta por separado.</p>
+     <p data-artist-photo-source role="status" aria-live="polite">Foto del CMS; Instagram requiere una cuenta profesional y permisos Meta.</p>
+     <button type="button" class="artist-ig-try" data-artist-meta-try>PROBAR FOTO OFICIAL DE INSTAGRAM</button>
+    </div>
+   </div>
    ${controls}
    <div class="artist-hero-actions">
     <button type="button" data-hero-reset>RESTABLECER ESTA VISTA</button>

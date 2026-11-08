@@ -58,3 +58,7 @@ body.cromo-page.entity-page--artist .entity-hero .entity-image img{
     transform:scale(var(--artist-hero-mobile-zoom,1));
   }
 }
+
+/* Full-portrait preview: no clipping of the artist's face or shoulders. */
+.artist-preview img{object-fit:contain;object-position:center;background:#050505}
+.roster-group-head{font-variant-numeric:tabular-nums}
