@@ -68,3 +68,67 @@
 @media(prefers-reduced-motion:reduce){.admin-data-grid-row{transition:none}}
 
 /* #1364: muted text meets WCAG AA against the dark admin surfaces. */
+
+/* #1638: Sets action rail is independent from 44px reorder controls.
+   The visual grip follows the same six-dot language as the new admin tools. */
+.admin-data-grid-shell[data-grid-module="sets"] .admin-grid-row-actions {
+  justify-content: flex-start;
+  flex-wrap: nowrap;
+  gap: 8px;
+  min-width: 0;
+  padding-right: 112px!important;
+}
+.admin-data-grid-shell[data-grid-module="sets"] .admin-grid-row-actions .admin-grid-action {
+  box-sizing: border-box;
+  min-width: 62px;
+  min-height: 44px;
+  padding: 7px 9px;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+.admin-data-grid-shell[data-grid-module="sets"] [data-order-item] {
+  padding-right: 112px!important;
+  min-height: 62px;
+}
+.admin-data-grid-shell[data-grid-module="sets"] .content-order-move {
+  box-sizing: border-box;
+  width: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  border-color: var(--line,#34383d);
+}
+.admin-data-grid-shell[data-grid-module="sets"] .content-order-move-up { right: 55px; }
+.admin-data-grid-shell[data-grid-module="sets"] .content-order-move-down { right: 6px; }
+.admin-data-grid-shell .content-order-help-mark { display: none; }
+.admin-data-grid-shell .content-order-help { min-height: 28px; margin: 9px 0; }
+.admin-data-grid-shell [data-order-item] > .content-order-handle {
+  width: 38px; height: 44px;
+  border-radius: 2px;
+  background: transparent;
+  color: var(--muted,#899198);
+  transition: color .16s ease-out, border-color .16s ease-out, background-color .16s ease-out;
+}
+.admin-data-grid-shell [data-order-item] > .content-order-handle span { display:none; }
+.admin-data-grid-shell [data-order-item] > .content-order-handle::before {
+  content: '';
+  width: 16px; height: 24px;
+  background: radial-gradient(circle at center, currentColor 1.55px,transparent 1.8px) 0 0 / 8px 8px;
+  opacity: .85;
+}
+.admin-data-grid-shell [data-order-item] > .content-order-handle:is(:hover,:focus-visible) {
+  background: rgba(255,255,255,.06);
+  color: var(--text,#fff);
+}
+.admin-soundcloud-meta-status {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted,#99a0a8);
+  padding: 4px 0;
+  margin: 2px 0 0;
+  max-width: 65ch;
+  transition: opacity 180ms cubic-bezier(.22,1,.36,1),transform 180ms cubic-bezier(.22,1,.36,1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .admin-data-grid-shell [data-order-item] > .content-order-handle,
+  .admin-soundcloud-meta-status { transition:none!important; }
+}

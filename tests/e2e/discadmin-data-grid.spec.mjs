@@ -193,3 +193,53 @@ test('server pagination exposes total/page state and delegates page changes', as
   await page.locator('#events [data-grid-page-prev]').click();
   await expect.poll(() => page.evaluate(() => window.__requestedPage)).toBe(1);
 });
+
+
+test('Sets action buttons and reorder controls never overlap at responsive widths', async ({page}) => {
+  const orderCss = readFileSync(join(process.cwd(),'discadmin/content-ordering.css'),'utf8');
+  for (const width of [390,768,1024,1440]) {
+    await page.setViewportSize({width,height:900});
+    await page.setContent(`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
+      <style>${gridCss}\n${orderCss}</style></head><body>
+      <div class="admin-data-grid-shell" data-grid-module="sets">
+        <div class="admin-data-grid-scroll"><div class="admin-data-grid">
+          <div class="content-order-help"><span class="content-order-help-mark">↕</span><span>Arrastrar o usar flechas</span></div>
+          <div class="admin-data-grid-body" data-order-resource="sets">
+            <div class="admin-data-grid-row" data-order-item="1" role="row"
+                 style="--admin-grid-template:42px 230px 150px 160px 110px 90px minmax(264px,270px)">
+              <div role="cell"><input type="checkbox"></div>
+              <div role="cell">SET</div><div role="cell">DJ</div><div role="cell">EVENT</div><div role="cell">PUBLISHED</div><div role="cell">01</div>
+              <div role="cell" class="admin-grid-row-actions">
+                <button class="iconbtn admin-grid-action" type="button">EDIT</button>
+                <button class="iconbtn admin-grid-action" type="button">DELETE</button>
+              </div>
+              <button class="content-order-handle"><span>↕</span></button>
+              <button class="content-order-move content-order-move-up">↑</button>
+              <button class="content-order-move content-order-move-down">↓</button>
+            </div>
+          </div>
+        </div></div>
+      </div></body></html>`);
+    const positions = await page.locator('.admin-data-grid-row').evaluate(row => {
+      const bounds = node => {
+        const r = node.getBoundingClientRect();
+        return {left:r.left,right:r.right,top:r.top,bottom:r.bottom};
+      };
+      return {
+        edit:bounds(row.querySelectorAll('.admin-grid-action')[0]),
+        del:bounds(row.querySelectorAll('.admin-grid-action')[1]),
+        up:bounds(row.querySelector('.content-order-move-up')),
+        down:bounds(row.querySelector('.content-order-move-down')),
+        grip:bounds(row.querySelector('.content-order-handle'))
+      };
+    });
+    const separated = (a,b) => a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top;
+    expect(separated(positions.edit,positions.del)).toBeTruthy();
+    for (const action of [positions.edit,positions.del]) {
+      for (const arrow of [positions.up,positions.down]) expect(separated(action,arrow)).toBeTruthy();
+    }
+    await expect(page.locator('.content-order-help-mark')).toBeHidden();
+    await expect(page.locator('.content-order-handle span')).toBeHidden();
+    await expect(page.locator('.admin-grid-action')).toHaveCount(2);
+  }
+});

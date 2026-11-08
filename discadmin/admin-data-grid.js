@@ -17,11 +17,13 @@
     return '/' + raw.replace(/^\.?\//,'').replace(/^\/+/, '');
   }
 
-  function imageCell(src, title, meta = '') {
+  function imageCell(src, title, meta = '', soundcloudUrl = '') {
     const url = imgSrc(src);
     const visual = url
       ? `<img class="admin-grid-thumb" src="${esc(url)}" alt="${esc(title || '')}" loading="lazy">`
-      : '<span class="admin-grid-thumb admin-grid-thumb-ph">NO IMG</span>';
+      : (soundcloudUrl
+        ? `<span class="admin-grid-thumb admin-grid-thumb-ph" data-soundcloud-url="${esc(soundcloudUrl)}" data-soundcloud-title="${esc(title || '')}">NO IMG</span>`
+        : '<span class="admin-grid-thumb admin-grid-thumb-ph">NO IMG</span>');
     return `<div class="admin-grid-primary">${visual}<span><strong class="title">${esc(title || 'Untitled')}</strong><small>${esc(meta || '')}</small></span></div>`;
   }
 
@@ -92,7 +94,7 @@
     sets: {
       orderable:true,
       columns:[
-        {key:'primary',label:'SET',width:'minmax(230px,1.5fr)',sort:true,value:r=>r.title||'',render:r=>imageCell(r.cover_image,r.title,r.slug)},
+        {key:'primary',label:'SET',width:'minmax(230px,1.5fr)',sort:true,value:r=>r.title||'',render:r=>imageCell(r.cover_image,r.title,r.slug,r.platform==='soundcloud' ? r.external_url : '')},
         {key:'artist',label:'ARTISTS',width:'minmax(150px,.8fr)',sort:true,
           value:r=>(Array.isArray(r.artist_names)?r.artist_names.join(', '):r.artist_name)||'',
           render:r=>{
@@ -289,8 +291,9 @@
     ).join('');
   }
 
-  function gridTemplate(columns) {
-    return ['42px',...columns.map(column => column.width || 'minmax(120px,1fr)'),'minmax(150px,auto)'].join(' ');
+  function gridTemplate(columns, module) {
+    const actions = module === 'sets' ? 'minmax(264px,270px)' : 'minmax(150px,auto)';
+    return ['42px',...columns.map(column => column.width || 'minmax(120px,1fr)'),actions].join(' ');
   }
 
   function renderChooser(state) {
@@ -506,7 +509,7 @@
     const selected = selection(state.module);
     const visibleIds = rows.map(row => Number(row.id)).filter(Number.isInteger);
     const allVisibleSelected = visibleIds.length > 0 && visibleIds.every(id => selected.has(id));
-    const template = gridTemplate(visibleColumns);
+    const template = gridTemplate(visibleColumns,state.module);
     const orderEnabled = Boolean(
       spec.orderable
       && state.options.orderingEnabled !== false
@@ -572,6 +575,7 @@
         ${paginationControls}
       </div>`;
 
+    window.BRVTALAdminSoundCloud?.hydrate?.(state.host);
     bindSelection(state,selected,visibleIds,allVisibleSelected);
     bindSorting(state);
     bindMembershipFilter(state);

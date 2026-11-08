@@ -460,7 +460,10 @@ window.BRVTALAdminModules = (() => {
     if(keepBtn)keepBtn.disabled=true;
     if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'SAVING…'; }
     const payload = formPayload(type);
-    const orderValue = visualOrderValue(type,id);
+    // Sets order is controlled exclusively by the server on creation and the
+    // dedicated visual reorder endpoint thereafter. PUT must not replay stale
+    // positions from the client (a previous source of SQL 1062 conflicts).
+    const orderValue = type === 'artists' ? visualOrderValue(type,id) : null;
     if (orderValue !== null) payload.sort_order = orderValue;
     try {
       if (typeof req !== 'function') throw new Error('ADMIN_REQUEST_UNAVAILABLE');

@@ -47,7 +47,16 @@ function brvtal_soundcloud_resolve(string $track, callable $request): array
     if (!is_array($metadata) || ($metadata['provider_name'] ?? '') !== 'SoundCloud') {
         return ['ok' => false, 'error' => 'INVALID_PROVIDER'];
     }
-    return ['ok' => true, 'artwork_url' => brvtal_soundcloud_artwork_url($metadata['thumbnail_url'] ?? null)];
+    $result = ['ok' => true, 'artwork_url' => brvtal_soundcloud_artwork_url($metadata['thumbnail_url'] ?? null)];
+    // oEmbed publishes editorial title and author, but not an authenticated
+    // track duration. Never fabricate seconds or return untrusted embed HTML.
+    foreach (['title' => 'title', 'author_name' => 'author_name'] as $key => $out) {
+        if (is_string($metadata[$key] ?? null)) {
+            $value = trim(preg_replace('/[\x00-\x1F\x7F]/u', '', $metadata[$key]));
+            if ($value !== '' && mb_strlen($value) <= 180) $result[$out] = $value;
+        }
+    }
+    return $result;
 }
 
 /** @return array{ok:bool,artwork_url?:string,error?:string} */

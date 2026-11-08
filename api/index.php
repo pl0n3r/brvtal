@@ -154,6 +154,23 @@ function allowed_fields(string $resource): array
         ],
     ][$resource] ?? [];
 }
+/** Generate a stable unique slug when a Set is created without one. */
+function brvtal_available_set_slug(PDO $pdo, string $title, ?int $excludeId = null): string
+{
+    $base = substr(slugify($title), 0, 180);
+    if ($base === '') $base = 'set';
+    $sql = 'SELECT COUNT(*) FROM sets WHERE slug = ?';
+    if ($excludeId !== null) $sql .= ' AND id <> ?';
+    $check = $pdo->prepare($sql);
+    for ($n = 0; $n < 1000; ++$n) {
+        $candidate = $n === 0 ? $base : substr($base, 0, 170) . '-' . ($n + 1);
+        $params = $excludeId === null ? [$candidate] : [$candidate, $excludeId];
+        $check->execute($params);
+        if ((int)$check->fetchColumn() === 0) return $candidate;
+    }
+    throw new RuntimeException('SET_SLUGS_EXHAUSTED');
+}
+
 function brvtalSetArtistsReady(PDO $pdo): bool
 {
     $st=$pdo->query("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='set_artists'");
@@ -925,18 +942,31 @@ try {
                 422
             );
         }
-        if (isset($p['slug']) && $p['slug'] === '') {
+        if ($resource !== 'sets' && isset($p['slug']) && $p['slug'] === '') {
             $p['slug'] = slugify((string)($p['title'] ?? $p['name'] ?? 'item'));
         }
         if (!$p) {
             json_response(['ok' => false, 'error' => 'NO_FIELDS'], 422);
         }
         brvtal_set_duration_require_schema($pdo, $resource, $p);
-        $fields = array_keys($p);
-        $cols = implode(',', array_map(fn($f) => "`{$f}`", $fields));
-        $marks = implode(',', array_fill(0, count($fields), '?'));
         $audited=brvtal_activity_audited_resource($resource);if($audited)$pdo->beginTransaction();
+        $setCreateLocked = false;
         try {
+            if ($resource === 'sets') {
+                $mutex = $pdo->prepare('SELECT GET_LOCK(?, 5)');
+                $mutex->execute(['brvtal.sets.create']);
+                if ((int)$mutex->fetchColumn() !== 1) {
+                    throw new RuntimeException('SETS_CREATE_BUSY');
+                }
+                $setCreateLocked = true;
+                $p['sort_order'] = (int)$pdo->query('SELECT COALESCE(MIN(sort_order), 0) - 1 FROM sets')->fetchColumn();
+                if (trim((string)($p['slug'] ?? '')) === '') {
+                    $p['slug'] = brvtal_available_set_slug($pdo, (string)($p['title'] ?? 'Set'));
+                }
+            }
+            $fields = array_keys($p);
+            $cols = implode(',', array_map(fn($f) => "`{$f}`", $fields));
+            $marks = implode(',', array_fill(0, count($fields), '?'));
             $st = $pdo->prepare("INSERT INTO {$table} ({$cols}) VALUES ({$marks})");
             $st->execute(array_values($p));
             $newId = (int)$pdo->lastInsertId();
@@ -958,11 +988,16 @@ try {
                 $pdo->commit();
                 brvtalIndexNowNotifyChange($pdo, $resource, null, $after);
             }
+            if ($setCreateLocked) {
+                $pdo->query("SELECT RELEASE_LOCK('brvtal.sets.create')");
+                $setCreateLocked = false;
+            }
             json_response(['ok' => true, 'id' => $newId], 201);
         } catch (PDOException $e) {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
             }
+            if ($setCreateLocked) $pdo->query("SELECT RELEASE_LOCK('brvtal.sets.create')");
             brvtal_log('DB_ERROR', 'Insert failed', [
                 'resource' => $resource,
                 'code' => $e->errorInfo[1] ?? null,
@@ -975,6 +1010,7 @@ try {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
             }
+            if ($setCreateLocked) $pdo->query("SELECT RELEASE_LOCK('brvtal.sets.create')");
             throw $e;
         }
     }
@@ -1005,6 +1041,13 @@ try {
         try{
             $before=brvtal_activity_fetch_resource($pdo,$table,$id,true);
             if($before===null){$pdo->rollBack();json_response(['ok'=>false,'error'=>'NOT_FOUND'],404);}
+            if ($resource === 'sets') {
+                unset($p['sort_order']);
+                if (array_key_exists('slug', $p) && $p['slug'] === '') {
+                    $p['slug'] = (string)($before['slug'] ?? '');
+                    if ($p['slug'] === '') $p['slug'] = brvtal_available_set_slug($pdo, (string)($p['title'] ?? $before['title'] ?? 'Set'), $id);
+                }
+            }
             if($resource==='events'){$scheduleError=brvtal_event_publish_at_error($before,$p);if($scheduleError!==null){$pdo->rollBack();json_response(['ok'=>false,'error'=>$scheduleError['error'],'field'=>$scheduleError['field']],422);}}
             if($resource==='events')$p=brvtal_event_lifecycle_patch($before,$p);if($resource==='events'){$eventStateError=brvtal_event_publication_error(array_replace($before,$p));if($eventStateError!==null){$pdo->rollBack();json_response(['ok'=>false,'error'=>$eventStateError['error'],'field'=>$eventStateError['field']],422);}}
             if($resource==='pages'){$pageState=array_replace($before,$p);if(array_key_exists('slug',$p)&&$p['slug']===''){$p['slug']=slugify((string)($pageState['title']??''));$pageState=array_replace($before,$p);}$pageIdentityError=brvtal_page_identity_error($pageState);if($pageIdentityError!==null){$pdo->rollBack();json_response(['ok'=>false,'error'=>$pageIdentityError['error'],'field'=>$pageIdentityError['field']],422);}$pageStateError=brvtal_page_publication_error($pageState);if($pageStateError!==null){$pdo->rollBack();json_response(['ok'=>false,'error'=>$pageStateError,'field'=>'locale'],422);}}
@@ -1023,7 +1066,7 @@ try {
                 brvtalIndexNowNotifyChange($pdo, $resource, $before, $after);
             }
             json_response(['ok'=>true,'changed'=>$changed]);
-        }catch(PDOException $e){if($pdo->inTransaction())$pdo->rollBack();brvtal_log('DB_ERROR','Update failed',['resource'=>$resource,'id'=>$id,'code'=>$e->errorInfo[1]??null]);if((int)($e->errorInfo[1]??0)===1062)json_response(['ok'=>false,'error'=>'DUPLICATE_SLUG'],409);json_response(['ok'=>false,'error'=>'DATABASE_ERROR'],500);}catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
+        }catch(PDOException $e){if($pdo->inTransaction())$pdo->rollBack();brvtal_log('DB_ERROR','Update failed',['resource'=>$resource,'id'=>$id,'code'=>$e->errorInfo[1]??null]);if((int)($e->errorInfo[1]??0)===1062){$key=(string)($e->errorInfo[2]??'');$isSlug=stripos($key,'slug')!==false;json_response(['ok'=>false,'error'=>$isSlug?'DUPLICATE_SLUG':'DUPLICATE_VALUE','field'=>$isSlug?'slug':null],409);}json_response(['ok'=>false,'error'=>'DATABASE_ERROR'],500);}catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
     }
     if($method==='DELETE'&&$id!==null){
         $audited=brvtal_activity_audited_resource($resource);$pdo->beginTransaction();
