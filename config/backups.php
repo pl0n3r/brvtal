@@ -31,7 +31,9 @@ function brvtal_backup_ensure_private_dir(string $dir): void
 
     $htaccess = $dir . '/.htaccess';
     if (!is_file($htaccess)) {
-        @file_put_contents($htaccess, "Options -Indexes\nRequire all denied\nDeny from all\n", LOCK_EX);
+        if (@file_put_contents($htaccess, "Options -Indexes\nRequire all denied\nDeny from all\n", LOCK_EX) === false) {
+            throw new RuntimeException('BACKUP_ACCESS_PROTECTION_FAILED');
+        }
     }
 }
 
@@ -92,20 +94,27 @@ function brvtal_backup_order_columns(PDO $pdo, string $quotedTable, array $colum
 function brvtal_backup_unlink_if_exists(string $path): void
 {
     if (is_file($path) || is_link($path)) {
-        @unlink($path);
+        if (!@unlink($path) && (is_file($path) || is_link($path))) {
+            // Do not disclose private filesystem paths in backup error reporting.
+            error_log('BRVTAL BACKUP_CLEANUP_FAILED');
+        }
     }
 }
 
 function brvtal_backup_export_database(PDO $pdo, string $target): array
 {
-    // A failed retry must never erase a previously valid backup.
-    if (file_exists($target) || is_link($target)) {
+    // Reserve the final destination atomically; never delete another export's .part.
+    $targetReservation = @fopen($target, 'xb');
+    if (!is_resource($targetReservation)) {
         throw new RuntimeException('BACKUP_TARGET_EXISTS');
     }
+    fclose($targetReservation);
     $part = $target . '.part';
-    brvtal_backup_unlink_if_exists($part);
     $handle = @fopen($part, 'xb');
-    if (!is_resource($handle)) throw new RuntimeException('BACKUP_DATABASE_OPEN_FAILED');
+    if (!is_resource($handle)) {
+        brvtal_backup_unlink_if_exists($target);
+        throw new RuntimeException('BACKUP_DATABASE_OPEN_FAILED');
+    }
 
     $tables = [];
     $views = [];
@@ -271,14 +280,26 @@ function brvtal_backup_create_media_archive(string $uploadsDir, array $inventory
         return ['status'=>'ready', 'file'=>null, 'bytes'=>0, 'size'=>'0 B', 'sha256'=>null, 'files'=>0];
     }
 
-    if (file_exists($target) || is_link($target)) {
+    // Exclusive reservation prevents two archives from claiming the same final path.
+    $targetReservation = @fopen($target, 'xb');
+    if (!is_resource($targetReservation)) {
         return ['status'=>'unavailable', 'reason'=>'MEDIA_ARCHIVE_TARGET_EXISTS'];
     }
+    fclose($targetReservation);
     $part = $target . '.part';
-    brvtal_backup_unlink_if_exists($part);
+    $partReservation = @fopen($part, 'xb');
+    if (!is_resource($partReservation)) {
+        brvtal_backup_unlink_if_exists($target);
+        return ['status'=>'unavailable', 'reason'=>'MEDIA_ARCHIVE_OPEN_FAILED'];
+    }
+    fclose($partReservation);
     $zip = new ZipArchive();
     $opened = $zip->open($part, ZipArchive::CREATE | ZipArchive::OVERWRITE);
-    if ($opened !== true) return ['status'=>'unavailable', 'reason'=>'MEDIA_ARCHIVE_OPEN_FAILED'];
+    if ($opened !== true) {
+        brvtal_backup_unlink_if_exists($part);
+        brvtal_backup_unlink_if_exists($target);
+        return ['status'=>'unavailable', 'reason'=>'MEDIA_ARCHIVE_OPEN_FAILED'];
+    }
 
     try {
         foreach (($inventory['entries'] ?? []) as $entry) {
@@ -333,16 +354,33 @@ function brvtal_backup_create(PDO $pdo, array $options = []): array
     if ($maxMediaBytes < 1) $maxMediaBytes = 2 * 1024 * 1024 * 1024;
 
     brvtal_backup_ensure_private_dir($baseDir);
-    $id = brvtal_backup_id();
-    $databasePath = $baseDir . '/' . $id . '.database.sql';
-    $mediaManifestPath = $baseDir . '/' . $id . '.media.json';
-    $mediaArchivePath = $baseDir . '/' . $id . '.media.zip';
-    $manifestPath = $baseDir . '/' . $id . '.manifest.json';
-    foreach ([$databasePath, $mediaManifestPath, $mediaArchivePath, $manifestPath] as $candidate) {
-        if (file_exists($candidate) || is_link($candidate)) {
-            throw new RuntimeException('BACKUP_ID_COLLISION');
+    $reservation = null;
+    $reservationPath = '';
+    $id = '';
+    // The exclusive per-ID lease spans publication and failure cleanup.
+    for ($attempt = 0; $attempt < 5; $attempt++) {
+        $id = brvtal_backup_id();
+        $reservationPath = $baseDir . '/' . $id . '.pending';
+        $reservation = @fopen($reservationPath, 'xb');
+        if (!is_resource($reservation)) continue;
+        $databasePath = $baseDir . '/' . $id . '.database.sql';
+        $mediaManifestPath = $baseDir . '/' . $id . '.media.json';
+        $mediaArchivePath = $baseDir . '/' . $id . '.media.zip';
+        $manifestPath = $baseDir . '/' . $id . '.manifest.json';
+        $collision = false;
+        foreach ([$databasePath, $mediaManifestPath, $mediaArchivePath, $manifestPath,
+                  $databasePath . '.part', $mediaArchivePath . '.part'] as $candidate) {
+            if (file_exists($candidate) || is_link($candidate)) {
+                $collision = true;
+                break;
+            }
         }
+        if (!$collision) break;
+        fclose($reservation);
+        $reservation = null;
+        brvtal_backup_unlink_if_exists($reservationPath);
     }
+    if (!is_resource($reservation)) throw new RuntimeException('BACKUP_ID_COLLISION');
     $createdFiles = [];
 
     try {
@@ -431,6 +469,9 @@ function brvtal_backup_create(PDO $pdo, array $options = []): array
         brvtal_backup_unlink_if_exists($mediaArchivePath . '.part');
         brvtal_backup_unlink_if_exists($manifestPath);
         throw $error;
+    } finally {
+        fclose($reservation);
+        brvtal_backup_unlink_if_exists($reservationPath);
     }
 }
 

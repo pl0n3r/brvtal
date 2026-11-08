@@ -74,12 +74,20 @@ function brvtal_log(string $level, string $message, array $context = []): void
     // Explicit UTC even before bootstrap switches the local timezone.
     $time = gmdate(DATE_ATOM);
     if (!is_string($GLOBALS['brvtal_log_request_id'] ?? null)) {
-        $GLOBALS['brvtal_log_request_id'] = bin2hex(random_bytes(8));
+        try {
+            $GLOBALS['brvtal_log_request_id'] = bin2hex(random_bytes(8));
+        } catch (Throwable) {
+            // Correlation only, not an authentication token: preserve the original error.
+            $seed = (string)getmypid() . ':' . (string)microtime(true) . ':' . (string)hrtime(true);
+            $GLOBALS['brvtal_log_request_id'] = substr(hash('sha256', $seed), 0, 16);
+        }
     }
     $requestId = $GLOBALS['brvtal_log_request_id'];
     // Never log client IP or query strings, which may contain credentials.
-    $path = parse_url((string)($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH);
-    $uri = is_string($path) && $path !== '' ? substr($path, 0, 200) : '-';
+    $rawUri = (string)($_SERVER['REQUEST_URI'] ?? '');
+    // REQUEST_URI is a path, not a URL: parse_url() misreads leading // as a host.
+    $path = explode('?', $rawUri, 2)[0];
+    $uri = $path !== '' ? substr($path, 0, 200) : '-';
     $uri = preg_replace('/[\\x00-\\x1F\\x7F]/', '', $uri) ?? '-';
     $message = substr(str_replace(["\r", "\n"], ' ', $message), 0, 1500);
 

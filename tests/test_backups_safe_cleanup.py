@@ -52,6 +52,43 @@ class BackupsSafeCleanupTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertNotRegex(result.stdout + result.stderr, r"(?i)warning:|deprecated|fatal error")
 
+    def test_existing_partial_is_never_deleted_by_competing_export(self):
+        script = """
+            require 'config/backups.php';
+            $dir = sys_get_temp_dir() . '/brvtal-1655-race-' . bin2hex(random_bytes(6));
+            if (!mkdir($dir, 0700)) { exit(2); }
+            $target = $dir . '/backup.database.sql';
+            $partial = $target . '.part';
+            file_put_contents($partial, 'ACTIVE_OTHER_EXPORT');
+            try {
+                $pdo = (new ReflectionClass(PDO::class))->newInstanceWithoutConstructor();
+                try {
+                    brvtal_backup_export_database($pdo, $target);
+                    exit(3);
+                } catch (RuntimeException $error) {
+                    if ($error->getMessage() !== 'BACKUP_DATABASE_OPEN_FAILED') { exit(4); }
+                }
+                if (file_exists($target)) { exit(5); }
+                if (file_get_contents($partial) !== 'ACTIVE_OTHER_EXPORT') { exit(6); }
+                file_put_contents($target, 'VALID_BACKUP');
+                try { brvtal_backup_export_database($pdo, $target); exit(7); }
+                catch (RuntimeException $error) {
+                    if ($error->getMessage() !== 'BACKUP_TARGET_EXISTS') { exit(8); }
+                }
+                if (file_get_contents($target) !== 'VALID_BACKUP') { exit(9); }
+            } finally {
+                if (is_file($partial)) { unlink($partial); }
+                if (is_file($target)) { unlink($target); }
+                rmdir($dir);
+            }
+        """
+        result = subprocess.run(
+            ["php", "-d", "error_reporting=32767", "-d", "display_errors=1", "-r", script],
+            cwd=ROOT, text=True, capture_output=True, timeout=20, check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotRegex(result.stdout + result.stderr, r"(?i)warning:|deprecated|fatal error")
+
 
 if __name__ == "__main__":
     unittest.main()

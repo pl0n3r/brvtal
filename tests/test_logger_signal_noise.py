@@ -50,6 +50,38 @@ class LoggerSignalNoiseTests(unittest.TestCase):
         self.assertNotIn("routine connection", result.stdout)
         self.assertNotIn("suppressed warning", result.stdout)
 
+    def test_double_slash_uri_and_unsuppressed_warning_notice(self):
+        script = """
+            define('BRVTAL_SENTRY_TESTING', true);
+            $logFile = tempnam(sys_get_temp_dir(), 'brvtal-1655-levels-');
+            $GLOBALS['brvtalSentryTestLogFile'] = $logFile;
+            $_SERVER['REQUEST_URI'] = '//api/contact.php?token=SECRET_QUERY';
+            try {
+                require 'config/logger.php';
+                brvtal_log('WARNING', 'explicit warning');
+                brvtal_log('NOTICE', 'explicit notice');
+                trigger_error('user warning', E_USER_WARNING);
+                trigger_error('user notice', E_USER_NOTICE);
+                echo file_get_contents($logFile);
+            } finally {
+                if (is_file($logFile)) { unlink($logFile); }
+            }
+        """
+        result = subprocess.run(
+            ["php", "-d", "error_reporting=32767", "-d", "display_errors=0",
+             "-d", "log_errors=0", "-r", script],
+            cwd=ROOT, text=True, capture_output=True, timeout=20, check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        lines = [line for line in result.stdout.splitlines() if line.strip()]
+        self.assertEqual(len(lines), 4, result.stdout + result.stderr)
+        self.assertIn("[WARNING] [WARNING]", lines[0])
+        self.assertIn("[NOTICE] [NOTICE]", lines[1])
+        self.assertIn("[WARNING] [WARNING]", lines[2])
+        self.assertIn("[NOTICE] [NOTICE]", lines[3])
+        self.assertTrue(all("[URI://api/contact.php]" in line for line in lines))
+        self.assertNotIn("SECRET_QUERY", result.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()
