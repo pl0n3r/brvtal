@@ -36,8 +36,8 @@ class LoggerSignalNoiseTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         lines = [line for line in result.stdout.splitlines() if line.strip()]
         self.assertEqual(len(lines), 2, result.stdout + result.stderr)
-        self.assertIn("[EVENT:DB_ERROR]", lines[0])
-        self.assertIn("[EVENT:ERROR]", lines[1])
+        self.assertIn("[ERROR] [DB_ERROR]", lines[0])
+        self.assertIn("[ERROR] [ERROR]", lines[1])
         self.assertTrue(all("[ERROR]" in line for line in lines))
         self.assertTrue(all(re.search(r"^\[\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\+00:00\]", line) for line in lines))
         request_ids = [re.search(r"\[RID:([0-9a-f]{16})\]", line) for line in lines]

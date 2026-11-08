@@ -84,7 +84,7 @@ function brvtal_log(string $level, string $message, array $context = []): void
     $message = substr(str_replace(["\r", "\n"], ' ', $message), 0, 1500);
 
     $line = sprintf(
-        "[%s] [%s] [EVENT:%s] [RID:%s] [URI:%s] %s",
+        "[%s] [%s] [%s] [RID:%s] [URI:%s] %s",
         $time,
         $severity,
         $event,
