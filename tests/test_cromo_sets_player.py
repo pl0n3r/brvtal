@@ -103,20 +103,39 @@ echo json_encode(compact('invalid','good','artbad','n','a','b'));
         self.assertIn("#cromo-home .cr-set-art", CSS)
 
     def test_featured_compact_layout_contract(self):
-        # The featured plate must not inherit the height of all visible list rows.
-        self.assertIn("grid-template-columns:1.4fr 1fr;gap:24px;align-items:start", CSS)
-        self.assertIn("justify-content:flex-start", CSS)
+        # The featured plate remains compact and sits above the full-width grid.
+        self.assertIn("display:grid;grid-template-columns:minmax(0,1fr)", CSS)
+        self.assertIn("grid-template-columns:minmax(0,1fr) auto;align-items:end", CSS)
         self.assertIn("min-height:0;min-width:0;align-self:start", CSS)
         self.assertIn('grid-template-areas:"eyebrow eyebrow" "artwork title" "artwork artists"', CSS)
         self.assertIn("#cromo-home .cr-feat .cr-sound-feature-meta>h3{grid-area:title", CSS)
         self.assertIn("#cromo-home .cr-feat .cr-sound-feature-meta>p:last-child", CSS)
         self.assertIn("grid-area:artwork;width:100%;height:auto;aspect-ratio:1;margin:0", CSS)
-        self.assertIn("cr-sound-actions{position:relative;z-index:3;margin-top:0}", CSS)
+        self.assertIn("#cromo-home .cr-feat .cr-sound-actions{", CSS)
+        self.assertIn("justify-self:end;align-self:end", CSS)
 
     def test_featured_responsive_e2e_contract(self):
         self.assertIn("Cromo featured card has compact grouped content at 390/768/900/1440", BROWSER)
         self.assertIn("for (const width of [390, 768, 900, 1440])", BROWSER)
         self.assertIn("await noOverflow(page)", BROWSER)
+
+    def test_catalog_mosaic_layout_contract(self):
+        self.assertIn("grid-template-columns:repeat(2,minmax(0,1fr))", CSS)
+        self.assertIn("#cromo-home .cr-sets-catalog>.cr-sl{grid-column:1/-1}", CSS)
+        self.assertIn("@media(max-width:640px)", CSS)
+        self.assertIn("#cromo-home #discos .cr-sl{grid-template-columns:minmax(0,1fr)}", CSS)
+        self.assertIn("text-wrap:balance", CSS)
+        self.assertIn("font-variant-numeric:tabular-nums", CSS)
+        self.assertIn("Cromo mosaic removes left column gap after revealing 9 and 30 sets", BROWSER)
+
+    def test_catalog_gsap_progressive_reveal_contract(self):
+        self.assertIn("const revealBatch = (cards)", HOME)
+        self.assertIn("typeof gsap?.fromTo !== 'function'", HOME)
+        self.assertIn("window.matchMedia('(prefers-reduced-motion: reduce)').matches", HOME)
+        self.assertIn("duration: .36, ease: 'power3.out', stagger: .045", HOME)
+        self.assertIn("clearProps: 'opacity,transform'", HOME)
+        self.assertIn("added.filter((row) => !row.contains(nextFocus))", HOME)
+        self.assertIn("Cromo mosaic optional GSAP reveal never blocks keyboard or reduced motion", BROWSER)
 
     def test_catalog_all_published_reachable(self):
         self.assertNotIn("rest.slice(0, 4).map", HOME)
