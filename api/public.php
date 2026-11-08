@@ -7,6 +7,7 @@ require_once __DIR__ . '/../config/public_i18n.php';
 require_once __DIR__ . '/../config/public_home.php';
 require_once __DIR__ . '/../config/memory_relations.php';
 require_once __DIR__ . '/../config/artist_collective_membership.php';
+require_once __DIR__ . '/../config/instagram_profile_photo.php';
 require_once __DIR__ . '/../config/public_page.php';
 require_once __DIR__ . '/public-archive.php';
 require_once __DIR__ . '/public-related.php';
