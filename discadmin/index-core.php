@@ -367,8 +367,8 @@ function artistHeroMarkup(r) {
   </div>
   <div class="artist-hero-workspace" data-artist-hero data-viewport="desktop">
    <div class="artist-hero-tabs" role="group" aria-label="Previsualizar portada">
-    <button type="button" data-hero-switch="desktop" aria-pressed="true">ESCRITORIO</button>
-    <button type="button" data-hero-switch="mobile" aria-pressed="false">MÓVIL</button>
+    <button type="button" data-hero-switch="desktop" aria-pressed="true">ESCRITORIO / 1440</button>
+    <button type="button" data-hero-switch="mobile" aria-pressed="false">MÓVIL / 390</button>
    </div>
    <div class="artist-hero-stage">
     <img data-hero-preview-img src="${esc(r.photo||'')}" alt="" loading="lazy">
@@ -376,11 +376,24 @@ function artistHeroMarkup(r) {
     <div class="artist-hero-stage-copy">
      <span>BRVTAL / ARTISTAS / PREVISUALIZACIÓN</span>
      <strong data-hero-preview-name>${esc(r.name||'ARTISTA')}</strong>
-     <small>MIEMBRO DEL COLECTIVO</small>
+     <small data-hero-preview-member>${Number(r.is_collective_member||0)===1?'MIEMBRO DEL COLECTIVO BRVTAL':'ARTISTA INVITADO'}</small>
     </div>
    </div>
-   <p class="artist-hero-help">Vista previa aproximada del encabezado público.
-    Los cambios se aplican al pulsar GUARDAR.</p>
+   <p class="artist-hero-help">Vista previa del encabezado a 1440 px y 390 px. Ajusta el foco sin cambiar la foto original; los cambios se aplican al pulsar GUARDAR.</p>
+   <div class="artist-card-preview-layout">
+    <figure class="artist-card-preview" aria-label="Previsualización de tarjeta sin recortar">
+     <div class="artist-card-preview-image"><img data-artist-card-preview-img src="${esc(r.photo||'')}" alt="" loading="lazy"></div>
+     <figcaption><strong data-artist-card-preview-name>${esc(r.name||'ARTISTA')}</strong>
+      <span data-artist-card-preview-member>${Number(r.is_collective_member||0)===1?'MIEMBRO DEL COLECTIVO BRVTAL':'ARTISTA INVITADO'}</span>
+     </figcaption>
+    </figure>
+    <div class="artist-card-preview-notes">
+     <strong>VISTA DE TARJETA / FOTO COMPLETA</strong>
+     <p>La tarjeta mantiene la proporción de la fotografía sin ampliar ni cortar rostros. El encuadre de portada se ajusta por separado.</p>
+     <p data-artist-photo-source role="status" aria-live="polite">Foto del CMS; Instagram requiere una cuenta profesional y permisos Meta.</p>
+     <button type="button" class="artist-ig-try" data-artist-meta-try>PROBAR FOTO OFICIAL DE INSTAGRAM</button>
+    </div>
+   </div>
    ${controls}
    <div class="artist-hero-actions">
     <button type="button" data-hero-reset>RESTABLECER ESTA VISTA</button>
