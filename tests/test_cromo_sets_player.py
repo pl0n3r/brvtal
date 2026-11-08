@@ -105,14 +105,14 @@ echo json_encode(compact('invalid','good','artbad','n','a','b'));
     def test_featured_compact_layout_contract(self):
         # The featured plate remains compact and sits above the full-width grid.
         self.assertIn("display:grid;grid-template-columns:minmax(0,1fr)", CSS)
-        self.assertIn("grid-template-columns:minmax(0,1fr) auto;align-items:end", CSS)
+        self.assertIn("grid-template-columns:clamp(216px,24vw,336px) minmax(0,1fr)", CSS)
         self.assertIn("min-height:0;min-width:0;align-self:start", CSS)
-        self.assertIn('grid-template-areas:"eyebrow eyebrow" "artwork title" "artwork artists"', CSS)
-        self.assertIn("#cromo-home .cr-feat .cr-sound-feature-meta>h3{grid-area:title", CSS)
-        self.assertIn("#cromo-home .cr-feat .cr-sound-feature-meta>p:last-child", CSS)
+        self.assertIn('grid-template-areas:"kicker kicker" "artwork copy"', CSS)
+        self.assertIn("#cromo-home .cr-feat .cr-sound-feature-copy{", CSS)
+        self.assertIn("featCopy.append(makeActions(first, feat, featureArt))", HOME)
         self.assertIn("grid-area:artwork;width:100%;height:auto;aspect-ratio:1;margin:0", CSS)
         self.assertIn("#cromo-home .cr-feat .cr-sound-actions{", CSS)
-        self.assertIn("justify-self:end;align-self:end", CSS)
+        self.assertIn("justify-content:flex-start;gap:10px;width:auto", CSS)
 
     def test_featured_responsive_e2e_contract(self):
         self.assertIn("Cromo featured card has compact grouped content at 390/768/900/1440", BROWSER)
@@ -137,6 +137,27 @@ echo json_encode(compact('invalid','good','artbad','n','a','b'));
         self.assertIn("added.filter((row) => !row.contains(nextFocus))", HOME)
         self.assertIn("Cromo mosaic optional GSAP reveal never blocks keyboard or reduced motion", BROWSER)
 
+    def test_secondary_set_actions_responsive_layout_contract(self):
+        self.assertIn("@media(min-width:1260px)", CSS)
+        self.assertIn("grid-template-columns:86px minmax(0,1fr) auto", CSS)
+        self.assertIn("grid-column:3;grid-row:1;justify-self:end;align-self:center", CSS)
+        self.assertIn("flex-wrap:nowrap;gap:8px", CSS)
+        self.assertIn("grid-column:1/-1", CSS)
+        self.assertIn("Cromo secondary actions are right-aligned without overflow", BROWSER)
+
+    def test_secondary_set_actions_e2e_contract(self):
+        self.assertIn("Cromo secondary actions are right-aligned without overflow", BROWSER)
+        self.assertIn("for (const width of [390, 768, 900, 1280, 1440])", BROWSER)
+        self.assertIn("await noOverflow(page)", BROWSER)
+
+    def test_featured_artwork_hierarchy_and_label_contract(self):
+        self.assertIn("Último set publicado", HOME)
+        self.assertIn("featCopy.append(makeActions(first, feat, featureArt))", HOME)
+        self.assertIn("grid-template-columns:clamp(216px,24vw,336px)", CSS)
+        self.assertIn("Cromo featured cover dominates and stays readable", BROWSER)
+        self.assertIn("prefers-reduced-motion:reduce", CSS)
+        self.assertIn("active.player.remove()", HOME)
+
     def test_catalog_all_published_reachable(self):
         self.assertNotIn("rest.slice(0, 4).map", HOME)
         self.assertIn("rest.slice(visible, visible + 4).map(makeRow)", HOME)
@@ -147,8 +168,8 @@ echo json_encode(compact('invalid','good','artbad','n','a','b'));
 
     def test_catalog_editorial_order_and_public_artists(self):
         self.assertIn("const [first, ...rest] = sets;", HOME)
-        self.assertIn("Set destacado", HOME)
-        self.assertNotIn("Último set publicado", HOME)
+        self.assertIn("Último set publicado", HOME)
+        self.assertNotIn("Set destacado", HOME)
         self.assertIn("set.artist_names", HOME)
         self.assertIn("publishedArtistNames(first)", HOME)
         self.assertIn("publishedArtistNames(set)", HOME)
