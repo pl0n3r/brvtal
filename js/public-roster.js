@@ -41,8 +41,8 @@
   const rowMeta = artist => isMember(artist) ? 'MIEMBRO DEL COLECTIVO BRVTAL' : 'ARTISTA INVITADO';
 
   const groups = [
-    ['member', 'BRVTAL / COLLECTIVE'],
-    ['network', 'ARTISTS / COLLABORATORS'],
+    ['member', 'MIEMBROS DEL COLECTIVO BRVTAL'],
+    ['network', 'ARTISTAS INVITADOS'],
   ];
 
   const bindPreview = () => {
