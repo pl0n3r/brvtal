@@ -610,7 +610,7 @@ function brvtalMediaWriteVariant(
     }
 
     $ok = function_exists('imagewebp') && @imagewebp($canvas, $target, $quality);
-    // GdImage is managed by PHP; imagedestroy() is deprecated in PHP 8.5.
+    // GdImage is managed by PHP; explicit destruction is deprecated in 8.5.
     unset($canvas);
     if ($ok) {
         @chmod($target, 0644);

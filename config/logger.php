@@ -80,6 +80,7 @@ function brvtal_log(string $level, string $message, array $context = []): void
     // Never log client IP or query strings, which may contain credentials.
     $path = parse_url((string)($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH);
     $uri = is_string($path) && $path !== '' ? substr($path, 0, 200) : '-';
+    $uri = preg_replace('/[\\x00-\\x1F\\x7F]/', '', $uri) ?? '-';
     $message = substr(str_replace(["\r", "\n"], ' ', $message), 0, 1500);
 
     $line = sprintf(
