@@ -682,8 +682,8 @@
       add('noches', 'e' + e.id, 'noche', text(e.title, 60),
         [when ? two(when.getDate()) + ' ' + MONTHS[when.getMonth()] + ' ' + when.getFullYear() : '', text(e.city)].filter(Boolean).join(' · '), route('events', e.slug));
     });
-    list('artists').slice().sort((a, b) => (b.is_collective_member ? 1 : 0) - (a.is_collective_member ? 1 : 0)).forEach((a) =>
-      add('artistas', 'a' + a.id, 'artista', text(a.name, 60), a.is_collective_member ? 'Colectivo' : 'Colaborador', route('artists', a.slug)));
+    list('artists').slice().sort((a, b) => Number(b.is_collective_member) - Number(a.is_collective_member)).forEach((a) =>
+      add('artistas', 'a' + a.id, 'artista', text(a.name, 60), (a.is_collective_member === true || Number(a.is_collective_member) === 1) ? 'Miembro del colectivo BRVTAL' : 'Artista invitado', route('artists', a.slug)));
     list('sets').forEach((x) => add('sonido', 's' + x.id, 'set', text(x.title, 60), 'Set' + (x.artist_name ? ' · ' + text(x.artist_name, 30) : ''), route('sets', x.slug)));
     list('releases').forEach((r) => add('sonido', 'r' + r.id, 'disco', text(r.title, 60), 'Disco' + (r.release_type ? ' · ' + text(r.release_type, 20) : ''), route('releases', r.slug)));
 
