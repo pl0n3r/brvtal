@@ -31,7 +31,7 @@ class CromoSetsPlayerTests(unittest.TestCase):
 
     def test_single_active_player_and_safe_fallback(self):
         self.assertIn("active.player.remove()", HOME)
-        self.assertIn("if (active?.card === card) { stop(); return; }", HOME)
+        self.assertIn("if (active?.card === card) { stop(true); return; }", HOME)
         self.assertIn("window.BRVTALCromoSound?.stop?.()", HOME)
         self.assertIn("button.disabled = !art.url", HOME)
         self.assertIn("ABRIR EN ", HOME)
@@ -196,6 +196,38 @@ echo json_encode(compact('invalid','good','artbad','n','a','b'));
         self.assertIn("0/1/5/6/30", BROWSER)
         self.assertIn("390, 1440", BROWSER)
         self.assertIn("await noOverflow(page)", BROWSER)
+
+
+    def test_shared_audio_deck_never_expands_set_cards(self):
+        self.assertIn("const playerId = 'cromo-audio-deck'", HOME)
+        self.assertIn("setsSec.append(player)", HOME)
+        self.assertNotIn("card.append(player)", HOME)
+        self.assertIn("class: 'set-player audio-deck'", HOME)
+        self.assertIn("const deck = page.locator('#cromo-home #cromo-audio-deck')", BROWSER)
+        self.assertIn("never resizes Set cards", BROWSER)
+        self.assertIn("#cromo-home #discos>.cr-audio-deck{", CSS)
+        self.assertIn("position:fixed;z-index:85", CSS)
+
+    def test_audio_deck_preserves_official_soundcloud_widget_and_artwork(self):
+        self.assertIn("window.BRVTALCromoSound?.stop?.()", HOME)
+        self.assertIn("https://w.soundcloud.com/player/?url=", HOME)
+        self.assertIn("&show_artwork=false", HOME)
+        self.assertIn("soundcloudArtworkUrl(body.artwork_url)", HOME)
+        self.assertIn("const syncCover = () => {", HOME)
+        self.assertIn("sourceImage?.addEventListener('load', syncCover)", HOME)
+        self.assertIn("ABRIR EN SOUNDCLOUD", HOME)
+        self.assertIn("filter:invert(1) hue-rotate(180deg)", CSS)
+        self.assertIn("role: 'region'", HOME)
+
+    def test_audio_deck_minimize_close_and_reduced_motion(self):
+        self.assertIn("const minimized = player.classList.toggle('cr-is-minimized')", HOME)
+        self.assertIn("stop(true)", HOME)
+        self.assertIn("if (event.key === 'Escape')", HOME)
+        self.assertIn("window.matchMedia('(prefers-reduced-motion: reduce)').matches", HOME)
+        self.assertIn("typeof window.gsap?.fromTo === 'function'", HOME)
+        self.assertIn("min-height:44px", CSS)
+        self.assertIn("max-height:calc(100dvh - 90px)", CSS)
+        self.assertIn("Cromo Audio Deck is shared, dark, minimizable", BROWSER)
 
 
 if __name__ == "__main__":
