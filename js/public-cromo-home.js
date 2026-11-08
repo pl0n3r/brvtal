@@ -211,15 +211,17 @@
     if (sets.length) {
       const [first, ...rest] = sets;
       const featureArt = artwork(first, true);
-      const featBody = el('div', { class: 'sound-feature-meta' },
-        el('p', { text: 'Set destacado' }),
-        featureArt.box,
+      const featCopy = el('div', { class: 'sound-feature-copy' },
         el('h3', { text: text(first.title) }),
         el('p', { text: [publishedArtistNames(first), first.event_title ? 'en ' + text(first.event_title) : ''].filter(Boolean).join(', ') }));
+      const featBody = el('div', { class: 'sound-feature-meta' },
+        el('p', { class: 'sound-feature-kicker', text: 'Último set publicado' }),
+        featureArt.box,
+        featCopy);
       const feat = el('article', { class: 'feat plate chrome-b' },
         el('div', { class: 'disc', 'aria-hidden': 'true' }),
         featBody);
-      feat.append(makeActions(first, feat, featureArt));
+      featCopy.append(makeActions(first, feat, featureArt));
 
       let visible = Math.min(4, rest.length);
       const list = el('div', { class: 'sl', id: 'cromo-set-list',

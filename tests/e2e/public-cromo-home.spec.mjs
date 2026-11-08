@@ -852,7 +852,7 @@ test('Cromo catalog 0/1/5/6/30 preserves editorial order, multi-DJs and keyboard
         continue;
       }
       await expect(feature.locator('h3')).toHaveText(catalog[0].title);
-      await expect(feature).toContainText('Set destacado');
+      await expect(feature).toContainText('Último set publicado');
       await expect(feature).toContainText('DJ PUBLICADO y DJ INVITADO');
       await expect(feature).not.toContainText('SOLO LEGACY');
       await expect(rows).toHaveCount(Math.min(4, size - 1));
@@ -936,10 +936,10 @@ test('Cromo featured card has compact grouped content at 390/768/900/1440', asyn
           titleLeft:title.left,
         };
       });
-      expect(measurements.height).toBeLessThan(510);
+      expect(measurements.height).toBeLessThan(width===390 ? 740 : 530);
       expect(measurements.between).toBeLessThan(55);
-      expect(measurements.bottom).toBeLessThan(50);
-      expect(measurements.titleLeft).toBeGreaterThanOrEqual(measurements.artRight);
+      expect(measurements.bottom).toBeLessThan(55);
+      if(width>640)expect(measurements.titleLeft).toBeGreaterThanOrEqual(measurements.artRight);
       await noOverflow(page);
       if (count===30) {
         await expect(page.locator('#cromo-home #discos .cr-sound-row')).toHaveCount(4);
@@ -1036,6 +1036,95 @@ test('Cromo mosaic optional GSAP reveal never blocks keyboard or reduced motion'
       return !!el?.closest('.cr-sound-row')?.textContent?.includes('MOTION 9');
     });
     expect(focusInLastBatch).toBe(true);
+    await noOverflow(page);
+  }
+});
+
+test('Cromo featured cover dominates and stays readable', async ({page}) => {
+  test.setTimeout(120_000);
+  await mockSoundCloud(page);
+  for(const width of [390,768,1024,1440]){
+    for(const total of [1,5,30]){
+      const catalog=Array.from({length:total}, (_,index)=>({
+        ...soundSets[0],id:9200+index,title:index?'SECONDARY '+index:'INDUSTRIAL RITUAL',
+        artist_names:['DJ PRINCIPAL','DJ INVITADO'],
+        external_url:'https://soundcloud.com/official/hierarchy-'+index,
+      }));
+      await mount(page,{width,reduced:width===390,payload:{...data,sets:catalog}});
+      const feature=page.locator('#cromo-home #discos .cr-feat');
+      await expect(feature.locator('.cr-sound-feature-kicker')).toHaveText('Último set publicado');
+      const bounds=await feature.evaluate(node=>{
+        const box=el=>el.getBoundingClientRect();
+        const artwork=box(node.querySelector('.cr-set-art-featured'));
+        const copy=box(node.querySelector('.cr-sound-feature-copy'));
+        const btn=box(node.querySelector('.cr-sound-actions'));
+        const outer=box(node);
+        return {artWidth:artwork.width,artHeight:artwork.height,artRight:artwork.right,
+          copyLeft:copy.left,copyTop:copy.top,copyBottom:copy.bottom,
+          actionsLeft:btn.left,actionsRight:btn.right,actionsBottom:btn.bottom,
+          outerRight:outer.right,outerHeight:outer.height};
+      });
+      expect(bounds.artWidth).toBeGreaterThanOrEqual(width<=640 ? 210 : width<1000 ? 180 : 216);
+      expect(Math.abs(bounds.artWidth-bounds.artHeight)).toBeLessThan(3);
+      expect(bounds.outerHeight).toBeLessThan(width<=640 ? 790 : 560);
+      expect(bounds.actionsRight).toBeLessThanOrEqual(bounds.outerRight);
+      if(width>640)expect(bounds.copyLeft).toBeGreaterThanOrEqual(bounds.artRight);
+      const secondary=page.locator('#cromo-home #discos .cr-sound-row').first();
+      if(total>1){
+        const small=await secondary.locator('.cr-set-art').boundingBox();
+        expect(bounds.artWidth).toBeGreaterThan(small.width*2.1);
+      }
+      await noOverflow(page);
+      if(total===30){
+        await feature.locator('button.cr-sound-listen').click();
+        await expect(feature.locator('.cr-set-player iframe')).toHaveCount(1);
+        await secondary.locator('button.cr-sound-listen').click();
+        await expect(feature.locator('.cr-set-player iframe')).toHaveCount(0);
+        await expect(page.locator('#cromo-home #discos iframe')).toHaveCount(1);
+      }
+    }
+  }
+});
+
+test('Cromo secondary actions are right-aligned without overflow', async ({page})=>{
+  test.setTimeout(120_000);
+  await mockSoundCloud(page);
+  const sets=Array.from({length:30},(_,i)=>({
+    ...soundSets[0],id:10300+i,title:i===1?'EXTREMELY LONG INDUSTRIAL SESSION NAME WITH MULTIPLE DJS':'SET '+i,
+    artist_names:['DJ PRINCIPAL','DJ INVITADO','DJ ADICIONAL'],
+    external_url:'https://soundcloud.com/official/inline-'+i,
+  }));
+  for (const width of [390, 768, 900, 1280, 1440]){
+    await mount(page,{width,payload:{...data,sets}});
+    const row=page.locator('#cromo-home #discos .cr-sound-row').first();
+    const measurements=await row.evaluate(el=>{
+      const rect=x=>x.getBoundingClientRect();
+      const meta=rect(el.querySelector('.cr-sound-row-meta'));
+      const actions=rect(el.querySelector('.cr-sound-actions'));
+      const item=rect(el);
+      const a=rect(el.querySelector('button.cr-sound-listen'));
+      const b=rect(el.querySelector('a.cr-sound-external'));
+      return {metaRight:meta.right,metaBottom:meta.bottom,actionsLeft:actions.left,
+        actionsTop:actions.top,actionsBottom:actions.bottom,
+        itemRight:item.right,buttonsY:[a.top,b.top]};
+    });
+    if(width>=1260){
+      expect(measurements.actionsLeft).toBeGreaterThanOrEqual(measurements.metaRight-3);
+      expect(Math.abs(measurements.buttonsY[0]-measurements.buttonsY[1])).toBeLessThan(4);
+    }else{
+      expect(measurements.actionsTop).toBeGreaterThanOrEqual(measurements.metaBottom-3);
+    }
+    expect(measurements.actionsBottom).toBeGreaterThan(measurements.actionsTop);
+    expect(measurements.itemRight).toBeGreaterThan(measurements.actionsLeft);
+    await noOverflow(page);
+    const more=page.locator('#cromo-home #discos button.cr-set-more');
+    await more.click();
+    const last=page.locator('#cromo-home #discos .cr-sound-row').last();
+    await expect(last.locator('button.cr-sound-listen')).toBeEnabled();
+    await last.locator('button.cr-sound-listen').click();
+    await expect(last.locator('.cr-set-player iframe')).toHaveCount(1);
+    await last.locator('button.cr-sound-listen').click();
+    await expect(page.locator('#cromo-home #discos iframe')).toHaveCount(0);
     await noOverflow(page);
   }
 });

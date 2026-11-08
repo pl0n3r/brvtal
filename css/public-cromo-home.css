@@ -120,15 +120,13 @@ html.cromo-home body>*:not(#cromo-home):not(#cromoGL):not(script):not(style):not
   gap:clamp(18px,2.3vw,30px);align-items:start;min-width:0;
 }
 #cromo-home .cr-feat{
-  padding:clamp(24px,3vw,40px);display:grid;
-  grid-template-columns:minmax(0,1fr) auto;align-items:end;
-  gap:clamp(16px,2vw,30px);min-height:0;min-width:0;align-self:start;
-  position:relative;overflow:hidden;
+  padding:clamp(24px,2.6vw,38px);display:block;
+  min-height:0;min-width:0;align-self:start;position:relative;overflow:hidden;
 }
-#cromo-home .cr-feat .cr-disc{position:absolute;right:-60px;bottom:-60px;width:320px;height:320px;border-radius:50%;background:repeating-radial-gradient(circle,#0b0b0e 0 3px,#222733 4px 5px);box-shadow:0 0 0 3px rgba(255,255,255,.12);animation:cromo-spin 8s linear infinite}
+#cromo-home .cr-feat .cr-disc{position:absolute;right:-60px;bottom:-60px;width:320px;height:320px;border-radius:50%;background:repeating-radial-gradient(circle,#0b0b0e 0 3px,#222733 4px 5px);box-shadow:0 0 0 3px rgba(255,255,255,.12);animation:cromo-spin 8s linear infinite;opacity:.22;pointer-events:none}
 #cromo-home .cr-feat .cr-disc::after{content:"";position:absolute;inset:34%;border-radius:50%;background:#ff3b1f;box-shadow:0 0 0 10px #030303 inset}
 @keyframes cromo-spin{to{transform:rotate(360deg)}}
-#cromo-home .cr-feat h3{font:400 clamp(36px,4.5vw,76px)/.95 var(--disp);margin:0;min-width:0;overflow-wrap:anywhere;text-transform:uppercase;position:relative;-webkit-text-stroke:.04em #030303;paint-order:stroke fill}
+#cromo-home .cr-feat h3{font:400 clamp(38px,4.8vw,80px)/.95 var(--disp);margin:0;min-width:0;text-wrap:balance;overflow-wrap:anywhere;text-transform:uppercase;position:relative;-webkit-text-stroke:.04em #030303;paint-order:stroke fill}
 #cromo-home .cr-feat p,#cromo-home .cr-sl p{font:600 22px/1.35 var(--body);color:#d7dbe4;position:relative}
 #cromo-home .cr-sl{
   display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
@@ -490,24 +488,28 @@ html.cromo-home body>*:not(#cromo-home):not(#cromoGL):not(script):not(style):not
 /* The feature follows its own content instead of inheriting the taller Sets list. */
 #cromo-home .cr-feat .cr-sound-feature-meta{
   position:relative;z-index:2;min-width:0;display:grid;
-  grid-template-columns:clamp(116px,13vw,176px) minmax(0,1fr);
-  grid-template-areas:"eyebrow eyebrow" "artwork title" "artwork artists";
-  align-items:center;gap:8px clamp(14px,2vw,24px);
+  grid-template-columns:clamp(216px,24vw,336px) minmax(0,1fr);
+  grid-template-areas:"kicker kicker" "artwork copy";
+  align-items:center;gap:clamp(12px,1.5vw,18px) clamp(20px,2.6vw,38px);
 }
-#cromo-home .cr-feat .cr-sound-feature-meta>p:first-child{grid-area:eyebrow;margin:0 0 6px}
-#cromo-home .cr-feat .cr-sound-feature-meta>h3{grid-area:title;align-self:end}
-#cromo-home .cr-feat .cr-sound-feature-meta>p:last-child{
-  grid-area:artists;align-self:start;margin:0;overflow-wrap:anywhere
+#cromo-home .cr-feat .cr-sound-feature-kicker{grid-area:kicker;margin:0 0 4px}
+#cromo-home .cr-feat .cr-sound-feature-copy{
+  grid-area:copy;display:flex;flex-direction:column;align-items:flex-start;
+  justify-content:center;gap:clamp(10px,1.3vw,18px);min-width:0;
+}
+#cromo-home .cr-feat .cr-sound-feature-copy>p{
+  margin:0;max-width:58ch;text-wrap:pretty;overflow-wrap:anywhere;
 }
 #cromo-home .cr-feat .cr-set-art-featured{
   grid-area:artwork;width:100%;height:auto;aspect-ratio:1;margin:0;border-color:var(--red,#ff2a1a);
 }
 #cromo-home .cr-feat .cr-sound-actions{
-  position:relative;z-index:3;margin-top:0;display:flex;flex-direction:column;
-  align-items:stretch;justify-self:end;align-self:end;width:clamp(178px,18vw,224px);
+  position:relative;z-index:3;margin-top:clamp(8px,1.2vw,16px);
+  display:flex;flex-direction:row;flex-wrap:wrap;align-items:center;
+  justify-content:flex-start;gap:10px;width:auto;max-width:100%;
 }
-#cromo-home .cr-feat .cr-sound-actions a.cr-sound-external{width:100%}
-#cromo-home .cr-feat .cr-set-player{grid-column:1/-1}
+#cromo-home .cr-feat .cr-sound-actions a.cr-sound-external{width:auto}
+#cromo-home .cr-feat>.cr-set-player{margin-top:clamp(16px,2vw,28px)}
 #cromo-home .cr-sound-row{
   display:grid;grid-template-columns:76px minmax(0,1fr);
   align-items:center;gap:12px;padding:14px 16px;min-width:0;
@@ -558,19 +560,57 @@ html.cromo-home body>*:not(#cromo-home):not(#cromoGL):not(script):not(style):not
 /* Cromo Sets mosaic: one full-width editorial feature, then a responsive
    catalog grid. The list spans the full section even after VER MÁS batches. */
 @media(max-width:900px){
-  #cromo-home #discos .cr-feat{grid-template-columns:minmax(0,1fr);align-items:start}
-  #cromo-home #discos .cr-feat .cr-sound-actions{
-    flex-direction:row;justify-self:start;align-self:start;align-items:center;
-    width:auto;max-width:100%;flex-wrap:wrap;
+  #cromo-home #discos .cr-sound-feature-meta{
+    grid-template-columns:clamp(184px,28vw,256px) minmax(0,1fr);
   }
-  #cromo-home #discos .cr-feat .cr-sound-actions a.cr-sound-external{width:auto}
 }
 @media(max-width:640px){
   #cromo-home #discos .cr-sl{grid-template-columns:minmax(0,1fr)}
   #cromo-home #discos .cr-sets-catalog{grid-template-columns:minmax(0,1fr)}
   #cromo-home #discos .cr-sets-catalog>.cr-set-more{grid-column:1/-1;justify-self:stretch;width:100%}
+  #cromo-home #discos .cr-sound-feature-meta{
+    grid-template-columns:minmax(0,1fr);
+    grid-template-areas:"kicker" "artwork" "copy";
+  }
+  #cromo-home #discos .cr-feat .cr-set-art-featured{
+    width:min(100%,320px);justify-self:start;
+  }
   #cromo-home #discos .cr-feat .cr-sound-actions{width:100%}
 }
 @media(prefers-reduced-motion:reduce){
   #cromo-home #discos .cr-sound-row{transition:none;transform:none}
+}
+
+/* The secondary cards earn a horizontal action zone only when each
+   mosaic column can accommodate both buttons without crushing titles. */
+@media(min-width:1260px){
+  #cromo-home #discos .cr-sound-row{
+    grid-template-columns:86px minmax(0,1fr) auto;
+    column-gap:12px;
+  }
+  #cromo-home #discos .cr-sound-row>.cr-set-art{width:86px;height:86px}
+  #cromo-home #discos .cr-sound-row .cr-sound-actions{
+    grid-column:3;grid-row:1;justify-self:end;align-self:center;
+    justify-content:flex-end;flex-wrap:nowrap;gap:8px;
+  }
+  #cromo-home #discos .cr-sound-row .cr-sound-listen{
+    min-width:100px;padding:9px 12px;font-size:18px;white-space:nowrap;
+  }
+  #cromo-home #discos .cr-sound-row a.cr-sound-external{
+    padding:8px 9px;font-size:13px;white-space:nowrap;
+  }
+}
+#cromo-home #discos .cr-sound-listen:focus-visible,
+#cromo-home #discos a.cr-sound-external:focus-visible{
+  outline:3px solid var(--red,#ff2a1a);outline-offset:3px;
+}
+@media(hover:hover) and (prefers-reduced-motion:no-preference){
+  #cromo-home #discos .cr-sound-listen,
+  #cromo-home #discos a.cr-sound-external{
+    transition:transform var(--duration-quick) var(--ease-smooth-out),
+      background-color var(--duration-quick) var(--ease-in-out),
+      color var(--duration-quick) var(--ease-in-out);
+  }
+  #cromo-home #discos .cr-sound-listen:active,
+  #cromo-home #discos a.cr-sound-external:active{transform:scale(.96)}
 }
