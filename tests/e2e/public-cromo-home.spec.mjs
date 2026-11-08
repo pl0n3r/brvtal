@@ -184,6 +184,33 @@ test('Contacto recupera el captcha fallido, anuncia errores 422 y preserva el en
   }
 });
 
+test('Contacto conserva el éxito si falla cargar el captcha siguiente', async ({ page }) => {
+  await mount(page);
+  let challenges = 0;
+  await page.route('**/api/contact.php', route => {
+    if (route.request().method() === 'POST') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
+    }
+    challenges += 1;
+    return route.fulfill({
+      status: challenges === 1 ? 200 : 503,
+      contentType: 'application/json',
+      body: challenges === 1 ? JSON.stringify({ ok: true, data: { token: 'first-challenge', question: '2 + 3 = ?' } }) : '{}',
+    });
+  });
+  const form = page.locator('#contacto form');
+  await form.getByRole('button', { name: 'Reintentar verificación' }).click();
+  await form.locator('[name="name"]').fill('Persona');
+  await form.locator('[name="email"]').fill('persona@example.org');
+  await form.locator('[name="message"]').fill('Mensaje de prueba');
+  await form.locator('[name="captcha_answer"]').fill('5');
+  await form.getByRole('button', { name: 'Enviar mensaje' }).click();
+  await expect(form.locator('.cr-form-status')).toContainText('Mensaje enviado');
+  await expect(form.locator('.cr-form-status')).toHaveAttribute('data-state', 'success');
+  await expect(form.getByRole('button', { name: 'Reintentar verificación' })).toBeVisible();
+  await expect(form.getByRole('button', { name: 'Enviar mensaje' })).toBeDisabled();
+});
+
 test('Legacy #archive and #events navigate to visible, keyboard-focusable Cromo destinations at 390/1440', async ({ page }) => {
   const emptyArchive = { ...data, archive: { events: [] } };
   for (const width of [390, 1440]) {

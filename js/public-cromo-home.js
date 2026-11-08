@@ -399,7 +399,8 @@
         if (status.dataset.state === 'error' && status.textContent.includes('anti-bot')) setStatus('', 'idle');
       } catch (error) {
         captchaLabel.textContent = 'Verificación anti-bot no disponible';
-        setStatus('No pudimos cargar la verificación anti-bot. Usa Reintentar verificación.', 'error');
+        // A completed message stays completed even if the next challenge cannot load.
+        if (status.dataset.state !== 'success') setStatus('No pudimos cargar la verificación anti-bot. Usa Reintentar verificación.', 'error');
         retry.hidden = false;
       } finally {
         submit.disabled = !token.value;
