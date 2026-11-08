@@ -47,6 +47,14 @@
 
   const bindPreview = () => {
     const preview = document.querySelector('.artist-preview img');
+    if (preview && preview.dataset.igFallbackBound !== '1') {
+      preview.dataset.igFallbackBound = '1';
+      preview.addEventListener('error', () => {
+        const fallback = preview.dataset.cmsFallback || '';
+        if (fallback && preview.src !== fallback) preview.src = fallback;
+        else preview.removeAttribute('src');
+      });
+    }
     document.querySelectorAll('.artist[data-image]').forEach(artist => {
       artist.addEventListener('mouseenter', () => {
         if (preview && artist.dataset.image) preview.src = artist.dataset.image;
