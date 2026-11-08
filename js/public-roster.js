@@ -85,7 +85,7 @@
         const photo = imageUrl(artist.photo || artist.instagram_photo_url || artist.image || artist.cover_image || '');
         const cms = imageUrl(artist.photo_cms || artist.photo || '');
         const href = slug ? `/artists/${encodeURIComponent(slug)}` : '/#artists';
-        return `<a class="artist artist--${status}" href="${escapeHtml(href)}" data-roster-status="${status}"${photo ? ` data-image="${escapeHtml(photo)}"` : ''}>
+        return `<a class="artist artist--${status}" href="${escapeHtml(href)}" data-roster-status="${status}"${photo ? ` data-image="${escapeHtml(photo)}" data-image-cms="${escapeHtml(cms)}"` : ''}>
           <span>${String(index).padStart(2, '0')}</span><strong>${escapeHtml(name)}</strong><i>${escapeHtml(rowMeta(artist))}</i>
         </a>`;
       }).join('');
