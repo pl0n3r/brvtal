@@ -228,6 +228,8 @@ echo json_encode(compact('invalid','good','artbad','n','a','b'));
         self.assertIn("min-height:44px", CSS)
         self.assertIn("max-height:calc(100dvh - 90px)", CSS)
         self.assertIn("Cromo Audio Deck is shared, dark, minimizable", BROWSER)
+        self.assertIn("native.inert = minimized", HOME)
+        self.assertIn("native.setAttribute('aria-hidden', String(minimized))", HOME)
 
 
 if __name__ == "__main__":

@@ -230,6 +230,10 @@
 
         minimize.addEventListener('click', () => {
           const minimized = player.classList.toggle('cr-is-minimized');
+          // Keep the same live iframe for audio continuity, but remove its
+          // invisible controls from keyboard navigation when collapsed.
+          native.inert = minimized;
+          native.setAttribute('aria-hidden', String(minimized));
           minimize.textContent = minimized ? 'EXPANDIR' : 'MINIMIZAR';
           minimize.setAttribute('aria-expanded', String(!minimized));
           minimize.setAttribute('aria-label', minimized ? 'Expandir reproductor' : 'Minimizar reproductor');
