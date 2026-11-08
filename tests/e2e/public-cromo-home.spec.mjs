@@ -779,15 +779,15 @@ test('Cromo: no iframe before click, official artwork and player switches at 390
     await expect(mainButton).toBeFocused();
     await page.keyboard.press('Enter');
     await expect(mainButton).toHaveAttribute('aria-expanded', 'true');
-    const firstFrame = page.locator('#cromo-home #cromo-audio-deck iframe');
+    const firstFrame = page.locator('#cromo-home .cr-inline-player iframe');
     await expect(firstFrame).toHaveAttribute('src', /soundcloud\.com%2Fofficial%2Ffirst-set/);
     expect(new URL(page.url()).host).toBe('127.0.0.1:4173');
 
     // player switches: selecting second Set destroys the first provider iframe.
     await rows.nth(0).locator('button.cr-sound-listen').click();
     await expect(feat.locator('iframe')).toHaveCount(0);
-    await expect(rows.nth(0).locator('iframe')).toHaveCount(0);
-    await expect(page.locator('#cromo-home #cromo-audio-deck iframe')).toHaveAttribute('src', /soundcloud\.com%2Fofficial%2Fsecond-set/);
+    await expect(rows.nth(0).locator('.cr-sound-actions>.cr-inline-player iframe')).toHaveCount(1);
+    await expect(page.locator('#cromo-home .cr-inline-player iframe')).toHaveAttribute('src', /soundcloud\.com%2Fofficial%2Fsecond-set/);
     await expect(page.locator('#cromo-home .cr-set-player iframe')).toHaveCount(1);
     await rows.nth(0).locator('button.cr-sound-listen').click();
     await expect(page.locator('#cromo-home .cr-set-player iframe')).toHaveCount(0);
@@ -820,8 +820,11 @@ test('Cromo: listening stops ambient audio and ambient activation closes iframe'
   await page.locator('#cromo-home .cr-feat button.cr-sound-listen').click();
   expect(await page.evaluate(() => window.__ambientStopped)).toBe(1);
   await expect(page.locator('#cromo-home .cr-set-player iframe')).toHaveCount(1);
+  const externalLink = page.locator('#cromo-home .cr-feat a.cr-sound-external');
+  await externalLink.focus();
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('brvtal:cromo-ambient-start')));
   await expect(page.locator('#cromo-home .cr-set-player iframe')).toHaveCount(0);
+  await expect(externalLink).toBeFocused();
   await expect(page.locator('#cromo-home .cr-feat button.cr-sound-listen')).toHaveAttribute('aria-expanded', 'false');
 });
 
@@ -947,7 +950,7 @@ test('Cromo featured card has compact grouped content at 390/768/900/1440', asyn
         await expect(page.locator('#cromo-home #discos .cr-sound-row')).toHaveCount(4);
         await expect(page.locator('#cromo-home #discos button.cr-set-more')).toBeVisible();
         await feature.locator('button.cr-sound-listen').click();
-        await expect(page.locator('#cromo-home #cromo-audio-deck iframe')).toHaveCount(1);
+        await expect(page.locator('#cromo-home .cr-inline-player iframe')).toHaveCount(1);
         await noOverflow(page);
       }
     }
@@ -1079,7 +1082,7 @@ test('Cromo featured cover dominates and stays readable', async ({page}) => {
       await noOverflow(page);
       if(total===30){
         await feature.locator('button.cr-sound-listen').click();
-        await expect(page.locator('#cromo-home #cromo-audio-deck iframe')).toHaveCount(1);
+        await expect(page.locator('#cromo-home .cr-inline-player iframe')).toHaveCount(1);
         await secondary.locator('button.cr-sound-listen').click();
         await expect(feature.locator('.cr-set-player iframe')).toHaveCount(0);
         await expect(page.locator('#cromo-home #discos iframe')).toHaveCount(1);
@@ -1124,7 +1127,7 @@ test('Cromo secondary actions are right-aligned without overflow', async ({page}
     const last=page.locator('#cromo-home #discos .cr-sound-row').last();
     await expect(last.locator('button.cr-sound-listen')).toBeEnabled();
     await last.locator('button.cr-sound-listen').click();
-    await expect(page.locator('#cromo-home #cromo-audio-deck iframe')).toHaveCount(1);
+    await expect(page.locator('#cromo-home .cr-inline-player iframe')).toHaveCount(1);
     await last.locator('button.cr-sound-listen').click();
     await expect(page.locator('#cromo-home #discos iframe')).toHaveCount(0);
     await noOverflow(page);
@@ -1132,42 +1135,38 @@ test('Cromo secondary actions are right-aligned without overflow', async ({page}
 });
 
 
-test('Cromo Audio Deck is shared, dark, minimizable and never resizes Set cards', async ({page}) => {
+test('Cromo SoundCloud player stays inline beside ESCUCHAR, never floating', async ({page}) => {
   test.setTimeout(120_000);
   await mockSoundCloud(page);
   for (const width of [390, 768, 900, 1280, 1440]) {
     await mount(page, {width, payload: {...data, sets: soundSets}});
     const feature = page.locator('#cromo-home .cr-feat');
     const row = page.locator('#cromo-home .cr-sound-row').first();
-    const deck = page.locator('#cromo-home #cromo-audio-deck');
-    const featureBefore = await feature.boundingBox();
-    const rowBefore = await row.boundingBox();
-    await feature.locator('button.cr-sound-listen').click();
-    await expect(deck).toBeVisible();
-    await expect(deck.locator('iframe')).toHaveCount(1);
-    await expect(deck.locator('.cr-deck-title')).toHaveText(soundSets[0].title);
-    await expect(feature.locator('iframe')).toHaveCount(0);
+    const trigger = feature.locator('button.cr-sound-listen');
+    await expect(page.locator('#cromo-home .cr-inline-player')).toHaveCount(0);
+    await trigger.click();
+    const player = feature.locator('.cr-sound-actions>.cr-inline-player');
+    await expect(player).toBeVisible();
+    await expect(player.locator('iframe')).toHaveCount(1);
+    await expect(player).toHaveCSS('position', 'relative');
+    await expect(player.locator('iframe')).toHaveCSS('filter', /invert/);
+    await expect(trigger).toHaveAttribute('aria-controls', /cromo-inline-player-/);
+    await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    await expect(trigger).toHaveText('CERRAR');
     await expect(row.locator('iframe')).toHaveCount(0);
-    expect(Math.abs((await feature.boundingBox()).height - featureBefore.height)).toBeLessThan(2);
-    expect(Math.abs((await row.boundingBox()).height - rowBefore.height)).toBeLessThan(2);
-    await expect(deck).toHaveCSS('position', 'fixed');
-    await expect(deck.locator('iframe')).toHaveCSS('filter', /invert/);
-
-    await deck.locator('button.cr-deck-minimize').click();
-    await expect(deck).toHaveClass(/cr-is-minimized/);
-    await expect(deck.locator('iframe')).toHaveCount(1);
-    await deck.locator('button.cr-deck-minimize').click();
-    await expect(deck).not.toHaveClass(/cr-is-minimized/);
-    await expect(deck.locator('iframe')).toHaveCount(1);
-
+    const rects = await feature.evaluate(card => {
+      const group = card.querySelector('.cr-sound-actions');
+      const trigger = group.querySelector('button.cr-sound-listen');
+      const panel = group.querySelector('.cr-inline-player');
+      return {button:trigger.getBoundingClientRect().top, player:panel.getBoundingClientRect().top};
+    });
+    expect(rects.player).toBeGreaterThan(rects.button);
     await row.locator('button.cr-sound-listen').click();
-    await expect(feature.locator('button.cr-sound-listen')).toHaveAttribute('aria-expanded', 'false');
-    await expect(deck.locator('iframe')).toHaveCount(1);
-    await expect(deck.locator('iframe')).toHaveAttribute('src', /second-set/);
     await expect(feature.locator('iframe')).toHaveCount(0);
-    await expect(row.locator('iframe')).toHaveCount(0);
-    await deck.locator('button.cr-deck-close').click();
-    await expect(page.locator('#cromo-home #cromo-audio-deck')).toHaveCount(0);
+    await expect(row.locator('.cr-sound-actions>.cr-inline-player iframe')).toHaveCount(1);
+    await expect(row.locator('button.cr-sound-listen')).toHaveText('CERRAR');
+    await row.locator('button.cr-sound-listen').click();
+    await expect(page.locator('#cromo-home .cr-inline-player')).toHaveCount(0);
     await expect(row.locator('button.cr-sound-listen')).toBeFocused();
     await noOverflow(page);
   }
