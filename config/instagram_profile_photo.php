@@ -96,7 +96,6 @@ function brvtalIgCurl(string $url, array $headers = [], ?string $pin = null): ?a
     $bytes = curl_exec($ch);
     $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
     $mime = strtolower(trim(explode(';', (string)curl_getinfo($ch, CURLINFO_CONTENT_TYPE))[0]));
-    curl_close($ch);
     if (!is_string($bytes) || $status !== 200 || strlen($bytes) > 6291456) return null;
     return ['bytes'=>$bytes, 'mime'=>$mime];
 }
