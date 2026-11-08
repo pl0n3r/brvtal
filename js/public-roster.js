@@ -15,11 +15,20 @@
     const raw = String(value ?? '').trim();
     if (!raw) return '';
     try {
-      const resolved = new URL(raw.startsWith('/') || /^https?:\/\//i.test(raw) ? raw : '/' + raw.replace(/^\.?\//, ''), location.origin);
-      // Preserve safe original local path in the DOM for editorial/source fidelity.
-      // The attribute is HTML-escaped by the caller; the URL is validated here.
-      return ['https:', 'http:'].includes(resolved.protocol) && resolved.origin === location.origin
-        ? (raw.startsWith('/') ? raw : resolved.href) : '';
+      // Playwright's isolated DOM has an opaque "null" origin; local paths must
+      // remain valid there without ever allowing network-external image URLs.
+      const isolated = !location.origin || location.origin === 'null';
+      if (isolated && !raw.startsWith('/')) return '';
+      const base = isolated ? 'https://brvtal.invalid' : location.origin;
+      const resolved = new URL(
+        raw.startsWith('/') || /^https?:\/\//i.test(raw) ? raw : '/' + raw.replace(/^\.?\//, ''),
+        base
+      );
+      if (!['https:', 'http:'].includes(resolved.protocol) || resolved.origin !== base) return '';
+      // Prevent encoded or plain traversals of a relative CMS upload path.
+      if (raw.startsWith('/uploads/') && !resolved.pathname.startsWith('/uploads/')) return '';
+      // Keep original local path for editorial fidelity; HTML attributes are escaped later.
+      return raw.startsWith('/') ? raw : resolved.href;
     } catch (_) { return ''; }
   };
 
