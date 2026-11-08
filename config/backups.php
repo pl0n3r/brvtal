@@ -357,6 +357,10 @@ function brvtal_backup_create(PDO $pdo, array $options = []): array
     $reservation = null;
     $reservationPath = '';
     $id = '';
+    $databasePath = '';
+    $mediaManifestPath = '';
+    $mediaArchivePath = '';
+    $manifestPath = '';
     // The exclusive per-ID lease spans publication and failure cleanup.
     for ($attempt = 0; $attempt < 5; $attempt++) {
         $id = brvtal_backup_id();
