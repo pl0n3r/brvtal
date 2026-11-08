@@ -548,15 +548,21 @@
     const artistCard = (a) => {
       const card = el('a', { class: 'ac plate chrome-b', href: '/artists/' + encodeURIComponent(a.slug) });
       const fallback = el('i', { class: 'orb', 'aria-hidden': 'true' });
-      const photo = safeUrl(a.photo);
-      // CMS uploads are public same-origin media; never inject untrusted remote URLs.
-      if (photo && new URL(photo, location.origin).origin === location.origin) {
+      const photo = safeUrl(a.photo) || safeUrl(a.instagram_photo_url);
+      const cms = safeUrl(a.photo_cms || a.photo);
+      const sameOrigin = (value) => value && new URL(value, location.origin).origin === location.origin;
+      // Only same-origin CMS media or the authenticated, server-side Meta proxy are usable.
+      if (sameOrigin(photo)) {
         const image = el('img', { class: 'photo', alt: '', loading: 'lazy', decoding: 'async' });
         image.addEventListener('error', () => {
+          if (sameOrigin(cms) && image.src !== new URL(cms, location.origin).href) {
+            image.src = cms; // Official Meta photo failed: preserve editorial CMS source.
+            return;
+          }
           image.remove();
           card.classList.remove('cr-has-photo');
           fallback.hidden = false;
-        }, { once: true });
+        });
         image.src = photo;
         fallback.hidden = true;
         card.classList.add('cr-has-photo');
@@ -564,7 +570,8 @@
       }
       card.append(fallback,
         el('span', { class: 'nm', text: text(a.name) }),
-        el('span', { class: 'rl', text: (a.is_collective_member ? 'Colectivo. ' : 'Colaborador. ') + text(a.bio, 90) }));
+        el('span', { class: 'cr-artist-membership', text: isCollective(a) ? 'MIEMBRO DEL COLECTIVO BRVTAL' : 'ARTISTA INVITADO' }),
+        el('span', { class: 'rl', text: text(a.bio, 90) }));
       return card;
     };
     const artistsGrid = el('div', { class: 'artists' }, roster.map(artistCard));
