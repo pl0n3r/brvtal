@@ -61,7 +61,12 @@ class DiscadminFourSkillsAuditTests(unittest.TestCase):
                      "1024×900", "1440×900"):
             with self.subTest(size=size):
                 self.assertIn("| " + size + " |", section)
-        self.assertEqual(len(re.findall(r"`[0-9a-f]{64}`", section)), 6)
+        screenshot_rows = [line for line in section.splitlines()
+                           if re.match(r"^\\| (?:360×844|390×844|430×844|768×1024|1024×900|1440×900) \\|", line)]
+        self.assertEqual(len(screenshot_rows), 6)
+        for row in screenshot_rows:
+            self.assertEqual(len(re.findall(r"`[0-9a-f]{64}`", row)), 1)
+        self.assertIn("887188d7ae0f0549cc6fdc6d246e09324755be32c8ca73ea035089304e75c1b5", section)
         self.assertIn("**no son autenticadas**", section)
         self.assertIn("14 px", section)
         self.assertIn("PENDIENTES", section)
