@@ -208,9 +208,7 @@ function brvtal_media_asset_payload(array $row): array
                 }
             }
         }
-        if ($row['dimensions'] === null) {
-            $row['dimensions'] = brvtal_media_dimensions((string)($row['file_path'] ?? ''));
-        }
+        $row['dimensions'] ??= brvtal_media_dimensions((string)($row['file_path'] ?? ''));
         if (is_array($row['dimensions'])) {
             $w = (int)$row['dimensions']['width'];
             $h = (int)$row['dimensions']['height'];
@@ -807,7 +805,7 @@ function brvtalMediaGenerateVariants(
     } elseif ($logicalCount > 0) {
         $result['status'] = 'partial';
         $result['optimization']['state'] = 'partial';
-        $result['reason'] = $result['reason'] ?? 'VARIANT_GENERATION_PARTIAL';
+        $result['reason'] ??= 'VARIANT_GENERATION_PARTIAL';
     }
 
     if (($result['status'] ?? '') !== 'ready') {

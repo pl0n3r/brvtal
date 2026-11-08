@@ -137,7 +137,7 @@ set_error_handler(
 set_exception_handler(
     static function (Throwable $exception): void {
         brvtal_log('EXCEPTION', $exception->getMessage(), [
-            'class' => get_class($exception),
+            'class' => $exception::class,
             'file' => $exception->getFile(),
             'line' => $exception->getLine(),
             'trace' => $exception->getTraceAsString()

@@ -259,13 +259,8 @@ function brvtalSeoWorkspaceRootImagePathIsSafe(string $value): bool
     ) {
         return false;
     }
-    // array_all requires PHP 8.4; some CLI runners use PHP 8.2.
-    foreach (["\0","\r","\n",'..','?','#'] as $blocked) {
-        if (str_contains($value, $blocked)) {
-            return false;
-        }
-    }
-    return true;
+    // Match banned characters without requiring PHP 8.4 array helpers.
+    return preg_match('/[\x00\r\n?#]|\.\./', $value) === 0;
 }
 
 function brvtalSeoWorkspaceImageValue(mixed $value): string
