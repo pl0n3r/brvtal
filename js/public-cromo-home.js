@@ -730,6 +730,17 @@
         { title: 'Memorias', items: around.filter((x) => x.kind === 'memoria') },
       ].filter((group) => group.items.length);
     };
+    const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+    const memoryCaption = (entity, memories) => {
+      if (!memories.length) return '';
+      const verb = entity.kind === 'noche' ? 'Quedó registrada' : 'Aparece';
+      return verb + ' en ' + plural(memories.length, 'memoria', 'memorias') + '.';
+    };
+    const detailForMemory = (groups) => [
+      groups.find((g) => g.title === 'Noches') ? 'Recuerda ' + plural(groups.find((g) => g.title === 'Noches').items.length, 'noche', 'noches') + '.' : '',
+      groups.find((g) => g.title === 'Artistas') ? 'Conecta con ' + plural(groups.find((g) => g.title === 'Artistas').items.length, 'artista', 'artistas') + '.' : '',
+      groups.find((g) => g.title === 'Sets') ? 'Incluye ' + plural(groups.find((g) => g.title === 'Sets').items.length, 'set', 'sets') + '.' : '',
+    ].filter(Boolean).join(' ');
     const sentenceOf = (entity) => {
       const groups = groupsFor(entity);
       if (!groups.length) return entity.label + ' todavía no tiene conexiones publicadas.';
@@ -740,10 +751,14 @@
       } else if (entity.kind === 'artista') {
         if (count('Noches')) context += entity.label + ' toca en ' + count('Noches') + ' ' + (count('Noches') === 1 ? 'noche. ' : 'noches. ');
         if (count('Sets')) context += 'Puedes escuchar ' + count('Sets') + ' ' + (count('Sets') === 1 ? 'set. ' : 'sets. ');
+      } else if (entity.kind === 'memoria') {
+        context += detailForMemory(groups) + ' ';
       }
-      return context + 'Conexiones publicadas: '
+      const memoryText = memoryCaption(entity, groups.find((g) => g.title === 'Memorias')?.items || []);
+      const withMemories = (message) => memoryText ? message + ' ' + memoryText : message;
+      return withMemories(context + 'Conexiones publicadas: '
         + groups.map(({ title, items }) => title + ' (' + items.length + ')').join(' · ')
-        + '. Explora los vínculos debajo.';
+        + '. Explora los vínculos debajo.');
     };
     const relatedCard = (entity) => entity.href
       ? el('a', { href: entity.href, text: entity.label })
@@ -775,6 +790,12 @@
     const LIMIT = 6;
     const board = el('div', { class: 'cn2-board' });
     if (columns.memorias.length) board.classList.add('cr-has-memories');
+    // Preserve the SVG accessibility host without drawing crossing lines.
+    const SVG_NS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('class', 'cr-cn2-lines');
+    svg.setAttribute('aria-hidden', 'true');
+    board.append(svg);
     const columnNodes = Object.keys(columns).filter((name) => columns[name].length).map((name) => {
       const ul = el('ul', { class: 'cn2-list' });
       const more = columns[name].length > LIMIT ? el('button', { class: 'cn2-more', type: 'button', 'aria-expanded': 'false', text: 'Ver todos (' + columns[name].length + ')' }) : null;
