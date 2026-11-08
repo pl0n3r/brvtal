@@ -86,7 +86,7 @@ class ArtistInstagramPhotoTests(unittest.TestCase):
         runtime = (ROOT / "discadmin/artist-hero-preview.js").read_text()
         styles = (ROOT / "discadmin/artist-hero-preview.css").read_text()
         for suffix in ("desktop", "mobile"):
-            self.assertIn("data-hero-switch=\\" + f'"{suffix}"', markup)
+            self.assertIn('data-hero-switch="' + suffix + '"', markup)
         for needle in ("data-artist-card-preview-img", "data-artist-meta-try",
                        "data-hero-preview-img", "data-artist-photo-source"):
             self.assertIn(needle, markup)
