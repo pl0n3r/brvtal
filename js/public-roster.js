@@ -65,19 +65,22 @@
       preview.addEventListener('error', () => {
         const fallback = preview.dataset.cmsFallback || '';
         if (fallback && preview.src !== fallback) preview.src = fallback;
-        else preview.removeAttribute('src');
+        else preview.style.visibility = 'hidden'; // Keep source URL for diagnostics; hide broken-image chrome.
       });
     }
+    preview?.addEventListener('load', () => { preview.style.visibility = 'visible'; });
     document.querySelectorAll('.artist[data-image]').forEach(artist => {
       artist.addEventListener('mouseenter', () => {
         if (preview && artist.dataset.image) {
           preview.dataset.cmsFallback = artist.dataset.imageCms || '';
+          preview.style.visibility = 'visible';
           preview.src = artist.dataset.image;
         }
       });
       artist.addEventListener('focus', () => {
         if (preview && artist.dataset.image) {
           preview.dataset.cmsFallback = artist.dataset.imageCms || '';
+          preview.style.visibility = 'visible';
           preview.src = artist.dataset.image;
         }
       });
@@ -114,6 +117,7 @@
     const preview = document.querySelector('.artist-preview img');
     if (preview && firstArtist) {
       preview.dataset.cmsFallback = imageUrl(firstArtist.photo_cms || firstArtist.photo || '');
+      preview.style.visibility = 'visible';
       preview.src = imageUrl(firstArtist.photo || firstArtist.instagram_photo_url || firstArtist.image || firstArtist.cover_image || '');
     }
 
