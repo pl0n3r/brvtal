@@ -69,6 +69,13 @@
 
 /* #1364: muted text meets WCAG AA against the dark admin surfaces. */
 
+/* The table scrolls inside its own wrapper, never shrinking below its
+   full column track widths. Absolute reorder arrows stay to the right of
+   EDIT/DELETE, even at 390px and when user-selected columns are visible. */
+.admin-data-grid-shell[data-grid-module="sets"] .admin-data-grid {
+  min-width: 1180px;
+  width: max(100%, 1180px);
+}
 /* #1638: Sets action rail is independent from 44px reorder controls.
    The visual grip follows the same six-dot language as the new admin tools. */
 .admin-data-grid-shell[data-grid-module="sets"] .admin-grid-row-actions {

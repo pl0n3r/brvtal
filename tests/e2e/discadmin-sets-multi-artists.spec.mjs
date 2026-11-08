@@ -158,7 +158,7 @@ test('Sets SoundCloud oEmbed suggestions preserve authored fields and identify o
 });
 
 test('Sets SoundCloud thumbnails are safe, memoized, and do not invent artwork', async ({page}) => {
-  const asset='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl0PG0AAAAASUVORK5CYII=';
+  const asset='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==';
   await page.route('https://i1.sndcdn.com/**', route => route.fulfill({
     status:200,contentType:'image/png',body:Buffer.from(asset,'base64')
   }));
