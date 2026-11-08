@@ -408,34 +408,24 @@ test('Experiencia Cromo apila poster y ficha en 375/390/430/900, conserva escrit
   }
 });
 
-test('Cromo keeps all section links accessible in the 821–900px header', async ({ page }) => {
+test('Cromo tablet 821–900px keeps every published link accessible in compact menu', async ({ page }) => {
   for (const width of [821, 850, 900]) {
     await mount(page, { width });
     const nav = page.locator('#cromo-home .cr-top nav');
+    const trigger = page.locator('#cromo-home .cr-nav-toggle');
+    await expect(trigger).toBeVisible();
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    await trigger.click();
     await expect(nav).toBeVisible();
-    const positions = await nav.evaluate(node => {
-      const rect = el => el.getBoundingClientRect().toJSON();
-      const header = node.parentElement;
-      return {
-        brand: rect(header.querySelector('a.cr-u')),
-        nav: rect(node),
-        actions: rect(header.querySelector('div')),
-        links: [...node.querySelectorAll('a')].map(rect),
-      };
-    });
-    expect(positions.brand.right).toBeLessThanOrEqual(positions.nav.left + 1);
-    expect(positions.nav.right).toBeLessThanOrEqual(positions.actions.left + 1);
-    expect(positions.actions.right).toBeLessThanOrEqual(width + 1);
-    for (const link of positions.links) {
-      expect(link.left).toBeGreaterThanOrEqual(positions.nav.left - 1);
-      expect(link.right).toBeLessThanOrEqual(positions.nav.right + 1);
-      expect(link.height).toBeGreaterThanOrEqual(44);
-      expect(link.width).toBeGreaterThanOrEqual(44);
-    }
+    await expect(nav.locator('a[href="#discos"]')).toBeVisible();
     await nav.locator('a[href="#artistas"]').click();
     await expect(page).toHaveURL(/#artistas$/);
-    await nav.locator('a[href="#journal"]').click();
-    await expect(page).toHaveURL(/#journal$/);
+    await expect(nav).toBeHidden();
+    await trigger.click();
+    // The fixture has published Sets but no Blog: Journal must not be linked.
+    await expect(nav.locator('a[href="#journal"]')).toHaveCount(0);
+    await nav.locator('a[href="#discos"]').click();
+    await expect(page).toHaveURL(/#discos$/);
     await noOverflow(page);
   }
 });
@@ -626,7 +616,7 @@ test('Hero Description de Discadmin usa texto CMS seguro sin cambiar cinta ni na
     expect(await heroText.evaluate(node => node.childElementCount)).toBe(0);
     await expect(page.locator('#cromo-home .cr-band span').first()).toHaveText('Rave till grave');
     await expect(page.locator('#cromo-home .cr-cta a[href="#noches"]')).toHaveText('Ver la próxima noche');
-    await expect(page.locator('#cromo-home .cr-cta a[href="#sonido"]')).toHaveText('Escuchar');
+    await expect(page.locator('#cromo-home .cr-cta a[href="#discos"]')).toHaveText('Escuchar sets');
     await expect(page.locator('#cromo-home .cr-next-link')).toHaveAttribute('href', '/events/genesis');
     await noOverflow(page);
   }
@@ -850,7 +840,8 @@ test('Cromo catalog 0/1/5/6/30 preserves editorial order, multi-DJs and keyboard
       if (size === 0) {
         await expect(feature).toHaveCount(0);
         await expect(more).toHaveCount(0);
-        await expect(section.locator('.cr-set-count')).toHaveText('0 sets publicados');
+        await expect(section).toHaveCount(0);
+        await expect(page.locator('#cromo-section-nav a[href="#discos"]')).toHaveCount(0);
         await noOverflow(page);
         continue;
       }
@@ -1170,4 +1161,73 @@ test('Cromo SoundCloud player stays inline beside ESCUCHAR, never floating', asy
     await expect(row.locator('button.cr-sound-listen')).toBeFocused();
     await noOverflow(page);
   }
+});
+
+test('Cromo mobile menu is visible, keyboard-safe and opens real Sets destination', async ({ page }) => {
+  test.setTimeout(120_000);
+  for (const width of [360, 390, 430, 768, 900]) {
+    await mount(page, { width, payload: data, reduced: width === 430 });
+    const trigger = page.locator('#cromo-home .cr-nav-toggle');
+    const menu = page.locator('#cromo-section-nav');
+    await expect(trigger).toBeVisible();
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    await expect(menu).toBeHidden();
+    await trigger.click();
+    await expect(menu).toBeVisible();
+    await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    await expect(menu.locator('a[href="#discos"]')).toBeVisible();
+    await expect(menu.locator('a[href="#sonido"]')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(menu).toBeHidden();
+    await expect(trigger).toBeFocused();
+    await trigger.click();
+    await menu.locator('a[href="#discos"]').click();
+    await expect(menu).toBeHidden();
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    await expect(page).toHaveURL(/#discos$/);
+    await noOverflow(page);
+  }
+});
+
+test('Cromo hides every empty editorial section and its nav link without hiding contact', async ({ page }) => {
+  const empty = { events: [], artists: [], sets: [], memories: [], blog: [],
+    archive: { events: [] }, relations: {events:{},artists:{}} };
+  await mount(page, { width: 390, payload: empty });
+  for (const id of ['noches', 'artistas', 'sonido', 'discos', 'memorias', 'journal', 'conectado']) {
+    await expect(page.locator('#cromo-home #' + id)).toHaveCount(0);
+    await expect(page.locator('#cromo-section-nav a[href="#' + id + '"]')).toHaveCount(0);
+  }
+  await expect(page.locator('#cromo-home #contacto')).toBeAttached();
+  await expect(page.locator('#cromo-section-nav a[href="#contacto"]')).toHaveCount(1);
+  await expect(page.locator('#cromo-home .cr-cta a')).toHaveCount(0);
+  await page.locator('#cromo-home .cr-nav-toggle').click();
+  await expect(page.locator('#cromo-section-nav a')).toHaveCount(1);
+  await noOverflow(page);
+});
+
+test('Cromo adjusts nav to published data on each successful CMS reload', async ({ page }) => {
+  const onlySets = { events: [], artists: [], sets: [set], memories: [], blog: [],
+    archive: {events:[]}, relations:{events:{},artists:{}} };
+  await mount(page, { width: 1440, payload: onlySets });
+  await expect(page.locator('#cromo-section-nav a[href="#discos"]')).toBeVisible();
+  await expect(page.locator('#cromo-home #sonido')).toBeAttached();
+  await expect(page.locator('#cromo-home #discos')).toBeAttached();
+  await expect(page.locator('#cromo-home #artistas')).toHaveCount(0);
+  await expect(page.locator('#cromo-home #journal')).toHaveCount(0);
+  await expect(page.locator('#cromo-home .cr-nav-toggle')).toBeHidden();
+  await noOverflow(page);
+});
+
+test('Cromo failed public API does not treat data as an empty published catalog', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  await page.route('**/api/public.php', route => route.fulfill({ status: 503,
+    contentType: 'application/json', body: '{"ok":false}' }));
+  await page.route('**/api/hero-slider.php', route => route.fulfill({
+    contentType: 'application/json', body: '{"ok":true,"data":null}' }));
+  await page.route(url + '*', route => route.fulfill({
+    contentType: 'text/html', body: '<html><body><main id="legacy">FALLBACK</main></body></html>' }));
+  await page.goto(url + '?failed-api-nav=' + (++fixtureSequence));
+  await page.addScriptTag({ content: runtime });
+  await expect(page.locator('#cromo-home')).toHaveCount(0);
+  await expect(page.locator('#legacy')).toBeVisible();
 });
