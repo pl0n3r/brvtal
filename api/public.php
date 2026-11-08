@@ -300,6 +300,7 @@ try {
          WHERE status='published'
          ORDER BY sort_order ASC, name ASC"
     )->fetchAll();
+    $artists = array_map('brvtalIgEnrichArtist', $artists);
 
     // Keep public Sets readable before the additive duration migration lands.
     // Never invent a duration when the physical column does not exist.
