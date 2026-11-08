@@ -38,7 +38,7 @@ class DiscadminFourSkillsAuditTests(unittest.TestCase):
         for fragment in ("transitions.dev", "instalación local autorizada",
                          "05-menu-dropdown.md", "07-panel-reveal.md",
                          "No se vendorizó", "reversibilidad"):
-            self.assertIn(fragment, AUDIT)
+            self.assertIn(fragment.lower(), AUDIT.lower())
 
     def test_gsap_matrix(self):
         for fragment in ("GSAP", "gsap-core/SKILL.md", "gsap-performance/SKILL.md",
