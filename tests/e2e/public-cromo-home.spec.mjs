@@ -231,7 +231,7 @@ test('Sonido conserva altura por contenido sin margen gigante a 390/768/900/1440
   }
 });
 
-test('Legacy #archive and #events navigate to visible, keyboard-focusable Cromo destinations at 390/1440', async ({ page }) => {
+test('Legacy #archive and #events navigate to visible, keyboard-focusable Cromo destinations at 390/1440', async ({ page, browserName }) => {
   const emptyArchive = { ...data, archive: { events: [] } };
   for (const width of [390, 1440]) {
     // AC-01: with no published archive, fall back to the always-rendered #noches.
@@ -251,7 +251,7 @@ test('Legacy #archive and #events navigate to visible, keyboard-focusable Cromo 
     expect(emptyMetrics.top).toBeGreaterThanOrEqual(0);
     expect(emptyMetrics.top).toBeLessThan(180);
     expect(emptyMetrics.margin).toBeGreaterThanOrEqual(60);
-    await page.keyboard.press('Tab');
+    await page.keyboard.press(browserName === 'webkit' ? 'Alt+Tab' : 'Tab');
     await expect(page.locator('#noches a.cr-night').first()).toBeFocused();
     await noOverflow(page);
 
@@ -273,7 +273,7 @@ test('Legacy #archive and #events navigate to visible, keyboard-focusable Cromo 
     expect(populatedMetrics.top).toBeGreaterThanOrEqual(0);
     expect(populatedMetrics.top).toBeLessThan(180);
     expect(populatedMetrics.margin).toBeGreaterThanOrEqual(60);
-    await page.keyboard.press('Tab');
+    await page.keyboard.press(browserName === 'webkit' ? 'Alt+Tab' : 'Tab');
     await expect(page.locator('#archivo a.cr-pst').first()).toBeFocused();
     await noOverflow(page);
 
@@ -282,7 +282,7 @@ test('Legacy #archive and #events navigate to visible, keyboard-focusable Cromo 
     await expect.poll(() => new URL(page.url()).hash).toBe('#noches');
     await expect(page.locator('#noches')).toBeFocused();
     await expect(page.locator('#noches')).toBeVisible();
-    await page.keyboard.press('Tab');
+    await page.keyboard.press(browserName === 'webkit' ? 'Alt+Tab' : 'Tab');
     await expect(page.locator('#noches a.cr-night').first()).toBeFocused();
     await noOverflow(page);
   }
