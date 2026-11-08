@@ -511,8 +511,6 @@ html.cromo-home body>*:not(#cromo-home):not(#cromoGL):not(script):not(style):not
 #cromo-home .cr-sound-row{
   display:grid;grid-template-columns:76px minmax(0,1fr);
   align-items:center;gap:12px;padding:14px 16px;min-width:0;
-}
-#cromo-home .cr-sound-row{
   transition:border-color var(--duration-quick) var(--ease-in-out),transform var(--duration-fast) var(--ease-smooth-out);
 }
 #cromo-home .cr-sound-row.cr-is-playing{border-color:var(--red,#ff2a1a)}
