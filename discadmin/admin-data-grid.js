@@ -61,7 +61,7 @@
   }
 
   // A rejected/unsupported Meta request never leaves a broken-image icon in the list.
-  document.addEventListener('error', event => {
+  if (typeof document.addEventListener === 'function') document.addEventListener('error', event => {
     const img = event.target;
     if (!(img instanceof HTMLImageElement) || !img.matches('[data-instagram-photo]')) return;
     const replacement = document.createElement('span');
