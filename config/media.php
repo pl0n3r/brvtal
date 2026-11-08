@@ -208,9 +208,7 @@ function brvtal_media_asset_payload(array $row): array
                 }
             }
         }
-        if ($row['dimensions'] === null) {
-            $row['dimensions'] = brvtal_media_dimensions((string)($row['file_path'] ?? ''));
-        }
+        $row['dimensions'] ??= brvtal_media_dimensions((string)($row['file_path'] ?? ''));
         if (is_array($row['dimensions'])) {
             $w = (int)$row['dimensions']['width'];
             $h = (int)$row['dimensions']['height'];
@@ -610,7 +608,8 @@ function brvtalMediaWriteVariant(
     }
 
     $ok = function_exists('imagewebp') && @imagewebp($canvas, $target, $quality);
-    imagedestroy($canvas);
+    // GdImage is managed by PHP; explicit destruction is deprecated in 8.5.
+    unset($canvas);
     if ($ok) {
         @chmod($target, 0644);
     }
@@ -755,7 +754,8 @@ function brvtalMediaGenerateVariants(
             $result['optimization'][$bucket][] = $name;
             $result['optimization']['generated_bytes_this_run'] += (int)$entry['bytes'];
         }
-        imagedestroy($source);
+        // Release the decoded source only after all variant writes.
+        unset($source);
     }
 
     foreach ($specs as $name => $spec) {
@@ -805,7 +805,7 @@ function brvtalMediaGenerateVariants(
     } elseif ($logicalCount > 0) {
         $result['status'] = 'partial';
         $result['optimization']['state'] = 'partial';
-        $result['reason'] = $result['reason'] ?? 'VARIANT_GENERATION_PARTIAL';
+        $result['reason'] ??= 'VARIANT_GENERATION_PARTIAL';
     }
 
     if (($result['status'] ?? '') !== 'ready') {

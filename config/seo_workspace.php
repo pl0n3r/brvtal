@@ -259,7 +259,8 @@ function brvtalSeoWorkspaceRootImagePathIsSafe(string $value): bool
     ) {
         return false;
     }
-    return array_all(["\0","\r","\n",'..','?','#'], fn($blocked) => !str_contains($value, $blocked));
+    // Match banned characters without requiring PHP 8.4 array helpers.
+    return preg_match('/[\x00\r\n?#]|\.\./', $value) === 0;
 }
 
 function brvtalSeoWorkspaceImageValue(mixed $value): string

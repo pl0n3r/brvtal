@@ -37,34 +37,66 @@
 
 ## Medición reproducible de fuente (NO medición de CSS computado)
 
-Medición realizada sobre `main` 0.1.235 con expresiones sobre archivos rastreados en Git; los conteos describen **declaraciones en código**, no número final de controles que el navegador presenta.
+Esta tabla es una **instantánea de texto del commit `4da5846ac7d2a81b3ceea35216109dfaa2886b6a` (0.1.235)**, no una medición de CSS computado ni una afirmación sobre la versión actual (0.1.236 al incorporar #1655). Se cuentan **ocurrencias literales** en el archivo completo, incluidos comentarios, CSS inline y estilos minificados dentro de `index-core.php`. `Líneas` = `len(text.splitlines())`; los tamaños 8–11 px son cualquier literal de esa magnitud, **no** necesariamente `font-size` ni un problema WCAG. `rem`, `em`, porcentajes, variables, `font` shorthand sin coincidencia y valores calculados por el navegador no se infieren ni se cuentan.
 
-| Hoja | Líneas | `@media` | `:focus-visible` | `prefers-reduced-motion` | `!important` | Posibles tamaños 8–11 px |
+**Reproducción sin acceso productivo:** desde un checkout limpio de ese SHA de referencia, ejecutar:
+
+~~~python
+from pathlib import Path
+import re
+paths = (
+    "discadmin/index-core.php",
+    "discadmin/admin-shell.css",
+    "discadmin/admin-data-grid.css",
+    "discadmin/content-ordering.css",
+    "discadmin/media-library.css",
+    "discadmin/artist-hero-preview.css",
+    "discadmin/hero-slider-v2.css",
+    "discadmin/system-status-v2.css",
+)
+patterns = (
+    r"@media\b",
+    r":focus-visible\b",
+    r"prefers-reduced-motion",
+    r"!important\b",
+    r"(?<![\d.])(?:8|9|10|11)(?:\.\d+)?px\b",
+)
+for path in paths:
+    source = Path(path).read_text(encoding="utf-8")
+    print(path, len(source.splitlines()), *(len(re.findall(p, source)) for p in patterns))
+~~~
+
+La lectura literal de `@media`, `:focus-visible`, `prefers-reduced-motion` y `!important` no analiza la cascada CSS y **no** equivale a resultados runtime.
+
+| Archivo | Líneas (splitlines) | `@media` | `:focus-visible` | `prefers-reduced-motion` | `!important` | Literales 8–11px (cualquier propiedad) |
 |---|---:|---:|---:|---:|---:|---:|
-| `discadmin/index-core.php` | 1248 | 7 | 1 | 0 | 11 | 56 |
-| `discadmin/admin-shell.css` | 81 | 4 | 5 | 2 | 6 | 1 |
-| `discadmin/admin-data-grid.css` | 142 | 4 | 4 | 2 | 5 | 1 |
-| `discadmin/content-ordering.css` | 36 | 4 | 3 | 2 | 9 | 1 |
-| `discadmin/media-library.css` | 29 | 3 | 4 | 1 | 7 | 4 |
-| `discadmin/artist-hero-preview.css` | 53 | 1 | 0 | 0 | 0 | 2 |
-| `discadmin/hero-slider-v2.css` | 13 | 3 | 0 | 1 | 1 | 8 |
-| `discadmin/system-status-v2.css` | 51 | 5 | 11 | 0 | 1 | 3 |
+| `discadmin/index-core.php` | 1247 | 7 | 1 | 0 | 11 | 100 |
+| `discadmin/admin-shell.css` | 80 | 4 | 5 | 2 | 6 | 11 |
+| `discadmin/admin-data-grid.css` | 141 | 4 | 4 | 2 | 5 | 20 |
+| `discadmin/content-ordering.css` | 35 | 4 | 3 | 2 | 9 | 4 |
+| `discadmin/media-library.css` | 28 | 3 | 4 | 1 | 7 | 37 |
+| `discadmin/artist-hero-preview.css` | 52 | 1 | 0 | 0 | 0 | 5 |
+| `discadmin/hero-slider-v2.css` | 12 | 3 | 0 | 1 | 1 | 15 |
+| `discadmin/system-status-v2.css` | 50 | 5 | 11 | 0 | 1 | 39 |
 
 **Reproducción:** contar reglas CSS en esos archivos; observar que CSS inline está empaquetado en `index-core.php`. Las cifras de fuente deben contrastarse con DevTools (especificidad, cascada, pixels computados y contraste), no convertirlas en un supuesto fallo WCAG confirmado.
 
 ## Matriz de evaluación de las cuatro skills (hallazgo / prioridad)
 
-| Módulo | Impeccable | Interface Feel | transitions.dev | GSAP | Prioridad de remediación |
-|---|---|---|---|---|---|
-| Shell/navegación | Comprobar tamaño/jerarquía y drawer por viewport | A11y de Tab, Escape y targets de menú | Interrupción y reversibilidad de drawer | Evitar timeline persistente entre rutas | **P1** |
-| Dashboard | Densidad y jerarquía de datos | Carga/vacío/degradado y acciones claras | No animar métricas que puedan saltar | Cero costo en tareas rutinarias | P2 |
-| Eventos, Blog, Pages | Lectura y agrupación de formularios | Guardado/estado/error conservando borrador | Cambio de vista sin pérdida de foco | No requerir GSAP para editar | **P1** |
-| Artistas | Imágenes/encuadres, miembro/invitado | Preview antes de guardar y fallback claro | Preview opcional suave sin ocultar original | Revertir animaciones de preview | **P1 #1657** |
-| Sets | Columna de acciones, fotos, orden | Un solo grab-handle, teclado y éxito/error | Reordenamiento reversible sin falsas duraciones | No animar datos fuera de orden | #1638 fusionado; **P1 validar** |
-| Releases / Media | Tarjetas y miniaturas consistentes | Upload, estados de procesamiento, 4xx/5xx | Crossfade solo tras éxito | Cleanup de previews | **P1** |
-| Memorias / Hero | Composición y espacios, lectura | Toggle y preview de media sin scroll raro | Ajustar apertura de visor/slide | No dejar ScrollTrigger activos | P2 |
-| Theme / SEO / Settings | Jerarquía y controles previsibles | Guardar/Deshacer y mensajes de validación | Transición solo entre paneles necesarios | Sin efectos en seguridad ni saves | P2 |
-| Seguridad / Backups / Logs | Alto contraste y una acción principal | Confirmaciones, errores no engañosos | Evitar ocultar información crítica | Cero dependencia de GSAP | **P1** |
+| Módulo | Impeccable | Interface Feel | transitions.dev | GSAP | Prioridad de remediación | Resultado y prueba de fuente |
+|---|---|---|---|---|---|---|
+| Shell/navegación | Comprobar tamaño/jerarquía y drawer por viewport | A11y de Tab, Escape y targets de menú | Interrupción y reversibilidad de drawer | Evitar timeline persistente entre rutas | **P1** | **I:F · M:F · T:C · G:C · UI:P**. Código: `discadmin/index-core.php`, `discadmin/admin-shell.css`; contrato fuente: `tests/test_discadmin_four_skills_audit.py`. |
+| Dashboard | Densidad y jerarquía de datos | Carga/vacío/degradado y acciones claras | No animar métricas que puedan saltar | Cero costo en tareas rutinarias | P2 | **I:F · M:F · T:C · G:C · UI:P**. Código: `discadmin/dashboard-v2.js`, `discadmin/dashboard-v2.css`; contrato fuente: `tests/test_discadmin_four_skills_audit.py`. |
+| Eventos, Blog, Pages | Lectura y agrupación de formularios | Guardado/estado/error conservando borrador | Cambio de vista sin pérdida de foco | No requerir GSAP para editar | **P1** | **I:F · M:F · T:C · G:C · UI:P**. Código: `discadmin/content-core.js`, `discadmin/blog.js`, `discadmin/pages-publication-contract.js`; contrato fuente: `tests/test_discadmin_four_skills_audit.py`. |
+| Artistas | Imágenes/encuadres, miembro/invitado | Preview antes de guardar y fallback claro | Preview opcional suave sin ocultar original | Revertir animaciones de preview | **P1 #1657** | **I:F · M:F · T:C · G:C · UI:P**. Código: `discadmin/artist-hero-preview.js`, `discadmin/artist-hero-preview.css`; contrato fuente: `tests/test_discadmin_four_skills_audit.py`. |
+| Sets | Columna de acciones, fotos, orden | Un solo grab-handle, teclado y éxito/error | Reordenamiento reversible sin falsas duraciones | No animar datos fuera de orden | #1638 fusionado; **P1 validar** | **I:F · M:F · T:C · G:C · UI:P**. Código: `discadmin/soundcloud-artwork.js`, `discadmin/content-ordering.css`; contrato fuente: `tests/test_discadmin_four_skills_audit.py`. |
+| Releases / Media | Tarjetas y miniaturas consistentes | Upload, estados de procesamiento, 4xx/5xx | Crossfade solo tras éxito | Cleanup de previews | **P1** | **I:F · M:F · T:C · G:C · UI:P**. Código: `discadmin/media-library.js`, `discadmin/admin-data-grid.css`; contrato fuente: `tests/test_discadmin_four_skills_audit.py`. |
+| Memorias / Hero | Composición y espacios, lectura | Toggle y preview de media sin scroll raro | Ajustar apertura de visor/slide | No dejar ScrollTrigger activos | P2 | **I:F · M:F · T:C · G:C · UI:P**. Código: `discadmin/memories.js`, `discadmin/hero-slider.js`; contrato fuente: `tests/test_discadmin_four_skills_audit.py`. |
+| Theme / SEO / Settings | Jerarquía y controles previsibles | Guardar/Deshacer y mensajes de validación | Transición solo entre paneles necesarios | Sin efectos en seguridad ni saves | P2 | **I:F · M:F · T:C · G:C · UI:P**. Código: `discadmin/theme-studio-configuration.js`, `discadmin/seo-workspace.js`, `discadmin/settings-v2.js`; contrato fuente: `tests/test_discadmin_four_skills_audit.py`. |
+| Seguridad / Backups / Logs | Alto contraste y una acción principal | Confirmaciones, errores no engañosos | Evitar ocultar información crítica | Cero dependencia de GSAP | **P1** | **I:F · M:F · T:C · G:C · UI:P**. Código: `discadmin/security.js`, `discadmin/backups.js`, `discadmin/system-status-v2.js`; contrato fuente: `tests/test_discadmin_four_skills_audit.py`. |
+
+
+**Resultado (por módulo y skill):** I = Impeccable, M = Make Interfaces Feel Better, T = transitions.dev, G = GSAP; **F** = inspección estática documentada, **C** = guía/criterio consultado pero sin ejecución dinámica comprobada, **P** = pendiente. **UI:P** aplica a todas las filas: faltan navegación autenticada, mediciones de DOM, contraste, teclado, móvil y aprobación visual. El test de contrato verifica la estructura documental, **no** prueba su comportamiento en producción.
 
 ## Hallazgos priorizados y no duplicados
 
@@ -99,6 +131,8 @@ Medición realizada sobre `main` 0.1.235 con expresiones sobre archivos rastread
 | 1024×900 | Login BRVTAL | 1024 / 0 | 7 | 358 × **14 px** | `dd664d0115abefc1353f10f3b8f799ee4257c87b23decfca76c1ba5c752d8aff` |
 | 1440×900 | Login BRVTAL | 1440 / 0 | 7 | 358 × **14 px** | `b8ed1990fccea950adcdb1c4ed68e2a907e19db03d2b79ad85553148f6c4bb5e` |
 
+**Paquete offline comprobado:** en el Mac autorizado se releyeron los 6 PNG contra los SHA-256 de `measurement.json` y se comprimieron los **7 archivos** en `~/Desktop/BRVTAL-DISCADMIN-AUDIT-2026-11-08/discadmin-login-public-6viewports-2026-11-08.zip` (133307 bytes, SHA-256 `887188d7ae0f0549cc6fdc6d246e09324755be32c8ca73ea035089304e75c1b5`; acceso local reservado al propietario). **No existe aún enlace compartido autorizado para revisores externos**; un hash no da acceso a la imagen y este paquete no acredita aceptación visual ni captura autenticada. No subir capturas a un repositorio público sin revisión y autorización expresa.
+
 **Resultado acotado:** el login público no presentó desbordamiento horizontal en los cinco anchos donde se cargó, pero el enlace «¿OLVIDASTE TU CONTRASEÑA?» tiene caja de enlace de **14 px de alto** según la medición, por debajo de la referencia operativa de 44 px de este Issue. Clasificar como **P1 candidato a corrección de hit-area**, sujeto a inspección de separación entre targets y a una prueba de teclado/táctil: una caja pequeña por sí sola no permite declarar incumplimiento WCAG definitivo. A 360 px se documentó la **verificación de acceso del proveedor/CDN**, no un defecto comprobado de la pantalla de login; es obligatorio repetir la captura del login de ese ancho antes del sign-off.
 
 **Límite de AC-06:** estas capturas son reales, pero **no son autenticadas**. No verifican Dashboard, Sets, Artistas, Media ni el resto de DISCADMIN; tampoco prueban CSS computado del CMS tras login, Safari, teclado, accesibilidad AA de todo el flujo, comparativas antes/después o aprobación visual del dueño. Los seis viewports de la matriz siguiente continúan **PENDIENTES** para esos criterios. Sin credenciales y ventana de prueba autorizadas no se altera estado de producción ni se declara la auditoría completa.
@@ -127,6 +161,6 @@ Estos son los **6 viewports requeridos** por el dueño. Los registros debajo son
 5. Repetir las **mismas capturas** tras cada fix y enlazar PR + CI exact-HEAD + aprobación estética explícita del propietario.
 
 ### Relación con backlog activo
-[#1638](https://github.com/pl0n3r/brvtal/issues/1638) (completado) · [#1651](https://github.com/pl0n3r/brvtal/issues/1651) (completado) · [#1655](https://github.com/pl0n3r/brvtal/issues/1655) (pendiente) · [#1656](https://github.com/pl0n3r/brvtal/issues/1656) (pendiente) · [#1657](https://github.com/pl0n3r/brvtal/issues/1657) (pendiente) · [#1660](https://github.com/pl0n3r/brvtal/issues/1660) (área táctil del enlace de recuperación en login: 14px observados, bloqueo por versión compartida con #1655).
+[#1638](https://github.com/pl0n3r/brvtal/issues/1638) (completado) · [#1651](https://github.com/pl0n3r/brvtal/issues/1651) (completado) · [#1655](https://github.com/pl0n3r/brvtal/issues/1655) (completado, PR #1659 fusionado) · [#1656](https://github.com/pl0n3r/brvtal/issues/1656) (pendiente) · [#1657](https://github.com/pl0n3r/brvtal/issues/1657) (pendiente) · [#1660](https://github.com/pl0n3r/brvtal/issues/1660) (área táctil del enlace de recuperación: 14px observados; #1655 ya liberó la dependencia, ejecución de #1660 pendiente de reserva V3 propia).
 
 **Este documento no certifica aprobación visual ni el cierre de #1652:** faltan la fase visual autenticada y la remediación asociada. Nunca presentar «4 skills ejecutadas» como sustituto de evidencia de interfaz.

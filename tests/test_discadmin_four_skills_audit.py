@@ -17,8 +17,8 @@ class DiscadminFourSkillsAuditTests(unittest.TestCase):
                    "Theme Studio", "SEO", "Settings / Security", "System Status / Logs",
                    "Backups", "Búsqueda global")
         for name in modules:
-            self.subTest(name=name)
-            self.assertIn("| " + name + " |", AUDIT)
+            with self.subTest(name=name):
+                self.assertIn("| " + name + " |", AUDIT)
         for path in ("discadmin/index-core.php", "discadmin/admin-data-grid.js",
                      "discadmin/admin-shell.css", "discadmin/hero-slider-v2.css"):
             self.assertTrue((ROOT / path).is_file(), path)
@@ -59,13 +59,43 @@ class DiscadminFourSkillsAuditTests(unittest.TestCase):
         section = AUDIT[start:end]
         for size in ("360×844", "390×844", "430×844", "768×1024",
                      "1024×900", "1440×900"):
-            self.subTest(size=size)
-            self.assertIn("| " + size + " |", section)
+            with self.subTest(size=size):
+                self.assertIn("| " + size + " |", section)
         self.assertEqual(len(re.findall(r"`[0-9a-f]{64}`", section)), 6)
         self.assertIn("**no son autenticadas**", section)
         self.assertIn("14 px", section)
         self.assertIn("PENDIENTES", section)
         self.assertIn("sin credenciales", section.lower())
+
+    def test_matrix_section_has_scoped_results_per_skill(self):
+        start = "## Matriz de evaluación de las cuatro skills"
+        end = "## Hallazgos priorizados y no duplicados"
+        self.assertEqual(AUDIT.count(start), 1)
+        self.assertEqual(AUDIT.count(end), 1)
+        section = AUDIT.split(start, 1)[1].split(end, 1)[0]
+        self.assertIn("| Resultado y prueba de fuente |", section)
+        for name in ("Shell/navegación", "Dashboard", "Eventos, Blog, Pages",
+                     "Artistas", "Sets", "Releases / Media", "Memorias / Hero",
+                     "Theme / SEO / Settings", "Seguridad / Backups / Logs"):
+            with self.subTest(module=name):
+                matching = [line for line in section.splitlines()
+                            if line.startswith("| " + name + " |")]
+                self.assertEqual(len(matching), 1)
+                self.assertIn("**I:F · M:F · T:C · G:C · UI:P**", matching[0])
+                self.assertIn("Código: `discadmin/", matching[0])
+                self.assertIn("tests/test_discadmin_four_skills_audit.py", matching[0])
+        self.assertIn("inspección estática documentada", section)
+        self.assertIn("pendiente", section.lower())
+
+    def test_source_metrics_have_reproducible_method(self):
+        start = "## Medición reproducible de fuente"
+        end = "## Matriz de evaluación de las cuatro skills"
+        section = AUDIT.split(start, 1)[1].split(end, 1)[0]
+        self.assertIn("4da5846ac7d2a81b3ceea35216109dfaa2886b6a", section)
+        self.assertIn("len(source.splitlines())", section)
+        self.assertIn("re.findall", section)
+        self.assertIn("cualquier propiedad", section)
+        self.assertIn("| `discadmin/index-core.php` | 1247 | 7 | 1 | 0 | 11 | 100 |", section)
 
     def test_issue_backlog(self):
         for issue in ("#1638", "#1651", "#1655", "#1656", "#1657", "#1660"):

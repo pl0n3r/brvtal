@@ -392,7 +392,8 @@ function brvtalIndexNowSubmit(array $payload): void
         curl_exec($curl);
         $status = (int)curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
         $error = (string)curl_error($curl);
-        curl_close($curl);
+        // CurlHandle is an object; unset releases it without PHP 8.5 deprecations.
+        unset($curl);
     } else {
         $context = stream_context_create([
             'http' => [
