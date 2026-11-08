@@ -38,7 +38,7 @@
     return String(a.name ?? '').localeCompare(String(b.name ?? ''), 'en', { sensitivity: 'base' });
   };
 
-  const rowMeta = artist => isMember(artist) ? 'BRVTAL / MEMBER' : 'ARTIST / COLLABORATOR';
+  const rowMeta = artist => isMember(artist) ? 'MIEMBRO DEL COLECTIVO BRVTAL' : 'ARTISTA INVITADO';
 
   const groups = [
     ['member', 'BRVTAL / COLLECTIVE'],
