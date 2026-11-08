@@ -663,3 +663,61 @@ html.cromo-home body>*:not(#cromo-home):not(#cromoGL):not(script):not(style):not
 @media(prefers-reduced-motion:reduce){
   #cromo-home #discos .cr-sound-actions>.cr-inline-player{scroll-behavior:auto}
 }
+
+/* #1651 — Mobile navigation, informed by Impeccable, Make Interfaces Feel
+   Better, transitions.dev menu-dropdown and progressive GSAP constraints.
+   Never hide the only available menu without a visible equivalent. */
+#cromo-home .cr-top .cr-nav-actions{display:flex;gap:10px;align-items:center}
+#cromo-home .cr-top .cr-nav-toggle{display:none}
+#cromo-home .cr-top nav a:focus-visible,
+#cromo-home .cr-top .cr-nav-toggle:focus-visible{
+  outline:3px solid var(--red);outline-offset:2px;
+}
+@media(max-width:820px){
+  #cromo-home .cr-top{z-index:75;isolation:isolate}
+  #cromo-home .cr-top .cr-nav-actions{gap:6px;min-width:0}
+  #cromo-home .cr-top .cr-nav-toggle{
+    display:inline-flex;min-height:44px;min-width:72px;justify-content:center;
+    padding:10px 12px;background:var(--bone);color:var(--ink);
+    border:2px solid var(--bone);white-space:nowrap;font-size:16px;
+  }
+  #cromo-home .cr-top .cr-nav-toggle[aria-expanded="true"]{
+    background:var(--red);border-color:var(--red);color:#030303;
+  }
+  #cromo-home .cr-top nav{
+    display:flex;position:fixed;inset:72px 0 0;
+    z-index:76;flex-direction:column;align-items:stretch;
+    gap:0;overflow-y:auto;overscroll-behavior:contain;
+    padding:clamp(16px,4vw,32px) 18px max(32px,env(safe-area-inset-bottom));
+    background:#030303;color:var(--bone);
+    border-top:3px solid var(--red);
+    visibility:hidden;opacity:0;pointer-events:none;
+    transform-origin:top right;transform:scale(.97);
+    transition:transform var(--duration-fast) var(--ease-smooth-out),
+      opacity var(--duration-fast) var(--ease-smooth-out),
+      visibility 0s linear var(--duration-quick);
+  }
+  #cromo-home .cr-top nav.cr-nav-open{
+    visibility:visible;opacity:1;pointer-events:auto;transform:scale(1);
+    transition:transform var(--duration-fast) var(--ease-smooth-out),
+      opacity var(--duration-fast) var(--ease-smooth-out),
+      visibility 0s;
+  }
+  #cromo-home .cr-top nav a{
+    width:100%;min-width:0;min-height:64px;
+    padding:14px 12px;font-size:clamp(24px,7vw,39px);
+    border-bottom:1px solid rgba(242,239,232,.24);
+    overflow-wrap:anywhere;white-space:normal;
+  }
+  #cromo-home .cr-top nav a:active{background:rgba(255,42,26,.17)}
+  html.cromo-home.cromo-menu-open{overflow-y:hidden}
+}
+@media(max-width:390px){
+  #cromo-home .cr-top .cr-nav-actions{gap:3px}
+  #cromo-home .cr-top>a.cr-u{font-size:25px;padding:10px 8px}
+  #cromo-home .cr-top .cr-tickets{padding:0 10px}
+  #cromo-home .cr-top .cr-nav-toggle{min-width:64px;padding-inline:8px}
+}
+@media(prefers-reduced-motion:reduce){
+  #cromo-home .cr-top nav{transition:none!important;transform:none!important}
+}

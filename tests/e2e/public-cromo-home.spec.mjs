@@ -1171,3 +1171,72 @@ test('Cromo SoundCloud player stays inline beside ESCUCHAR, never floating', asy
     await noOverflow(page);
   }
 });
+
+test('Cromo mobile menu is visible, keyboard-safe and opens real Sets destination', async ({ page }) => {
+  test.setTimeout(120_000);
+  for (const width of [360, 390, 430, 768]) {
+    await mount(page, { width, payload: data, reduced: width === 430 });
+    const trigger = page.locator('#cromo-home .cr-nav-toggle');
+    const menu = page.locator('#cromo-section-nav');
+    await expect(trigger).toBeVisible();
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    await expect(menu).toBeHidden();
+    await trigger.click();
+    await expect(menu).toBeVisible();
+    await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    await expect(menu.locator('a[href="#discos"]')).toBeVisible();
+    await expect(menu.locator('a[href="#sonido"]')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(menu).toBeHidden();
+    await expect(trigger).toBeFocused();
+    await trigger.click();
+    await menu.locator('a[href="#discos"]').click();
+    await expect(menu).toBeHidden();
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    await expect(page).toHaveURL(/#discos$/);
+    await noOverflow(page);
+  }
+});
+
+test('Cromo hides every empty editorial section and its nav link without hiding contact', async ({ page }) => {
+  const empty = { events: [], artists: [], sets: [], memories: [], blog: [],
+    archive: { events: [] }, relations: {events:{},artists:{}} };
+  await mount(page, { width: 390, payload: empty });
+  for (const id of ['noches', 'artistas', 'sonido', 'discos', 'memorias', 'journal', 'conectado']) {
+    await expect(page.locator('#cromo-home #' + id)).toHaveCount(0);
+    await expect(page.locator('#cromo-section-nav a[href="#' + id + '"]')).toHaveCount(0);
+  }
+  await expect(page.locator('#cromo-home #contacto')).toBeAttached();
+  await expect(page.locator('#cromo-section-nav a[href="#contacto"]')).toHaveCount(1);
+  await expect(page.locator('#cromo-home .cr-cta a')).toHaveCount(0);
+  await page.locator('#cromo-home .cr-nav-toggle').click();
+  await expect(page.locator('#cromo-section-nav a')).toHaveCount(1);
+  await noOverflow(page);
+});
+
+test('Cromo adjusts nav to published data on each successful CMS reload', async ({ page }) => {
+  const onlySets = { events: [], artists: [], sets: [set], memories: [], blog: [],
+    archive: {events:[]}, relations:{events:{},artists:{}} };
+  await mount(page, { width: 1440, payload: onlySets });
+  await expect(page.locator('#cromo-section-nav a[href="#discos"]')).toBeVisible();
+  await expect(page.locator('#cromo-home #sonido')).toBeAttached();
+  await expect(page.locator('#cromo-home #discos')).toBeAttached();
+  await expect(page.locator('#cromo-home #artistas')).toHaveCount(0);
+  await expect(page.locator('#cromo-home #journal')).toHaveCount(0);
+  await expect(page.locator('#cromo-home .cr-nav-toggle')).toBeHidden();
+  await noOverflow(page);
+});
+
+test('Cromo failed public API does not treat data as an empty published catalog', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  await page.route('**/api/public.php', route => route.fulfill({ status: 503,
+    contentType: 'application/json', body: '{"ok":false}' }));
+  await page.route('**/api/hero-slider.php', route => route.fulfill({
+    contentType: 'application/json', body: '{"ok":true,"data":null}' }));
+  await page.route(url + '*', route => route.fulfill({
+    contentType: 'text/html', body: '<html><body><main id="legacy">FALLBACK</main></body></html>' }));
+  await page.goto(url + '?failed-api-nav=' + (++fixtureSequence));
+  await page.addScriptTag({ content: runtime });
+  await expect(page.locator('#cromo-home')).toHaveCount(0);
+  await expect(page.locator('#legacy')).toBeVisible();
+});

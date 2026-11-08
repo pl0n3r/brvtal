@@ -456,14 +456,18 @@
     );
   };
 
-  const buildHero = (next, artists, site) => {
+  const buildHero = (next, artists, site, hasSets) => {
     // --- Hero
     const word = el('h1', { class: 'u', id: 'word', 'aria-label': 'BRVTAL' }, Array.from('BRVTAL').map((c) => el('span', { 'aria-hidden': 'true', text: c })));
     const nextCard = next ? buildNextCard(next, artists) : null;
+    const heroActions = [
+      next ? el('a', { class: 'btn r', href: '#noches', text: 'Ver la próxima noche' }) : null,
+      hasSets ? el('a', { class: 'btn', href: '#discos', text: 'Escuchar sets' }) : null,
+    ].filter(Boolean);
     const hero = el('section', { class: 'hero' },
       el('div', { class: 'core' }, word, el('p', { text: text(site?.description, 240) || 'Más que fiestas. Una cultura en movimiento.' })),
       nextCard,
-      el('div', { class: 'cta' }, el('a', { class: 'btn r', href: '#noches', text: 'Ver la próxima noche' }), el('a', { class: 'btn', href: '#sonido', text: 'Escuchar' })));
+      heroActions.length ? el('div', { class: 'cta' }, heroActions) : null);
     const bandItems = ['Rave till grave', 'Pereira, Colombia', 'Más que fiestas'];
     const band = el('div', { class: 'band', 'aria-hidden': 'true' }, el('div', {}, [...bandItems, ...bandItems].map((t) => el('span', { text: t }))));
 
@@ -1044,15 +1048,75 @@
     // --- Header
     const sndLabel = el('span', { 'data-cromo-sound-label': true, text: 'Activar sonido' });
     const snd = el('button', { class: 'snd', id: 'snd', type: 'button', 'aria-pressed': 'false', 'data-cromo-sound': true, 'data-cromo-sound-off': 'Activar sonido', 'data-cromo-sound-on': 'Apagar el pulso' }, el('i'), sndLabel);
-    const navLinks = [['noches', 'Noches'], ['artistas', 'Artistas'], ['sonido', 'Sonido'], ['memorias', 'Memorias'], ['journal', 'Journal'], ['contacto', 'Contacto']];
-    const nav = el('nav', { 'aria-label': 'Secciones' }, navLinks.map(([id, label]) => el('a', { href: '#' + id, text: label })));
-    const ticketsLink = el('a', Object.assign({ class: 'tickets', text: 'Tickets', href: nextTicket || '#noches' }, nextTicket ? { target: '_blank', rel: 'noopener noreferrer' } : {}));
+    // The successfully fetched public catalog is the only authority for visibility.
+    // A failed API fetch never mounts Cromo, so it cannot be mistaken for empty data.
+    const hasNights = events.length > 0 || (Array.isArray(data.archive?.events) && data.archive.events.length > 0);
+    const navLinks = [
+      ...(hasNights ? [['noches', 'Noches']] : []),
+      ...(artists.length ? [['artistas', 'Artistas']] : []),
+      ...(sets.length ? [['sonido', 'Sonido'], ['discos', 'Sets']] : []),
+      ...(memories.length ? [['memorias', 'Memorias']] : []),
+      ...(posts.length ? [['journal', 'Journal']] : []),
+      ['contacto', 'Contacto'],
+    ];
+    const nav = el('nav', { id: 'cromo-section-nav', 'aria-label': 'Secciones' },
+      navLinks.map(([id, label]) => el('a', { href: '#' + id, text: label })));
+    const menuToggle = el('button', { class: 'nav-toggle', type: 'button',
+      'aria-controls': 'cromo-section-nav', 'aria-expanded': 'false', text: 'MENÚ' });
+    const ticketsLink = nextTicket ? el('a', { class: 'tickets', text: 'Tickets', href: nextTicket,
+      target: '_blank', rel: 'noopener noreferrer' }) : null;
     const header = el('header', { class: 'top' },
       el('a', { href: '#cromo-top', class: 'u', text: 'BRVTAL' }), nav,
-      el('div', { style: 'display:flex;gap:10px;align-items:center' }, snd, ticketsLink));
+      el('div', { class: 'nav-actions' }, snd, ticketsLink, menuToggle));
+
+    // The mobile navigation is an actual keyboard/touch surface, not a hidden desktop nav.
+    // A small interruptible transition follows the authorised transitions.dev dropdown rules.
+    const mobileMenu = window.matchMedia('(max-width: 820px)');
+    const setMenuOpen = (open, restoreFocus = false) => {
+      const active = Boolean(open && mobileMenu.matches);
+      nav.classList.toggle('cr-nav-open', active);
+      root.classList.toggle('cromo-menu-open', active);
+      menuToggle.setAttribute('aria-expanded', String(active));
+      menuToggle.textContent = active ? 'CERRAR MENÚ' : 'MENÚ';
+      if (active) nav.querySelector('a')?.focus();
+      else if (restoreFocus && mobileMenu.matches) menuToggle.focus();
+    };
+    menuToggle.addEventListener('click', () =>
+      setMenuOpen(menuToggle.getAttribute('aria-expanded') !== 'true'));
+    nav.addEventListener('click', (event) => {
+      const link = event.target.closest('a');
+      if (!link) return;
+      setMenuOpen(false);
+      const destination = document.getElementById(link.getAttribute('href').slice(1));
+      if (destination) {
+        destination.setAttribute('tabindex', '-1');
+        window.requestAnimationFrame(() => destination.focus({ preventScroll: true }));
+      }
+    });
+    document.addEventListener('pointerdown', (event) => {
+      if (nav.classList.contains('cr-nav-open') && !header.contains(event.target)) setMenuOpen(false);
+    });
+    document.addEventListener('keydown', (event) => {
+      if (!nav.classList.contains('cr-nav-open')) return;
+      if (event.key === 'Escape') { event.preventDefault(); setMenuOpen(false, true); return; }
+      if (event.key !== 'Tab') return;
+      const links = [...nav.querySelectorAll('a')];
+      const first = links[0];
+      const last = links[links.length - 1];
+      if (event.shiftKey && document.activeElement === menuToggle) {
+        event.preventDefault(); last?.focus();
+      } else if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault(); menuToggle.focus();
+      } else if (!event.shiftKey && document.activeElement === menuToggle) {
+        event.preventDefault(); first?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault(); menuToggle.focus();
+      }
+    });
+    mobileMenu.addEventListener?.('change', () => setMenuOpen(false));
 
     // --- Hero
-    const { word, hero: heroSec, band } = buildHero(next, artists, data.settings?.site);
+    const { word, hero: heroSec, band } = buildHero(next, artists, data.settings?.site, sets.length > 0);
 
     // --- Noches
     const nights = buildNights(upcoming, next, artists, data.archive && data.archive.events);
@@ -1089,9 +1153,18 @@
     const cookieBtn = footer.querySelector('button');
     if (cookieBtn) cookieBtn.addEventListener('click', () => cookiePrefs.click());
 
-    home.append(el('a', { class: 'skip', href: '#noches', text: 'Saltar al contenido' }), header,
-      el('main', { id: 'cromo-top' }, heroSec, band, banners, nights, artistsSec, experience, sound, setsSec, memoriesSec, journalSec, connected, end), footer);
-    return { home, snd, snd2, nav, loadChallenge, word };
+    home.append(el('a', { class: 'skip', href: hasNights ? '#noches' : '#cromo-top', text: 'Saltar al contenido' }), header,
+      el('main', { id: 'cromo-top' }, heroSec, band, banners,
+        hasNights ? nights : null,
+        artists.length ? artistsSec : null,
+        experience,
+        sets.length ? sound : null,
+        sets.length ? setsSec : null,
+        memories.length ? memoriesSec : null,
+        posts.length ? journalSec : null,
+        connected && (hasNights || artists.length || sets.length) ? connected : null,
+        end), footer);
+    return { home, snd, snd2: sets.length ? snd2 : null, nav, loadChallenge, word };
   };
 
   // Progressive GSAP enhancement: the CMS event link works before/without motion scripts.
@@ -1156,7 +1229,7 @@
     root.classList.add('cromo-home');
     enhanceNextCard(parts.home);
     const sound = window.BRVTALCromoSound;
-    if (sound && sound.bind) { sound.bind(parts.snd); sound.bind(parts.snd2); }
+    if (sound && sound.bind) { sound.bind(parts.snd); if (parts.snd2) sound.bind(parts.snd2); }
     // Captcha fetch handles its own errors; initialization is intentionally non-blocking.
     void parts.loadChallenge();
 
@@ -1173,6 +1246,11 @@
       parts.home.querySelectorAll('section[id]').forEach((s) => io.observe(s));
     }
     // Resolve legacy hashes after mounting: an empty archive has no #archivo.
+    const hiddenDynamicIds = ['noches', 'artistas', 'sonido', 'discos', 'memorias', 'journal', 'conectado'];
+    const absentHash = window.location.hash.slice(1);
+    if (hiddenDynamicIds.includes(absentHash) && !document.getElementById(absentHash)) {
+      window.history.replaceState(null, '', '#cromo-top');
+    }
     const legacyTarget = { '#events': 'noches', '#archive': 'archivo' }[window.location.hash];
     if (legacyTarget) {
       // #archivo is only mounted when a published archive event exists.
