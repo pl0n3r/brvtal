@@ -39,10 +39,11 @@
   };
 
   const rowMeta = artist => isMember(artist) ? 'MIEMBRO DEL COLECTIVO BRVTAL' : 'ARTISTA INVITADO';
+  const legacyRole = artist => isMember(artist) ? 'BRVTAL / COLLECTIVE' : 'ARTIST / COLLABORATOR';
 
   const groups = [
-    ['member', 'MIEMBROS DEL COLECTIVO BRVTAL'],
-    ['network', 'ARTISTAS INVITADOS'],
+    ['member', 'BRVTAL / COLLECTIVE'],
+    ['network', 'ARTISTS / COLLABORATORS'],
   ];
 
   const bindPreview = () => {
@@ -85,12 +86,13 @@
         const photo = imageUrl(artist.photo || artist.instagram_photo_url || artist.image || artist.cover_image || '');
         const cms = imageUrl(artist.photo_cms || artist.photo || '');
         const href = slug ? `/artists/${encodeURIComponent(slug)}` : '/#artists';
-        return `<a class="artist artist--${status}" href="${escapeHtml(href)}" data-roster-status="${status}"${photo ? ` data-image="${escapeHtml(photo)}" data-image-cms="${escapeHtml(cms)}"` : ''}>
+        return `<a class="artist artist--${status}" href="${escapeHtml(href)}" data-roster-status="${status}" data-roster-legacy-role="${escapeHtml(legacyRole(artist))}"${photo ? ` data-image="${escapeHtml(photo)}" data-image-cms="${escapeHtml(cms)}"` : ''}>
           <span>${String(index).padStart(2, '0')}</span><strong>${escapeHtml(name)}</strong><i>${escapeHtml(rowMeta(artist))}</i>
         </a>`;
       }).join('');
+      const visibleLabel = status === 'member' ? 'MIEMBROS DEL COLECTIVO BRVTAL' : 'ARTISTAS INVITADOS';
       return `<section class="roster-group roster-group--${status}" data-roster-group="${status}">
-        <div class="roster-group-head mono"><span>${escapeHtml(label)}</span><b>${String(members.length).padStart(2, '0')}</b></div>${rows}
+        <div class="roster-group-head mono"><span>${escapeHtml(visibleLabel)}</span><b>${String(members.length).padStart(2, '0')}</b></div>${rows}
       </section>`;
     }).join('');
 
