@@ -371,15 +371,12 @@ function brvtal_backup_create(PDO $pdo, array $options = []): array
         $mediaManifestPath = $baseDir . '/' . $id . '.media.json';
         $mediaArchivePath = $baseDir . '/' . $id . '.media.zip';
         $manifestPath = $baseDir . '/' . $id . '.manifest.json';
-        $collision = false;
-        foreach ([$databasePath, $mediaManifestPath, $mediaArchivePath, $manifestPath,
-                  $databasePath . '.part', $mediaArchivePath . '.part'] as $candidate) {
-            if (file_exists($candidate) || is_link($candidate)) {
-                $collision = true;
-                break;
-            }
-        }
-        if (!$collision) break;
+        $existingPaths = array_filter(
+            [$databasePath, $mediaManifestPath, $mediaArchivePath, $manifestPath,
+             $databasePath . '.part', $mediaArchivePath . '.part'],
+            static fn(string $candidate): bool => file_exists($candidate) || is_link($candidate)
+        );
+        if ($existingPaths === []) break;
         fclose($reservation);
         $reservation = null;
         brvtal_backup_unlink_if_exists($reservationPath);
