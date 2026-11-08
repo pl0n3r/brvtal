@@ -40,7 +40,9 @@ function brvtalIgPhotoEndpoint(?string $instagramUrl): ?string
 
 function brvtalIgCachePaths(string $username): array
 {
-    $root = dirname(__DIR__) . '/var/cache/instagram-profile-photos';
+    // The parent of the web document root is not statically web-accessible.
+    // Do not expose metadata/image bytes through /var/cache after allowlist removal.
+    $root = dirname(__DIR__, 2) . '/brvtal-private/cache/instagram-profile-photos';
     $key = hash('sha256', $username);
     return [$root, $root . '/' . $key . '.json', $root . '/' . $key . '.image'];
 }
@@ -81,7 +83,9 @@ function brvtalIgCurl(string $url, array $headers = [], ?string $pin = null): ?a
     $ch = curl_init($url);
     if ($ch === false) return null;
     $options = [
-        CURLOPT_RETURNTRANSFER=>true, CURLOPT_FOLLOWLOCATION=>false,
+        CURLOPT_RETURNTRANSFER=>false, CURLOPT_FOLLOWLOCATION=>false,
+        // Never use inherited CONNECT proxies: they can bypass CURLOPT_RESOLVE.
+        CURLOPT_PROXY=>'', CURLOPT_NOPROXY=>'*',
         CURLOPT_CONNECTTIMEOUT=>3, CURLOPT_TIMEOUT=>7,
         CURLOPT_SSL_VERIFYPEER=>true, CURLOPT_SSL_VERIFYHOST=>2,
         CURLOPT_PROTOCOLS=>CURLPROTO_HTTPS, CURLOPT_REDIR_PROTOCOLS=>CURLPROTO_HTTPS,
@@ -92,11 +96,18 @@ function brvtalIgCurl(string $url, array $headers = [], ?string $pin = null): ?a
         $host = (string)parse_url($url, PHP_URL_HOST);
         $options[CURLOPT_RESOLVE] = [$host . ':443:' . $pin];
     }
+    // Stop oversized transfers before buffering them into PHP memory.
+    $bytes = '';
+    $options[CURLOPT_WRITEFUNCTION] = static function ($handle, string $chunk) use (&$bytes): int {
+        if (strlen($bytes) + strlen($chunk) > 6291456) return 0;
+        $bytes .= $chunk;
+        return strlen($chunk);
+    };
     curl_setopt_array($ch, $options);
-    $bytes = curl_exec($ch);
+    $received = curl_exec($ch);
     $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
     $mime = strtolower(trim(explode(';', (string)curl_getinfo($ch, CURLINFO_CONTENT_TYPE))[0]));
-    if (!is_string($bytes) || $status !== 200 || strlen($bytes) > 6291456) return null;
+    if ($received !== true || $status !== 200 || strlen($bytes) > 6291456) return null;
     return ['bytes'=>$bytes, 'mime'=>$mime];
 }
 
@@ -133,28 +144,64 @@ function brvtalIgFetchOfficial(string $username): ?array
 
 function brvtalIgCacheRefresh(string $username): ?array
 {
+    if (!brvtalIgConfiguredFor($username)) return null;
     $cached = brvtalIgCacheRead($username);
     if ($cached !== null && time() - (int)$cached['meta']['fetched_at'] < 86400) return $cached;
-    $photo = brvtalIgFetchOfficial($username);
-    if ($photo === null) return $cached; // Preserve last authorized good image during outage.
+
     [$root, $metaPath, $imagePath] = brvtalIgCachePaths($username);
     if (is_link($root) || (!is_dir($root) && !@mkdir($root, 0750, true))) return $cached;
-    $meta = ['mime'=>$photo['mime'],'width'=>$photo['width'],'height'=>$photo['height'],
-        'fetched_at'=>time(),'sha256'=>hash('sha256',$photo['bytes'])];
-    $tmpImage = tempnam($root, 'ig-image-');
-    $tmpMeta = tempnam($root, 'ig-meta-');
-    if ($tmpImage === false || $tmpMeta === false) return $cached;
-    try {
-        if (file_put_contents($tmpImage, $photo['bytes']) === false
-            || file_put_contents($tmpMeta, json_encode($meta, JSON_THROW_ON_ERROR)) === false
-            || !rename($tmpImage, $imagePath) || !rename($tmpMeta, $metaPath)) return $cached;
-        @chmod($imagePath, 0640);
-        @chmod($metaPath, 0640);
-    } finally {
-        if (is_file($tmpImage)) @unlink($tmpImage);
-        if (is_file($tmpMeta)) @unlink($tmpMeta);
+
+    // Nonblocking per-account lock: concurrent HTTP requests immediately reuse
+    // the last approved photo instead of consuming PHP workers on Meta calls.
+    $key = hash('sha256', $username);
+    $lockPath = $root . '/' . $key . '.lock';
+    $retryPath = $root . '/' . $key . '.retry';
+    if (is_link($lockPath) || is_link($retryPath)) return $cached;
+    $lock = @fopen($lockPath, 'c+');
+    if ($lock === false) return $cached;
+    if (!@flock($lock, LOCK_EX | LOCK_NB)) {
+        fclose($lock);
+        return $cached;
     }
-    return brvtalIgCacheRead($username) ?? $cached;
+    try {
+        // Re-read while locked: another worker may have refreshed it.
+        $cached = brvtalIgCacheRead($username) ?? $cached;
+        if ($cached !== null && time() - (int)$cached['meta']['fetched_at'] < 86400) return $cached;
+        $retryAt = is_file($retryPath) ? (int)trim((string)@file_get_contents($retryPath)) : 0;
+        if ($retryAt > time()) return $cached;
+        // Record a shared five-minute retry ceiling before hitting Meta. A crash
+        // or transient outage cannot immediately trigger a worker stampede.
+        if (@file_put_contents($retryPath, (string)(time() + 300), LOCK_EX) === false) return $cached;
+        $photo = brvtalIgFetchOfficial($username);
+        if ($photo === null) return $cached; // Preserve last approved image during outages.
+
+        $meta = [
+            'mime'=>$photo['mime'], 'width'=>$photo['width'], 'height'=>$photo['height'],
+            'fetched_at'=>time(), 'sha256'=>hash('sha256', $photo['bytes']),
+        ];
+        $tmpImage = tempnam($root, 'ig-image-');
+        $tmpMeta = tempnam($root, 'ig-meta-');
+        if ($tmpImage === false || $tmpMeta === false) {
+            if (is_string($tmpImage)) @unlink($tmpImage);
+            if (is_string($tmpMeta)) @unlink($tmpMeta);
+            return $cached;
+        }
+        try {
+            if (file_put_contents($tmpImage, $photo['bytes']) === false
+                || file_put_contents($tmpMeta, json_encode($meta, JSON_THROW_ON_ERROR)) === false
+                || !rename($tmpImage, $imagePath) || !rename($tmpMeta, $metaPath)) return $cached;
+            @chmod($imagePath, 0640);
+            @chmod($metaPath, 0640);
+        } finally {
+            if (is_file($tmpImage)) @unlink($tmpImage);
+            if (is_file($tmpMeta)) @unlink($tmpMeta);
+        }
+        @unlink($retryPath);
+        return brvtalIgCacheRead($username) ?? $cached;
+    } finally {
+        @flock($lock, LOCK_UN);
+        fclose($lock);
+    }
 }
 
 function brvtalIgEnrichArtist(array $artist): array
