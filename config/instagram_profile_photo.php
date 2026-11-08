@@ -11,7 +11,7 @@ function brvtalIgUsername(?string $url): ?string
     $url = trim((string)$url);
     if ($url === '') return null;
     $parts = parse_url($url);
-    if (!is_array($parts) || strtolower((string)($parts['scheme'] ?? '')) !== 'https:') return null;
+    if (!is_array($parts) || strtolower((string)($parts['scheme'] ?? '')) !== 'https') return null;
     $host = strtolower((string)($parts['host'] ?? ''));
     if (!in_array($host, ['instagram.com','www.instagram.com'], true)
         || isset($parts['user']) || isset($parts['pass']) || isset($parts['port'])) return null;
