@@ -68,7 +68,7 @@ class DiscadminFourSkillsAuditTests(unittest.TestCase):
         self.assertIn("sin credenciales", section.lower())
 
     def test_issue_backlog(self):
-        for issue in ("#1638", "#1651", "#1655", "#1656", "#1657"):
+        for issue in ("#1638", "#1651", "#1655", "#1656", "#1657", "#1660"):
             self.assertIn(issue, AUDIT)
         for priority in ("P0", "P1", "P2", "P3"):
             self.assertIn(priority, AUDIT)

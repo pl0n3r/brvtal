@@ -127,6 +127,6 @@ Estos son los **6 viewports requeridos** por el dueño. Los registros debajo son
 5. Repetir las **mismas capturas** tras cada fix y enlazar PR + CI exact-HEAD + aprobación estética explícita del propietario.
 
 ### Relación con backlog activo
-[#1638](https://github.com/pl0n3r/brvtal/issues/1638) (completado) · [#1651](https://github.com/pl0n3r/brvtal/issues/1651) (completado) · [#1655](https://github.com/pl0n3r/brvtal/issues/1655) (pendiente) · [#1656](https://github.com/pl0n3r/brvtal/issues/1656) (pendiente) · [#1657](https://github.com/pl0n3r/brvtal/issues/1657) (pendiente).
+[#1638](https://github.com/pl0n3r/brvtal/issues/1638) (completado) · [#1651](https://github.com/pl0n3r/brvtal/issues/1651) (completado) · [#1655](https://github.com/pl0n3r/brvtal/issues/1655) (pendiente) · [#1656](https://github.com/pl0n3r/brvtal/issues/1656) (pendiente) · [#1657](https://github.com/pl0n3r/brvtal/issues/1657) (pendiente). · [#1660](https://github.com/pl0n3r/brvtal/issues/1660) (área táctil del enlace de recuperación en login: 14px observados, bloqueo por versión compartida con #1655).
 
 **Este documento no certifica aprobación visual ni el cierre de #1652:** faltan la fase visual autenticada y la remediación asociada. Nunca presentar «4 skills ejecutadas» como sustituto de evidencia de interfaz.
