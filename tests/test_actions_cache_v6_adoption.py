@@ -63,7 +63,7 @@ class ActionsCacheV6AdoptionTests(unittest.TestCase):
                 "id: chromium-cache",
                 "key: ${{ runner.os }}-playwright-chromium-${{ hashFiles('package.json') }}",
                 "id: webkit-cache",
-                "key: ${{ runner.os }}-playwright-webkit-${{ hashFiles('package.json') }}",
+                "key: ${{ runner.os }}-ubuntu-24.04-playwright-webkit-${{ hashFiles('package.json') }}",
                 "if: steps.webkit-cache.outputs.cache-hit != 'true'",
             ),
         }
