@@ -118,5 +118,7 @@ test('recovery affordance does not replace or bypass the existing login form', a
   await expect(page.locator('#admin-login-password')).toHaveAttribute('type', 'password');
   await expect(page.getByRole('button', { name: 'ENTER' })).toBeVisible();
   await expect(recovery).toHaveAttribute('href', '/discadmin/forgot-password.php');
-  await expect(page.locator('script[src*="/discadmin/totp-login.js"]')).toHaveCount(1);
+  // The browser fixture intentionally isolates the form; verify the security script in the real PHP source.
+  expect(loginSource).toContain('/discadmin/totp-login.js?');
+  expect(loginSource).toContain("if(csrf)h['X-CSRF-Token']=csrf;");
 });
