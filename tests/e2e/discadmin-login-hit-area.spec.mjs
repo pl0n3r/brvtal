@@ -1,16 +1,51 @@
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { test, expect } from '@playwright/test';
 
 const widths = [390, 430, 768, 1024, 1440, 360];
 
+// This isolated browser fixture renders the actual login template and both CSS
+// sources. BRVTAL CI's Chromium job does not start a PHP server at :4173.
+// Route only the source-derived login and recovery pages; no production traffic.
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+const loginSource = readFileSync(resolve(root, 'discadmin/index-core.php'), 'utf8');
+const securityCss = readFileSync(resolve(root, 'discadmin/security.css'), 'utf8');
+const recoverySource = readFileSync(resolve(root, 'discadmin/forgot-password.php'), 'utf8');
+const inlineCss = loginSource.match(/<style>([\s\S]*?)<\/style>/)?.[1];
+const loginTemplate = loginSource.match(/(<div class="login">\s*<form class="loginbox"[\s\S]*?<\/form>\s*<\/div>)/)?.[1];
+if (!inlineCss || !loginTemplate) {
+  throw new Error('Source-derived DISCADMIN login template or CSS not found');
+}
+const loginHtml = [
+  '<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">',
+  '<style>' + inlineCss + '</style>',
+  '<style>' + securityCss + '</style>',
+  '</head><body>',
+  loginTemplate,
+  '</body></html>'
+].join('\n');
+const recoveryHtml = recoverySource.replace(/<\?php[\s\S]*?\?>/g, '');
+
 async function openLogin(page, width) {
   await page.setViewportSize({ width, height: 900 });
-  await page.goto('/discadmin/', { waitUntil: 'domcontentloaded' });
+  await page.route('https://brvtal.test/**', route => {
+    const pathname = new URL(route.request().url()).pathname;
+    if (pathname === '/discadmin/') {
+      return route.fulfill({ status: 200, contentType: 'text/html', body: loginHtml });
+    }
+    if (pathname === '/discadmin/forgot-password.php') {
+      return route.fulfill({ status: 200, contentType: 'text/html', body: recoveryHtml });
+    }
+    return route.abort();
+  });
+  await page.goto('https://brvtal.test/discadmin/', { waitUntil: 'domcontentloaded' });
 
   const recovery = page.locator('.login-recovery');
   if (!(await recovery.count())) {
     const title = await page.title().catch(() => '');
     const body = await page.locator('body').innerText().catch(() => '');
-    test.skip(true, `UNKNOWN at ${width}px: login was not served (possible browser challenge); title=${title}; body=${body.slice(0, 120)}`);
+    test.skip(true, 'UNKNOWN at ' + width + 'px: login unavailable; title=' + title + '; body=' + body.slice(0, 120));
   }
   await expect(recovery).toBeVisible();
   return recovery;
