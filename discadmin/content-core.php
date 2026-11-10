@@ -195,8 +195,8 @@ brvtal_admin_require();
   <div class="section">
     <div class="sectionhead"><strong>ARTISTS / EVENT PARTICIPATION</strong></div>
     <div class="helper" style="margin-bottom:12px">
-      Current BRVTAL members are listed first. Existing external participants stay available
-      so event history is never lost.
+      All artists created in DISCADMIN, including first-time external guests, are available.
+      BRVTAL members appear first; existing event participation and history are preserved.
     </div>
     <div id="eventArtists" class="artist-list"></div>
   </div>
