@@ -80,10 +80,28 @@ $historicalPage = [
     ],
     'degraded' => false,
 ];
+$publicEventFactsMarkup = static function (string $html): string {
+    if (!preg_match('~<div class="entity-facts">(.*?)</div><div class="entity-actions">~s', $html, $matches)) {
+        event_record_expect(false, 'Event hero facts markup must exist');
+    }
+    return $matches[1] ?? '';
+};
+
 $historicalHtml = brvtal_public_entity_page($historicalPage, $seo);
 event_record_expect(str_contains($historicalHtml, 'data-event-record-state="historical"'), 'historical Event must identify its record state in markup');
 event_record_expect(str_contains($historicalHtml, 'REGISTRO DE EVENTO / BRVTAL'), 'historical Event hero must frame the page as Event Record');
 event_record_expect(str_contains($historicalHtml, 'REGISTRO DE EVENTO / FINALIZADO'), 'historical record band must retain lifecycle status');
+$historicalFacts = $publicEventFactsMarkup($historicalHtml);
+event_record_expect(
+    str_contains($historicalFacts, '<span>FECHA</span>')
+        && str_contains($historicalFacts, '<span>LUGAR</span>')
+        && str_contains($historicalFacts, '<span>REGISTRO</span>'),
+    'historical Event facts must keep date, place and archive record'
+);
+event_record_expect(
+    substr_count($historicalFacts, '<div><span>') === 3 && !str_contains($historicalFacts, '<span>ESTADO</span>'),
+    'historical Event facts must omit editorial status card without an empty card'
+);
 event_record_expect(str_contains($historicalHtml, 'CARTEL / REGISTRO / 01'), 'historical lineup must be framed as archived record');
 event_record_expect(str_contains($historicalHtml, 'SETS GRABADOS / 01'), 'historical Sets must be framed as recorded material');
 event_record_expect(str_contains($historicalHtml, 'TRANSMISIONES / 01'), 'explicit editorial relation must surface in Event Record');
@@ -103,6 +121,28 @@ event_record_expect(str_contains($activeHtml, 'data-event-record-state="active"'
 event_record_expect(str_contains($activeHtml, 'SEÑAL DEL EVENTO / ENTRADAS DISPONIBLES'), 'active Event band must expose real lifecycle status');
 event_record_expect(str_contains($activeHtml, '>ENTRADAS ↗<'), 'active Event keeps valid commercial CTA supplied by lifecycle policy');
 event_record_expect(str_contains($activeHtml, '← VOLVER A EVENTOS'), 'active Event returns to Events while historical Event returns to Archive framing');
+$activeFacts = $publicEventFactsMarkup($activeHtml);
+event_record_expect(
+    substr_count($activeFacts, '<div><span>') === 2
+        && str_contains($activeFacts, '<span>FECHA</span>')
+        && str_contains($activeFacts, '<span>LUGAR</span>')
+        && !str_contains($activeFacts, '<span>ESTADO</span>'),
+    'active Event hero must keep only date and location, without a status placeholder'
+);
+
+$publishedPage = $activePage;
+$publishedPage['entity']['status'] = 'published';
+$publishedPage['record']['status'] = 'PUBLISHED';
+$publishedPage['facts']['STATUS'] = 'PUBLISHED';
+$publishedHtml = brvtal_public_entity_page($publishedPage, $seo);
+event_record_expect(
+    !str_contains($publishedHtml, '>ESTADO<') && !str_contains($publishedHtml, 'PUBLICADO'),
+    'published is an editorial state and must not leak into public facts or Event band'
+);
+event_record_expect(
+    substr_count($publicEventFactsMarkup($publishedHtml), '<div><span>') === 2,
+    'published Event hero must have exactly two real public fact cards'
+);
 
 if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
     $dbName = (string)(getenv('BRVTAL_TEST_DB_NAME') ?: '');
@@ -269,6 +309,14 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
     ];
     $activeData = brvtal_public_page_data($pdo, $entity(101, 'ACTIVE EVENT', 'active-event'));
     $historicalData = brvtal_public_page_data($pdo, $entity(102, 'HISTORICAL EVENT', 'historical-event'));
+    foreach ([$activeData, $historicalData] as $publicEventData) {
+        event_record_expect(
+            !array_key_exists('STATUS', $publicEventData['facts'])
+                && !empty($publicEventData['facts']['DATE'])
+                && !empty($publicEventData['facts']['LOCATION']),
+            'hydrated public Event facts must preserve date/location without internal status'
+        );
+    }
     $draftData = brvtal_public_page_data($pdo, $entity(103, 'DRAFT EVENT', 'draft-event'));
 
     event_record_expect(($activeData['record']['state'] ?? '') === 'active', 'MariaDB active Event must hydrate as active');

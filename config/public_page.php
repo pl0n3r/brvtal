@@ -235,7 +235,6 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
         $data['facts'] = array_filter([
             'DATE' => isset($detail['event_date']) ? date('d.m.Y / H:i', strtotime((string)$detail['event_date'])) : '',
             'LOCATION' => implode(' / ', array_filter([$detail['venue'] ?? '', $detail['city'] ?? ''])),
-            'STATUS' => $recordStatus,
             'RECORD' => $isHistorical && $recordYear !== '' ? 'ARCHIVE / ' . $recordYear : '',
         ]);
         $data['links'] = $allowsTicketing ? array_filter(['TICKETS' => $detail['ticket_url'] ?? '']) : [];
@@ -410,6 +409,10 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
     $image = $escape(brvtal_public_absolute_url(brvtal_public_media_variant((string)$seo['image'], 'hero'), $base));
     $facts = '';
     foreach ($page['facts'] as $label => $value) {
+        // Editorial status stays in DISCADMIN even if legacy page data supplies it as a fact.
+        if ($isEvent && in_array(strtoupper(trim((string)$label)), ['STATUS', 'ESTADO'], true)) {
+            continue;
+        }
         if (trim((string)$value) !== '') $facts .= '<div><span>' . $escape(brvtalPublicEntityEs((string)$label)) . '</span><b>' . $escape(in_array((string)$label, ['DATE', 'LOCATION', 'TAGS', 'CATALOG', 'RELEASE DATE'], true) ? $value : brvtalPublicEntityEs((string)$value)) . '</b></div>';
     }
     $links = '';
@@ -487,7 +490,10 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
     if ($isEvent) {
         $bandLabel = $recordState === 'historical' ? 'REGISTRO DE EVENTO' : 'SEÑAL DEL EVENTO';
         $bandValue = $recordState === 'historical' ? 'ARCHIVO' : 'EXPERIENCIA ACTIVA';
-        if ($recordStatus !== '') $bandLabel .= ' / ' . brvtalPublicEntityEs($recordStatus);
+        // Display visitor-facing lifecycle labels, not administrative publication states.
+        if (in_array(strtoupper($recordStatus), ['FINISHED', 'CANCELLED', 'CANCELED', 'TICKETS AVAILABLE', 'SOLD OUT', 'UPCOMING'], true)) {
+            $bandLabel .= ' / ' . brvtalPublicEntityEs($recordStatus);
+        }
         if ($recordYear !== '') $bandValue .= ' / ' . $recordYear;
         $recordBand = '<section class="event-record-band" aria-label="Ciclo de vida del evento"><div><span>' . $escape($bandLabel) . '</span><strong>' . $escape($bandValue) . '</strong></div><p>FICHA OFICIAL DEL EVENTO / BRVTAL</p></section>';
     }
