@@ -367,4 +367,52 @@ try {
 event_workflow_it_assert($missingDateRejected, 'non-draft Event without date must fail server-side');
 event_workflow_it_assert((int)$pdo->query("SELECT COUNT(*) FROM events WHERE slug='incomplete-public-event'")->fetchColumn() === 0, 'invalid public Event must not persist');
 
+
+// An existing member, first-time external guest and historic guest share a roster.
+// Associating a guest does not change current membership or publish a private profile.
+$pdo->exec("ALTER TABLE artists ADD COLUMN is_collective_member TINYINT NOT NULL DEFAULT 0");
+$pdo->exec("ALTER TABLE artists ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'draft'");
+$pdo->prepare('UPDATE artists SET is_collective_member=1 WHERE id=?')->execute([$artistId]);
+$pdo->prepare('INSERT INTO artists(name,is_collective_member,status) VALUES(?,?,?)')
+    ->execute(['FIRST-TIME GUEST CI', 0, 'draft']);
+$newGuestId = (int)$pdo->lastInsertId();
+$pdo->prepare('INSERT INTO artists(name,is_collective_member,status) VALUES(?,?,?)')
+    ->execute(['HISTORICAL GUEST CI', 0, 'draft']);
+$historicalGuestId = (int)$pdo->lastInsertId();
+$mixedRosterRequest = brvtal_event_workflow_request([
+    'event'=>[
+        'id'=>$eventId, 'title'=>'Atomic Event CI updated', 'slug'=>'atomic-event-ci',
+        'status'=>'published', 'event_date'=>'2026-09-16 21:00', 'city'=>'Pereira',
+    ],
+    'ticket_types'=>[[
+        'id'=>$ticketId, 'name'=>'Preventa updated', 'price'=>'22000',
+        'status'=>'active', 'external_url'=>'https://example.com/tickets',
+    ]],
+    'lineup'=>[
+        ['artist_id'=>$historicalGuestId, 'lineup_order'=>0, 'role'=>'Historical Guest'],
+        ['artist_id'=>$artistId, 'lineup_order'=>1, 'role'=>'BRVTAL Set'],
+        ['artist_id'=>$newGuestId, 'lineup_order'=>2, 'role'=>'First Show'],
+    ],
+]);
+foreach ([1, 2] as $saveRound) {
+    brvtal_event_workflow_apply($pdo, $mixedRosterRequest);
+    $savedRoster = brvtal_event_workflow_fetch_lineup($pdo, $eventId);
+    event_workflow_it_assert(
+        array_map(static fn(array $item):int => (int)$item['artist_id'], $savedRoster)
+            === [$historicalGuestId, $artistId, $newGuestId],
+        'mixed roster must persist new guest, member and historical guest across repeated saves'
+    );
+    event_workflow_it_assert(
+        array_map(static fn(array $item):string => (string)$item['role'], $savedRoster)
+            === ['Historical Guest', 'BRVTAL Set', 'First Show'],
+        'historical participation roles and order must survive save/reload'
+    );
+}
+$artistFlags = $pdo->query('SELECT is_collective_member,status FROM artists ORDER BY id')->fetchAll(PDO::FETCH_ASSOC);
+event_workflow_it_assert(
+    array_map(static fn(array $a):int => (int)$a['is_collective_member'], $artistFlags) === [1, 0, 0]
+        && array_map(static fn(array $a):string => (string)$a['status'], $artistFlags) === ['draft', 'draft', 'draft'],
+    'event participation must never change collective membership or publish Artist profiles'
+);
+
 echo "BRVTAL Event workflow integration passed.\n";
