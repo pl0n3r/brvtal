@@ -157,6 +157,81 @@ test('Conectado resume 25 vínculos por categoría, permite ampliar y limpiar co
   await noOverflow(page);
 });
 
+
+test('Conectado collapses exactly six real Grid rows with no phantom gaps (0/1/6/32)', async ({ page }) => {
+  for (const count of [0, 1, 6, 32]) {
+    const widths = count === 32 ? [390, 768, 900, 1440] : [390, 1440];
+    const sets = Array.from({ length: count }, (_, i) => ({
+      id: 2000 + i, slug: 'grid-set-' + i, title: 'GRID SET ' + (i + 1),
+      artist_name: 'ARTIST ONE',
+    }));
+    const payload = {
+      ...data, sets,
+      relations: { artists: { 2: { sets: sets.map(item => item.id), events: [7] } } },
+    };
+    for (const width of widths) {
+      await mount(page, { width, payload, reduced: width === 768 });
+      const col = page.locator('#conectado .cr-cn2-col[data-col="sonido"]');
+      if (count === 0) {
+        await expect(col).toHaveCount(0);
+        await noOverflow(page);
+        continue;
+      }
+      const rows = col.locator('.cr-cn2-list > li');
+      const extraRows = rows.locator('.cr-is-extra');
+      await expect(rows).toHaveCount(count);
+      await expect(rows.filter({ visible: true })).toHaveCount(Math.min(6, count));
+      await expect(col.locator('.cr-cn2-list > li.cr-is-extra')).toHaveCount(Math.max(0, count - 6));
+      const initialMetrics = await col.evaluate(node => {
+        const list = node.querySelector('.cr-cn2-list');
+        const visibleRows = [...list.children].filter(li => getComputedStyle(li).display !== 'none');
+        const rowGap = parseFloat(getComputedStyle(list).rowGap);
+        const rowHeight = visibleRows.reduce((sum, li) => sum + li.getBoundingClientRect().height, 0);
+        const more = node.querySelector('.cr-cn2-more');
+        const last = visibleRows.at(-1);
+        return {
+          listHeight: list.getBoundingClientRect().height,
+          expected: rowHeight + Math.max(visibleRows.length - 1, 0) * rowGap,
+          trailingGap: more ? more.getBoundingClientRect().top - last.getBoundingClientRect().bottom : 0,
+          hiddenDisplays: [...list.querySelectorAll('li.cr-is-extra')].map(li => getComputedStyle(li).display),
+          touchHeight: more?.getBoundingClientRect().height || 0,
+        };
+      });
+      expect(Math.abs(initialMetrics.listHeight - initialMetrics.expected)).toBeLessThan(3);
+      expect(initialMetrics.hiddenDisplays.every(display => display === 'none')).toBe(true);
+      if (count > 6) {
+        expect(initialMetrics.trailingGap).toBeLessThanOrEqual(28);
+        expect(initialMetrics.touchHeight).toBeGreaterThanOrEqual(44);
+        const more = col.locator('.cr-cn2-more');
+        await more.focus();
+        await page.keyboard.press('Enter');
+        await expect(more).toBeFocused();
+        await expect(more).toHaveAttribute('aria-expanded', 'true');
+        await expect(rows.filter({ visible: true })).toHaveCount(count);
+        await expect(col.locator('.cr-cn2-list > li.cr-is-extra')).toHaveCount(count - 6);
+        await expect(extraRows).toHaveCount(count - 6);
+        const last = rows.last().locator('button');
+        await last.click();
+        await expect(last).toHaveAttribute('aria-pressed', 'true');
+        await page.keyboard.press('Escape');
+        await expect(page.locator('#conectado [aria-pressed="true"]')).toHaveCount(0);
+        await more.focus();
+        await page.keyboard.press('Enter');
+        await expect(more).toBeFocused();
+        await expect(more).toHaveAttribute('aria-expanded', 'false');
+        await expect(rows.filter({ visible: true })).toHaveCount(6);
+        expect(await col.locator('.cr-cn2-list > li.cr-is-extra').first().evaluate(li => getComputedStyle(li).display)).toBe('none');
+      } else {
+        await expect(col.locator('.cr-cn2-more')).toHaveCount(0);
+      }
+      await expect(page.locator('#contacto form')).toBeAttached();
+      await expect(page.locator('#cromo-section-nav')).toBeAttached();
+      await expect(page.locator('#conectado [aria-pressed="true"]')).toHaveCount(0);
+      await noOverflow(page);
+    }
+  }
+});
+
 test('Contacto recupera el captcha fallido, anuncia errores 422 y preserva el envío', async ({ page }) => {
   for (const width of [390, 768, 900, 1440]) {
     await mount(page, { width });

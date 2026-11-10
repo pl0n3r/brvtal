@@ -814,7 +814,10 @@
         if (i >= LIMIT) button.classList.add('cr-is-extra');
         items.set(entity.key, button);
         button.addEventListener('click', () => choose(entity.key));
-        ul.append(el('li', {}, button));
+        const listItem = el('li', {}, button);
+        // Hide the Grid item itself: an invisible child button still leaves a ghost track.
+        if (i >= LIMIT) listItem.classList.add('cr-is-extra');
+        ul.append(listItem);
       });
       const column = el('div', { class: 'cn2-col', 'data-col': name }, el('h3', { class: 'u', text: TITLES[name] }), ul, more);
       if (more) more.addEventListener('click', () => {
