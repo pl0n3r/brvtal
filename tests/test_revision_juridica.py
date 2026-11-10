@@ -27,6 +27,7 @@ class RevisionJuridicaTests(unittest.TestCase):
         self.assertTrue(index.startswith(
             f"Última actualización automática de las fuentes: {day} · SHA de origen: `{sha}`"))
         self.assertIn("documented_not_legally_approved", index)
+        self.assertIn(f"versión declarada `{mod.version(ROOT)}`", index)
         for provider in ("google_analytics", "smtp_mail_provider"):
             self.assertIn(provider, index)
         for filename, payload in expected.items():
