@@ -134,6 +134,7 @@ $publishedPage = $activePage;
 $publishedPage['entity']['status'] = 'published';
 $publishedPage['record']['status'] = 'PUBLISHED';
 $publishedPage['facts']['STATUS'] = 'PUBLISHED';
+$publishedPage['facts']['ESTADO'] = 'PUBLICADO';
 $publishedHtml = brvtal_public_entity_page($publishedPage, $seo);
 event_record_expect(
     !str_contains($publishedHtml, '>ESTADO<') && !str_contains($publishedHtml, 'PUBLICADO'),

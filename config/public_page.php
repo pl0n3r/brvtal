@@ -491,7 +491,11 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
         $bandLabel = $recordState === 'historical' ? 'REGISTRO DE EVENTO' : 'SEÑAL DEL EVENTO';
         $bandValue = $recordState === 'historical' ? 'ARCHIVO' : 'EXPERIENCIA ACTIVA';
         // Display visitor-facing lifecycle labels, not administrative publication states.
-        if (in_array(strtoupper($recordStatus), ['FINISHED', 'CANCELLED', 'CANCELED', 'TICKETS AVAILABLE', 'SOLD OUT', 'UPCOMING'], true)) {
+        $visitorFacingStatuses = [
+            'FINISHED', 'CANCELLED', 'CANCELED',
+            'TICKETS AVAILABLE', 'SOLD OUT', 'UPCOMING',
+        ];
+        if (in_array(strtoupper($recordStatus), $visitorFacingStatuses, true)) {
             $bandLabel .= ' / ' . brvtalPublicEntityEs($recordStatus);
         }
         if ($recordYear !== '') $bandValue .= ' / ' . $recordYear;
