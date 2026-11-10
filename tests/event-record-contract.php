@@ -130,6 +130,21 @@ event_record_expect(
     'active Event hero must keep only date and location, without a status placeholder'
 );
 
+$limitedTicketsPage = $activePage;
+$limitedTicketsPage['entity']['status'] = 'last_tickets';
+$limitedTicketsPage['record']['status'] = 'LAST TICKETS';
+$limitedTicketsPage['facts']['STATUS'] = 'LAST TICKETS';
+$limitedTicketsHtml = brvtal_public_entity_page($limitedTicketsPage, $seo);
+event_record_expect(
+    str_contains($limitedTicketsHtml, 'SEÑAL DEL EVENTO / ÚLTIMAS ENTRADAS'),
+    'last_tickets must retain the visitor-facing limited availability signal'
+);
+event_record_expect(
+    substr_count($publicEventFactsMarkup($limitedTicketsHtml), '<div><span>') === 2
+        && !str_contains($publicEventFactsMarkup($limitedTicketsHtml), '>ESTADO<'),
+    'limited availability must not restore the editorial status fact card'
+);
+
 $publishedPage = $activePage;
 $publishedPage['entity']['status'] = 'published';
 $publishedPage['record']['status'] = 'PUBLISHED';

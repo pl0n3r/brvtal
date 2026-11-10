@@ -371,7 +371,7 @@ function brvtalPublicEntityEs(string $text): string
         'EXPERIENCE' => 'EXPERIENCIA', 'ACTIVE' => 'ACTIVO', 'HISTORICAL' => 'HISTÓRICO',
         'UPCOMING' => 'PRÓXIMO', 'SOLD OUT' => 'AGOTADO', 'CANCELLED' => 'CANCELADO',
         'CANCELED' => 'CANCELADO', 'RESIDENT' => 'RESIDENTE', 'GUEST' => 'INVITADO',
-        'FINISHED' => 'FINALIZADO', 'TICKETS AVAILABLE' => 'ENTRADAS DISPONIBLES', 'UPCOMING EVENTS' => 'PRÓXIMOS EVENTOS', 'PAST EVENTS' => 'EVENTOS PASADOS', 'NOT FOUND' => 'NO ENCONTRADO', 'DATA STATUS' => 'ESTADO DE LOS DATOS', 'DEGRADED' => 'DEGRADADO',
+        'FINISHED' => 'FINALIZADO', 'TICKETS AVAILABLE' => 'ENTRADAS DISPONIBLES', 'LAST TICKETS' => 'ÚLTIMAS ENTRADAS', 'UPCOMING EVENTS' => 'PRÓXIMOS EVENTOS', 'PAST EVENTS' => 'EVENTOS PASADOS', 'NOT FOUND' => 'NO ENCONTRADO', 'DATA STATUS' => 'ESTADO DE LOS DATOS', 'DEGRADED' => 'DEGRADADO',
     ];
     $segments = explode(' / ', $text);
     foreach ($segments as $i => $segment) {
@@ -493,7 +493,7 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
         // Display visitor-facing lifecycle labels, not administrative publication states.
         $visitorFacingStatuses = [
             'FINISHED', 'CANCELLED', 'CANCELED',
-            'TICKETS AVAILABLE', 'SOLD OUT', 'UPCOMING',
+            'TICKETS AVAILABLE', 'LAST TICKETS', 'SOLD OUT', 'UPCOMING',
         ];
         if (in_array(strtoupper($recordStatus), $visitorFacingStatuses, true)) {
             $bandLabel .= ' / ' . brvtalPublicEntityEs($recordStatus);
