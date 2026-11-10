@@ -143,6 +143,48 @@ test('Tab stays inside the active dialog', async ({ page }) => {
   await expect(save).toBeFocused();
 });
 
+test('Tab cycles past hidden, disabled and inert buttons and recovers escaped focus', async ({ page }) => {
+  await mount(page);
+  const opener = page.getByRole('button', { name: 'NEW EVENT' });
+  await opener.click();
+
+  await page.evaluate(() => {
+    const save = document.getElementById('saveBtn');
+    const hidden = document.createElement('button');
+    hidden.type = 'button';
+    hidden.hidden = true;
+    hidden.textContent = 'HIDDEN ACTION';
+    const disabled = document.createElement('button');
+    disabled.type = 'button';
+    disabled.disabled = true;
+    disabled.textContent = 'DISABLED ACTION';
+    const inertWrapper = document.createElement('span');
+    inertWrapper.setAttribute('inert', '');
+    const inertButton = document.createElement('button');
+    inertButton.textContent = 'INERT ACTION';
+    inertWrapper.appendChild(inertButton);
+    save.after(hidden, disabled, inertWrapper);
+  });
+
+  const save = page.locator('#saveBtn');
+  const close = page.getByRole('button', { name: 'Close dialog' });
+  await save.focus();
+  await page.keyboard.press('Tab');
+  await expect(close).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(save).toBeFocused();
+
+  await opener.focus();
+  await page.keyboard.press('Tab');
+  await expect(close).toBeFocused();
+  await opener.focus();
+  await page.keyboard.press('Shift+Tab');
+  await expect(save).toBeFocused();
+
+  await page.keyboard.press('Escape');
+  await expect(opener).toBeFocused();
+});
+
 test('Tab stays inside the Content Core dialog', async ({ page }) => {
   await mount(page);
   await page.getByRole('button', { name: 'CONTENT CORE EVENT' }).click();

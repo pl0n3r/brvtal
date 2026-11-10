@@ -50,26 +50,26 @@
 
   function focusableWithin(container) {
     return [...container.querySelectorAll('button:not([disabled]),input:not([disabled]),textarea:not([disabled]),select:not([disabled]),a[href],[tabindex]:not([tabindex="-1"])')]
-      .filter(el => el.offsetParent !== null);
+      .filter(el => {
+        if (el.closest('[hidden],[inert],[aria-hidden="true"]')) return false;
+        const visibility = getComputedStyle(el).visibility;
+        return el.getClientRects().length > 0 && visibility !== 'hidden' && visibility !== 'collapse';
+      });
   }
 
   function trapTabWithin(container, event) {
     const items = focusableWithin(container);
-    if (!items.length) return false;
-    const first = items[0];
-    const last = items[items.length - 1];
-
-    if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault();
-      last.focus();
+    event.preventDefault();
+    if (!items.length) {
+      container.querySelector('.modalbox')?.focus({ preventScroll: true });
       return true;
     }
-    if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault();
-      first.focus();
-      return true;
-    }
-    return false;
+    const index = items.indexOf(document.activeElement);
+    const nextIndex = event.shiftKey
+      ? (index <= 0 ? items.length - 1 : index - 1)
+      : (index === -1 || index === items.length - 1 ? 0 : index + 1);
+    items[nextIndex].focus({ preventScroll: true });
+    return true;
   }
 
   function isOpen() {
