@@ -62,14 +62,16 @@
     event.preventDefault();
     if (!items.length) {
       container.querySelector('.modalbox')?.focus({ preventScroll: true });
-      return true;
+      return;
     }
     const index = items.indexOf(document.activeElement);
-    const nextIndex = event.shiftKey
-      ? (index <= 0 ? items.length - 1 : index - 1)
-      : (index === -1 || index === items.length - 1 ? 0 : index + 1);
+    let nextIndex;
+    if (event.shiftKey) {
+      nextIndex = index <= 0 ? items.length - 1 : index - 1;
+    } else {
+      nextIndex = index < 0 || index === items.length - 1 ? 0 : index + 1;
+    }
     items[nextIndex].focus({ preventScroll: true });
-    return true;
   }
 
   function isOpen() {
