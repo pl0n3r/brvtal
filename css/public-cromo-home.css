@@ -413,6 +413,8 @@ html.cromo-home body>*:not(#cromo-home):not(#cromoGL):not(script):not(style):not
 #cromo-home .cr-cn2-item.cr-is-dim{opacity:.38}
 #cromo-home .cr-cn2-item:focus-visible{outline:3px solid var(--bone);outline-offset:3px}
 #cromo-home .cr-cn2-item.cr-is-extra{display:none}
+#cromo-home .cr-cn2-list > li.cr-is-extra{display:none}
+#cromo-home .cr-cn2-col.cr-is-open .cr-cn2-list > li.cr-is-extra{display:block}
 #cromo-home .cr-cn2-col.cr-is-open .cr-cn2-item.cr-is-extra{display:grid}
 #cromo-home .cr-cn2-more{justify-self:start;min-height:44px;padding:0 4px;background:none;border:0;color:var(--steel);cursor:pointer;font:700 18px/1 var(--body);letter-spacing:.08em;text-transform:uppercase;text-decoration:underline;text-underline-offset:.25em;transition:color var(--duration-quick) var(--ease-in-out)}
 #cromo-home .cr-cn2-more:hover,#cromo-home .cr-cn2-more:focus-visible{color:var(--bone)}
