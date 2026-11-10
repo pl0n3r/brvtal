@@ -14,7 +14,7 @@ function fixture(state = 'historical') {
     <main id="main-content">
       <article class="entity-hero">
         <div class="entity-image"><div style="width:100%;height:100%;background:#111"></div><span>${historical ? 'EVENT RECORD' : 'EVENT'} / BRVTAL</span></div>
-        <div class="entity-copy"><div class="entity-kicker">BRVTAL / ${historical ? 'EVENT RECORD' : 'EVENT'} / 014</div><h1 data-text="GENESIS: INDUSTRIAL SIGNAL">GENESIS: INDUSTRIAL SIGNAL</h1><div class="entity-facts"><div><span>DATE</span><b>14.08.2026 / 21:00</b></div><div><span>LOCATION</span><b>PEREIRA / COLOMBIA</b></div><div><span>STATUS</span><b>${historical ? 'FINISHED' : 'TICKETS AVAILABLE'}</b></div>${historical ? '<div><span>RECORD</span><b>ARCHIVE / 2026</b></div>' : ''}</div><div class="entity-actions">${ticket}<a href="#network">EXPLORE CONNECTIONS ↗</a></div></div>
+        <div class="entity-copy"><div class="entity-kicker">BRVTAL / ${historical ? 'EVENT RECORD' : 'EVENT'} / 014</div><h1 data-text="GENESIS: INDUSTRIAL SIGNAL">GENESIS: INDUSTRIAL SIGNAL</h1><div class="entity-facts"><div><span>DATE</span><b>14.08.2026 / 21:00</b></div><div><span>LOCATION</span><b>PEREIRA / COLOMBIA</b></div>${historical ? '<div><span>RECORD</span><b>ARCHIVE / 2026</b></div>' : ''}</div><div class="entity-actions">${ticket}<a href="#network">EXPLORE CONNECTIONS ↗</a></div></div>
       </article>
       <section class="event-record-band"><div><span>${historical ? 'EVENT RECORD / FINISHED' : 'EVENT SIGNAL / TICKETS AVAILABLE'}</span><strong>${historical ? 'ARCHIVE / 2026' : 'ACTIVE EXPERIENCE / 2026'}</strong></div><p>CANONICAL EVENT FILE / BRVTAL</p></section>
       <section class="entity-statement"><div class="entity-section-label">${historical ? 'RECORD / INFORMATION' : 'ABOUT / EXPERIENCE'}</div><p>BRVTAL x RANDOM KORE / underground electronic culture from Pereira.</p></section>
@@ -41,6 +41,29 @@ test('active Event keeps a clear ticket action and active lifecycle framing', as
   await expect(page.getByRole('link', { name: 'TICKETS ↗' })).toBeVisible();
   await expect(page.getByText('EVENT SIGNAL / TICKETS AVAILABLE')).toBeVisible();
   await expect(page.getByText('← BACK TO EVENTS')).toBeVisible();
+});
+
+test('public Event hero keeps only real fact cards without an empty status cell on desktop and mobile', async ({ page }) => {
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.setContent(fixture('active'));
+    const facts = page.locator('.entity-facts > div');
+    await expect(facts).toHaveCount(2);
+    await expect(page.locator('.entity-facts')).toContainText('DATE');
+    await expect(page.locator('.entity-facts')).toContainText('LOCATION');
+    await expect(page.locator('.entity-facts')).not.toContainText('STATUS');
+    const cards = await facts.evaluateAll(elements => elements.map(el => {
+      const { x, top, width } = el.getBoundingClientRect();
+      return { x, top, width };
+    }));
+    expect(cards.every(card => card.width > 0)).toBeTruthy();
+    if (width === 390) {
+      expect(Math.abs(cards[0].x - cards[1].x)).toBeLessThan(1);
+      expect(cards[1].top).toBeGreaterThan(cards[0].top);
+    } else {
+      expect(cards[1].x).toBeGreaterThan(cards[0].x + cards[0].width - 1);
+    }
+  }
 });
 
 test('Event Record stays touch-safe and has no horizontal overflow on mobile', async ({ page }) => {
