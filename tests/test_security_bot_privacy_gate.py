@@ -87,7 +87,8 @@ def cleanup_condition(
 
     expression = comparisons.sub(replace_comparison, expression)
     expression = expression.replace("always()", "True").replace("&&", " and ").replace("||", " or ")
-    parsed = ast.parse(expression, mode="eval")
+    # YAML folded scalar whitespace is significant in Python; normalize it first.
+    parsed = ast.parse(" ".join(expression.split()), mode="eval")
 
     def boolean(node: ast.AST) -> bool:
         """Evaluate the safe subset of AST accepted for workflow predicates."""
