@@ -247,6 +247,20 @@ test('legacy deferred initial focus preserves later choices and does not reopen 
   await page.keyboard.press('Escape');
   await expect(opener).toBeFocused();
 
+  // Focus can leave the dialog and return to the original opener while a
+  // frame is pending: element identity alone does not detect that transition.
+  await opener.click();
+  await expect(dialog).toHaveAttribute('aria-modal', 'true');
+  await expect.poll(queuedFrame).toBeGreaterThan(0);
+  await save.focus();
+  await opener.focus();
+  await page.evaluate(() => window.__flushLegacyFocusFrames());
+  await expect(opener).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(save).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(opener).toBeFocused();
+
   // Closing before the scheduled frame prevents stale focus inside the modal.
   await opener.click();
   await expect(dialog).toHaveAttribute('aria-modal', 'true');

@@ -6,6 +6,9 @@
 
   let opener = null;
   let wasOpen = false;
+  // Detect every intervening focus change, even if the same opener regains focus.
+  let focusGeneration = 0;
+  document.addEventListener('focusin', () => { focusGeneration += 1; }, true);
   let saving = false;
 
   const requiredByField = {
@@ -226,10 +229,13 @@
     syncPublicationHint();
 
     if (options.focus !== false) {
-      // Initial focus is advisory: a user-chosen focus or a closed modal wins.
+      // Initial focus is advisory: it must not override any newer focus choice.
       const focusedBeforeFrame = document.activeElement;
+      const focusVersion = focusGeneration;
       requestAnimationFrame(() => {
-        if (!isOpen() || document.activeElement !== focusedBeforeFrame || modal.contains(document.activeElement)) return;
+        if (!isOpen() || focusGeneration !== focusVersion
+          || document.activeElement !== focusedBeforeFrame
+          || modal.contains(document.activeElement)) return;
         const target = invalidControl() || modal.querySelector('input,textarea,select,button');
         target?.focus({ preventScroll: true });
       });
