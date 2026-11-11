@@ -60,6 +60,15 @@ brvtal_ci_classify_files() {
     esac
 
     case "$file" in
+      # Each member can persist or publish authored state via DISCADMIN/API:
+      # core event editor, draft recovery, lineup, workflow, set publication,
+      # media mutations, releases and blog publishing. UI-only JS/CSS is excluded.
+      discadmin/content-core.js|discadmin/editor-drafts.js|discadmin/content-core-lineup.js|discadmin/event-workflow.js|discadmin/set-publication-contract.js|discadmin/media-library.js|discadmin/releases.js|discadmin/blog.js)
+        brvtal_ci_scope_add_area "DISCADMIN persistent editors"
+        BRVTAL_SCOPE_RUN_DB=true
+        BRVTAL_SCOPE_RUN_BROWSER=true
+        BRVTAL_SCOPE_RUN_REALSTACK=true
+        ;;
       discadmin/*.js|discadmin/*.css)
         brvtal_ci_scope_add_area "DISCADMIN UI"; BRVTAL_SCOPE_RUN_BROWSER=true ;;
       discadmin/*.php)
