@@ -5,6 +5,11 @@ on:
     types: [opened, edited, reopened]
   issue_comment:
     types: [created]
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - .github/workflows/seguridad.yml
+      - tests/test_security_bot_privacy_gate.py
 
 permissions:
   contents: read
@@ -14,6 +19,21 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  validar-contrato-privacidad-bot:
+    name: Test bot privacy gate
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout del PR sin credenciales persistidas
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Ejecutar regresiones offline fail-closed
+        run: python3 -m unittest -v tests/test_security_bot_privacy_gate.py
+
   materializar-respuesta:
     name: Materializar decisión explícita
     if: >-
