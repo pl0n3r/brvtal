@@ -202,3 +202,59 @@ test('Tab stays inside the Content Core dialog', async ({ page }) => {
   await page.keyboard.press('Shift+Tab');
   await expect(save).toBeFocused();
 });
+
+test('legacy deferred initial focus preserves later choices and does not reopen a closed dialog', async ({ page }) => {
+  await mount(page);
+  await page.evaluate(() => {
+    const frames = [];
+    window.__pendingLegacyFocusFrames = frames;
+    window.requestAnimationFrame = callback => {
+      frames.push(callback);
+      return frames.length;
+    };
+    window.__flushLegacyFocusFrames = () => {
+      for (const callback of frames.splice(0)) callback(performance.now());
+    };
+  });
+
+  const opener = page.getByRole('button', { name: 'NEW EVENT' });
+  const dialog = page.getByRole('dialog');
+  const title = page.locator('#f_title');
+  const save = page.locator('#saveBtn');
+  const close = page.getByRole('button', { name: 'Close dialog' });
+  const queuedFrame = () => page.evaluate(() => window.__pendingLegacyFocusFrames.length);
+
+  // Initial focus still reaches the required input when the user has not moved it.
+  await opener.click();
+  await expect(dialog).toHaveAttribute('aria-modal', 'true');
+  await expect.poll(queuedFrame).toBeGreaterThan(0);
+  await page.evaluate(() => window.__flushLegacyFocusFrames());
+  await expect(title).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(opener).toBeFocused();
+
+  // A later user-selected focus must never be overwritten by the queued frame.
+  await opener.click();
+  await expect(dialog).toHaveAttribute('aria-modal', 'true');
+  await expect.poll(queuedFrame).toBeGreaterThan(0);
+  await save.focus();
+  await page.evaluate(() => window.__flushLegacyFocusFrames());
+  await expect(save).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(close).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(save).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(opener).toBeFocused();
+
+  // Closing before the scheduled frame prevents stale focus inside the modal.
+  await opener.click();
+  await expect(dialog).toHaveAttribute('aria-modal', 'true');
+  await expect.poll(queuedFrame).toBeGreaterThan(0);
+  await page.evaluate(() => {
+    window.closeModal();
+    window.__flushLegacyFocusFrames();
+  });
+  await expect(dialog).toBeHidden();
+  await expect(opener).toBeFocused();
+});

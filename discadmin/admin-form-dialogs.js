@@ -226,7 +226,10 @@
     syncPublicationHint();
 
     if (options.focus !== false) {
+      // Initial focus is advisory: a user-chosen focus or a closed modal wins.
+      const focusedBeforeFrame = document.activeElement;
       requestAnimationFrame(() => {
+        if (!isOpen() || document.activeElement !== focusedBeforeFrame || modal.contains(document.activeElement)) return;
         const target = invalidControl() || modal.querySelector('input,textarea,select,button');
         target?.focus({ preventScroll: true });
       });
