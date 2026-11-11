@@ -13,7 +13,8 @@ concurrency:
   group: seguridad-${{ github.repository }}-human-gates
   cancel-in-progress: false
 
-jobs:  materializar-respuesta:
+jobs:
+  materializar-respuesta:
     name: Materializar decisión explícita
     if: >-
       github.event_name == 'issue_comment' &&

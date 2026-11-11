@@ -148,6 +148,13 @@ def execute_cleanup(delete_denied: bool = False) -> tuple[int, list[str]]:
 
 
 class BotPrivacyGateWorkflowTests(unittest.TestCase):
+    def test_workflow_jobs_mapping_is_well_formed(self) -> None:
+        """The security workflow must declare jobs as a YAML mapping, not a scalar."""
+        source = WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("\njobs:\n  materializar-respuesta:\n", source)
+        self.assertEqual(source.count("\njobs:\n"), 1)
+        self.assertNotIn("jobs:  materializar-respuesta:", source)
+
     def test_valid_bot_privacy_gate_reconciles_with_factory_validator(self) -> None:
         output, calls = evaluate(
             {"body": "<!-- factory-privacy-material -->", "user": {"type": "Bot"}},
