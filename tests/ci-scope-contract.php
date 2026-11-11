@@ -109,6 +109,60 @@ ci_scope_expect(str_contains($workflow, 'Repository-only maintenance: product ve
 ci_scope_expect(str_contains($workflow, 'run: npm run test:integration'), 'CI database gate must call the canonical integration script');
 ci_scope_expect(!str_contains($workflow, "php tests/integration/global-search.php\n          php tests/integration/bulk-actions.php"), 'CI must not maintain a second manual integration list');
 
+// Persistent editor mutations must reach the disposable PHP/DB real-stack gate.
+// Browser-only presentation and documentation changes must remain lightweight.
+$editorFiles = [
+    'content-core.js',             // event data form/editor mutations
+    'editor-drafts.js',            // recoverable authored draft lifecycle
+    'content-core-lineup.js',      // lineup POST mutations
+    'event-workflow.js',           // event workflow and publication transitions
+    'set-publication-contract.js', // sets' publish/save controls
+    'media-library.js',           // media create/delete and related updates
+    'releases.js',                // release create/publish operations
+    'blog.js',                    // blog draft/save/publish operations
+];
+foreach (['pull_request', 'push'] as $event) {
+    foreach ($editorFiles as $name) {
+        ci_scope_expect_flags(ci_scope_run(["discadmin/{$name}"], $event), [
+            'full' => 'false', 'run_db' => 'true',
+            'run_browser' => 'true', 'run_realstack' => 'true',
+            'run_webkit' => 'false', 'run_recovery' => 'false',
+            'run_php' => 'false', 'run_js' => 'true',
+            'deploy_bound' => 'true',
+        ], "persistent {$name} {$event}");
+    }
+    ci_scope_expect_flags(ci_scope_run([
+        'README.md', 'discadmin/content-core-lineup.js',
+        'discadmin/admin.css', 'api/hero-slider.php',
+    ], $event), [
+        'run_db' => 'true', 'run_browser' => 'true',
+        'run_realstack' => 'true', 'run_webkit' => 'false',
+        'run_recovery' => 'false', 'deploy_bound' => 'true',
+    ], "mixed persistent/API/docs {$event}");
+    ci_scope_expect_flags(ci_scope_run([
+        'discadmin/global-search.js', 'discadmin/admin.css',
+        'README.md', 'docs/web-intake.md',
+    ], $event), [
+        'full' => 'false', 'run_db' => 'false',
+        'run_browser' => 'true', 'run_realstack' => 'false',
+        'run_webkit' => 'false', 'run_recovery' => 'false',
+        'run_js' => 'true', 'deploy_bound' => 'true',
+    ], "presentation-only JS/CSS docs {$event}");
+    ci_scope_expect_flags(ci_scope_run(['discadmin/admin.css'], $event), [
+        'run_db' => 'false', 'run_browser' => 'true',
+        'run_realstack' => 'false', 'run_webkit' => 'false',
+    ], "CSS only {$event}");
+    ci_scope_expect_flags(ci_scope_run(['discadmin/event-workflow.js', 'README.md'], $event), [
+        'run_db' => 'true', 'run_browser' => 'true',
+        'run_realstack' => 'true',
+    ], "persistent editor plus README {$event}");
+}
+ci_scope_expect_flags(ci_scope_run(['discadmin/global-search.js'], 'workflow_dispatch'), [
+    'full' => 'true', 'run_db' => 'true', 'run_browser' => 'true',
+    'run_realstack' => 'true', 'run_webkit' => 'true',
+    'run_recovery' => 'true',
+], 'manual dispatch always full');
+
 ci_scope_expect_flags(ci_scope_run(['api/hero-slider.php']), [
     'full' => 'false', 'run_db' => 'true', 'run_browser' => 'true', 'run_realstack' => 'true', 'run_webkit' => 'false', 'run_recovery' => 'false',
     'run_php' => 'true', 'run_js' => 'false', 'deploy_bound' => 'true',
