@@ -639,6 +639,29 @@
 **Total:** 611 filas.
 **Porcentaje CUBIERTO:** 27.66% (169/611).
 
+### Consolidación de los nueve lotes · #1602 · 11-nov-2026
+
+**Conciliación exacta del inventario:** se contrastaron los identificadores de las nueve hojas `docs/verificacion/verificacion-01.md` a `verificacion-09.md` contra el bloque `## Cobertura`, sin recurrir a inferencias por epics o pruebas sintéticas. **408 referencias únicas / 408 filas originales `NO_VERIFICABLE`, sin omisiones, extras ni duplicados**; los 9 PR de verificación están fusionados en `main`. La columna «Evidencia / falta verificar» conserva el motivo individual de cada fila y cada hoja enlazada aporta el contraste detallado y su límite.
+
+| Lote | Filas cotejadas | Issue cerrado | PR fusionado | Contraste por fila y motivo pendiente | Promociones |
+| --- | ---: | --- | --- | --- | ---: |
+| 01/09 | 50 | [#1593](https://github.com/pl0n3r/brvtal/issues/1593) | [PR #1608](https://github.com/pl0n3r/brvtal/pull/1608) | [Evidencia por identificador](verificacion/verificacion-01.md) | 0 |
+| 02/09 | 50 | [#1594](https://github.com/pl0n3r/brvtal/issues/1594) | [PR #1609](https://github.com/pl0n3r/brvtal/pull/1609) | [Evidencia por identificador](verificacion/verificacion-02.md) | 0 |
+| 03/09 | 50 | [#1595](https://github.com/pl0n3r/brvtal/issues/1595) | [PR #1606](https://github.com/pl0n3r/brvtal/pull/1606) | [Evidencia por identificador](verificacion/verificacion-03.md) | 0 |
+| 04/09 | 50 | [#1596](https://github.com/pl0n3r/brvtal/issues/1596) | [PR #1611](https://github.com/pl0n3r/brvtal/pull/1611) | [Evidencia por identificador](verificacion/verificacion-04.md) | 0 |
+| 05/09 | 50 | [#1597](https://github.com/pl0n3r/brvtal/issues/1597) | [PR #1607](https://github.com/pl0n3r/brvtal/pull/1607) | [Evidencia por identificador](verificacion/verificacion-05.md) | 0 |
+| 06/09 | 50 | [#1598](https://github.com/pl0n3r/brvtal/issues/1598) | [PR #1610](https://github.com/pl0n3r/brvtal/pull/1610) | [Evidencia por identificador](verificacion/verificacion-06.md) | 0 |
+| 07/09 | 50 | [#1599](https://github.com/pl0n3r/brvtal/issues/1599) | [PR #1612](https://github.com/pl0n3r/brvtal/pull/1612) | [Evidencia por identificador](verificacion/verificacion-07.md) | 0 |
+| 08/09 | 50 | [#1600](https://github.com/pl0n3r/brvtal/issues/1600) | [PR #1605](https://github.com/pl0n3r/brvtal/pull/1605) | [Evidencia por identificador](verificacion/verificacion-08.md) | 0 |
+| 09/09 | 8 | [#1601](https://github.com/pl0n3r/brvtal/issues/1601) | [PR #1604](https://github.com/pl0n3r/brvtal/pull/1604) | [Evidencia por identificador](verificacion/verificacion-09.md) | 0 |
+| **Total** | **408** | **9 hojas** | **9 PR fusionados** | **408 razones preservadas** | **0** |
+
+**Decisión conservadora por requisito:** ningún lote demuestra simultáneamente *comportamiento integral + prueba pertinente + PR fusionado* para convertir su subconjunto en `CUBIERTO`. Los testigos locales A son parciales; los grupos B requieren recepción autenticada de navegador/entorno/operador/BD; los C necesitan criterio verificable o aprobación editorial, y los textos históricos sustituidos no equivalen automáticamente a una decisión `DESCARTADO`. Los contraejemplos y las brechas detalladas están en las nueve hojas, no se extrapolan a producción. Por eso las 408 filas conservan `NO_VERIFICABLE` con sus motivos previos, sin promoverse a `EN_CURSO` por el simple cierre de un PR de auditoría.
+
+**Totales recalculados sobre las 611 filas efectivas:** 169 `CUBIERTO` + 0 `EN_CURSO` + 0 `SIN_COBERTURA` + 34 `DESCARTADO` + 408 `NO_VERIFICABLE` = **611**. Cobertura: **27.66 %** (169/611). Es intencional que los valores de la tabla de resumen no cambien: los nueve lotes aumentan trazabilidad, **no** las pruebas de cumplimiento total. Los 169 `CUBIERTO` existentes conservan su código, su test y su PR fusionado previamente acreditados.
+
+**QA y fronteras:** `tests/test_matriz_cobertura.py` valida las 611 filas, los estados, las fuentes y la igualdad con el resumen; los contratos `tests/test_verificacion_brvtal_01.py` a `09.py` constituyen evidencia adicional de los lotes. El gate CI `factory-ci / Validar` y el resto de checks deben comprobarse en el HEAD definitivo de este PR, sin suponer resultado anticipado. Sin cambios de código, claims ajenos, datos reales, proveedores, despliegue, go-live o decisiones humanas. Reversión: revert del squash exclusivamente documental.
+
 **Hojas canónicas nuevas creadas en esta auditoría:** 2 ([Issue #1065](https://github.com/pl0n3r/brvtal/issues/1065), S10-R011; [Issue #1068](https://github.com/pl0n3r/brvtal/issues/1068), S22-R043, implementado en PR #1071). La ausencia de prueba no demuestra una brecha de código sin issue previo; ninguna hoja nueva fue autorizada sobre hipótesis.
 
 ### Segunda pasada y límites
