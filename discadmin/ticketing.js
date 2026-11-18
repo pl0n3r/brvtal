@@ -90,7 +90,7 @@ window.BRVTALTicketing = (() => {
       }
       if (response.status === 403) {
         host.replaceChildren(element('p', 'Sin permiso para acceder a Boletería.', 'ticketing-denied'));
-        return false;
+        return true; // The shell must preserve the explicit denied workspace.
       }
       if (!response.ok) throw new Error('HTTP ' + response.status);
       const documentFragment = new DOMParser().parseFromString(await response.text(), 'text/html');
@@ -105,7 +105,7 @@ window.BRVTALTicketing = (() => {
       const retry = element('button', 'Reintentar', 'btn ghost');
       retry.type = 'button'; retry.addEventListener('click', () => mount());
       host.replaceChildren(element('p', 'No se pudo cargar Boletería.', 'ticketing-error'), retry);
-      return false;
+      return true; // Keep retry visible inside the canonical workspace.
     }
   }
   async function open(options = {}) {

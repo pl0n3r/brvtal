@@ -25,7 +25,7 @@ async function setup(page, response = {status:200,body:fixture()}) {
       + '<button data-admin-nav="ticketing">BOLETERÍA</button><button data-admin-nav="events">EVENTS</button>'
       + '</nav></aside><main class="main"><div class="top"><h1>BOLETERÍA</h1></div>'
       + '<div id="admin-module-host"></div></main></div></div>'
-      + '<script>window.state={authed:true,section:"dashboard"};window.go=async function(s){state.section=s;if(s==="ticketing")return window.BRVTALTicketing.mount();return true;}</script>'
+      + '<script>window.state={authed:true,section:"dashboard"};window.go=async function(s){state.section=s;if(s==="ticketing"){const loaded=await window.BRVTALTicketing.mount();if(loaded===false){state.section="dashboard";document.getElementById("admin-module-host").textContent="Dashboard";}return loaded;}return true;}</script>'
   }));
   await page.goto('/discadmin/ticketing-shell-fixture.html');
   await page.addScriptTag({content:source});
@@ -73,4 +73,12 @@ test('server-side permissions refuse buyer and sensitive staff operations', asyn
   expect(roles).toContain("brvtalTicketingCan");
   expect(core).toContain('data-admin-nav');
   expect(core).toContain("state.section==='content-core'||state.section==='security'");
+});
+
+test('fragment failure leaves a retry action in the single workspace', async ({page}) => {
+  await setup(page,{status:503,body:'Service unavailable'});
+  await page.getByRole('button',{name:'BOLETERÍA'}).click();
+  await expect(page.locator('#app .shell')).toHaveCount(1);
+  await expect(page.locator('.ticketing-error')).toContainText('No se pudo cargar');
+  await expect(page.getByRole('button',{name:'Reintentar'})).toBeVisible();
 });
