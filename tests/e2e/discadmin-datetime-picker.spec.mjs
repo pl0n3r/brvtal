@@ -133,7 +133,8 @@ test('real-stack saves the same YYYY-MM-DD HH:MM:SS API contract and reloads the
   try {
     await page.goto(base + '/discadmin/?module=events', {waitUntil:'domcontentloaded'});
     await expect(page.locator('[data-admin-module="content-core"]')).toBeAttached({timeout:10000});
-    await page.locator('#eventsTab').getByRole('button', {name:'+ NEW EVENT', exact:true}).click();
+    await page.evaluate(() => window.BRVTALContentCore.openEvent());
+    await expect(page.locator('#eventModal')).toHaveClass(/open/);
     await page.locator('#e_title').fill('CI DATE PICKER ' + slug);
     await page.locator('#e_slug').fill(slug);
     await page.locator('#eventModal [data-step="2"]').click();
@@ -168,6 +169,7 @@ test('real-stack saves the same YYYY-MM-DD HH:MM:SS API contract and reloads the
 
     await page.reload();
     await page.waitForFunction(() => typeof window.BRVTALContentCore?.openEvent === 'function');
+    await expect(page.locator('#eventsTable')).toContainText('CI DATE PICKER ' + slug);
     await page.evaluate(id => window.BRVTALContentCore.openEvent(id), eventId);
     await expect(page.locator('#e_event_date')).toHaveValue('2026-12-05T22:00');
     await expect(page.locator('#e_event_date + .adp-trigger')).toContainText('10:00 PM');
