@@ -576,6 +576,7 @@ function settingsForm(r){
 }
 function show(x){const n=document.getElementById('notice');n.textContent=x;n.className='notice show error'}
 async function loadRefs(){try{state.events=(await req('/events')).data||[];state.artists=(await req('/artists')).data||[]}catch(e){}}
+const lineupCreationPending = new WeakSet();
 async function openLineup(eventId){
  await loadRefs();
  const response=await req('/events/'+eventId+'/lineup');
@@ -589,6 +590,11 @@ async function openLineup(eventId){
  modal.classList.add('open');
  notice.className='notice';
  saveButton.onclick=async()=>{
+  const editor=content.querySelector('#lineupCurrent');
+  if(editor && lineupCreationPending.has(editor)){
+   show('Espera a que termine la creación del artista antes de guardar.');
+   return;
+  }
   const items=[...document.querySelectorAll('#lineupCurrent .lineitem')].map((el,index)=>({
    artist_id:Number(el.dataset.id),
    role:el.querySelector('input')?.value||'',
@@ -638,6 +644,8 @@ function renderAvailableLineupArtists(){
 async function lineupArtistEnter(event){
  if(event.key!=='Enter')return;
  event.preventDefault();
+ const editor=document.getElementById('lineupCurrent');
+ if(editor && lineupCreationPending.has(editor))return;
  const input=event.currentTarget;
  const query=input.value.trim();
  if(!query){lineupArtistError('Escribe el nombre del artista.');input.focus();return;}
@@ -646,6 +654,8 @@ async function lineupArtistEnter(event){
  await createLineupArtist();
 }
 async function createLineupArtist(){
+ const editor=document.getElementById('lineupCurrent');
+ if(!editor||lineupCreationPending.has(editor))return;
  const input=document.getElementById('lineupArtistSearch');
  const button=document.getElementById('lineupCreateArtist');
  const name=input?.value.trim()||'';
@@ -653,23 +663,33 @@ async function createLineupArtist(){
  if(state.artists.some(a=>String(a.name||'').trim().toLocaleLowerCase()===name.toLocaleLowerCase())){
   lineupArtistError('El artista ya existe. Añádelo desde la lista.');input.focus();return;
  }
+ lineupCreationPending.add(editor);
  if(button)button.disabled=true;
  lineupArtistError();
  try{
   const result=await req('/artists',{method:'POST',body:JSON.stringify({name,slug:'',status:'draft',is_collective_member:0})});
   const id=Number(result.id);
   if(!result.ok||!Number.isSafeInteger(id)||id<1)throw Error('INVALID_ARTIST_RESPONSE');
-  state.artists.push({id,name,status:'draft',is_collective_member:0});
-  addLine(id);
-  input.value='';
-  renderAvailableLineupArtists();
+  if(!state.artists.some(artist=>Number(artist.id)===id)){
+   state.artists.push({id,name,status:'draft',is_collective_member:0});
+  }
+  if(editor.isConnected && document.getElementById('lineupCurrent')===editor){
+   addLine(id);
+   input.value='';
+   renderAvailableLineupArtists();
+  }
  }catch(error){
-  const code=String(error.code||error.message||'ERROR');
-  const messages={NAME_REQUIRED:'Escribe el nombre del artista.',DUPLICATE_SLUG:'Ya existe un artista con ese nombre.',AUTH_REQUIRED:'Sesión expirada. Vuelve a iniciar sesión.',DATABASE_ERROR:'No se pudo crear el artista.',INVALID_ARTIST_RESPONSE:'Respuesta inválida al crear el artista.'};
-  lineupArtistError(messages[code]||'No se pudo crear el artista: '+code);
+  if(editor.isConnected && document.getElementById('lineupCurrent')===editor){
+   const code=String(error.code||error.message||'ERROR');
+   const messages={NAME_REQUIRED:'Escribe el nombre del artista.',DUPLICATE_SLUG:'Ya existe un artista con ese nombre.',AUTH_REQUIRED:'Sesión expirada. Vuelve a iniciar sesión.',DATABASE_ERROR:'No se pudo crear el artista.',INVALID_ARTIST_RESPONSE:'Respuesta inválida al crear el artista.'};
+   lineupArtistError(messages[code]||'No se pudo crear el artista: '+code);
+  }
  }finally{
-  if(button)button.disabled=false;
-  input?.focus();
+  lineupCreationPending.delete(editor);
+  if(editor.isConnected && document.getElementById('lineupCurrent')===editor){
+   if(button)button.disabled=false;
+   input?.focus();
+  }
  }
 }
 function addLine(id){
