@@ -576,6 +576,7 @@ function settingsForm(r){
 }
 function show(x){const n=document.getElementById('notice');n.textContent=x;n.className='notice show error'}
 async function loadRefs(){try{state.events=(await req('/events')).data||[];state.artists=(await req('/artists')).data||[]}catch(e){}}
+const lineupCreationPending = new WeakSet();
 async function openLineup(eventId){
  await loadRefs();
  const response=await req('/events/'+eventId+'/lineup');
@@ -589,6 +590,11 @@ async function openLineup(eventId){
  modal.classList.add('open');
  notice.className='notice';
  saveButton.onclick=async()=>{
+  const editor=content.querySelector('#lineupCurrent');
+  if(editor && lineupCreationPending.has(editor)){
+   show('Espera a que termine la creación del artista antes de guardar.');
+   return;
+  }
   const items=[...document.querySelectorAll('#lineupCurrent .lineitem')].map((el,index)=>({
    artist_id:Number(el.dataset.id),
    role:el.querySelector('input')?.value||'',
@@ -604,37 +610,96 @@ async function openLineup(eventId){
    show(error.message);
   }
  };
- const available=state.artists
-  .filter(artist=>!current.some(item=>Number(item.artist_id)===Number(artist.id)))
-  .map(artist=>[
-   '<div class="artistpick drag"><span>',
-   esc(artist.name),
-   '</span><button class="iconbtn" onclick="addLine(',
-   artist.id,
-   ')">ADD</button></div>'
-  ].join(''))
-  .join('')||'<div class="empty">No hay artistas disponibles.</div>';
- const lineup=current
-  .map(item=>lineHtml(item.artist_id,item.name,item.role))
-  .join('')||'<div class="empty">Añade artistas.</div>';
- content.innerHTML=`
-  <div class="form">
-   <div class="lineup">
-    <div class="linebox">
-     <h3>AVAILABLE ARTISTS</h3>
-     <div id="available">${available}</div>
-    </div>
-    <div class="linebox">
-     <h3>LINEUP / DRAG ORDER</h3>
-     <div id="lineupCurrent">${lineup}</div>
-     <div class="helper">Puedes reordenar con ↑ ↓. El orden se guarda como lineup.</div>
-    </div>
-   </div>
-  </div>
- `;
+ const lineup=current.map(item=>lineHtml(item.artist_id,item.name,item.role)).join('')||'<div class="empty">Añade artistas.</div>';
+ content.innerHTML='<div class="form"><div class="lineup"><div class="linebox"><h3>AVAILABLE ARTISTS</h3>'+
+  '<label for="lineupArtistSearch">Buscar o crear artista</label>'+
+  '<input id="lineupArtistSearch" type="search" maxlength="150" autocomplete="off" placeholder="Nombre del artista" oninput="renderAvailableLineupArtists()" onkeydown="lineupArtistEnter(event)">'+
+  '<button id="lineupCreateArtist" class="btn ghost" type="button" onclick="createLineupArtist()" hidden>Crear artista</button>'+
+  '<div id="lineupArtistError" role="alert" aria-live="assertive"></div>'+
+  '<div id="available"></div></div><div class="linebox"><h3>LINEUP / DRAG ORDER</h3>'+
+  '<div id="lineupCurrent">'+lineup+'</div><div class="helper">Puedes reordenar con ↑ ↓. El orden se guarda como lineup.</div></div></div></div>';
+ renderAvailableLineupArtists();
 }
 function lineHtml(id,name,role=''){return `<div class="lineitem" data-id="${id}"><span class="handle">☷</span><strong>${esc(name)}</strong><input class="role" placeholder="ROLE" value="${esc(role)}"><button class="iconbtn" onclick="moveLine(this,-1)">↑</button><button class="iconbtn" onclick="moveLine(this,1)">↓</button><button class="iconbtn" onclick="this.parentElement.remove()">×</button></div>`}
-function addLine(id){const a=state.artists.find(x=>Number(x.id)===Number(id));if(!a)return;const box=document.getElementById('lineupCurrent');if(box.querySelector('.empty'))box.innerHTML='';box.insertAdjacentHTML('beforeend',lineHtml(a.id,a.name));document.querySelector(`#available .artistpick button[onclick="addLine(${id})"]`)?.closest('.artistpick')?.remove()}
+function lineupArtistError(message=''){
+ const el=document.getElementById('lineupArtistError');
+ if(!el)return;
+ el.textContent=message;
+ el.classList.toggle('show',Boolean(message));
+}
+function renderAvailableLineupArtists(){
+ const input=document.getElementById('lineupArtistSearch');
+ const available=document.getElementById('available');
+ const create=document.getElementById('lineupCreateArtist');
+ const selected=document.getElementById('lineupCurrent');
+ if(!input||!available||!create||!selected)return;
+ const query=input.value.trim().toLocaleLowerCase();
+ const present=new Set([...selected.querySelectorAll('.lineitem')].map(el=>Number(el.dataset.id)));
+ const choices=state.artists.filter(a=>!present.has(Number(a.id))&&String(a.name||'').toLocaleLowerCase().includes(query));
+ available.innerHTML=choices.map(a=>'<div class="artistpick drag"><span>'+esc(a.name)+'</span><button type="button" class="iconbtn" onclick="addLine('+Number(a.id)+')">ADD</button></div>').join('')||'<div class="empty">No hay artistas disponibles.</div>';
+ const exact=state.artists.some(a=>String(a.name||'').trim().toLocaleLowerCase()===query);
+ create.hidden=!query||exact;
+ create.textContent='Crear artista "'+input.value.trim()+'"';
+}
+async function lineupArtistEnter(event){
+ if(event.key!=='Enter')return;
+ event.preventDefault();
+ const editor=document.getElementById('lineupCurrent');
+ if(editor && lineupCreationPending.has(editor))return;
+ const input=event.currentTarget;
+ const query=input.value.trim();
+ if(!query){lineupArtistError('Escribe el nombre del artista.');input.focus();return;}
+ const match=state.artists.find(a=>String(a.name||'').trim().toLocaleLowerCase()===query.toLocaleLowerCase());
+ if(match){addLine(match.id);lineupArtistError();input.focus();return;}
+ await createLineupArtist();
+}
+async function createLineupArtist(){
+ const editor=document.getElementById('lineupCurrent');
+ if(!editor||lineupCreationPending.has(editor))return;
+ const input=document.getElementById('lineupArtistSearch');
+ const button=document.getElementById('lineupCreateArtist');
+ const name=input?.value.trim()||'';
+ if(!name){lineupArtistError('Escribe el nombre del artista.');input?.focus();return;}
+ if(state.artists.some(a=>String(a.name||'').trim().toLocaleLowerCase()===name.toLocaleLowerCase())){
+  lineupArtistError('El artista ya existe. Añádelo desde la lista.');input.focus();return;
+ }
+ lineupCreationPending.add(editor);
+ if(button)button.disabled=true;
+ lineupArtistError();
+ try{
+  const result=await req('/artists',{method:'POST',body:JSON.stringify({name,slug:'',status:'draft',is_collective_member:0})});
+  const id=Number(result.id);
+  if(!result.ok||!Number.isSafeInteger(id)||id<1)throw Error('INVALID_ARTIST_RESPONSE');
+  if(!state.artists.some(artist=>Number(artist.id)===id)){
+   state.artists.push({id,name,status:'draft',is_collective_member:0});
+  }
+  if(editor.isConnected && document.getElementById('lineupCurrent')===editor){
+   addLine(id);
+   input.value='';
+   renderAvailableLineupArtists();
+  }
+ }catch(error){
+  if(editor.isConnected && document.getElementById('lineupCurrent')===editor){
+   const code=String(error.code||error.message||'ERROR');
+   const messages={NAME_REQUIRED:'Escribe el nombre del artista.',DUPLICATE_SLUG:'Ya existe un artista con ese nombre.',AUTH_REQUIRED:'Sesión expirada. Vuelve a iniciar sesión.',DATABASE_ERROR:'No se pudo crear el artista.',INVALID_ARTIST_RESPONSE:'Respuesta inválida al crear el artista.'};
+   lineupArtistError(messages[code]||'No se pudo crear el artista: '+code);
+  }
+ }finally{
+  lineupCreationPending.delete(editor);
+  if(editor.isConnected && document.getElementById('lineupCurrent')===editor){
+   if(button)button.disabled=false;
+   input?.focus();
+  }
+ }
+}
+function addLine(id){
+ const a=state.artists.find(x=>Number(x.id)===Number(id));
+ const box=document.getElementById('lineupCurrent');
+ if(!a||!box||box.querySelector('.lineitem[data-id="'+Number(id)+'"]'))return;
+ if(box.querySelector('.empty'))box.innerHTML='';
+ box.insertAdjacentHTML('beforeend',lineHtml(a.id,a.name));
+ renderAvailableLineupArtists();
+}
 function moveLine(btn,dir){const el=btn.closest('.lineitem');if(dir<0&&el.previousElementSibling)el.parentNode.insertBefore(el,el.previousElementSibling);if(dir>0&&el.nextElementSibling)el.parentNode.insertBefore(el.nextElementSibling,el)}
 async function del(type,id){if(!confirm('Eliminar este registro?'))return;try{await req('/'+type+'/'+id,{method:'DELETE'});await go(type)}catch(e){alert(e.message)}}
 async function uploadMedia(){alert('El uploader avanzado se activará en Media Library en la siguiente iteración. Puedes gestionar registros ahora.')}
