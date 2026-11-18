@@ -73,7 +73,7 @@ CREATE TABLE ticket_order_items (
 ) ENGINE=InnoDB;
 CREATE TABLE admins (id INT UNSIGNED PRIMARY KEY) ENGINE=InnoDB;
 SQL;
-foreach (array_filter(array_map('trim', explode(';', $fixtureSql))) as $statement) {
+foreach (array_filter(array_map(trim(...), explode(';', $fixtureSql))) as $statement) {
     $pdo->exec($statement);
 }
 $path = __DIR__ . '/../../database/migration_ticketing_entries_01.sql';
@@ -82,7 +82,7 @@ brvtalMigrationAssertAdditiveSql($sql);
 ticket_entries_assert(!str_contains($sql, 'ticket_qr') && !str_contains($sql, 'qr_image'), 'editorial QR must not be changed');
 // Only CREATE TABLE statements; never touch live data or existing editorial tables.
 $sqlWithoutComments = preg_replace('/^\s*--.*$/m', '', $sql);
-$statements = array_filter(array_map('trim', explode(';', (string)$sqlWithoutComments)));
+$statements = array_filter(array_map(trim(...), explode(';', (string)$sqlWithoutComments)));
 foreach ([1, 2] as $passNumber) {
     foreach ($statements as $statement) {
         $pdo->exec($statement);
