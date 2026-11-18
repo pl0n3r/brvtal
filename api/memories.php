@@ -21,7 +21,11 @@ function brvtal_memories_json(array $payload, int $status = 200): never
 function brvtal_memories_schema_ready(PDO $pdo): bool
 {
     $st = $pdo->query("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='memories'");
-    if ((int)$st->fetchColumn() !== 1) return false;
+    return (int)$st->fetchColumn() === 1;
+}
+
+function brvtal_memories_youtube_schema_ready(PDO $pdo): bool
+{
     $st = $pdo->query("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='memories' AND COLUMN_NAME='youtube_id'");
     return (int)$st->fetchColumn() === 1;
 }
@@ -131,8 +135,9 @@ function brvtal_memories_validation_error(InvalidArgumentException $error): stri
 
 function brvtal_memories_fetch(PDO $pdo, int $id): ?array
 {
+    $youtubeSelect = brvtal_memories_youtube_schema_ready($pdo) ? 'm.youtube_id' : 'NULL AS youtube_id';
     $st = $pdo->prepare(
-        "SELECT m.id,m.media_id,m.youtube_id,m.title,m.context,m.status,m.sort_order,m.created_at,m.updated_at,
+        "SELECT m.id,m.media_id,{$youtubeSelect},m.title,m.context,m.status,m.sort_order,m.created_at,m.updated_at,
                 media.type AS media_type,media.title AS media_title,media.file_path,media.mime_type,media.file_size,
                 media.alt_text,media.status AS media_status
          FROM memories m
@@ -152,8 +157,9 @@ function brvtal_memories_fetch(PDO $pdo, int $id): ?array
 
 function brvtal_memories_list(PDO $pdo): array
 {
+    $youtubeSelect = brvtal_memories_youtube_schema_ready($pdo) ? 'm.youtube_id' : 'NULL AS youtube_id';
     $rows = $pdo->query(
-        "SELECT m.id,m.media_id,m.youtube_id,m.title,m.context,m.status,m.sort_order,m.created_at,m.updated_at,
+        "SELECT m.id,m.media_id,{$youtubeSelect},m.title,m.context,m.status,m.sort_order,m.created_at,m.updated_at,
                 media.type AS media_type,media.title AS media_title,media.file_path,media.mime_type,media.file_size,
                 media.alt_text,media.status AS media_status
          FROM memories m
@@ -230,10 +236,18 @@ try {
             brvtal_memories_json(['ok'=>false,'error'=>'MEMORY_RELATIONS_SCHEMA_MISSING'], 409);
         }
         $data = brvtal_memories_validate($pdo, $input);
+        $youtubeReady = brvtal_memories_youtube_schema_ready($pdo);
+        if (!$youtubeReady && $data['youtube_id'] !== null) {
+            brvtal_memories_json(['ok'=>false,'error'=>'MEMORIES_YOUTUBE_MIGRATION_REQUIRED'], 503);
+        }
         try {
             $pdo->beginTransaction();
-            $st = $pdo->prepare('INSERT INTO memories(media_id,youtube_id,title,context,status,sort_order) VALUES(?,?,?,?,?,?)');
-            $st->execute([$data['media_id'],$data['youtube_id'],$data['title'],$data['context'],$data['status'],$data['sort_order']]);
+            $st = $pdo->prepare($youtubeReady
+                ? 'INSERT INTO memories(media_id,youtube_id,title,context,status,sort_order) VALUES(?,?,?,?,?,?)'
+                : 'INSERT INTO memories(media_id,title,context,status,sort_order) VALUES(?,?,?,?,?)');
+            $params = [$data['media_id'],$data['title'],$data['context'],$data['status'],$data['sort_order']];
+            if ($youtubeReady) array_splice($params, 1, 0, [$data['youtube_id']]);
+            $st->execute($params);
             $createdId = (int)$pdo->lastInsertId();
             if ($relationsProvided) {
                 brvtal_memory_replace_relations($pdo, $createdId, $input['relations']);
@@ -269,10 +283,18 @@ try {
             brvtal_memories_json(['ok'=>false,'error'=>'MEMORY_RELATIONS_SCHEMA_MISSING'], 409);
         }
         $data = brvtal_memories_validate($pdo, $input, $existing);
+        $youtubeReady = brvtal_memories_youtube_schema_ready($pdo);
+        if (!$youtubeReady && $data['youtube_id'] !== null) {
+            brvtal_memories_json(['ok'=>false,'error'=>'MEMORIES_YOUTUBE_MIGRATION_REQUIRED'], 503);
+        }
         try {
             $pdo->beginTransaction();
-            $st = $pdo->prepare('UPDATE memories SET media_id=?,youtube_id=?,title=?,context=?,status=?,sort_order=? WHERE id=?');
-            $st->execute([$data['media_id'],$data['youtube_id'],$data['title'],$data['context'],$data['status'],$data['sort_order'],$id]);
+            $st = $pdo->prepare($youtubeReady
+                ? 'UPDATE memories SET media_id=?,youtube_id=?,title=?,context=?,status=?,sort_order=? WHERE id=?'
+                : 'UPDATE memories SET media_id=?,title=?,context=?,status=?,sort_order=? WHERE id=?');
+            $params = [$data['media_id'],$data['title'],$data['context'],$data['status'],$data['sort_order'],$id];
+            if ($youtubeReady) array_splice($params, 1, 0, [$data['youtube_id']]);
+            $st->execute($params);
             if ($relationsProvided) {
                 brvtal_memory_replace_relations($pdo, $id, $input['relations']);
             }
