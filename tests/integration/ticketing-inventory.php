@@ -54,22 +54,21 @@ $db=new PDO("mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4",$us
 $db->exec("CREATE TABLE events (id INT UNSIGNED PRIMARY KEY,status VARCHAR(32) NOT NULL,
  event_date DATETIME NOT NULL,published_at DATETIME NULL) ENGINE=InnoDB");
 $db->exec("CREATE TABLE event_ticket_types (id INT UNSIGNED PRIMARY KEY,event_id INT UNSIGNED NOT NULL,
- status VARCHAR(24) NOT NULL,currency CHAR(3) NOT NULL,available_from DATETIME NULL,available_until DATETIME NULL) ENGINE=InnoDB");
+ status VARCHAR(24) NOT NULL,currency CHAR(3) NOT NULL,available_from DATETIME NULL,available_until DATETIME NULL,
+ UNIQUE KEY uq_t03_ticket_type_event(id,event_id)) ENGINE=InnoDB");
 $db->exec("CREATE TABLE ticket_orders (id BIGINT UNSIGNED PRIMARY KEY,event_id INT UNSIGNED NOT NULL,
- status VARCHAR(16) NOT NULL) ENGINE=InnoDB");
+ status VARCHAR(16) NOT NULL,UNIQUE KEY uq_ticket_orders_id_event(id,event_id)) ENGINE=InnoDB");
 $db->exec("CREATE TABLE ticket_order_items (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,order_id BIGINT UNSIGNED NOT NULL,
  ticket_type_id INT UNSIGNED NOT NULL,quantity INT UNSIGNED NOT NULL) ENGINE=InnoDB");
-$db->exec("CREATE TABLE ticket_inventory_events (event_id INT UNSIGNED PRIMARY KEY,capacity INT UNSIGNED NOT NULL) ENGINE=InnoDB");
-$db->exec("CREATE TABLE ticket_inventory_types (ticket_type_id INT UNSIGNED PRIMARY KEY,capacity INT UNSIGNED NOT NULL,
- courtesy_capacity INT UNSIGNED NOT NULL) ENGINE=InnoDB");
-$db->exec("CREATE TABLE ticket_inventory_holds (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
- order_id BIGINT UNSIGNED NOT NULL,event_id INT UNSIGNED NOT NULL,ticket_type_id INT UNSIGNED NOT NULL,
- quantity INT UNSIGNED NOT NULL,kind VARCHAR(16) NOT NULL,status VARCHAR(16) NOT NULL,
- expires_at_utc DATETIME(6) NOT NULL,UNIQUE KEY uq_inventory_hold_order_type(order_id,ticket_type_id)) ENGINE=InnoDB");
+$inventorySql = (string)file_get_contents(__DIR__.'/../../database/migration_ticketing_inventory_01.sql');
+foreach (array_filter(array_map('trim', explode(';', preg_replace('/^\\s*--[^\\n]*$/m','',$inventorySql)))) as $statement) {
+    $db->exec($statement);
+}
+
 $db->exec("INSERT INTO events VALUES(1,'published','2026-12-04 21:00:00','2026-11-01 09:00:00')");
 $db->exec("INSERT INTO event_ticket_types VALUES(10,1,'active','COP','2026-12-04 19:00:00','2026-12-04 20:30:00')");
 $db->exec("INSERT INTO ticket_inventory_events VALUES(1,1)");
-$db->exec("INSERT INTO ticket_inventory_types VALUES(10,1,0)");
+$db->exec("INSERT INTO ticket_inventory_types(ticket_type_id,event_id,capacity,courtesy_capacity) VALUES(10,1,1,0)");
 $db->exec("INSERT INTO ticket_orders VALUES(100,1,'pending'),(101,1,'pending')");
 $db->exec("INSERT INTO ticket_order_items(order_id,ticket_type_id,quantity) VALUES(100,10,1),(101,10,1)");
 $db->beginTransaction();

@@ -156,6 +156,18 @@ function brvtalMigrationProofSpecifications(): array
             ),
             ['table:event_ticket_types', 'table:artist_collective_history']
         ),
+        'migration_ticketing_inventory_01.sql' => array_merge(
+            brvtalMigrationObjectRequirements('ticket_inventory_events',
+                ['event_id','capacity'], ['PRIMARY'], true),
+            brvtalMigrationObjectRequirements('ticket_inventory_types',
+                ['ticket_type_id','event_id','capacity','courtesy_capacity'],
+                ['PRIMARY','idx_inventory_type_event'], true),
+            brvtalMigrationObjectRequirements('ticket_inventory_holds',
+                ['order_id','event_id','ticket_type_id','quantity','kind','status',
+                 'expires_at_utc','created_at_utc'],
+                ['uq_inventory_hold_order_type','idx_inventory_event_expiry',
+                 'idx_inventory_type_expiry'], true)
+        ),
         'migration_ticketing_mail_history_01.sql' => array_merge(
             brvtalMigrationObjectRequirements(
                 'ticket_mail_history',
