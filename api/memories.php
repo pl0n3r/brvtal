@@ -339,7 +339,7 @@ try {
         brvtal_memories_json(['ok'=>false,'error'=>'MEMORY_RELATIONS_SCHEMA_MISSING'], 409);
     }
     if (function_exists('brvtal_log')) {
-        brvtal_log('MEMORIES_ADMIN_ERROR', 'Memories admin API failure', ['class'=>get_class($e)]);
+        brvtal_log('MEMORIES_ADMIN_ERROR', 'Memories admin API failure', ['class'=>$e::class]);
     }
     brvtal_memories_json(['ok'=>false,'error'=>'INTERNAL_ERROR'], 500);
 }
