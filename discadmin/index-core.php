@@ -151,6 +151,7 @@ require_once __DIR__ . '/../config/deployment.php';
 </style>
 <link rel="stylesheet" href="/discadmin/admin-modules.css?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>">
 <link rel="stylesheet" href="/discadmin/content-core.css?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>">
+<link rel="stylesheet" href="/discadmin/ticketing.css?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>">
 <link rel="stylesheet" href="/discadmin/security.css?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>">
 <link rel="stylesheet" href="/discadmin/artist-hero-preview.css?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>">
 </head>
@@ -212,7 +213,7 @@ function nativeListUrl(module,page=1,query=''){
  return '/'+module+'?'+params.toString();
 }
 async function login(e){e.preventDefault();const f=new FormData(e.target),btn=e.target.querySelector('button[type=submit],button');btn.disabled=true;btn.textContent='AUTHENTICATING...';try{const d=await req('/auth',{method:'POST',body:JSON.stringify({email:f.get('email'),password:f.get('password')})});csrf=d.csrf||'';window.BRVTALAdminAuthBoundary?.rememberAuth?.({authenticated:true,csrf});window.BRVTALDashboardV2?.invalidate?.();state.authed=true;await go('dashboard')}catch(x){const er=document.querySelector('.error');if(er)er.textContent=x.message==='AUTH_REQUIRED'?'Sesión no válida.':'Credenciales inválidas o error de servidor.';btn.disabled=false;btn.textContent='ENTER'}}
-async function restoreSession(){try{const d=window.BRVTALAdminAuthBoundary?.auth?await window.BRVTALAdminAuthBoundary.auth({force:true}):await req('/auth',{method:'GET'});if(d.authenticated){csrf=d.csrf||'';state.authed=true;await go(BRVTALAdminModules.initialSection());return true}}catch(e){}render();return false}
+async function restoreSession(){try{const d=window.BRVTALAdminAuthBoundary?.auth?await window.BRVTALAdminAuthBoundary.auth({force:true}):await req('/auth',{method:'GET'});if(d.authenticated){csrf=d.csrf||'';state.authed=true;if(new URLSearchParams(location.search).get("module")==="ticketing"){await window.BRVTALTicketing.open({replace:true});}else{await go(BRVTALAdminModules.initialSection());}return true}}catch(e){}render();return false}
 async function logout(){
  try{await req('/auth',{method:'DELETE'})}
  catch(error){/* Local logout continues if the server session is already unavailable. */}
@@ -246,6 +247,10 @@ async function go(s){
   return;
  }
  state.section=s;
+ if(s==='ticketing'){
+  render();
+  return window.BRVTALTicketing.mount();
+ }
  if(s==='content-core'||s==='security'){
   render();
   await BRVTALAdminModules.load(s);
@@ -1214,7 +1219,8 @@ function render(){
   ['events','EVENTS'],
   ['artists','ARTISTS'],
   ['releases','RELEASES'],
-  ['sets','SETS']
+  ['sets','SETS'],
+  ['ticketing','BOLETERÍA']
  ];
  const editorialNav=editorialSections.map(([key,label])=>{
   const active=visibleSection===key?'active':'';
@@ -1245,7 +1251,7 @@ function render(){
    :state.section==='hero-slider'
     ?'BANNERS'
     :state.section.toUpperCase();
- const moduleBody=state.section==='content-core'||state.section==='security'
+ const moduleBody=state.section==='content-core'||state.section==='security'||state.section==='ticketing'
   ?'<div id="admin-module-host" aria-live="polite">LOADING…</div>'
   :content();
  root.innerHTML=`
@@ -1325,6 +1331,7 @@ scheduleTechRefresh();
 <script src="/discadmin/security.js?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>"></script>
 <script src="/discadmin/artist-hero-preview.js?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>"></script>
 <script src="/discadmin/admin-modules.js?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>"></script>
+<script src="/discadmin/ticketing.js?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>"></script>
 <script src="/discadmin/totp-login.js?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>"></script>
 <script>restoreSession();</script>
 </body>
