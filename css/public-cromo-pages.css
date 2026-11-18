@@ -133,8 +133,8 @@ body.cromo-page .entity-card{
 body.cromo-page .entity-card:hover{transform:translate(-4px,-4px);box-shadow:8px 8px 0 var(--cromo-red)}
 body.cromo-page .entity-card img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;filter:grayscale(1) contrast(1.25);transition:filter var(--duration-slow) var(--ease-smooth-out)}
 /* Only Artist cards use portrait artwork; all other entity cards retain 4:3. */
-body.cromo-page .entity-card--artist img{aspect-ratio:4/5;object-position:var(--artist-card-desktop-x,50%) var(--artist-card-desktop-y,20%)}
-body.cromo-page .entity-card--artist .entity-card-mark{aspect-ratio:4/5}
+body.cromo-page .entity-card--artist img{width:100%;height:auto;min-height:0;aspect-ratio:4/5;object-position:var(--artist-card-desktop-x,50%) var(--artist-card-desktop-y,20%)}
+body.cromo-page .entity-card--artist .entity-card-mark{width:100%;height:auto;min-height:0;aspect-ratio:4/5}
 @media (max-width: 767px){
   body.cromo-page .entity-card--artist img{object-position:var(--artist-card-mobile-x,50%) var(--artist-card-mobile-y,20%)}
 }
