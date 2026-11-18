@@ -163,6 +163,7 @@ CREATE TABLE media (
 CREATE TABLE memories (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   media_id INT UNSIGNED NOT NULL,
+  youtube_id CHAR(11) CHARACTER SET ascii COLLATE ascii_bin NULL,
   title VARCHAR(180) NOT NULL DEFAULT '',
   context VARCHAR(320) NULL,
   status ENUM('draft','published') NOT NULL DEFAULT 'draft',

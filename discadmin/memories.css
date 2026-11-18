@@ -8,3 +8,6 @@
 .memories-admin :is(h1,h2,h3){text-wrap:balance}
 .memories-admin p{text-wrap:pretty}
 .memories-admin :is(time,[data-count],.metric,.stat){font-variant-numeric:tabular-nums}
+
+/* Opt-in YouTube uses the existing Media Library image as its cover. */
+.memories-picker-tools{display:grid;gap:12px}.memories-picker-tools label{display:grid;gap:7px;font-size:12px;letter-spacing:.08em;color:#b4b9bd}.memories-picker-tools input{width:100%;min-height:44px;background:#080909;color:#fff;border:1px solid #41484d;padding:10px}.memory-picker-item:disabled{opacity:.48;cursor:not-allowed}
