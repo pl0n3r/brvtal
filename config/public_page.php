@@ -223,7 +223,7 @@ function brvtalPublicEntityArtistCardFraming(PDO $pdo, array $related): array
     }
     if (!$artistIds) return $related;
 
-    $keys = array_map('brvtalArtistHeroSettingKey', array_keys($artistIds));
+    $keys = array_map(brvtalArtistHeroSettingKey(...), array_keys($artistIds));
     $marks = implode(',', array_fill(0, count($keys), '?'));
     $rows = brvtal_page_rows(
         $pdo,
