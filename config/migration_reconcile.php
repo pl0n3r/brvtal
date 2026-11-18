@@ -156,6 +156,22 @@ function brvtalMigrationProofSpecifications(): array
             ),
             ['table:event_ticket_types', 'table:artist_collective_history']
         ),
+        'migration_ticketing_mail_history_01.sql' => array_merge(
+            brvtalMigrationObjectRequirements(
+                'ticket_mail_history',
+                ['outbox_id','message_key','template_key','recipient_hint','recipient_digest',
+                 'event_id','buyer_id','order_id','ticket_id','actor_kind','resend_email_id',
+                 'delivery_state','state_at','retention_until','redacted_at','created_at','updated_at'],
+                ['uq_mail_history_outbox','uq_mail_history_key','uq_mail_history_provider',
+                 'idx_mail_history_event','idx_mail_history_buyer','idx_mail_history_order',
+                 'idx_mail_history_ticket','idx_mail_history_retention'], true
+            ),
+            brvtalMigrationObjectRequirements(
+                'ticket_mail_provider_events',
+                ['webhook_id','resend_email_id','delivery_state','occurred_at','payload_sha256','received_at'],
+                ['uq_mail_provider_webhook','idx_mail_provider_email'], true
+            )
+        ),
         'migration_ticketing_mail_outbox_01.sql' => brvtalMigrationObjectRequirements(
             'ticket_mail_outbox',
             [
