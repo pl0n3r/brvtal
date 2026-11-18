@@ -103,22 +103,30 @@ function brvtal_ticket_inventory_hold(
     }
     $clock = brvtal_ticket_inventory_now($now);
     $utc = $clock->format('Y-m-d H:i:s.u');
-    $orderQuery = $db->prepare('SELECT o.id,o.event_id,o.status,i.quantity AS item_quantity
-        FROM ticket_orders o JOIN ticket_order_items i ON i.order_id=o.id
-        WHERE o.id=? AND i.ticket_type_id=? FOR UPDATE');
-    $orderQuery->execute([$orderId,$typeId]);
-    $order = $orderQuery->fetch(PDO::FETCH_ASSOC);
-    if (!$order || !in_array($order['status'],['draft','pending'],true)
-        || (int)$order['item_quantity'] !== $qty) {
-        throw new DomainException('INVENTORY_ORDER_NOT_ELIGIBLE');
-    }
-    $eventId = (int)$order['event_id'];
+    // The event row is the global inventory mutex. Read the immutable
+    // order->event mapping without a lock, then acquire the Event FIRST.
+    // A subsequent locking read revalidates current order status and quantity.
+    $lookup = $db->prepare('SELECT event_id FROM ticket_orders WHERE id=?');
+    $lookup->execute([$orderId]);
+    $eventId = (int)$lookup->fetchColumn();
+    if ($eventId < 1) throw new DomainException('INVENTORY_ORDER_NOT_ELIGIBLE');
     $eventQuery = $db->prepare('SELECT e.id,e.status,e.event_date,e.published_at,
         l.capacity AS event_capacity
         FROM events e LEFT JOIN ticket_inventory_events l ON l.event_id=e.id
         WHERE e.id=? FOR UPDATE');
     $eventQuery->execute([$eventId]);
     $event = $eventQuery->fetch(PDO::FETCH_ASSOC);
+    if (!$event) throw new DomainException('INVENTORY_NOT_SALEABLE');
+    $orderQuery = $db->prepare('SELECT o.id,o.event_id,o.status,i.quantity AS item_quantity
+        FROM ticket_orders o JOIN ticket_order_items i ON i.order_id=o.id
+        WHERE o.id=? AND i.ticket_type_id=? FOR UPDATE');
+    $orderQuery->execute([$orderId,$typeId]);
+    $order = $orderQuery->fetch(PDO::FETCH_ASSOC);
+    if (!$order || (int)$order['event_id'] !== $eventId
+        || !in_array($order['status'],['draft','pending'],true)
+        || (int)$order['item_quantity'] !== $qty) {
+        throw new DomainException('INVENTORY_ORDER_NOT_ELIGIBLE');
+    }
     $typeQuery = $db->prepare('SELECT t.id,t.event_id,t.status,t.currency,
         t.available_from,t.available_until,l.capacity,l.courtesy_capacity
         FROM event_ticket_types t LEFT JOIN ticket_inventory_types l ON l.ticket_type_id=t.id

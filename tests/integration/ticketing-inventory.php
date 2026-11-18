@@ -80,7 +80,8 @@ $db->exec("CREATE TABLE event_ticket_types (id INT UNSIGNED PRIMARY KEY,event_id
 $db->exec("CREATE TABLE ticket_orders (id BIGINT UNSIGNED PRIMARY KEY,event_id INT UNSIGNED NOT NULL,
  status VARCHAR(16) NOT NULL,UNIQUE KEY uq_ticket_orders_id_event(id,event_id)) ENGINE=InnoDB");
 $db->exec("CREATE TABLE ticket_order_items (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,order_id BIGINT UNSIGNED NOT NULL,
- ticket_type_id INT UNSIGNED NOT NULL,quantity INT UNSIGNED NOT NULL) ENGINE=InnoDB");
+ ticket_type_id INT UNSIGNED NOT NULL,quantity INT UNSIGNED NOT NULL,
+ UNIQUE KEY uq_ticket_order_item_type(order_id,ticket_type_id)) ENGINE=InnoDB");
 $inventorySql = (string)file_get_contents(__DIR__.'/../../database/migration_ticketing_reservations_01.sql');
 foreach (array_filter(array_map(trim(...), explode(';', preg_replace('/^\\s*--[^\\n]*$/m','',$inventorySql)))) as $statement) {
     $db->exec($statement);
