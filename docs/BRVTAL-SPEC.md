@@ -225,7 +225,7 @@ Multiple ticket types are supported. The canonical DISCADMIN Event workflow expo
 
 Do not store purchaser/attendee personal data in this phase.
 
-**Ticketing T04 — offline persistence only (#1711).** Individual `ticket_entries` belong to order items and events, while `event_ticket_types.qr_image` remains editorial metadata. QR credentials are versioned, stored only as SHA-256 digests and independently revocable; `ticket_checkins` records accepted/rejected attempts, operator, device and UTC event time without retaining scanned QR secrets. This migration is not executable until T03 (#1710) has supplied the order tables; merging it never proves migration, payment or production operation. Scanner `device_id` is documented as staff security-usage metadata in `datos.yml` and the generated privacy register.
+**Ticketing T04 — offline persistence only (#1711).** Individual `ticket_entries` belong to order items and events, while `event_ticket_types.qr_image` remains editorial metadata. QR credentials are versioned, stored only as SHA-256 digests and independently revocable; `ticket_checkins` records accepted/rejected attempts, operator, device and UTC event time without retaining scanned QR secrets. T03 (#1710) provides isolated buyer authentication, order lines and payment attempts; the `datos.yml` inventory records buyer accounts, security tokens and financial metadata without exposing real customers. This migration is not executable until T03 (#1710) has supplied the order tables; merging it never proves migration, payment or production operation. Scanner `device_id` is documented as staff security-usage metadata in `datos.yml` and the generated privacy register.
 
 Public event data should expose active and sold-out ticket types as appropriate.
 

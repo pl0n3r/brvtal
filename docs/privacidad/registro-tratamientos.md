@@ -203,3 +203,33 @@ Producto: `pl0n3r/brvtal`
 - Consentimiento: `review_required`
 - Proveedores: ninguno_declarado
 - Retención: `staff_account_lifecycle`
+
+## ticket_buyer_account
+
+- Categoría: `contact`
+- Campos de software: `public_id`, `email`, `email_verified_at`, `consent_version`, `consent_recorded_at`, `status`, `created_at`, `updated_at`
+- Finalidad: `ticket_buyer_account`
+- Base documentada: `review_required` (revisión jurídica requerida)
+- Consentimiento: `review_required`
+- Proveedores: ninguno_declarado
+- Retención: `review_required`
+
+## ticket_buyer_authentication
+
+- Categoría: `authentication`
+- Campos de software: `password_hash`, `security_epoch`, `token_hash`, `purpose`, `expires_at_utc`, `consumed_at_utc`, `revoked_at_utc`, `session_hash`, `issued_epoch`
+- Finalidad: `ticket_buyer_authentication`
+- Base documentada: `review_required` (revisión jurídica requerida)
+- Consentimiento: `review_required`
+- Proveedores: ninguno_declarado
+- Retención: `review_required`
+
+## ticket_order_payment
+
+- Categoría: `financial`
+- Campos de software: `buyer_id`, `event_id`, `public_id`, `checkout_key_hash`, `status`, `total_cop`, `ticket_type_id`, `ticket_name_snapshot`, `quantity`, `unit_price_cop`, `subtotal_cop`, `provider`, `provider_reference`, `provider_transaction_id`, `gross_amount_cop`, `fee_amount_cop`, `fee_vat_cop`, `withheld_amount_cop`, `net_amount_cop`, `created_at_utc`, `updated_at_utc`
+- Finalidad: `ticket_order_payment_reconciliation`
+- Base documentada: `review_required` (revisión jurídica requerida)
+- Consentimiento: `review_required`
+- Proveedores: ninguno_declarado
+- Retención: `review_required`
