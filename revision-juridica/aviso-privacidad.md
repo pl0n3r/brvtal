@@ -34,9 +34,12 @@
 | legacy_admin_activity_ip | usage | ip_address | legacy_admin_activity_audit | review_required | review_required | ninguno_declarado | review_required |
 | privacy_controller_contact | contact | phone | privacy_rights_contact_publication | review_required | review_required | ninguno_declarado | review_required |
 | public_gtm_measurement | usage | event_name, page_type, content_type, content_slug, content_title, section, action, destination, media_type, control, source, status, filter_type, relation_type, platform, result_state, content_id, position, depth | public_usage_measurement | review_required | review_required | google_analytics | review_required |
-| staff_access_metadata | usage | last_access_at, failed_login_count | staff_security_monitoring | review_required | review_required | ninguno_declarado | review_required |
+| staff_access_metadata | usage | last_access_at, failed_login_count, device_id | staff_security_monitoring | review_required | review_required | ninguno_declarado | review_required |
 | staff_contact | contact | email | staff_invitation_and_recovery | review_required | review_required | ninguno_declarado | staff_account_lifecycle |
 | staff_identity | identification | staff_id, name, role, status | staff_administration | review_required | review_required | ninguno_declarado | staff_account_lifecycle |
+| ticket_buyer_account | contact | public_id, email, email_verified_at, consent_version, consent_recorded_at, status, created_at, updated_at | ticket_buyer_account | review_required | review_required | ninguno_declarado | review_required |
+| ticket_buyer_authentication | authentication | password_hash, security_epoch, token_hash, purpose, expires_at_utc, consumed_at_utc, revoked_at_utc, session_hash, issued_epoch | ticket_buyer_authentication | review_required | review_required | ninguno_declarado | review_required |
+| ticket_order_payment | financial | buyer_id, event_id, public_id, checkout_key_hash, status, total_cop, ticket_type_id, ticket_name_snapshot, quantity, unit_price_cop, subtotal_cop, provider, provider_reference, provider_transaction_id, gross_amount_cop, fee_amount_cop, fee_vat_cop, withheld_amount_cop, net_amount_cop, created_at_utc, updated_at_utc | ticket_order_payment_reconciliation | review_required | review_required | ninguno_declarado | review_required |
 
 ## Autorización técnica pendiente
 
