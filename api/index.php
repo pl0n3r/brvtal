@@ -574,9 +574,18 @@ try {
             }
         } else {
             $pagePlan = brvtalAdminCollectionPagination($resource, $_GET);
-            $orderBy = in_array($resource, ['artists','sets'], true)
-                ? 'sort_order ASC,id ASC'
-                : 'id DESC';
+            // Match DATETIME values against the application's configured timezone.
+            // One immutable request clock is bound in both SQL branches, independent
+            // of the MariaDB session timezone; no user input enters ORDER BY.
+            $eventNow = $resource === 'events'
+                ? new DateTimeImmutable('now')->format('Y-m-d H:i:s')
+                : null;
+            $orderBy = match ($resource) {
+                'artists', 'sets' => 'sort_order ASC,id ASC',
+                'events' => 'event_date IS NULL ASC, event_date < ? ASC, CASE WHEN event_date >= ? THEN event_date END ASC, event_date DESC, id DESC',
+                default => 'id DESC',
+            };
+            $orderParams = $eventNow === null ? [] : [$eventNow, $eventNow];
 
             if ($pagePlan !== null) {
                 if ($pagePlan['error'] !== null) {
@@ -604,7 +613,11 @@ try {
                 $statement = $pdo->prepare(
                     "SELECT * FROM {$table}{$whereSql} ORDER BY {$orderBy} LIMIT {$limit} OFFSET {$offset}"
                 );
-                $statement->execute($queryParams);
+                $statement->execute([...$queryParams, ...$orderParams]);
+                $rows = $statement->fetchAll();
+            } elseif ($resource === 'events') {
+                $statement = $pdo->prepare("SELECT * FROM {$table} ORDER BY {$orderBy}");
+                $statement->execute($orderParams);
                 $rows = $statement->fetchAll();
             } else {
                 $rows = $pdo->query("SELECT * FROM {$table} ORDER BY {$orderBy}")->fetchAll();
