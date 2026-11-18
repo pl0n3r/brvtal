@@ -38,11 +38,8 @@ if ($gd) {
 }
 
 $publicResolver = static fn(string $host): array => ['93.184.216.34'];
-$serve = static function (array $routes): callable {
-    return static function (string $url, string $host, string $ip) use ($routes): array {
-        return $routes[$url] ?? ['status' => 404, 'location' => null, 'body' => ''];
-    };
-};
+$serve = static fn(array $routes): callable => static fn(string $url, string $host, string $ip): array
+    => $routes[$url] ?? ['status' => 404, 'location' => null, 'body' => ''];
 
 // [AC-01] URL shape: only https:443 without credentials or local hosts.
 foreach ([

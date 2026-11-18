@@ -159,7 +159,7 @@ function brvtal_media_url_import_detect(string $bytes): string
     if ($bytes === '') {
         throw new BrvtalMediaUrlImportError('NOT_AN_IMAGE');
     }
-    $mime = (new finfo(FILEINFO_MIME_TYPE))->buffer($bytes) ?: '';
+    $mime = new finfo(FILEINFO_MIME_TYPE)->buffer($bytes) ?: '';
     if (!isset(BRVTAL_MEDIA_URL_IMPORT_TYPES[$mime]) || @getimagesizefromstring($bytes) === false) {
         throw new BrvtalMediaUrlImportError('NOT_AN_IMAGE');
     }
