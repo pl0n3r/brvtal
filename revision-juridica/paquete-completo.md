@@ -47,6 +47,7 @@ Estado: `documented_not_legally_approved` (sin aprobación jurídica).
 | staff_identity | identification | staff_id, name, role, status | staff_administration | review_required | review_required | ninguno_declarado | staff_account_lifecycle |
 | ticket_buyer_account | contact | public_id, email, email_verified_at, consent_version, consent_recorded_at, status, created_at, updated_at | ticket_buyer_account | review_required | review_required | ninguno_declarado | review_required |
 | ticket_buyer_authentication | authentication | password_hash, security_epoch, token_hash, purpose, expires_at_utc, consumed_at_utc, revoked_at_utc, session_hash, issued_epoch | ticket_buyer_authentication | review_required | review_required | ninguno_declarado | review_required |
+| ticket_mail_delivery | contact | message_key, payload_hash, related_ref, recipient_email, subject, body_text, state, attempts, first_attempt_at, next_attempt_at, locked_until, provider_message_id, last_error_code, accepted_at, created_at, updated_at | ticket_transactional_email_delivery | review_required | review_required | resend | review_required |
 | ticket_order_payment | financial | buyer_id, event_id, public_id, checkout_key_hash, status, total_cop, ticket_type_id, ticket_name_snapshot, quantity, unit_price_cop, subtotal_cop, provider, provider_reference, provider_transaction_id, gross_amount_cop, fee_amount_cop, fee_vat_cop, withheld_amount_cop, net_amount_cop, created_at_utc, updated_at_utc | ticket_order_payment_reconciliation | review_required | review_required | ninguno_declarado | review_required |
 
 ## Autorización técnica pendiente
@@ -127,6 +128,7 @@ El canal debe permitir solicitudes de acceso, corrección, actualización, supre
 | staff_identity | identification | staff_id, name, role, status | staff_administration | review_required | review_required | ninguno_declarado | staff_account_lifecycle |
 | ticket_buyer_account | contact | public_id, email, email_verified_at, consent_version, consent_recorded_at, status, created_at, updated_at | ticket_buyer_account | review_required | review_required | ninguno_declarado | review_required |
 | ticket_buyer_authentication | authentication | password_hash, security_epoch, token_hash, purpose, expires_at_utc, consumed_at_utc, revoked_at_utc, session_hash, issued_epoch | ticket_buyer_authentication | review_required | review_required | ninguno_declarado | review_required |
+| ticket_mail_delivery | contact | message_key, payload_hash, related_ref, recipient_email, subject, body_text, state, attempts, first_attempt_at, next_attempt_at, locked_until, provider_message_id, last_error_code, accepted_at, created_at, updated_at | ticket_transactional_email_delivery | review_required | review_required | resend | review_required |
 | ticket_order_payment | financial | buyer_id, event_id, public_id, checkout_key_hash, status, total_cop, ticket_type_id, ticket_name_snapshot, quantity, unit_price_cop, subtotal_cop, provider, provider_reference, provider_transaction_id, gross_amount_cop, fee_amount_cop, fee_vat_cop, withheld_amount_cop, net_amount_cop, created_at_utc, updated_at_utc | ticket_order_payment_reconciliation | review_required | review_required | ninguno_declarado | review_required |
 
 ## Derechos y revisión
@@ -364,6 +366,16 @@ Producto: `pl0n3r/brvtal`
 - Proveedores: ninguno_declarado
 - Retención: `review_required`
 
+## ticket_mail_delivery
+
+- Categoría: `contact`
+- Campos de software: `message_key`, `payload_hash`, `related_ref`, `recipient_email`, `subject`, `body_text`, `state`, `attempts`, `first_attempt_at`, `next_attempt_at`, `locked_until`, `provider_message_id`, `last_error_code`, `accepted_at`, `created_at`, `updated_at`
+- Finalidad: `ticket_transactional_email_delivery`
+- Base documentada: `review_required` (revisión jurídica requerida)
+- Consentimiento: `review_required`
+- Proveedores: `resend`
+- Retención: `review_required`
+
 ## ticket_order_payment
 
 - Categoría: `financial`
@@ -409,6 +421,7 @@ Producto: `pl0n3r/brvtal`
 | staff_identity | identification | staff_account_lifecycle | review_required |
 | ticket_buyer_account | contact | review_required | review_required |
 | ticket_buyer_authentication | authentication | review_required | review_required |
+| ticket_mail_delivery | contact | review_required | review_required |
 | ticket_order_payment | financial | review_required | review_required |
 
 
