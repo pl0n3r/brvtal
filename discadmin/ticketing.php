@@ -34,10 +34,11 @@ $visible = array_filter($tabs, static fn(array $tab): bool => brvtalTicketingCan
 $first = array_key_first($visible);
 $providers = brvtalTicketingProviderStatus();
 ?>
-<section class="ticketing" data-admin-module="ticketing" data-ticketing-role="<?= htmlspecialchars($role, ENT_QUOTES, 'UTF-8') ?>"
+<section class="ticketing" data-admin-module="ticketing"
+ data-ticketing-role="<?= htmlspecialchars($role, ENT_QUOTES, 'UTF-8') ?>"
  data-wompi-mode="<?= htmlspecialchars($providers['wompi'], ENT_QUOTES, 'UTF-8') ?>"
  data-resend-mode="<?= htmlspecialchars($providers['resend'], ENT_QUOTES, 'UTF-8') ?>">
-  <p class="ticketing-notice" role="status">Preparación de Boletería. Sin ventas, emisión QR ni proveedores activos.</p>
+  <output class="ticketing-notice">Preparación de Boletería. Sin ventas, emisión QR ni proveedores activos.</output>
   <div class="ticketing-tabs" role="tablist" aria-label="Secciones de Boletería">
     <?php foreach ($visible as $id => $tab): ?>
       <button type="button" id="ticketing-tab-<?= $id ?>" role="tab" data-ticketing-tab="<?= $id ?>"

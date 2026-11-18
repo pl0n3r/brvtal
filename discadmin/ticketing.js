@@ -67,8 +67,13 @@ window.BRVTALTicketing = (() => {
       const current = tabs.indexOf(document.activeElement);
       if (current < 0) return;
       e.preventDefault();
-      const next = e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1
-        : (current + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+      let next = current;
+      switch(e.key) {
+        case 'Home': next = 0; break;
+        case 'End': next = tabs.length - 1; break;
+        case 'ArrowRight': next = (current + 1) % tabs.length; break;
+        case 'ArrowLeft': next = (current - 1 + tabs.length) % tabs.length; break;
+      }
       select(root, tabs[next].dataset.ticketingTab, true);
     });
     const first = list.querySelector('[aria-selected="true"]') || list.querySelector('[data-ticketing-tab]');
@@ -100,7 +105,8 @@ window.BRVTALTicketing = (() => {
       host.replaceChildren(document.importNode(module, true));
       wire(host.firstElementChild);
       return true;
-    } catch (_) {
+    } catch {
+      // Intentionally suppress raw provider/transport error details; expose a safe retry.
       if (!host.isConnected || window.state?.section !== 'ticketing') return false;
       const retry = element('button', 'Reintentar', 'btn ghost');
       retry.type = 'button'; retry.addEventListener('click', () => mount());

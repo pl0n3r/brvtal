@@ -9,7 +9,11 @@ declare(strict_types=1);
 function brvtalTicketingCan(string $role, string $capability): bool
 {
     $grants = [
-        'superadmin' => ['view','orders','entries','buyers','door','finance','promos','promoters','mail','settings','reissue','void','refund','courtesy','export'],
+        'superadmin' => [
+            'view', 'orders', 'entries', 'buyers', 'door', 'finance', 'promos',
+            'promoters', 'mail', 'settings', 'reissue', 'void', 'refund',
+            'courtesy', 'export',
+        ],
         'admin' => ['view','orders','entries','buyers','door','finance','promos','promoters','mail','export'],
         'door' => ['view','door'],
     ];

@@ -213,7 +213,27 @@ function nativeListUrl(module,page=1,query=''){
  return '/'+module+'?'+params.toString();
 }
 async function login(e){e.preventDefault();const f=new FormData(e.target),btn=e.target.querySelector('button[type=submit],button');btn.disabled=true;btn.textContent='AUTHENTICATING...';try{const d=await req('/auth',{method:'POST',body:JSON.stringify({email:f.get('email'),password:f.get('password')})});csrf=d.csrf||'';window.BRVTALAdminAuthBoundary?.rememberAuth?.({authenticated:true,csrf});window.BRVTALDashboardV2?.invalidate?.();state.authed=true;await go('dashboard')}catch(x){const er=document.querySelector('.error');if(er)er.textContent=x.message==='AUTH_REQUIRED'?'Sesión no válida.':'Credenciales inválidas o error de servidor.';btn.disabled=false;btn.textContent='ENTER'}}
-async function restoreSession(){try{const d=window.BRVTALAdminAuthBoundary?.auth?await window.BRVTALAdminAuthBoundary.auth({force:true}):await req('/auth',{method:'GET'});if(d.authenticated){csrf=d.csrf||'';state.authed=true;if(new URLSearchParams(location.search).get("module")==="ticketing"){await window.BRVTALTicketing.open({replace:true});}else{await go(BRVTALAdminModules.initialSection());}return true}}catch(e){}render();return false}
+async function restoreSession(){
+ try {
+  const d=window.BRVTALAdminAuthBoundary?.auth
+   ? await window.BRVTALAdminAuthBoundary.auth({force:true})
+   : await req('/auth',{method:'GET'});
+  if(d.authenticated){
+   csrf=d.csrf||'';
+   state.authed=true;
+   if(new URLSearchParams(location.search).get('module')==='ticketing'){
+    await window.BRVTALTicketing.open({replace:true});
+   }else{
+    await go(BRVTALAdminModules.initialSection());
+   }
+   return true;
+  }
+ }catch(error){
+  // Invalid/unavailable session should render the login, never leak auth details.
+ }
+ render();
+ return false;
+}
 async function logout(){
  try{await req('/auth',{method:'DELETE'})}
  catch(error){/* Local logout continues if the server session is already unavailable. */}

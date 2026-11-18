@@ -69,6 +69,7 @@ test('server-side permissions refuse buyer and sensitive staff operations', asyn
   expect(core).toContain("['ticketing','BOLETERÍA']");
   expect(core).toContain("window.BRVTALTicketing.mount()");
   expect(php).toContain('brvtal_admin_require();');
+  expect(php).toContain('<output class="ticketing-notice">');
   expect(php).toContain("SELECT staff_role FROM admins");
   expect(roles).toContain("brvtalTicketingCan");
   expect(core).toContain('data-admin-nav');
