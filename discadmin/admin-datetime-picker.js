@@ -185,7 +185,7 @@
     const delta = {ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7}[event.key];
     if (delta !== undefined) {
       event.preventDefault();
-      setDate(new Date(draft.year, draft.month - 1, draft.day + delta), true);
+      setDate(new Date(draft.year, draft.month - 1, Number(event.target.dataset.adpDay) + delta), true);
     } else if (event.key === 'PageUp' || event.key === 'PageDown') {
       event.preventDefault();
       changeMonth(event.key === 'PageUp' ? -1 : 1, true);

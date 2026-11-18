@@ -133,7 +133,7 @@ test('real-stack saves the same YYYY-MM-DD HH:MM:SS API contract and reloads the
   try {
     await page.goto(base + '/discadmin/?module=events', {waitUntil:'domcontentloaded'});
     await expect(page.locator('[data-admin-module="content-core"]')).toBeAttached({timeout:10000});
-    await page.getByRole('button', {name:'+ NEW EVENT', exact:true}).click();
+    await page.locator('#eventsTab').getByRole('button', {name:'+ NEW EVENT', exact:true}).click();
     await page.locator('#e_title').fill('CI DATE PICKER ' + slug);
     await page.locator('#e_slug').fill(slug);
     await page.locator('#eventModal [data-step="2"]').click();
