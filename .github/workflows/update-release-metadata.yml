@@ -632,7 +632,32 @@ jobs:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-ubuntu-24.04-playwright-webkit-${{ hashFiles('package.json') }}
 
-      - name: Install WebKit system dependencies
+      # Cached browser binaries are already installed on this runner.
+      # Check that the *actual* WebKit executable launches before invoking apt:
+      # GitHub package mirrors can stall for the entire job even when all libs exist.
+      - name: Install WebKit browser
+        if: steps.webkit-cache.outputs.cache-hit != 'true'
+        run: npx playwright install webkit
+
+      - name: Verify WebKit runtime dependencies through a real browser launch
+        id: webkit-runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          if node --input-type=module - <<'JS'
+          import {webkit} from '@playwright/test';
+          const browser = await webkit.launch();
+          await browser.close();
+          JS
+          then
+            echo 'ready=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'ready=false' >> "$GITHUB_OUTPUT"
+            echo '::warning title=WebKit dependencies::Browser launch failed, provisioning platform libraries.'
+          fi
+
+      - name: Install WebKit system dependencies only when launch requires them
+        if: steps.webkit-runtime.outputs.ready != 'true'
         run: |
           python3 scripts/ci_retry.py \
             --attempts 2 \
@@ -640,13 +665,9 @@ jobs:
             --label "WebKit system dependencies" \
             --exit-code-only \
             -- python3 scripts/ci_bounded_command.py \
-              --timeout-seconds 240 \
+              --timeout-seconds 180 \
               --kill-grace-seconds 10 \
               -- npx playwright install-deps webkit
-
-      - name: Install WebKit browser
-        if: steps.webkit-cache.outputs.cache-hit != 'true'
-        run: npx playwright install webkit
 
       - name: Run targeted WebKit TOTP and datetime-picker regressions
         run: npx playwright test tests/e2e/discadmin-totp-login.spec.mjs tests/e2e/discadmin-datetime-picker.spec.mjs --project=webkit-totp
