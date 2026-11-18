@@ -35,11 +35,13 @@ function brvtal_mail_history_record(PDO $pdo, int $outboxId, array $meta = []): 
     $own = !$pdo->inTransaction();
     if ($own) $pdo->beginTransaction();
     try {
-        $add = $pdo->prepare('INSERT INTO ticket_mail_history
+        $add = $pdo->prepare("INSERT INTO ticket_mail_history
           (outbox_id,message_key,template_key,recipient_hint,recipient_digest,event_id,buyer_id,order_id,ticket_id,
            actor_kind,resend_email_id,delivery_state,retention_until)
           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,DATE_ADD(UTC_TIMESTAMP(),INTERVAL 180 DAY))
-          ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)');
+          ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id),
+          resend_email_id=COALESCE(resend_email_id,VALUES(resend_email_id)),
+          delivery_state=IF(delivery_state='queued' AND VALUES(delivery_state)='accepted','accepted',delivery_state)");
         $add->execute([$outboxId,$mail['message_key'],$template,$hint,$digest,...$ids,$actor,$provider ?: null,$state]);
         $id = (int)$pdo->lastInsertId();
         $check = $pdo->prepare('SELECT outbox_id FROM ticket_mail_history WHERE id=?');
@@ -84,7 +86,10 @@ function brvtal_mail_history_reconcile(PDO $pdo, string $provider): void {
     $state=(string)$mail['delivery_state'];$at=(string)($mail['state_at'] ?? '');
     foreach ($q as $event) {
         $next=(string)$event['delivery_state'];$time=(string)$event['occurred_at'];
-        if ($time>$at || ($time===$at && ($rank[$next] ?? 0)>($rank[$state] ?? 0))) {
+        $nextRank=$rank[$next] ?? -1;
+        $previousRank=$rank[$state] ?? -1;
+        // Never downgrade a provider terminal state because of a delayed event.
+        if ($nextRank>$previousRank || ($nextRank===$previousRank && $time>$at)) {
             $state=$next;$at=$time;
         }
     }

@@ -57,6 +57,14 @@ $old=json_encode(['type'=>'email.sent','created_at'=>gmdate('c',$now-60),
     'data'=>['email_id'=>'synthetic-email-1']],JSON_THROW_ON_ERROR);
 mail_t11_assert(brvtal_mail_webhook_process($pdo,$old,$sign('msg_old_sent',$old,$now),$secret,$now)===200,'out of order');
 mail_t11_assert((string)$pdo->query('SELECT delivery_state FROM ticket_mail_history')->fetchColumn()==='delivered','no downgrade');
+
+$later=json_encode(['type'=>'email.sent','created_at'=>gmdate('c',$now+10),
+    'data'=>['email_id'=>'synthetic-email-1']],JSON_THROW_ON_ERROR);
+mail_t11_assert(brvtal_mail_webhook_process($pdo,$later,$sign('msg_later_sent',$later,$now),$secret,$now)===200,
+    'later sent event');
+mail_t11_assert((string)$pdo->query('SELECT delivery_state FROM ticket_mail_history')->fetchColumn()==='delivered',
+    'later sent must not downgrade delivered');
+
 $orphan=json_encode(['type'=>'email.bounced','created_at'=>gmdate('c',$now),
     'data'=>['email_id'=>'synthetic-email-2']],JSON_THROW_ON_ERROR);
 mail_t11_assert(brvtal_mail_webhook_process($pdo,$orphan,$sign('msg_orphan',$orphan,$now),$secret,$now)===200,'orphan');
@@ -68,4 +76,28 @@ mail_t11_assert((string)$q->fetchColumn()==='bounced','orphan reconciled');
 $pdo->prepare('UPDATE ticket_mail_history SET retention_until=DATE_SUB(UTC_TIMESTAMP(),INTERVAL 1 DAY) WHERE id=?')->execute([$id]);
 mail_t11_assert(brvtal_mail_history_redact_expired($pdo)===1,'retention');
 mail_t11_assert(count(brvtal_mail_history_list($pdo,['event_id'=>5],1))===1,'non-PII history preserved');
+// A queued record must bind the provider ID when Resend accepts it later.
+$pdo->exec("INSERT INTO ticket_mail_outbox (message_key,payload_hash,related_ref,recipient_email,subject,body_text,state)
+ VALUES ('test:mail:3',REPEAT('c',64),'entry:3','third@example.test','Test','Synthetic','queued')");
+$id3=brvtal_mail_history_record($pdo,3,['order_id'=>11]);
+$pdo->exec("UPDATE ticket_mail_outbox SET provider_message_id='synthetic-email-3',state='accepted'
+ WHERE message_key='test:mail:3'");
+mail_t11_assert($id3===brvtal_mail_history_record($pdo,3,['order_id'=>11]),'backfill stable');
+$bind=$pdo->prepare('SELECT resend_email_id,delivery_state FROM ticket_mail_history WHERE id=?');
+$bind->execute([$id3]);$bound=$bind->fetch(PDO::FETCH_ASSOC);
+mail_t11_assert($bound['resend_email_id']==='synthetic-email-3'
+    && $bound['delivery_state']==='accepted','queued upgraded to accepted');
+$delivered=json_encode(['type'=>'email.delivered','created_at'=>gmdate('c',$now),
+    'data'=>['email_id'=>'synthetic-email-3']],JSON_THROW_ON_ERROR);
+mail_t11_assert(brvtal_mail_webhook_process($pdo,$delivered,$sign('msg_upgraded',$delivered,$now),$secret,$now)===200,
+    'upgraded delivered');
+$bind->execute([$id3]);$bound=$bind->fetch(PDO::FETCH_ASSOC);
+mail_t11_assert($bound['delivery_state']==='delivered','upgrade receipt persisted');
+putenv('BRVTAL_TICKET_MAIL_WEBHOOK_ENABLED=0');
+mail_t11_assert(brvtal_mail_webhook_process($pdo,$raw,$headers,$secret,$now)===503,'disabled fail closed');
+putenv('BRVTAL_TICKET_MAIL_TESTING=0');
+putenv('BRVTAL_TICKET_MAIL_PRIVACY_APPROVED=0');
+try {brvtal_mail_history_record($pdo,1);mail_t11_assert(false,'privacy denied');}
+catch (RuntimeException $e) {mail_t11_assert($e->getMessage()==='MAIL_PRIVACY_NOT_APPROVED','privacy gate');}
+
 echo "BRVTAL ticket-mail-history integration OK.\n";
