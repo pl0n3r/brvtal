@@ -629,6 +629,16 @@ window.BRVTALAdminModules = (() => {
     const section=new URLSearchParams(location.search).get('module');
     return modules[section] ? section : 'dashboard';
   }
+  async function loadContentCoreDatePicker(fragment) {
+    // A DOMParser fragment cannot execute scripts. Only use allowlisted assets.
+    const scriptPath = fragment.dataset.datetimePickerScript;
+    const stylePath = fragment.dataset.datetimePickerStyle;
+    if (scriptPath !== '/discadmin/admin-datetime-picker.js'
+        || stylePath !== '/discadmin/admin-datetime-picker.css') return;
+    ensureStyle('brvtal-admin-datetime-picker-style', stylePath);
+    await ensureScript('brvtal-admin-datetime-picker-script',scriptPath,'BRVTALAdminDateTimePicker');
+  }
+
   async function load(section) {
     cancel();
     const controller=new AbortController();pending=controller;
@@ -649,17 +659,9 @@ window.BRVTALAdminModules = (() => {
       if(controller.signal.aborted || !host.isConnected) return;
       const fragment=doc.querySelector('[data-admin-module="'+section+'"]');
       if(!fragment) throw Error('Invalid module response');
-      // The PHP module fragment is parsed through DOMParser, where script tags are inert.
-      // Only load assets explicitly declared by the authenticated Content Core fragment.
       if (section === 'content-core') {
-        const scriptPath=fragment.getAttribute('data-datetime-picker-script');
-        const stylePath=fragment.getAttribute('data-datetime-picker-style');
-        if (scriptPath === '/discadmin/admin-datetime-picker.js'
-            && stylePath === '/discadmin/admin-datetime-picker.css') {
-          ensureStyle('brvtal-admin-datetime-picker-style',stylePath);
-          await ensureScript('brvtal-admin-datetime-picker-script',scriptPath,'BRVTALAdminDateTimePicker');
-        }
-        if(controller.signal.aborted || !host.isConnected) return;
+        await loadContentCoreDatePicker(fragment);
+        if (controller.signal.aborted || !host.isConnected) return;
       }
       host.replaceChildren(document.importNode(fragment,true));
       await modules[section].mount(host.firstElementChild);

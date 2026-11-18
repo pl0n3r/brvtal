@@ -34,7 +34,8 @@
     const field = instances.get(input);
     if (!field) return;
     field.button.textContent = readable(input.value);
-    field.button.disabled = input.disabled;
+    // Never enqueue a redundant observed attribute mutation.
+    if (field.button.disabled !== input.disabled) field.button.disabled = input.disabled;
     const label = input.getAttribute('aria-label')
       || document.querySelector('label[for="' + input.id + '"]')?.textContent?.trim()
       || input.closest('label')?.textContent?.trim() || 'fecha y hora';
@@ -287,10 +288,7 @@
   }
 
   function enhance(input) {
-    if (instances.has(input)) {
-      update(input);
-      return;
-    }
+    if (instances.has(input)) return;
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'adp-trigger';
@@ -317,7 +315,21 @@
       editor.querySelectorAll('input[type="datetime-local"]').forEach(enhance);
     };
     sync();
-    observer = new MutationObserver(sync);
+    // A MutationObserver on childList must not re-render existing buttons:
+    // assigning textContent creates another childList mutation indefinitely.
+    observer = new MutationObserver(records => {
+      if (!editor.isConnected) return;
+      if (records.some(record => record.type === 'childList')) sync();
+      for (const record of records) {
+        if (record.type !== 'attributes') continue;
+        if (record.attributeName === 'disabled'
+            && record.target.matches?.('input[type="datetime-local"]')) {
+          update(record.target);
+        } else if (record.attributeName === 'class' && record.target === editor) {
+          editor.querySelectorAll('input[type="datetime-local"]').forEach(update);
+        }
+      }
+    });
     observer.observe(editor, {
       subtree: true, childList: true, attributes: true, attributeFilter: ['disabled', 'class']
     });

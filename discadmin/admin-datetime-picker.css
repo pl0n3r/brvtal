@@ -1,12 +1,12 @@
 /* Accessible admin datetime picker. JS-only classes preserve native fallback. */
-[data-admin-module="content-core"] .adp-native {
-  position: absolute !important;
-  width: 1px !important;
-  height: 1px !important;
-  padding: 0 !important;
-  border: 0 !important;
-  opacity: 0 !important;
-  pointer-events: none !important;
+[data-admin-module="content-core"] input.adp-native[type="datetime-local"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
 }
 [data-admin-module="content-core"] .adp-trigger {
   display: block;
