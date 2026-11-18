@@ -18,7 +18,7 @@ export default defineConfig({
     },
     {
       name: 'webkit-totp',
-      testMatch: /discadmin-totp-login\.spec\.mjs/,
+      testMatch: /discadmin-(?:totp-login|datetime-picker)\.spec\.mjs/,
       use: { ...devices['Desktop Safari'] }
     }
   ]

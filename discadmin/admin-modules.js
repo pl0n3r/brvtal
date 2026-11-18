@@ -629,6 +629,16 @@ window.BRVTALAdminModules = (() => {
     const section=new URLSearchParams(location.search).get('module');
     return modules[section] ? section : 'dashboard';
   }
+  async function loadContentCoreDatePicker(fragment) {
+    // A DOMParser fragment cannot execute scripts. Only use allowlisted assets.
+    const scriptPath = fragment.dataset.datetimePickerScript;
+    const stylePath = fragment.dataset.datetimePickerStyle;
+    if (scriptPath !== '/discadmin/admin-datetime-picker.js'
+        || stylePath !== '/discadmin/admin-datetime-picker.css') return;
+    ensureStyle('brvtal-admin-datetime-picker-style', stylePath);
+    await ensureScript('brvtal-admin-datetime-picker-script',scriptPath,'BRVTALAdminDateTimePicker');
+  }
+
   async function load(section) {
     cancel();
     const controller=new AbortController();pending=controller;
@@ -649,9 +659,16 @@ window.BRVTALAdminModules = (() => {
       if(controller.signal.aborted || !host.isConnected) return;
       const fragment=doc.querySelector('[data-admin-module="'+section+'"]');
       if(!fragment) throw Error('Invalid module response');
+      if (section === 'content-core') {
+        await loadContentCoreDatePicker(fragment);
+        if (controller.signal.aborted || !host.isConnected) return;
+      }
       host.replaceChildren(document.importNode(fragment,true));
       await modules[section].mount(host.firstElementChild);
-      if (section === 'content-core') await hydrateContentCoreThumbs(host);
+      if (section === 'content-core') {
+        window.BRVTALAdminDateTimePicker?.mount(host.firstElementChild);
+        await hydrateContentCoreThumbs(host);
+      }
     } catch(error) {
       if(controller.signal.aborted || !host.isConnected) return;
       host.replaceChildren();

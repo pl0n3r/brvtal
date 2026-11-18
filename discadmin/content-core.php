@@ -10,7 +10,9 @@ require_once __DIR__ . '/../config/bootstrap.php';
 require_once __DIR__ . '/../config/admin_auth.php';
 brvtal_admin_require();
 ?>
-<section data-admin-module="content-core">
+<section data-admin-module="content-core"
+  data-datetime-picker-script="/discadmin/admin-datetime-picker.js"
+  data-datetime-picker-style="/discadmin/admin-datetime-picker.css">
 
 <div class="wrap">
 
