@@ -295,6 +295,9 @@
     meta.append(create('span', {text:`MEDIA #${Number(item.media_id)||0}`}),create('span', {text:item.media_status || ''}),create('span', {text:item.mime_type || ''}));
     const title = create('input', {attrs:{maxlength:'180'}}); title.dataset.memoryTitle = ''; title.value = String(item.title || '');
     const context = create('textarea', {attrs:{maxlength:'320',placeholder:'Optional public context'}}); context.dataset.memoryContext = ''; context.value = String(item.context || '');
+    const youtubeUrl = create('input', {attrs:{type:'url',maxlength:'2048',placeholder:'https://www.youtube.com/watch?v=...'}});
+    youtubeUrl.dataset.memoryYoutubeUrl = '';
+    youtubeUrl.value = item.youtube_id ? `https://www.youtube.com/watch?v=${item.youtube_id}` : '';
     const order = create('input', {attrs:{type:'number',min:'-100000',max:'100000'}}); order.dataset.memoryOrder = ''; order.value = String(Number(item.sort_order) || 0);
     const select = create('select'); select.dataset.memoryStatus = '';
     ['draft','published'].forEach(value => { const option = create('option', {text:value.toUpperCase(), attrs:{value}}); option.selected = item.status === value; select.append(option); });
@@ -305,7 +308,7 @@
     const remove = create('button', {className:'iconbtn', text:'REMOVE', attrs:{type:'button'}}); remove.dataset.memoryRemove = '';
     save.addEventListener('click', () => saveMemory(id, article)); remove.addEventListener('click', () => removeMemory(id));
     saveGroup.append(save); removeGroup.append(remove); actions.append(saveGroup, removeGroup);
-    form.append(meta, labeledControl('PUBLIC TITLE', title), labeledControl('CONTEXT', context), grid2, relationEditor(item), actions);
+    form.append(meta, labeledControl('PUBLIC TITLE', title), labeledControl('CONTEXT', context), labeledControl('VÍDEO DE YOUTUBE (URL) · OPCIONAL', youtubeUrl), grid2, relationEditor(item), actions);
     article.append(preview, form); return article;
   }
 
@@ -333,7 +336,7 @@
 
   async function saveMemory(id, card) {
     const item = currentItems.find(entry => Number(entry.id) === Number(id)); if (!item || !card) return;
-    const body = {media_id:Number(item.media_id),title:card.querySelector('[data-memory-title]')?.value || '',context:card.querySelector('[data-memory-context]')?.value || '',sort_order:Number(card.querySelector('[data-memory-order]')?.value || 0),status:card.querySelector('[data-memory-status]')?.value || 'draft'};
+    const body = {media_id:Number(item.media_id),youtube_url:card.querySelector('[data-memory-youtube-url]')?.value?.trim() || '',title:card.querySelector('[data-memory-title]')?.value || '',context:card.querySelector('[data-memory-context]')?.value || '',sort_order:Number(card.querySelector('[data-memory-order]')?.value || 0),status:card.querySelector('[data-memory-status]')?.value || 'draft'};
     const relations = collectRelations(card, item);
     if (relations !== null) body.relations = relations;
     status('SAVING MEMORY…');
@@ -352,8 +355,10 @@
   function closePicker() { picker?.remove(); picker = null; window.BRVTALAdminModalAccessibility?.sync?.(); }
   function pickerItems(query='') { const q = String(query || '').trim().toLowerCase(); return availableItems.filter(item => !q || `${item.title || ''} ${item.type || ''} ${item.status || ''}`.toLowerCase().includes(q)); }
   function pickerItemNode(item) {
+    const youtubeUrl = picker?.querySelector('[data-memories-picker-youtube]')?.value?.trim() || '';
     const curated = Number(item.memory_id || 0) > 0;
-    const button = create('button', {className:'memory-picker-item',attrs:{type:'button',disabled:curated},dataset:{memoryMediaId:Number(item.id)||0}});
+    const wrongCover = Boolean(youtubeUrl) && item.type !== 'image';
+    const button = create('button', {className:'memory-picker-item',attrs:{type:'button',disabled:curated||wrongCover},dataset:{memoryMediaId:Number(item.id)||0}});
     button.append(previewNode(item));
     const copy = create('span', {className:'memory-picker-copy'});
     copy.append(create('strong', {text:item.title || `Media #${item.id}`}),create('span', {text:`${String(item.type || '').toUpperCase()} / ${item.status || ''}${curated ? ' / ALREADY CURATED' : ''}`}));
@@ -381,20 +386,25 @@
     const overlay = create('div', {className:'memories-picker'}), card = create('div', {className:'memories-picker-card', attrs:{role:'dialog','aria-modal':'true','aria-label':'Select media for a Memory'}}), head = create('div', {className:'memories-picker-head'}), heading = create('div');
     heading.append(create('div', {className:'eyebrow', text:'MEDIA LIBRARY'}), create('h3', {text:'ADD MEMORY'}));
     const close = create('button', {className:'iconbtn', text:'CLOSE ×', attrs:{type:'button'}}); close.dataset.memoriesPickerClose = ''; head.append(heading, close);
-    const tools = create('div', {className:'memories-picker-tools'}), search = create('input', {attrs:{type:'search',placeholder:'Search Media Library…',autocomplete:'off'}}); search.dataset.memoriesPickerSearch = ''; tools.append(search);
+    const tools = create('div', {className:'memories-picker-tools'}), search = create('input', {attrs:{type:'search',placeholder:'Search Media Library…',autocomplete:'off'}}); search.dataset.memoriesPickerSearch = '';
+    const youtube = create('input', {attrs:{type:'url',maxlength:'2048',placeholder:'https://www.youtube.com/watch?v=...'}}); youtube.dataset.memoriesPickerYoutube = '';
+    tools.append(labeledControl('SEARCH MEDIA', search), labeledControl('VÍDEO DE YOUTUBE (URL) · OPCIONAL · REQUIERE PORTADA DE IMAGEN', youtube));
     const grid = create('div', {className:'memories-picker-grid'}); grid.dataset.memoriesPickerGrid = ''; card.append(head, tools, grid); overlay.append(card); return overlay;
   }
   function openPicker() {
     closePicker(); picker = buildPicker(); document.body.appendChild(picker); renderPicker();
     picker.querySelector('[data-memories-picker-close]')?.addEventListener('click', closePicker);
     picker.querySelector('[data-memories-picker-search]')?.addEventListener('input', event => renderPicker(event.target.value));
+    picker.querySelector('[data-memories-picker-youtube]')?.addEventListener('input', () => renderPicker(picker.querySelector('[data-memories-picker-search]')?.value));
     picker.addEventListener('click', event => { if (event.target === picker) closePicker(); });
     window.BRVTALAdminModalAccessibility?.sync?.(); requestAnimationFrame(() => picker?.querySelector('[data-memories-picker-search]')?.focus());
   }
   async function createMemory(mediaId) {
     const asset = availableItems.find(item => Number(item.id) === Number(mediaId)); if (!asset) return;
     const maxOrder = currentItems.reduce((max,item) => Math.max(max, Number(item.sort_order || 0)), -1);
-    try { await api('create', {method:'POST',body:{media_id:mediaId,title:asset.title || 'Memory',context:'',status:'draft',sort_order:maxOrder + 1}}); closePicker(); await refresh(); window.BRVTALFeedback?.success?.('Memory added as draft.','memories'); }
+    const youtubeUrl = picker?.querySelector('[data-memories-picker-youtube]')?.value?.trim() || '';
+    if (youtubeUrl && asset.type !== 'image') return;
+    try { await api('create', {method:'POST',body:{media_id:mediaId,youtube_url:youtubeUrl,title:asset.title || 'Memory',context:'',status:'draft',sort_order:maxOrder + 1}}); closePicker(); await refresh(); window.BRVTALFeedback?.success?.('Memory added as draft.','memories'); }
     catch (error) { window.BRVTALFeedback?.error?.(String(error.message || error).replaceAll('_',' '),'memories'); }
   }
 
