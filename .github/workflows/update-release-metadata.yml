@@ -624,8 +624,8 @@ jobs:
       - name: Install Chromium system dependencies
         run: npx playwright install-deps chromium
 
+      # A restored cache can be incomplete: verify/fetch the required headless-shell binaries.
       - name: Install Chromium browser
-        if: steps.chromium-cache.outputs.cache-hit != 'true'
         run: npx playwright install chromium
 
       - name: Run authenticated PHP/MariaDB browser smoke
