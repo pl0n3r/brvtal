@@ -35,10 +35,30 @@ echo brvtal_public_entity_page($page,$seo);
 `;
 const portrait = '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="600" viewBox="0 0 400 600"><rect width="400" height="600" fill="#232f41"/><circle cx="200" cy="140" r="83" fill="#e9bd93"/><path d="M68 430 Q200 260 332 430 V600 H68Z" fill="#adc8ed"/></svg>';
 
-test('GENESIS artist lineup keeps portrait 4:5, saved desktop/mobile framing and equal placeholders', async ({ page }) => {
-  const html = execFileSync('php', ['-r', php], {
-    cwd: process.cwd(), encoding: 'utf8', timeout: 15000
-  });
+// The official WebKit container has no PHP binary. Chromium executes the real
+// PHP renderer and the fast gate runs its PHP contract; WebKit independently
+// verifies the exact same portrait CSS with a deterministic, synthetic DOM.
+const webkitFixture = `<!doctype html><html lang="es"><head>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="stylesheet" href="/css/public-entity.css">
+  <link rel="stylesheet" href="/css/public-cromo.css">
+  <link rel="stylesheet" href="/css/public-cromo-pages.css">
+  </head><body class="entity-page entity-page--event entity-page--event-active cromo-page">
+  <main><section class="entity-related"><div class="entity-section-label">CARTEL / 03</div><div class="entity-grid">
+    <a class="entity-card entity-card--artist" href="/artists/plon3r" style="--artist-card-desktop-x:28.5%;--artist-card-desktop-y:15%;--artist-card-mobile-x:65%;--artist-card-mobile-y:7%;">
+      <img src="/uploads/portrait.svg" alt=""><span><strong>PLON3R</strong></span></a>
+    <a class="entity-card entity-card--artist" href="/artists/crixxes"><span class="entity-card-mark">BRVTAL</span><span><strong>CRIXXES'T</strong></span></a>
+    <a class="entity-card entity-card--artist" href="/artists/no-framing"><img src="/uploads/portrait.svg" alt=""><span><strong>SIN ENCUADRE</strong></span></a>
+  </div></section><section class="entity-related"><div class="entity-section-label">SETS</div><div class="entity-grid">
+    <a class="entity-card" href="/sets/set"><img src="/uploads/portrait.svg" alt=""><span><strong>SET</strong></span></a>
+  </div></section></main></body></html>`;
+
+test('GENESIS artist lineup keeps portrait 4:5, saved desktop/mobile framing and equal placeholders', async ({ page }, testInfo) => {
+  const html = testInfo.project.name === 'webkit-totp'
+    ? webkitFixture
+    : execFileSync('php', ['-r', php], {
+        cwd: process.cwd(), encoding: 'utf8', timeout: 15000
+      });
   await page.route('**/*', async route => {
     const pathname = new URL(route.request().url()).pathname;
     if (pathname === '/events/genesis') {
