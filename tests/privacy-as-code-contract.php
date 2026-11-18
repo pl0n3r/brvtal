@@ -77,6 +77,9 @@ $expectedIds = [
     'staff_access_metadata',
     'staff_contact',
     'staff_identity',
+    'ticket_buyer_account',
+    'ticket_buyer_authentication',
+    'ticket_order_payment',
 ];
 $actualIds = array_map(static fn(array $row): string => (string)$row['id'], $data['treatments']);
 sort($actualIds);
@@ -96,7 +99,49 @@ privacy_expect($staffIdentity['fields'] === ['staff_id','name','role','status'],
 $staffContact = privacy_treatment($data, 'staff_contact');
 privacy_expect($staffContact['fields'] === ['email'], 'staff contact fields drifted');
 $staffAccess = privacy_treatment($data, 'staff_access_metadata');
-privacy_expect($staffAccess['fields'] === ['last_access_at','failed_login_count'], 'staff access metadata fields drifted');
+privacy_expect($staffAccess['fields'] === ['last_access_at','failed_login_count','device_id'], 'staff access metadata fields drifted');
+
+// T03/T04 only register future buyer/order and staff device metadata. Keep the
+// legal basis and retention explicitly undecided; never declare real payments.
+$buyerAccount = privacy_treatment($data, 'ticket_buyer_account');
+privacy_expect(
+    $buyerAccount['category'] === 'contact'
+        && $buyerAccount['purpose'] === 'ticket_buyer_account'
+        && $buyerAccount['fields'] === [
+            'public_id','email','email_verified_at','consent_version',
+            'consent_recorded_at','status','created_at','updated_at',
+        ]
+        && $buyerAccount['providers'] === []
+        && $buyerAccount['retention'] === 'review_required',
+    'buyer account map must describe only the planned identity fields without assuming a provider'
+);
+$buyerAuth = privacy_treatment($data, 'ticket_buyer_authentication');
+privacy_expect(
+    $buyerAuth['category'] === 'authentication'
+        && $buyerAuth['fields'] === [
+            'password_hash','security_epoch','token_hash','purpose',
+            'expires_at_utc','consumed_at_utc','revoked_at_utc','session_hash','issued_epoch',
+        ]
+        && $buyerAuth['providers'] === []
+        && $buyerAuth['retention'] === 'review_required',
+    'buyer auth map must document hash-only credentials and pending retention'
+);
+$orderPayment = privacy_treatment($data, 'ticket_order_payment');
+privacy_expect(
+    $orderPayment['category'] === 'financial'
+        && $orderPayment['purpose'] === 'ticket_order_payment_reconciliation'
+        && $orderPayment['fields'] === [
+            'buyer_id','event_id','public_id','checkout_key_hash','status','total_cop',
+            'ticket_type_id','ticket_name_snapshot','quantity','unit_price_cop','subtotal_cop',
+            'provider','provider_reference','provider_transaction_id','gross_amount_cop',
+            'fee_amount_cop','fee_vat_cop','withheld_amount_cop','net_amount_cop',
+            'created_at_utc','updated_at_utc',
+        ]
+        && $orderPayment['providers'] === []
+        && $orderPayment['retention'] === 'review_required',
+    'payment map must list reconciliation metadata without PAN, CVV or presumed gateway access'
+);
+
 
 $identity = privacy_treatment($data, 'admin_identity');
 privacy_expect($identity['fields'] === ['email','name','is_active','last_login_at','created_at','updated_at'], 'admin identity fields drifted');
