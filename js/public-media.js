@@ -16,7 +16,10 @@
       return '';
     }
   };
+  const isYoutubeMemory = item => String(item?.type || '').toLowerCase() === 'image'
+    && /^[A-Za-z0-9_-]{11}$/.test(String(item?.youtube_id || ''));
   const mediaType = item => {
+    if (isYoutubeMemory(item)) return 'video';
     const declared = String(item?.type || '').toLowerCase();
     if (['image','video','audio'].includes(declared)) return declared;
     const mime = String(item?.mime_type || '').toLowerCase().split('/')[0];
@@ -148,6 +151,16 @@
   function viewerMediaNode(item) {
     const type=mediaType(item), url=fileUrl(item.file_path), title=item.title||item.alt_text||'BRVTAL memory';
     if (!url) return create('div',{className:'public-media-viewer-audio',text:'MEDIA UNAVAILABLE'});
+    if (isYoutubeMemory(item)) {
+      // This is the first and only moment an external YouTube resource is requested.
+      const iframe=create('iframe',{className:'public-memory-youtube-frame'});
+      iframe.src=`https://www.youtube-nocookie.com/embed/${item.youtube_id}?autoplay=1&rel=0&playsinline=1`;
+      iframe.title=`YouTube video: ${title}`;
+      iframe.allow='autoplay; encrypted-media; picture-in-picture';
+      iframe.referrerPolicy='strict-origin-when-cross-origin';
+      iframe.allowFullscreen=true;
+      return iframe;
+    }
     if (type==='video') {
       const video=create('video');
       video.src=url; video.controls=true; video.playsInline=true; video.preload='metadata'; video.setAttribute('aria-label',String(title));
@@ -281,7 +294,7 @@
     open.setAttribute('aria-label', `Open ${String(title)}`);
     open.dataset.publicMediaOpen = String(Number(item.id) || 0);
 
-    if (type === 'image') {
+    if (type === 'image' || isYoutubeMemory(item)) {
       const candidate = deliveryCandidate(url, 'card');
       const image = create('img');
       image.src = candidate?.src || url;
@@ -295,6 +308,12 @@
         image.height = Number(candidate.height);
       }
       open.append(image);
+      if (isYoutubeMemory(item)) {
+        const play = create('span',{className:'public-memory-youtube-play',text:'▶'});
+        play.setAttribute('aria-hidden','true');
+        open.append(play);
+        open.setAttribute('aria-label',`Play ${String(title)}`);
+      }
     } else if (type === 'video') {
       const video = create('video');
       video.src = url;
@@ -421,7 +440,7 @@
 
     if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
       const mediaTarget = event.target instanceof Element
-        ? event.target.closest('video,audio')
+        ? event.target.closest('video,audio,iframe')
         : null;
       if (mediaTarget) return;
       event.preventDefault();
@@ -439,6 +458,7 @@
       '[tabindex]:not([tabindex="-1"])',
       'audio[controls]',
       'video[controls]',
+      'iframe',
     ].join(',');
     const focusable = [...viewer.querySelectorAll(selector)]
       .filter(node => !node.closest('[hidden]'));

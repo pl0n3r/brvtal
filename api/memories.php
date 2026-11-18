@@ -21,7 +21,46 @@ function brvtal_memories_json(array $payload, int $status = 200): never
 function brvtal_memories_schema_ready(PDO $pdo): bool
 {
     $st = $pdo->query("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='memories'");
+    if ((int)$st->fetchColumn() !== 1) return false;
+    $st = $pdo->query("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='memories' AND COLUMN_NAME='youtube_id'");
     return (int)$st->fetchColumn() === 1;
+}
+
+/**
+ * Accept only canonical YouTube URL forms; never accept arbitrary iframe URLs.
+ * An empty input explicitly clears the association on edit.
+ */
+function brvtal_memories_youtube_id(mixed $value): ?string
+{
+    if ($value === null || $value === '') return null;
+    if (!is_string($value)) throw new InvalidArgumentException('INVALID_YOUTUBE_URL');
+    $url = trim($value);
+    if ($url === '') return null;
+    if (strlen($url) > 2048 || preg_match('/[\x00-\x20]/', $url)) {
+        throw new InvalidArgumentException('INVALID_YOUTUBE_URL');
+    }
+    $parts = parse_url($url);
+    if (!is_array($parts) || strtolower((string)($parts['scheme'] ?? '')) !== 'https'
+        || isset($parts['user']) || isset($parts['pass']) || isset($parts['port'])) {
+        throw new InvalidArgumentException('INVALID_YOUTUBE_URL');
+    }
+    $host = strtolower((string)($parts['host'] ?? ''));
+    $path = (string)($parts['path'] ?? '');
+    $id = null;
+    if (in_array($host, ['youtu.be', 'www.youtu.be'], true)) {
+        if (preg_match('~^/([A-Za-z0-9_-]{11})/?$~D', $path, $match)) $id = $match[1];
+    } elseif (in_array($host, ['youtube.com', 'www.youtube.com'], true)) {
+        if ($path === '/watch') {
+            parse_str((string)($parts['query'] ?? ''), $query);
+            $id = $query['v'] ?? null;
+        } elseif (preg_match('~^/(?:shorts|embed)/([A-Za-z0-9_-]{11})/?$~D', $path, $match)) {
+            $id = $match[1];
+        }
+    }
+    if (!is_string($id) || !preg_match('/\\A[A-Za-z0-9_-]{11}\\z/', $id)) {
+        throw new InvalidArgumentException('INVALID_YOUTUBE_URL');
+    }
+    return $id;
 }
 
 function brvtal_memories_body(): array
@@ -51,6 +90,12 @@ function brvtal_memories_validate(PDO $pdo, array $input, ?array $existing = nul
     if (!in_array((string)$media['type'], ['image','video','audio'], true)) {
         throw new InvalidArgumentException('MEDIA_TYPE_NOT_ALLOWED');
     }
+    $youtubeId = array_key_exists('youtube_url', $input)
+        ? brvtal_memories_youtube_id($input['youtube_url'])
+        : ($existing['youtube_id'] ?? null);
+    if ($youtubeId !== null && (string)$media['type'] !== 'image') {
+        throw new InvalidArgumentException('YOUTUBE_COVER_MUST_BE_IMAGE');
+    }
 
     $status = strtolower(trim((string)($input['status'] ?? $existing['status'] ?? 'draft')));
     if (!in_array($status, ['draft','published'], true)) throw new InvalidArgumentException('INVALID_STATUS');
@@ -65,6 +110,7 @@ function brvtal_memories_validate(PDO $pdo, array $input, ?array $existing = nul
 
     return [
         'media_id'=>$mediaId,
+        'youtube_id'=>$youtubeId,
         'title'=>$title,
         'context'=>$context !== '' ? $context : null,
         'status'=>$status,
@@ -76,6 +122,7 @@ function brvtal_memories_validation_error(InvalidArgumentException $error): stri
 {
     return match ($error->getMessage()) {
         'MEDIA_REQUIRED','MEDIA_NOT_FOUND','MEDIA_TYPE_NOT_ALLOWED','INVALID_STATUS','MEDIA_NOT_PUBLIC',
+        'INVALID_YOUTUBE_URL','YOUTUBE_COVER_MUST_BE_IMAGE',
         'INVALID_MEMORY_RELATION','INVALID_MEMORY_RELATIONS','TOO_MANY_MEMORY_RELATIONS',
         'MEMORY_RELATION_NOT_FOUND','INVALID_MEMORY_ID' => $error->getMessage(),
         default => 'INVALID_REQUEST',
@@ -85,7 +132,7 @@ function brvtal_memories_validation_error(InvalidArgumentException $error): stri
 function brvtal_memories_fetch(PDO $pdo, int $id): ?array
 {
     $st = $pdo->prepare(
-        "SELECT m.id,m.media_id,m.title,m.context,m.status,m.sort_order,m.created_at,m.updated_at,
+        "SELECT m.id,m.media_id,m.youtube_id,m.title,m.context,m.status,m.sort_order,m.created_at,m.updated_at,
                 media.type AS media_type,media.title AS media_title,media.file_path,media.mime_type,media.file_size,
                 media.alt_text,media.status AS media_status
          FROM memories m
@@ -106,7 +153,7 @@ function brvtal_memories_fetch(PDO $pdo, int $id): ?array
 function brvtal_memories_list(PDO $pdo): array
 {
     $rows = $pdo->query(
-        "SELECT m.id,m.media_id,m.title,m.context,m.status,m.sort_order,m.created_at,m.updated_at,
+        "SELECT m.id,m.media_id,m.youtube_id,m.title,m.context,m.status,m.sort_order,m.created_at,m.updated_at,
                 media.type AS media_type,media.title AS media_title,media.file_path,media.mime_type,media.file_size,
                 media.alt_text,media.status AS media_status
          FROM memories m
@@ -185,8 +232,8 @@ try {
         $data = brvtal_memories_validate($pdo, $input);
         try {
             $pdo->beginTransaction();
-            $st = $pdo->prepare('INSERT INTO memories(media_id,title,context,status,sort_order) VALUES(?,?,?,?,?)');
-            $st->execute([$data['media_id'],$data['title'],$data['context'],$data['status'],$data['sort_order']]);
+            $st = $pdo->prepare('INSERT INTO memories(media_id,youtube_id,title,context,status,sort_order) VALUES(?,?,?,?,?,?)');
+            $st->execute([$data['media_id'],$data['youtube_id'],$data['title'],$data['context'],$data['status'],$data['sort_order']]);
             $createdId = (int)$pdo->lastInsertId();
             if ($relationsProvided) {
                 brvtal_memory_replace_relations($pdo, $createdId, $input['relations']);
@@ -224,8 +271,8 @@ try {
         $data = brvtal_memories_validate($pdo, $input, $existing);
         try {
             $pdo->beginTransaction();
-            $st = $pdo->prepare('UPDATE memories SET media_id=?,title=?,context=?,status=?,sort_order=? WHERE id=?');
-            $st->execute([$data['media_id'],$data['title'],$data['context'],$data['status'],$data['sort_order'],$id]);
+            $st = $pdo->prepare('UPDATE memories SET media_id=?,youtube_id=?,title=?,context=?,status=?,sort_order=? WHERE id=?');
+            $st->execute([$data['media_id'],$data['youtube_id'],$data['title'],$data['context'],$data['status'],$data['sort_order'],$id]);
             if ($relationsProvided) {
                 brvtal_memory_replace_relations($pdo, $id, $input['relations']);
             }
