@@ -488,12 +488,40 @@ jobs:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-chromium-${{ hashFiles('package.json') }}
 
-      - name: Install Chromium system dependencies
-        run: npx playwright install-deps chromium
-
       - name: Install Chromium browser
         if: steps.chromium-cache.outputs.cache-hit != 'true'
         run: npx playwright install chromium
+
+      - name: Verify cached Chromium and native system libraries
+        id: chromium-runtime
+        shell: bash
+        run: |
+          # A real launch is stronger than blindly invoking apt on every run.
+          # On ubuntu-latest the apt mirror can stall even when libraries are present.
+          npx playwright install chromium
+          if node --input-type=module - <<'JS'
+          import {chromium} from '@playwright/test';
+          const browser = await chromium.launch();
+          await browser.close();
+          JS
+          then
+            echo 'ready=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'ready=false' >> "$GITHUB_OUTPUT"
+            echo '::warning title=Chromium dependencies::Browser launch failed; installing system libraries.'
+          fi
+
+      - name: Install Chromium system dependencies when required
+        if: steps.chromium-runtime.outputs.ready != 'true'
+        run: npx playwright install-deps chromium
+
+      - name: Verify Chromium launches after any required system provisioning
+        run: |
+          node --input-type=module - <<'JS'
+          import {chromium} from '@playwright/test';
+          const browser = await chromium.launch();
+          await browser.close();
+          JS
 
       - name: Run Chromium browser tests
         env:
