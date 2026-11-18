@@ -148,6 +148,17 @@ require_once __DIR__ . '/../config/deployment.php';
 @media(max-width:1000px){.settings-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.settings-hero{align-items:flex-start}.settings-search{width:220px}}
 @media(max-width:650px){.settings-grid{grid-template-columns:1fr}.settings-hero{display:block}.settings-search{width:100%;margin-top:15px}.settings-raw-head{display:none}.settings-raw-row{grid-template-columns:1fr auto}.settings-raw-row .value{grid-column:1/-1}}
 
+
+.lineitem{flex-wrap:wrap}
+.lineitem strong{min-width:0;overflow-wrap:anywhere}
+.lineup-draft-actions{display:flex;align-items:center;flex-wrap:wrap;gap:9px;width:100%;order:2}
+.lineup-draft-warning{font-size:12px;font-weight:700;color:#ffd188;line-height:1.4}
+.lineup-publish-artist{min-height:40px;white-space:normal;text-align:left}
+.lineup-publish-artist:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.lineup-draft-error{color:#ff7777;font-size:12px;line-height:1.4}
+.lineup-published-status{font-size:12px;color:#bbf7d0;line-height:1.4}
+.lineup-save-warning{position:fixed;top:12px;left:50%;transform:translateX(-50%);width:min(540px,calc(100vw - 24px));z-index:45;background:#292018;color:#fff2d3;border:2px solid #ffcb82;padding:14px 18px;font-size:14px;line-height:1.5;box-shadow:0 8px 24px #0009}
+@media(max-width:560px){.lineitem .role{max-width:100%}.lineup-draft-actions{align-items:flex-start;flex-direction:column}.lineup-publish-artist{width:100%}}
 </style>
 <link rel="stylesheet" href="/discadmin/admin-modules.css?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>">
 <link rel="stylesheet" href="/discadmin/content-core.css?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>">
@@ -631,6 +642,9 @@ async function openLineup(eventId){
     body:JSON.stringify({lineup:items})
    });
    closeModal(true);
+   const eventPublished=state.events.some(event=>Number(event.id)===Number(eventId)&&event.status==='published');
+   const hidden=items.filter(item=>lineupArtistStatus(item.artist_id)!=='published').length;
+   if(eventPublished&&hidden>0)showLineupPublicWarning(hidden);
   }catch(error){
    show(error.message);
   }
@@ -645,7 +659,46 @@ async function openLineup(eventId){
   '<div id="lineupCurrent">'+lineup+'</div><div class="helper">Puedes reordenar con ↑ ↓. El orden se guarda como lineup.</div></div></div></div>';
  renderAvailableLineupArtists();
 }
-function lineHtml(id,name,role=''){return `<div class="lineitem" data-id="${id}"><span class="handle">☷</span><strong>${esc(name)}</strong><input class="role" placeholder="ROLE" value="${esc(role)}"><button class="iconbtn" onclick="moveLine(this,-1)">↑</button><button class="iconbtn" onclick="moveLine(this,1)">↓</button><button class="iconbtn" onclick="this.parentElement.remove()">×</button></div>`}
+function lineupArtistStatus(id){
+ const artist=state.artists.find(item=>Number(item.id)===Number(id));
+ return artist?.status||'draft';
+}
+function showLineupPublicWarning(count){
+ let notice=document.getElementById('lineupSaveWarning');
+ if(!notice){notice=document.createElement('div');notice.id='lineupSaveWarning';notice.className='lineup-save-warning';notice.setAttribute('role','status');notice.setAttribute('aria-live','polite');document.body.appendChild(notice);}
+ notice.textContent='Lineup guardado. '+count+(count===1?' artista en borrador no saldrá':' artistas en borrador no saldrán')+' en el cartel público. Publica los artistas para incluirlos.';
+}
+function lineHtml(id,name,role=''){
+ const safeId=Number(id),draft=lineupArtistStatus(safeId)!=='published';
+ const warning=draft?'<div class="lineup-draft-actions"><span class="lineup-draft-warning" role="status">Borrador: no sale en el cartel público</span><button type="button" class="iconbtn lineup-publish-artist" onclick="publishLineupArtist(this)">Publicar artista</button><span class="lineup-draft-error" role="alert" aria-live="assertive"></span></div>':'';
+ return '<div class="lineitem" data-id="'+safeId+'"><span class="handle" aria-hidden="true">☷</span><strong>'+esc(name)+'</strong><input class="role" aria-label="Rol de '+esc(name)+'" placeholder="ROLE" value="'+esc(role)+'">'+warning+'<button type="button" class="iconbtn" aria-label="Subir '+esc(name)+'" onclick="moveLine(this,-1)">↑</button><button type="button" class="iconbtn" aria-label="Bajar '+esc(name)+'" onclick="moveLine(this,1)">↓</button><button type="button" class="iconbtn" aria-label="Quitar '+esc(name)+' del lineup" onclick="this.parentElement.remove()">×</button></div>';
+}
+async function publishLineupArtist(button){
+ const row=button.closest('.lineitem'),id=Number(row?.dataset.id);
+ if(!row||!Number.isSafeInteger(id)||id<1||button.disabled)return;
+ const errorNode=row.querySelector('.lineup-draft-error');
+ button.disabled=true;
+ if(errorNode)errorNode.textContent='';
+ try{
+  const result=await req('/artists/'+id,{method:'PUT',body:JSON.stringify({status:'published'})});
+  if(result.ok!==true)throw Error('PUBLICATION_FAILED');
+  const artist=state.artists.find(item=>Number(item.id)===id);
+  if(artist)artist.status='published';
+  if(row.isConnected&&document.getElementById('lineupCurrent')?.contains(row)){
+   row.querySelector('.lineup-draft-actions')?.remove();
+   const published=document.createElement('span');
+   published.className='lineup-published-status';
+   published.setAttribute('role','status');
+   published.textContent='Artista publicado: ya puede salir en el cartel público';
+   row.appendChild(published);
+  }
+ }catch(error){
+  if(row.isConnected&&document.getElementById('lineupCurrent')?.contains(row)){
+   if(errorNode)errorNode.textContent='No se pudo publicar el artista. '+String(error?.code||error?.message||'Intenta de nuevo.');
+   button.disabled=false;
+  }
+ }
+}
 function lineupArtistError(message=''){
  const el=document.getElementById('lineupArtistError');
  if(!el)return;
