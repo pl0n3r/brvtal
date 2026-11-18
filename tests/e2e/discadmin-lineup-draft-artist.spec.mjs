@@ -151,7 +151,7 @@ test('AC-03: real PHP/MariaDB public poster reflects lineup artist publication',
    lineup:[{artist_id:artistId,role:'Guest',sort_order:0}]
   }});
   expect(lineup.ok()).toBe(true);
-  const publicUrl=base+'/?type=event&slug=ci-lineup-event-'+key;
+  const publicUrl=base+'/?type=events&slug=ci-lineup-event-'+key;
   const before=await page.request.get(publicUrl);
   expect(before.ok()).toBe(true);
   expect(await before.text()).not.toContain('CI LINEUP GUEST '+key);
