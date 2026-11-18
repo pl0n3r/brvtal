@@ -42,6 +42,11 @@
     return new Date(+match[1], +match[2] - 1, +match[3], +(match[4] || 0), +(match[5] || 0));
   };
   const two = (n) => String(n).padStart(2, '0');
+  // Render a local event clock as 9:00 pm without changing the parsed date or ISO fields.
+  const formatPublicTime = (when) => {
+    const hours = when.getHours();
+    return (hours % 12 || 12) + ':' + two(when.getMinutes()) + ' ' + (hours < 12 ? 'am' : 'pm');
+  };
   const titleCase = (s) => s.toLowerCase().replace(/(^|\s)(\S)/g, (m, a, b) => a + b.toUpperCase());
   const joinNames = (names) => (names.length < 2 ? names.join('') : names.slice(0, -1).join(', ') + ' y ' + names[names.length - 1]);
 
@@ -498,7 +503,7 @@
       const when = parseDate(event.event_date);
       const place = [text(event.city), text(event.venue)].filter(Boolean).join(', ');
       const meta = (event === next ? lineupText(artists) : '') ;
-      const line = [meta, place + ', ' + two(when.getHours()) + ':' + two(when.getMinutes())].filter(Boolean).join('. ') + '.';
+      const line = [meta, place + ', ' + formatPublicTime(when)].filter(Boolean).join('. ') + '.';
       nights.append(el('a', { class: 'night', href: '/events/' + encodeURIComponent(event.slug) },
         el('span', { class: 'u n', text: two(when.getDate()) + '.' + two(when.getMonth() + 1) }),
         el('span', {}, el('span', { class: 't', text: text(event.title) }), el('span', { class: 'm', text: line })),
@@ -616,7 +621,7 @@
       el('h3', { class: 'u', text: text(next.title) }),
       el('dl', { class: 'xp-facts' },
         fact('Fecha', two(when.getDate()) + ' ' + MONTHS[when.getMonth()] + ' ' + when.getFullYear()),
-        fact('Hora', two(when.getHours()) + ':' + two(when.getMinutes())),
+        fact('Hora', formatPublicTime(when)),
         fact('Lugar', [text(next.venue), text(next.city)].filter(Boolean).join(', '))),
       next.description ? el('p', { class: 'xp-desc', text: text(next.description, 240) }) : null,
       names.length ? el('p', { class: 'xp-line' }, el('span', { text: 'Cartel' }), ' ' + joinNames(names)) : null,

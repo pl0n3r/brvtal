@@ -45,7 +45,7 @@ public_home_expect(str_contains($section, 'data-text="TENSION &amp; NOISE"') && 
 public_home_expect(str_contains($section, 'ENTRADAS DISPONIBLES.'), 'Public lifecycle status must drive the event tag when useful');
 public_home_expect(
     str_contains($section, 'data-c5-fact="date" data-label="FECHA">12.12.2026</span>')
-    && str_contains($section, 'data-c5-fact="time" data-label="HORA">23:00</span>'),
+    && str_contains($section, 'data-c5-fact="time" data-label="HORA">11:00 pm</span>'),
     'Event date and time must render from CMS data with authored fact hooks'
 );
 public_home_expect(str_contains($section, 'MEDELLÍN / CLUB X'), 'Event city and venue must render from CMS data');
