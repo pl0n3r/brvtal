@@ -177,7 +177,7 @@ Producto: `pl0n3r/brvtal`
 ## staff_access_metadata
 
 - Categoría: `usage`
-- Campos de software: `last_access_at`, `failed_login_count`
+- Campos de software: `last_access_at`, `failed_login_count`, `device_id`
 - Finalidad: `staff_security_monitoring`
 - Base documentada: `review_required` (revisión jurídica requerida)
 - Consentimiento: `review_required`

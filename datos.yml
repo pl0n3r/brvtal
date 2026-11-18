@@ -315,7 +315,8 @@
       "category": "usage",
       "fields": [
         "last_access_at",
-        "failed_login_count"
+        "failed_login_count",
+        "device_id"
       ],
       "purpose": "staff_security_monitoring",
       "basis": "review_required",

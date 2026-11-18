@@ -1,7 +1,0 @@
-Options -Indexes
-<FilesMatch "\.php$">
-    Require all denied
-</FilesMatch>
-<FilesMatch "^\.ht">
-    Require all denied
-</FilesMatch>
