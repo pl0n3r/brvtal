@@ -217,6 +217,10 @@ CREATE TABLE analytics_events (
   INDEX idx_analytics_name (event_name)
 ) ENGINE=InnoDB;
 
+-- This file is the historic baseline, not an up-to-date schema dump.
+-- Fresh installs apply migration_schema_migrations_01.sql to initialize the
+-- migration registry, then migration_content_core_01.sql, and finally
+-- migration_ticketing_orders_01.sql using the migration runner.
 INSERT INTO settings(setting_key, setting_value, is_json) VALUES
 ('site', '{"name":"BRVTAL","tagline":"RAVE TILL GRAVE","default_locale":"es","available_locales":["es","en"]}', 1),
 ('social', '{"instagram":"","soundcloud":"","youtube":"","spotify":""}', 1),
