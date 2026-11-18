@@ -1,4 +1,4 @@
-Última actualización automática de las fuentes: 2026-11-18 · SHA de origen: `e42c2a85253e51c7de038f2450ac43077370b050`
+Última actualización automática de las fuentes: 2026-11-18 · SHA de origen: `5df5873611d897350c1fa8ba140191f7fefd2b6c`
 
 # Carpeta de revisión jurídica · BRVTAL
 
@@ -6,8 +6,8 @@
 
 ## Procedencia
 
-- Proyecto `pl0n3r/brvtal`, versión declarada `0.1.249`.
-- Fuentes canónicas `docs/privacidad/` y `datos.yml`. Última modificación de esas fuentes: 2026-11-18, commit `e42c2a85253e51c7de038f2450ac43077370b050`.
+- Proyecto `pl0n3r/brvtal`, versión declarada `0.1.250`.
+- Fuentes canónicas `docs/privacidad/` y `datos.yml`. Última modificación de esas fuentes: 2026-11-18, commit `5df5873611d897350c1fa8ba140191f7fefd2b6c`.
 - Los seis documentos incluidos son copias byte a byte de sus fuentes. Las correcciones jurídicas se hacen en las fuentes, y luego se regenera.
 
 ## Documentos que valida el abogado
@@ -37,6 +37,7 @@
 Extraídos de `datos.yml`; su presencia no demuestra que estén activos. Verificar operación real y contratos:
 
 - `google_analytics`: declarado; confirmar relación operativa y contractual.
+- `resend`: declarado; confirmar relación operativa y contractual.
 - `smtp_mail_provider`: declarado; confirmar relación operativa y contractual.
 
 ## Entrega y mantenimiento

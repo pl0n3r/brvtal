@@ -28,4 +28,5 @@ Producto: `pl0n3r/brvtal`
 | staff_identity | identification | staff_account_lifecycle | review_required |
 | ticket_buyer_account | contact | review_required | review_required |
 | ticket_buyer_authentication | authentication | review_required | review_required |
+| ticket_mail_delivery | contact | review_required | review_required |
 | ticket_order_payment | financial | review_required | review_required |

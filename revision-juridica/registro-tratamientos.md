@@ -224,6 +224,16 @@ Producto: `pl0n3r/brvtal`
 - Proveedores: ninguno_declarado
 - Retención: `review_required`
 
+## ticket_mail_delivery
+
+- Categoría: `contact`
+- Campos de software: `message_key`, `payload_hash`, `related_ref`, `recipient_email`, `subject`, `body_text`, `state`, `attempts`, `first_attempt_at`, `next_attempt_at`, `locked_until`, `provider_message_id`, `last_error_code`, `accepted_at`, `created_at`, `updated_at`
+- Finalidad: `ticket_transactional_email_delivery`
+- Base documentada: `review_required` (revisión jurídica requerida)
+- Consentimiento: `review_required`
+- Proveedores: `resend`
+- Retención: `review_required`
+
 ## ticket_order_payment
 
 - Categoría: `financial`
