@@ -79,6 +79,7 @@ $expectedIds = [
     'staff_identity',
     'ticket_buyer_account',
     'ticket_buyer_authentication',
+    'ticket_mail_delivery',
     'ticket_order_payment',
 ];
 $actualIds = array_map(static fn(array $row): string => (string)$row['id'], $data['treatments']);
@@ -125,6 +126,20 @@ privacy_expect(
         && $buyerAuth['providers'] === []
         && $buyerAuth['retention'] === 'review_required',
     'buyer auth map must document hash-only credentials and pending retention'
+);
+$ticketMail = privacy_treatment($data, 'ticket_mail_delivery');
+privacy_expect(
+    $ticketMail['category'] === 'contact'
+        && $ticketMail['fields'] === [
+            'message_key','payload_hash','related_ref','recipient_email','subject',
+            'body_text','state','attempts','first_attempt_at','next_attempt_at',
+            'locked_until','provider_message_id','last_error_code','accepted_at',
+            'created_at','updated_at',
+        ]
+        && $ticketMail['purpose'] === 'ticket_transactional_email_delivery'
+        && $ticketMail['providers'] === ['resend']
+        && $ticketMail['retention'] === 'review_required',
+    'outbox must register persisted PII and unapproved Resend processing'
 );
 $orderPayment = privacy_treatment($data, 'ticket_order_payment');
 privacy_expect(

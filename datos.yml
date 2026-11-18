@@ -364,6 +364,35 @@
       "providers": []
     },
     {
+      "id": "ticket_mail_delivery",
+      "category": "contact",
+      "fields": [
+        "message_key",
+        "payload_hash",
+        "related_ref",
+        "recipient_email",
+        "subject",
+        "body_text",
+        "state",
+        "attempts",
+        "first_attempt_at",
+        "next_attempt_at",
+        "locked_until",
+        "provider_message_id",
+        "last_error_code",
+        "accepted_at",
+        "created_at",
+        "updated_at"
+      ],
+      "purpose": "ticket_transactional_email_delivery",
+      "basis": "review_required",
+      "retention": "review_required",
+      "consent": "review_required",
+      "providers": [
+        "resend"
+      ]
+    },
+    {
       "id": "ticket_order_payment",
       "category": "financial",
       "fields": [
