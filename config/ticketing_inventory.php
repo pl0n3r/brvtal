@@ -55,7 +55,9 @@ function brvtal_ticket_inventory_saleable(array $event, array $type, ?DateTimeIm
 
 function brvtal_ticket_inventory_scalar(PDO $db, string $sql, array $args): int
 {
-    $statement = $db->prepare($sql);
+    // Checkout may have a REPEATABLE READ snapshot predating our Event lock.
+    // Locking reads force current stock while the Event mutex is held.
+    $statement = $db->prepare($db->inTransaction() ? $sql . ' FOR UPDATE' : $sql);
     $statement->execute($args);
     return (int)$statement->fetchColumn();
 }

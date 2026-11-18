@@ -41,6 +41,27 @@ $host = (string)(getenv('BRVTAL_TEST_DB_HOST') ?: '127.0.0.1');
 $port = (int)(getenv('BRVTAL_TEST_DB_PORT') ?: 3306);
 $user = (string)(getenv('BRVTAL_TEST_DB_USER') ?: 'root');
 $password = (string)(getenv('BRVTAL_TEST_DB_PASS') ?: '');
+if (($argv[1] ?? '') === '--race') {
+    $raceDb = (string)($argv[2] ?? '');
+    $orderId = (int)($argv[3] ?? 0);
+    $startAt = (float)($argv[4] ?? 0);
+    inventoryAssert((bool)preg_match('/^brvtal_test[a-zA-Z0-9_]*$/D',$raceDb),'race DB must be disposable');
+    $contender = new PDO("mysql:host={$host};port={$port};dbname={$raceDb};charset=utf8mb4",$user,$password,[
+        PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES=>false,
+    ]);
+    while (microtime(true) < $startAt) usleep(1000);
+    $contender->beginTransaction();
+    try {
+        brvtal_ticket_inventory_hold($contender,$orderId,10,1,'paid',600,$clock);
+        $contender->commit();
+        echo "HELD\n";
+    } catch (DomainException $error) {
+        $contender->rollBack();
+        echo $error->getMessage() . "\n";
+    }
+    exit(0);
+}
 $server=new PDO("mysql:host={$host};port={$port};charset=utf8mb4",$user,$password,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
 $name=$prefix.'_inventory_'.bin2hex(random_bytes(3));
 $server->exec("CREATE DATABASE `{$name}`");
@@ -92,4 +113,41 @@ $db->beginTransaction();
 $second=brvtal_ticket_inventory_hold($db,101,10,1,'paid',600,$clock);
 inventoryAssert($second['id']!==$hold['id'],'released stock reusable by another order');
 $db->commit();
-echo "BRVTAL T05 disposable MariaDB last-unit, retry and release passed.\n";
+// Two independent PHP transactions compete at the same instant for the last unit.
+$db->exec("DELETE FROM ticket_inventory_holds");
+$db->exec("INSERT INTO ticket_orders VALUES(102,1,'pending'),(103,1,'pending'),(104,1,'pending')");
+$db->exec("INSERT INTO ticket_order_items(order_id,ticket_type_id,quantity) VALUES(102,10,1),(103,10,1),(104,10,1)");
+inventoryAssert(function_exists('proc_open'),'separate PHP contenders supported in CI');
+$barrier = microtime(true) + 0.7;
+$workers = [];
+foreach ([102,103] as $order) {
+    $proc = proc_open([PHP_BINARY,__FILE__,'--race',$name,(string)$order,(string)$barrier],
+        [0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes,__DIR__);
+    inventoryAssert(is_resource($proc),'race worker launched');
+    fclose($pipes[0]);
+    $workers[] = [$proc,$pipes];
+}
+$results = [];
+foreach ($workers as [$proc,$pipes]) {
+    $stdout = trim((string)stream_get_contents($pipes[1]));
+    $stderr = trim((string)stream_get_contents($pipes[2]));
+    fclose($pipes[1]); fclose($pipes[2]);
+    $code = proc_close($proc);
+    inventoryAssert($code===0 && $stderr==='','worker completed: '.$stderr);
+    $results[]=$stdout;
+}
+sort($results);
+inventoryAssert($results===['HELD','INVENTORY_SOLD_OUT'],'two concurrent processes claim exactly one unit');
+inventoryAssert((int)$db->query("SELECT COALESCE(SUM(quantity),0) FROM ticket_inventory_holds WHERE status='active'")->fetchColumn()===1,
+    'race never produces two active holds or negative stock');
+
+// Expiration is reconciled on the next transaction.
+$db->beginTransaction();
+$renewed = brvtal_ticket_inventory_hold($db,104,10,1,'paid',600,$clock->modify('+11 minutes'));
+inventoryAssert($renewed['id']>0,'expired hold releases the seat');
+$db->commit();
+inventoryAssert((int)$db->query("SELECT COUNT(*) FROM ticket_inventory_holds WHERE status='expired'")->fetchColumn()===1,
+    'raced winner expires');
+inventoryAssert((int)$db->query("SELECT COUNT(*) FROM ticket_inventory_holds WHERE status='active'")->fetchColumn()===1,
+    'exactly one subsequent reservation remains');
+echo "BRVTAL T05 MariaDB contention, TTL and retry passed.\n";
