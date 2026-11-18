@@ -86,7 +86,7 @@ function brvtalMigrationProofSpecifications(): array
         'brvtal_media_delete_guard_tombstone' => 'media_deleted_paths',
     ];
 
-    return [
+    $specifications = [
         'migration_admin_activity_01.sql' => brvtalMigrationObjectRequirements(
             'admin_activity_log',
             ['id', 'admin_id', 'action', 'resource', 'created_at'],
@@ -155,6 +155,17 @@ function brvtalMigrationProofSpecifications(): array
                 ['idx_artists_collective']
             ),
             ['table:event_ticket_types', 'table:artist_collective_history']
+        ),
+        'migration_ticketing_entries_01.sql' => array_merge(
+            brvtalMigrationObjectRequirements('ticket_entries',
+                ['order_item_id','event_id','ticket_type_id','unit_number','issued_at_utc'],
+                ['uq_ticket_entries_public_id','uq_ticket_entries_order_unit','uq_ticket_entries_id_event'], true),
+            brvtalMigrationObjectRequirements('ticket_entry_credentials',
+                ['entry_id','version','token_hash','active_entry_id','revoked_at_utc'],
+                ['uq_ticket_credential_hash','uq_ticket_credential_entry_version','uq_ticket_credential_one_active'], true),
+            brvtalMigrationObjectRequirements('ticket_checkins',
+                ['request_id','event_id','entry_id','credential_version','operator_admin_id','device_id','outcome'],
+                ['uq_ticket_checkin_request','idx_ticket_checkins_entry_time'], true)
         ),
         'migration_event_timetable_01.sql' => brvtalMigrationObjectRequirements(
             'event_timetable_items',
@@ -256,6 +267,27 @@ function brvtalMigrationProofSpecifications(): array
             brvtalMigrationTriggerRequirements($mediaGuardTriggers)
         ),
     ];
+    // T03 is a separate PR. Advertise its proof only once the migration file
+    // is in this exact checkout; the strict disk-vs-spec contract remains intact.
+    if (is_file(__DIR__ . '/../database/migration_ticketing_orders_01.sql')) {
+        $specifications['migration_ticketing_orders_01.sql'] = array_merge(
+            brvtalMigrationObjectRequirements('ticket_buyers',
+                ['email','password_hash','email_verified_at','consent_version','consent_recorded_at','security_epoch'],
+                ['uq_ticket_buyers_public','uq_ticket_buyers_email'], true),
+            brvtalMigrationObjectRequirements('ticket_buyer_tokens',
+                ['token_hash','expires_at_utc','consumed_at_utc','revoked_at_utc'], ['uq_ticket_buyer_token_hash'], true),
+            brvtalMigrationObjectRequirements('ticket_buyer_sessions',
+                ['session_hash','revoked_at_utc'], ['uq_ticket_buyer_session_hash'], true),
+            brvtalMigrationObjectRequirements('ticket_orders',
+                ['buyer_id','event_id','checkout_key_hash','total_cop'], ['uq_ticket_orders_checkout','uq_ticket_orders_public'], true),
+            brvtalMigrationObjectRequirements('ticket_order_items',
+                ['order_id','ticket_type_id','quantity','unit_price_cop','subtotal_cop'], ['uq_ticket_order_item_type'], true),
+            brvtalMigrationObjectRequirements('ticket_payment_attempts',
+                ['order_id','provider','provider_transaction_id','gross_amount_cop'],
+                ['uq_ticket_payment_transaction','uq_ticket_payment_reference','uq_ticket_payment_idempotency'], true)
+        );
+    }
+    return $specifications;
 }
 
 /** Strict cross-MySQL/MariaDB Set duration proof (INT display width varies). */
