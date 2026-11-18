@@ -620,10 +620,26 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Cache npm downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
       - name: Install Node test dependencies
         run: npm install --prefer-offline --no-audit --no-fund
 
+      - name: Cache WebKit
+        id: webkit-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-ubuntu-24.04-playwright-webkit-${{ hashFiles('package.json') }}
+
       - name: Install project-matched WebKit browser in preprovisioned runtime
+        if: steps.webkit-cache.outputs.cache-hit != 'true'
         run: npx playwright install webkit
 
       - name: Verify actual WebKit process launches
