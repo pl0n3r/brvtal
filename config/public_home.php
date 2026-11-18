@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/public_visibility.php';
+require_once __DIR__ . '/public_time_format.php';
 
 function brvtal_public_select_next_experience(array $events, ?DateTimeImmutable $now = null): ?array
 {
@@ -188,7 +189,7 @@ function brvtal_public_next_experience_date_parts(?array $event): array
 
     try {
         $date = new DateTimeImmutable($raw);
-        return [$date->format('d.m.Y'), $date->format('H:i')];
+        return [$date->format('d.m.Y'), brvtalPublicTimeFormat($date)];
     } catch (Throwable) {
         return ['FECHA POR ANUNCIAR', 'HORA POR ANUNCIAR'];
     }
