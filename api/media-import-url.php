@@ -25,7 +25,7 @@ brvtal_admin_require_csrf();
 brvtal_admin_release_session();
 
 $input = json_decode((string)file_get_contents('php://input'), true);
-$url = is_array($input) ? (string)($input['url'] ?? '') : '';
+$url = is_array($input) && is_string($input['url'] ?? null) ? $input['url'] : '';
 
 try {
     $image = brvtal_media_url_import_fetch($url);

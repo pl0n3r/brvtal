@@ -77,6 +77,9 @@ function brvtal_media_url_import_parse(string $url): array
         throw new BrvtalMediaUrlImportError('URL_HOST_BLOCKED');
     }
     $host = strtolower(trim($parts['host'], '[]'));
+    if (preg_match('/[^\x00-\x7f]/', $host) === 1) {
+        throw new BrvtalMediaUrlImportError('URL_INVALID');
+    }
     if ($host === '' || $host === 'localhost' || str_ends_with($host, '.localhost') || str_ends_with($host, '.local') || str_ends_with($host, '.internal')) {
         throw new BrvtalMediaUrlImportError('URL_HOST_BLOCKED');
     }
@@ -96,7 +99,7 @@ function brvtal_media_url_import_ip_is_public(string $ip): bool
     if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false) {
         $long = ip2long($ip);
         // 100.64.0.0/10 CGNAT and 192.0.0.0/24 are not covered by PHP's flags.
-        foreach ([['100.64.0.0', 10], ['192.0.0.0', 24], ['198.18.0.0', 15]] as [$net, $bits]) {
+        foreach ([['100.64.0.0', 10], ['192.0.0.0', 24], ['192.0.2.0', 24], ['198.18.0.0', 15], ['198.51.100.0', 24], ['203.0.113.0', 24], ['224.0.0.0', 4]] as [$net, $bits]) {
             $mask = -1 << (32 - $bits);
             if (($long & $mask) === (ip2long($net) & $mask)) {
                 return false;
@@ -112,7 +115,7 @@ function brvtal_media_url_import_ip_is_public(string $ip): bool
     if (str_starts_with($bin, str_repeat("\0", 10) . "\xff\xff") || str_starts_with($bin, str_repeat("\0", 12))) {
         return false;
     }
-    if (str_starts_with($bin, "\x00\x64\xff\x9b")) {
+    if ((str_starts_with($bin, "\x00\x64\xff\x9b") || str_starts_with($bin, "\x20\x01\x0d\xb8"))) {
         return false;
     }
     $first = ord($bin[0]);
@@ -153,6 +156,47 @@ function brvtal_media_url_import_resolve(string $host, ?callable $resolver = nul
     return (string)$ips[0];
 }
 
+/** Confirm complete PNG chunks before accepting a header-only image. */
+function brvtal_media_url_import_png_complete(string $bytes): bool
+{
+    if (!str_starts_with($bytes, "\x89PNG\r\n\x1a\n")) {
+        return false;
+    }
+    $size = strlen($bytes);
+    $offset = 8;
+    $seenHeader = false;
+    $seenData = false;
+    while ($offset + 12 <= $size) {
+        $len = unpack('N', substr($bytes, $offset, 4))[1];
+        if ($len > $size - $offset - 12) {
+            return false;
+        }
+        $kind = substr($bytes, $offset + 4, 4);
+        $data = substr($bytes, $offset + 8, $len);
+        $crc = substr($bytes, $offset + 8 + $len, 4);
+        if (!hash_equals(pack('N', crc32($kind . $data)), $crc)) {
+            return false;
+        }
+        if (!$seenHeader && ($kind !== 'IHDR' || $len !== 13)) {
+            return false;
+        }
+        if ($kind === 'IHDR' && $seenHeader) {
+            return false;
+        }
+        if ($kind === 'IHDR') {
+            $seenHeader = true;
+        }
+        if ($kind === 'IDAT') {
+            $seenData = true;
+        }
+        $offset += 12 + $len;
+        if ($kind === 'IEND') {
+            return $seenHeader && $seenData && $len === 0 && $offset === $size;
+        }
+    }
+    return false;
+}
+
 /** Detect an allowed image type from the bytes; returns the MIME type. */
 function brvtal_media_url_import_detect(string $bytes): string
 {
@@ -160,8 +204,21 @@ function brvtal_media_url_import_detect(string $bytes): string
         throw new BrvtalMediaUrlImportError('NOT_AN_IMAGE');
     }
     $mime = new finfo(FILEINFO_MIME_TYPE)->buffer($bytes) ?: '';
-    if (!isset(BRVTAL_MEDIA_URL_IMPORT_TYPES[$mime]) || @getimagesizefromstring($bytes) === false) {
+    $dimensions = @getimagesizefromstring($bytes);
+    if (!isset(BRVTAL_MEDIA_URL_IMPORT_TYPES[$mime]) || $dimensions === false
+        || ($dimensions[0] ?? 0) < 1 || ($dimensions[1] ?? 0) < 1
+        || $dimensions[0] > intdiv(40000000, $dimensions[1])) {
         throw new BrvtalMediaUrlImportError('NOT_AN_IMAGE');
+    }
+    if ($mime === 'image/png' && !brvtal_media_url_import_png_complete($bytes)) {
+        throw new BrvtalMediaUrlImportError('NOT_AN_IMAGE');
+    }
+    if (function_exists('imagecreatefromstring')) {
+        $decoded = @imagecreatefromstring($bytes);
+        if (!$decoded instanceof GdImage) {
+            throw new BrvtalMediaUrlImportError('NOT_AN_IMAGE');
+        }
+        unset($decoded);
     }
     return $mime;
 }
@@ -171,19 +228,25 @@ function brvtal_media_url_import_detect(string $bytes): string
  *
  * @return array{status:int, location:?string, body:string}
  */
-function brvtal_media_url_import_curl(string $url, string $host, string $ip): array
+function brvtal_media_url_import_curl(string $url, string $host, string $ip, int $timeoutMs = BRVTAL_MEDIA_URL_IMPORT_TIMEOUT_S * 1000): array
 {
+    if (!function_exists('curl_init') || !defined('CURLOPT_PROTOCOLS_STR')
+        || !defined('CURLOPT_REDIR_PROTOCOLS_STR') || $timeoutMs < 1) {
+        throw new BrvtalMediaUrlImportError('REMOTE_UNREACHABLE', 502);
+    }
+    $ch = curl_init($url);
+    if ($ch === false) {
+        throw new BrvtalMediaUrlImportError('REMOTE_UNREACHABLE', 502);
+    }
     $body = '';
     $tooLarge = false;
-    $ch = curl_init($url);
-    $pin = str_contains($ip, ':') ? '[' . $ip . ']' : $ip;
-    curl_setopt_array($ch, [
-        CURLOPT_RESOLVE => [$host . ':443:' . $pin],
+    $options = [
+        CURLOPT_PROXY => '', // Do not let HTTP(S)_PROXY bypass the pinned IP.
         CURLOPT_PROTOCOLS_STR => 'https',
         CURLOPT_REDIR_PROTOCOLS_STR => 'https',
         CURLOPT_FOLLOWLOCATION => false,
-        CURLOPT_CONNECTTIMEOUT => 5,
-        CURLOPT_TIMEOUT => BRVTAL_MEDIA_URL_IMPORT_TIMEOUT_S,
+        CURLOPT_CONNECTTIMEOUT_MS => min(5000, $timeoutMs),
+        CURLOPT_TIMEOUT_MS => $timeoutMs,
         CURLOPT_SSL_VERIFYPEER => true,
         CURLOPT_SSL_VERIFYHOST => 2,
         CURLOPT_USERAGENT => 'BRVTAL-MediaImport/1.0',
@@ -197,11 +260,22 @@ function brvtal_media_url_import_curl(string $url, string $host, string $ip): ar
             $body .= $chunk;
             return strlen($chunk);
         },
-    ]);
+    ];
+    // IP literals are already resolved and validated; they need no DNS override.
+    // For DNS names, pin only the public address that passed the SSRF checks.
+    if (filter_var($host, FILTER_VALIDATE_IP) === false) {
+        $pin = str_contains($ip, ':') ? '[' . $ip . ']' : $ip;
+        $options[CURLOPT_RESOLVE] = [$host . ':443:' . $pin];
+    }
+    if (curl_setopt_array($ch, $options) === false) {
+        curl_close($ch);
+        throw new BrvtalMediaUrlImportError('REMOTE_UNREACHABLE', 502);
+    }
     $ok = curl_exec($ch);
     $errno = curl_errno($ch);
     $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
     $location = curl_getinfo($ch, CURLINFO_REDIRECT_URL) ?: null;
+    curl_close($ch);
     if ($tooLarge) {
         throw new BrvtalMediaUrlImportError('TOO_LARGE');
     }
@@ -219,10 +293,15 @@ function brvtal_media_url_import_curl(string $url, string $host, string $ip): ar
 function brvtal_media_url_import_fetch(string $url, ?callable $resolver = null, ?callable $transport = null): array
 {
     $transport ??= 'brvtal_media_url_import_curl';
+    $deadline = hrtime(true) + BRVTAL_MEDIA_URL_IMPORT_TIMEOUT_S * 1_000_000_000;
     for ($hop = 0; $hop <= BRVTAL_MEDIA_URL_IMPORT_MAX_REDIRECTS; $hop++) {
         $parsed = brvtal_media_url_import_parse($url);
         $ip = brvtal_media_url_import_resolve($parsed['host'], $resolver);
-        $response = $transport($url, $parsed['host'], $ip);
+        $remainingMs = (int)ceil(($deadline - hrtime(true)) / 1_000_000);
+        if ($remainingMs < 1) {
+            throw new BrvtalMediaUrlImportError('REMOTE_TIMEOUT', 502);
+        }
+        $response = $transport($url, $parsed['host'], $ip, $remainingMs);
         $status = (int)($response['status'] ?? 0);
         if ($status >= 300 && $status < 400) {
             $location = (string)($response['location'] ?? '');

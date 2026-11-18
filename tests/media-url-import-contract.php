@@ -50,13 +50,14 @@ foreach ([
     ['https://user:pw@cdn.example.com/a.png', 'URL_INVALID'],
     ['https://cdn.example.com:8443/a.png', 'URL_HOST_BLOCKED'],
     ['https://localhost/a.png', 'URL_HOST_BLOCKED'],
+    ['https://bücher.example/a.png', 'URL_INVALID'],
     ['https://printer.local/a.png', 'URL_HOST_BLOCKED'],
 ] as [$url, $code]) {
     $expectError(static fn() => brvtal_media_url_import_fetch($url, $publicResolver, $serve([])), $code, $url);
 }
 
 // [AC-01] Private, loopback, link-local, metadata, CGNAT and mapped addresses are blocked.
-foreach (['127.0.0.1', '10.0.0.5', '172.16.3.4', '192.168.1.1', '169.254.169.254', '100.64.0.1', '0.0.0.0',
+foreach (['127.0.0.1', '10.0.0.5', '172.16.3.4', '192.168.1.1', '169.254.169.254', '100.64.0.1', '0.0.0.0', '224.0.0.1', '192.0.2.1', '198.51.100.1', '203.0.113.1', '2001:db8::1',
           '::1', 'fe80::1', 'fd00::1', '::ffff:127.0.0.1', '64:ff9b::7f00:1'] as $ip) {
     $assert(!brvtal_media_url_import_ip_is_public($ip), "{$ip} must not be public");
     $expectError(
@@ -65,7 +66,7 @@ foreach (['127.0.0.1', '10.0.0.5', '172.16.3.4', '192.168.1.1', '169.254.169.254
         "resolved {$ip}"
     );
 }
-foreach (['93.184.216.34', '157.240.22.63', '2a03:2880:f12f:83:face:b00c:0:25de'] as $ip) {
+foreach (['93.184.216.34', '157.240.22.63', '198.51.101.1', '203.0.114.1', '2a03:2880:f12f:83:face:b00c:0:25de'] as $ip) {
     $assert(brvtal_media_url_import_ip_is_public($ip), "{$ip} must be public");
 }
 // A name with one public and one internal record is rejected (no partial trust).
@@ -121,6 +122,12 @@ $ok = brvtal_media_url_import_fetch('https://a.example/1', $publicResolver, $ser
 ]));
 $assert($ok['mime'] === 'image/png', 'a valid redirect chain must return the image');
 
+// [AC-01] A header-only PNG is not a usable image (no IDAT/IEND).
+$truncated = substr($png, 0, 33);
+$expectError(static fn() => brvtal_media_url_import_detect($truncated), 'NOT_AN_IMAGE', 'truncated PNG');
+$assert(brvtal_media_url_import_png_complete($png), 'complete PNG must be accepted');
+$assert(!brvtal_media_url_import_png_complete($truncated), 'header-only PNG must fail');
+
 // [AC-01] Size cap and content sniffing.
 $expectError(
     static fn() => brvtal_media_url_import_fetch('https://cdn.example.com/big', $publicResolver, $serve([
@@ -169,5 +176,17 @@ $assert(str_contains($api, "header('X-Content-Type-Options: nosniff');") && str_
 $assert(str_contains($api, "header('Content-Type: ' . \$image['mime']);"), 'Content-Type must come from detected bytes');
 $config = (string)file_get_contents(__DIR__ . '/../config/media_url_import.php');
 $assert(str_contains($config, 'CURLOPT_RESOLVE') && str_contains($config, 'CURLOPT_FOLLOWLOCATION => false') && str_contains($config, "CURLOPT_PROTOCOLS_STR => 'https'"), 'curl must be pinned, https-only and without automatic redirects');
+$assert(str_contains($config, "CURLOPT_PROXY => ''") && str_contains($config, 'curl_setopt_array($ch, $options) === false'), 'curl setup must fail closed without environment proxy');
+$assert(str_contains($api, "is_string(\$input['url'] ?? null)"), 'request URL must be a string');
+$budgets = [];
+brvtal_media_url_import_fetch('https://a.example/1', $publicResolver,
+    static function (string $url, string $host, string $ip, int $timeoutMs) use (&$budgets, $png): array {
+        $budgets[] = $timeoutMs;
+        usleep(15000);
+        return $url === 'https://a.example/1'
+            ? ['status' => 302, 'location' => 'https://b.example/img', 'body' => '']
+            : ['status' => 200, 'location' => null, 'body' => $png];
+    });
+$assert(count($budgets) === 2 && $budgets[0] <= 10000 && $budgets[1] < $budgets[0], 'redirects share one ten-second budget');
 
 echo "Media URL import contract passed\n";
