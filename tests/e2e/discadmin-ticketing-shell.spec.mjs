@@ -72,5 +72,5 @@ test('server-side permissions refuse buyer and sensitive staff operations', asyn
   expect(php).toContain("SELECT staff_role FROM admins");
   expect(roles).toContain("brvtalTicketingCan");
   expect(core).toContain('data-admin-nav');
-  expect(core).toContain('BRVTALContentCore');
+  expect(core).toContain("state.section==='content-core'||state.section==='security'");
 });

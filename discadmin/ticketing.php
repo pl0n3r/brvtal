@@ -15,7 +15,7 @@ try {
     $statement = db()->prepare('SELECT staff_role FROM admins WHERE id=? AND is_active=1 LIMIT 1');
     $statement->execute([(int)($_SESSION['admin_id'] ?? 0)]);
     $role = (string)($statement->fetchColumn() ?: '');
-} catch (Throwable $error) {
+} catch (Throwable) {
     http_response_code(503);
     exit('No se pudo verificar el acceso a Boletería.');
 }
