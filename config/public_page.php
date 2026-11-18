@@ -5,6 +5,7 @@ require_once __DIR__ . '/public_cromo_chrome.php';
 require_once __DIR__ . '/media.php';
 require_once __DIR__ . '/memory_relations.php';
 require_once __DIR__ . '/public_visibility.php';
+require_once __DIR__ . '/public_time_format.php';
 require_once __DIR__ . '/blog_html.php';
 
 function brvtal_public_media_variant(string $image, string $context): string
@@ -137,10 +138,7 @@ function brvtalPublicEventTimetableRows(array $rows): array
 
         $localStart = $startsAt->setTimezone($timezone);
         $localEnd = $endsAt->setTimezone($timezone);
-        $sameDate = $localStart->format('Y-m-d') === $localEnd->format('Y-m-d');
-        $range = $sameDate
-            ? $localStart->format('H:i') . '–' . $localEnd->format('H:i')
-            : $localStart->format('d.m H:i') . '–' . $localEnd->format('d.m H:i');
+        $range = brvtalPublicTimeRange($localStart, $localEnd);
 
         $item['starts_at'] = $localStart->format('Y-m-d\\TH:i');
         $item['ends_at'] = $localEnd->format('Y-m-d\\TH:i');
@@ -233,7 +231,7 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
             'status' => $recordStatus,
         ];
         $data['facts'] = array_filter([
-            'DATE' => isset($detail['event_date']) ? date('d.m.Y / H:i', strtotime((string)$detail['event_date'])) : '',
+            'DATE' => isset($detail['event_date']) ? brvtalPublicDateTimeFormat((int)strtotime((string)$detail['event_date'])) : '',
             'LOCATION' => implode(' / ', array_filter([$detail['venue'] ?? '', $detail['city'] ?? ''])),
             'RECORD' => $isHistorical && $recordYear !== '' ? 'ARCHIVE / ' . $recordYear : '',
         ]);
