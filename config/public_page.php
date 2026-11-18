@@ -6,6 +6,7 @@ require_once __DIR__ . '/media.php';
 require_once __DIR__ . '/memory_relations.php';
 require_once __DIR__ . '/public_visibility.php';
 require_once __DIR__ . '/public_time_format.php';
+require_once __DIR__ . '/artist_hero_framing.php';
 require_once __DIR__ . '/blog_html.php';
 
 function brvtal_public_media_variant(string $image, string $context): string
@@ -205,6 +206,53 @@ function brvtalPublicTransmissionsForEntity(PDO $pdo, string $routeType, int $en
     );
 }
 
+/**
+ * Enrich only public Artist cards. A single parameterized settings read serves
+ * all card groups; malformed/absent framing keeps the 50% 20% CSS fallback.
+ * Internal artist IDs are stripped before returning public page data.
+ */
+function brvtalPublicEntityArtistCardFraming(PDO $pdo, array $related): array
+{
+    $artistIds = [];
+    foreach ($related as $items) {
+        foreach ($items as $item) {
+            if (($item['route_type'] ?? '') !== 'artists') continue;
+            $id = (int)($item['artist_card_id'] ?? 0);
+            if ($id > 0) $artistIds[$id] = true;
+        }
+    }
+    if (!$artistIds) return $related;
+
+    $keys = array_map('brvtalArtistHeroSettingKey', array_keys($artistIds));
+    $marks = implode(',', array_fill(0, count($keys), '?'));
+    $rows = brvtal_page_rows(
+        $pdo,
+        "SELECT setting_key,setting_value FROM settings WHERE is_json=1 AND setting_key IN ({$marks})",
+        $keys
+    );
+    $framingByKey = [];
+    foreach ($rows as $row) {
+        $key = (string)($row['setting_key'] ?? '');
+        if (!in_array($key, $keys, true)) continue;
+        $framing = brvtalArtistHeroValidate(json_decode((string)($row['setting_value'] ?? ''), true));
+        if ($framing !== null) $framingByKey[$key] = $framing;
+    }
+
+    foreach ($related as &$items) {
+        foreach ($items as &$item) {
+            if (($item['route_type'] ?? '') !== 'artists') continue;
+            $id = (int)($item['artist_card_id'] ?? 0);
+            unset($item['artist_card_id']);
+            if ($id < 1) continue;
+            $key = brvtalArtistHeroSettingKey($id);
+            if (isset($framingByKey[$key])) $item['card_framing'] = $framingByKey[$key];
+        }
+        unset($item);
+    }
+    unset($items);
+    return $related;
+}
+
 function brvtal_public_page_data(PDO $pdo, array $entity): array
 {
     brvtal_page_query_degraded(false);
@@ -236,7 +284,7 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
             'RECORD' => $isHistorical && $recordYear !== '' ? 'ARCHIVE / ' . $recordYear : '',
         ]);
         $data['links'] = $allowsTicketing ? array_filter(['TICKETS' => $detail['ticket_url'] ?? '']) : [];
-        $data['related']['LINEUP'] = brvtal_page_rows($pdo, "SELECT a.name AS title,a.slug,a.photo AS image,ea.role AS meta,'artists' AS route_type FROM event_artists ea JOIN artists a ON a.id=ea.artist_id AND a.status='published' WHERE ea.event_id=? ORDER BY ea.lineup_order,a.name", [$id]);
+        $data['related']['LINEUP'] = brvtal_page_rows($pdo, "SELECT a.id AS artist_card_id,a.name AS title,a.slug,a.photo AS image,ea.role AS meta,'artists' AS route_type FROM event_artists ea JOIN artists a ON a.id=ea.artist_id AND a.status='published' WHERE ea.event_id=? ORDER BY ea.lineup_order,a.name", [$id]);
         if (brvtal_public_event_is_visible($detail)) {
             $timetable = brvtalPublicEventTimetableForEvent($pdo, $id);
             if ($timetable !== []) {
@@ -268,7 +316,7 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
         $data['entity'] += $detail;
         $data['facts'] = array_filter(['FORMAT' => strtoupper((string)($detail['release_type'] ?? '')), 'CATALOG' => $detail['catalog_number'] ?? '', 'RELEASE DATE' => $detail['release_date'] ?? '']);
         $data['links'] = array_filter(['SPOTIFY' => $detail['spotify_url'] ?? '', 'SOUNDCLOUD' => $detail['soundcloud_url'] ?? '', 'BANDCAMP' => $detail['bandcamp_url'] ?? '', 'YOUTUBE' => $detail['youtube_url'] ?? '', 'BEATPORT' => $detail['beatport_url'] ?? '']);
-        $data['related']['ARTISTS'] = brvtal_page_rows($pdo, "SELECT a.name AS title,a.slug,a.photo AS image,ra.role AS meta,'artists' AS route_type FROM release_artists ra JOIN artists a ON a.id=ra.artist_id AND a.status='published' WHERE ra.release_id=? ORDER BY ra.sort_order,a.name", [$id]);
+        $data['related']['ARTISTS'] = brvtal_page_rows($pdo, "SELECT a.id AS artist_card_id,a.name AS title,a.slug,a.photo AS image,ra.role AS meta,'artists' AS route_type FROM release_artists ra JOIN artists a ON a.id=ra.artist_id AND a.status='published' WHERE ra.release_id=? ORDER BY ra.sort_order,a.name", [$id]);
     } elseif ($type === 'blog') {
         $detail = brvtal_page_row($pdo, "SELECT body,published_at FROM blog_posts WHERE id=? LIMIT 1", [$id], true);
         $data['entity'] += $detail;
@@ -288,9 +336,10 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
             if (!isset($map[$relation['related_type']])) continue;
             [$table,$title,$image,$route,$where,$whereParameters] = $map[$relation['related_type']];
             $lifecycleSelect = $route === 'events' ? ',status,event_date,published_at' : '';
+            $artistIdSelect = $route === 'artists' ? ',id AS artist_card_id' : '';
             $item = brvtal_page_row(
                 $pdo,
-                "SELECT `{$title}` AS title,slug,`{$image}` AS image,'{$route}' AS route_type{$lifecycleSelect} FROM `{$table}` WHERE id=? AND {$where} LIMIT 1",
+                "SELECT `{$title}` AS title,slug,`{$image}` AS image,'{$route}' AS route_type{$lifecycleSelect}{$artistIdSelect} FROM `{$table}` WHERE id=? AND {$where} LIMIT 1",
                 array_merge([(int)$relation['related_id']], $whereParameters)
             );
             if ($item && ($route !== 'events' || brvtal_public_event_is_visible($item))) $data['related']['RELATED'][] = $item;
@@ -300,7 +349,7 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
         $data['entity'] += $detail;
         $data['facts'] = array_filter(['PLATFORM' => strtoupper((string)($detail['platform'] ?? ''))]);
         $data['links'] = array_filter(['LISTEN' => $detail['external_url'] ?? '']);
-        if (!empty($detail['artist_id'])) $data['related']['ARTIST'] = brvtal_page_rows($pdo, "SELECT name AS title,slug,photo AS image,'artists' AS route_type FROM artists WHERE id=? AND status='published'", [(int)$detail['artist_id']]);
+        if (!empty($detail['artist_id'])) $data['related']['ARTIST'] = brvtal_page_rows($pdo, "SELECT id AS artist_card_id,name AS title,slug,photo AS image,'artists' AS route_type FROM artists WHERE id=? AND status='published'", [(int)$detail['artist_id']]);
         if (!empty($detail['event_id'])) {
             $data['related']['EVENT'] = brvtal_page_public_event_rows(
                 $pdo,
@@ -331,6 +380,7 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
         }
     }
 
+    $data['related'] = brvtalPublicEntityArtistCardFraming($pdo, $data['related']);
     $data['degraded'] = brvtal_page_query_degraded();
     return $data;
 }
@@ -439,7 +489,21 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
             $href = !empty($item['route_type']) && !empty($item['slug'])
                 ? '/' . rawurlencode((string)$item['route_type']) . '/' . rawurlencode((string)$item['slug'])
                 : ($safeInternalUrl($item['url'] ?? '') ?: $safeUrl($item['url'] ?? ''));
-            $visual = !empty($item['image']) ? '<img src="' . $escape(brvtal_public_absolute_url(brvtal_public_media_variant((string)$item['image'], 'card'), $base)) . '" alt="" loading="lazy" decoding="async">' : '<span class="entity-card-mark">BRVTAL</span>';
+            $artistCard = ($item['route_type'] ?? '') === 'artists';
+            // Artist portraits require the uncropped display variant; other entities keep card variants.
+            $mediaContext = $artistCard ? 'display' : 'card';
+            $visual = !empty($item['image']) ? '<img src="' . $escape(brvtal_public_absolute_url(brvtal_public_media_variant((string)$item['image'], $mediaContext), $base)) . '" alt="" loading="lazy" decoding="async">' : '<span class="entity-card-mark">BRVTAL</span>';
+            $cardStyle = '';
+            $cardFraming = $artistCard ? brvtalArtistHeroValidate($item['card_framing'] ?? null) : null;
+            if ($cardFraming !== null) {
+                foreach (['desktop', 'mobile'] as $viewport) {
+                    foreach (['x', 'y'] as $axis) {
+                        $cardStyle .= '--artist-card-' . $viewport . '-' . $axis . ':' . $cardFraming[$viewport][$axis] . '%;';
+                    }
+                }
+            }
+            $cardAttributes = 'class="entity-card' . ($artistCard ? ' entity-card--artist' : '') . '"'
+                . ($cardStyle !== '' ? ' style="' . $escape($cardStyle) . '"' : '');
             $price = isset($item['price']) && $item['price'] !== null
                 ? number_format((float)$item['price'], 0) . ' ' . trim((string)($item['currency'] ?? ''))
                 : '';
@@ -447,7 +511,7 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
             $cardMeta = implode(' / ', array_filter([$price, $meta]));
             $content = $visual . '<span><small>' . $escape($cardMeta) . '</small><strong>'
                 . $escape($item['title'] ?? '') . '</strong></span>';
-            $cards .= $href ? '<a class="entity-card" href="' . $href . '">' . $content . '</a>' : '<div class="entity-card">' . $content . '</div>';
+            $cards .= $href ? '<a ' . $cardAttributes . ' href="' . $href . '">' . $content . '</a>' : '<div ' . $cardAttributes . '>' . $content . '</div>';
         }
         $displayHeading = $isEvent && $recordState === 'historical' ? ($historicalHeadings[$heading] ?? $heading) : $heading;
         $related .= '<section class="entity-related"><div class="entity-section-label" data-text="' . $escape(brvtalPublicEntityEs((string)$displayHeading)) . '">' . $escape(brvtalPublicEntityEs((string)$displayHeading)) . ' / ' . str_pad((string)count($items), 2, '0', STR_PAD_LEFT) . '</div><div class="entity-grid">' . $cards . '</div></section>';
