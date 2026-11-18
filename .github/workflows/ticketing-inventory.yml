@@ -3,7 +3,7 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - database/migration_ticketing_inventory_01.sql
+      - database/migration_ticketing_reservations_01.sql
       - config/migration_reconcile.php
       - config/ticketing_inventory.php
       - api/ticketing/inventory.php

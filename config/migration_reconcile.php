@@ -156,7 +156,7 @@ function brvtalMigrationProofSpecifications(): array
             ),
             ['table:event_ticket_types', 'table:artist_collective_history']
         ),
-        'migration_ticketing_inventory_01.sql' => array_merge(
+        'migration_ticketing_reservations_01.sql' => array_merge(
             brvtalMigrationObjectRequirements('ticket_inventory_events',
                 ['event_id','capacity'], ['PRIMARY'], true),
             brvtalMigrationObjectRequirements('ticket_inventory_types',
