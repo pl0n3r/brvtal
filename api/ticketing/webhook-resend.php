@@ -13,10 +13,8 @@ function brvtal_mail_webhook_verify(string $raw,array $headers,string $secret,?i
     $key=base64_decode(substr($secret,6),true);
     if (!is_string($key) || strlen($key)<16) return false;
     $expected=base64_encode(hash_hmac('sha256',$id.'.'.$stamp.'.'.$raw,$key,true));
-    foreach (preg_split('/\s+/',trim($signatures)) ?: [] as $sig) {
-        if (str_starts_with($sig,'v1,') && hash_equals($expected,substr($sig,3))) return true;
-    }
-    return false;
+    return array_any(preg_split('/\s+/',trim($signatures)) ?: [],
+        fn($sig) => str_starts_with($sig,'v1,') && hash_equals($expected,substr($sig,3)));
 }
 /** Fail closed; no sensitive request/exception body ever returned. */
 function brvtal_mail_webhook_process(PDO $pdo,string $raw,array $headers,string $secret,?int $now=null): int {
