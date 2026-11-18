@@ -20,6 +20,9 @@ test('buyer security primitives never share admin cookie or bypass pending schem
   expect(api).toContain("'BUYER_SCHEMA_PENDING'");
   expect(api).toContain("'CSRF_INVALID'");
   expect(api).not.toContain('admin_id');
+  // Unknown identities still run the password verifier, avoiding a cheap timing oracle.
+  expect(security).toContain('BRVTAL_BUYER_DUMMY_PASSWORD_HASH');
+  expect(api).toContain('password_verify($password, $storedHash)');
 });
 
 test('mobile buyer login has accessible wait and error states with fake mail/network', async ({ page }) => {
@@ -44,5 +47,28 @@ test('mobile buyer login has accessible wait and error states with fake mail/net
   await expect(page.getByLabel('Correo electrónico')).toBeFocused();
   expect(sends).toBe(1);
   expect(csrfHeader).toBe('test-csrf');
+  await expect(page.getByRole('button',{name:'Entrar'})).toBeEnabled();
+});
+
+test('mobile login stays pending until the fake server replies, then announces success', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 750 });
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  await page.route(pageUrl, route => route.fulfill({contentType:'text/html',body:html}));
+  await page.route('**/api/buyer/auth.php', async route => {
+    if (route.request().method() === 'GET') {
+      return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,csrf:'fixture'})});
+    }
+    await gate;
+    return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,csrf:'rotated'})});
+  });
+  await page.goto(pageUrl);
+  await page.getByLabel('Correo electrónico').fill('fixture@example.test');
+  await page.getByLabel('Contraseña').fill('synthetic-password-for-test');
+  await page.getByRole('button',{name:'Entrar'}).click({noWaitAfter:true});
+  await expect(page.getByRole('button',{name:'Entrar'})).toBeDisabled();
+  await expect(page.getByRole('status')).toContainText('Verificando acceso');
+  release();
+  await expect(page.getByRole('status')).toContainText('Acceso confirmado');
   await expect(page.getByRole('button',{name:'Entrar'})).toBeEnabled();
 });

@@ -69,10 +69,11 @@ try {
     );
     $q->execute([$email]);
     $buyer = $q->fetch(PDO::FETCH_ASSOC);
-    $valid = is_array($buyer)
-        && is_string($buyer['password_hash'] ?? null)
-        && password_verify($password, $buyer['password_hash'])
-        && !empty($buyer['email_verified_at']);
+    // Verify exactly once for known and unknown accounts to reduce timing leaks.
+    $storedHash = is_array($buyer) && is_string($buyer['password_hash'] ?? null)
+        ? $buyer['password_hash'] : BRVTAL_BUYER_DUMMY_PASSWORD_HASH;
+    $passwordMatches = password_verify($password, $storedHash);
+    $valid = is_array($buyer) && $passwordMatches && !empty($buyer['email_verified_at']);
     if (!$valid) {
         brvtalBuyerThrottle($email, true);
         json_response(['ok' => false, 'error' => 'INVALID_CREDENTIALS'], 401);

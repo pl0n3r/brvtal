@@ -7,6 +7,8 @@ require_once __DIR__ . '/password_rate_limit.php';
 const BRVTAL_BUYER_SESSION_NAME = 'BRVTAL_BUYER';
 const BRVTAL_BUYER_IDLE_SECONDS = 1800;
 const BRVTAL_BUYER_ABSOLUTE_SECONDS = 43200;
+// Unusable bcrypt hash: unknown accounts perform one comparable password_verify().
+const BRVTAL_BUYER_DUMMY_PASSWORD_HASH = '$2y$12$pouUspTam7ujNcDBM.KC2.7bTXF0c0sMqn.DFmgLnkaqIMSV7TG.a';
 
 function brvtalBuyerEmail(mixed $input): ?string
 {
