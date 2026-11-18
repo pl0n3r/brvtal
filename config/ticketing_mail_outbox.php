@@ -1,0 +1,125 @@
+<?php
+declare(strict_types=1);
+
+require_once __DIR__ . '/ticketing_resend.php';
+
+/**
+ * Enqueue INSIDE the caller's existing order/payment transaction. This does
+ * not issue tickets, commit a sale, contact Resend or log recipient details.
+ * The same key MUST identify the same content, not a second email.
+ */
+function brvtal_ticket_mail_enqueue(
+    PDO $pdo, string $key, string $reference, string $recipient, string $subject, string $body
+): int {
+    if (!preg_match('/^[A-Za-z0-9:_-]{1,128}$/D', $key)
+        || !preg_match('/^[A-Za-z0-9:_-]{1,128}$/D', $reference)
+        || !filter_var($recipient, FILTER_VALIDATE_EMAIL)
+        || $subject === '' || strlen($subject) > 255
+        || $body === '' || strlen($body) > 50000) {
+        throw new InvalidArgumentException('MAIL_INVALID_INPUT');
+    }
+    $fingerprint = hash('sha256', json_encode([$reference, $recipient, $subject, $body], JSON_THROW_ON_ERROR));
+    $stmt = $pdo->prepare('INSERT INTO ticket_mail_outbox
+        (message_key,payload_hash,related_ref,recipient_email,subject,body_text)
+        VALUES (?,?,?,?,?,?) ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)');
+    $stmt->execute([$key, $fingerprint, $reference, $recipient, $subject, $body]);
+    $id = (int)$pdo->lastInsertId();
+    $read = $pdo->prepare('SELECT payload_hash FROM ticket_mail_outbox WHERE id=?');
+    $read->execute([$id]);
+    if (!hash_equals($fingerprint, (string)$read->fetchColumn())) {
+        throw new DomainException('MAIL_KEY_CONFLICT');
+    }
+    return $id;
+}
+
+/** Claim using a DB row lock; attempts is the fencing generation. */
+function brvtal_ticket_mail_claim(PDO $pdo): ?array
+{
+    $pdo->beginTransaction();
+    try {
+        // A previously attempted unknown request is never auto-replayed after
+        // Resend's 24h idempotency window (leave it for manual reconciliation).
+        $row = $pdo->query("SELECT * FROM ticket_mail_outbox
+            WHERE state IN ('queued','retry','sending') AND attempts<5
+            AND next_attempt_at<=UTC_TIMESTAMP()
+            AND (locked_until IS NULL OR locked_until<UTC_TIMESTAMP())
+            AND (first_attempt_at IS NULL OR first_attempt_at>DATE_SUB(UTC_TIMESTAMP(),INTERVAL 23 HOUR))
+            ORDER BY id LIMIT 1 FOR UPDATE")->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($row)) {
+            $pdo->commit();
+            return null;
+        }
+        $update = $pdo->prepare("UPDATE ticket_mail_outbox
+            SET state='sending',attempts=attempts+1,
+                first_attempt_at=COALESCE(first_attempt_at,UTC_TIMESTAMP()),
+                locked_until=DATE_ADD(UTC_TIMESTAMP(), INTERVAL 2 MINUTE),
+                updated_at=UTC_TIMESTAMP() WHERE id=?");
+        $update->execute([(int)$row['id']]);
+        $pdo->commit();
+        $row['attempts'] = (int)$row['attempts'] + 1;
+        return $row;
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $error;
+    }
+}
+
+/** One attempt per worker invocation, no caller-visible PII. */
+function brvtal_ticket_mail_deliver_one(PDO $pdo, ?callable $request = null): string
+{
+    $job = brvtal_ticket_mail_claim($pdo);
+    if ($job === null) {
+        return 'idle';
+    }
+    try {
+        $result = brvtal_ticket_resend_send($job, $request);
+    } catch (Throwable) {
+        // Ambiguous outcome: no automatic replay of a request that may have arrived.
+        $result = ['state' => 'uncertain', 'code' => 'network_unknown'];
+    }
+    $state = (string)($result['state'] ?? 'uncertain');
+    $attempts = (int)$job['attempts'];
+    if (!in_array($state, ['accepted', 'retry', 'failed', 'uncertain'], true)) {
+        $state = 'uncertain';
+    }
+    if ($state === 'retry' && $attempts >= 5) {
+        $state = 'uncertain';
+    }
+    $next = max(min(300, (int)($result['retry_after'] ?? 0)), min(3600, 30 * (2 ** ($attempts - 1))));
+    $code = (string)($result['code'] ?? '');
+    $allowedCodes = ['rate_limited','provider_5xx','network_unknown',
+        'receipt_unknown','provider_rejected','invalid_configuration',
+        'transport_disabled','transport_unavailable'];
+    $code = in_array($code, $allowedCodes, true) ? $code : 'unspecified';
+    $accepted = $state === 'accepted';
+    $sql = "UPDATE ticket_mail_outbox
+        SET state=?,next_attempt_at=DATE_ADD(UTC_TIMESTAMP(),INTERVAL {$next} SECOND),
+            locked_until=NULL,last_error_code=?,provider_message_id=?,
+            accepted_at=IF(?=1,UTC_TIMESTAMP(),accepted_at),updated_at=UTC_TIMESTAMP()
+        WHERE id=? AND attempts=? AND state='sending'";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([
+        $state, $accepted ? null : $code,
+        $accepted ? (string)($result['id'] ?? '') : null,
+        $accepted ? 1 : 0, (int)$job['id'], $attempts
+    ]);
+    return $stmt->rowCount() === 1 ? $state : 'lease_lost';
+}
+
+/** Manual redrive only for definite, non-accepted failures; never uncertain. */
+function brvtal_ticket_mail_redrive(PDO $pdo, int $id): bool
+{
+    if ($id < 1) {
+        return false;
+    }
+    $stmt = $pdo->prepare("UPDATE ticket_mail_outbox
+        SET state='queued',attempts=0,first_attempt_at=NULL,
+            next_attempt_at=UTC_TIMESTAMP(),locked_until=NULL,last_error_code=NULL
+        WHERE id=? AND state='failed' AND
+          last_error_code IN ('transport_disabled','invalid_configuration',
+              'provider_rejected','transport_unavailable')");
+    $stmt->execute([$id]);
+    return $stmt->rowCount() === 1;
+}
