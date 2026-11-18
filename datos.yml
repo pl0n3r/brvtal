@@ -315,9 +315,81 @@
       "category": "usage",
       "fields": [
         "last_access_at",
-        "failed_login_count"
+        "failed_login_count",
+        "device_id"
       ],
       "purpose": "staff_security_monitoring",
+      "basis": "review_required",
+      "retention": "review_required",
+      "consent": "review_required",
+      "providers": []
+    },
+    {
+      "id": "ticket_buyer_account",
+      "category": "contact",
+      "fields": [
+        "public_id",
+        "email",
+        "email_verified_at",
+        "consent_version",
+        "consent_recorded_at",
+        "status",
+        "created_at",
+        "updated_at"
+      ],
+      "purpose": "ticket_buyer_account",
+      "basis": "review_required",
+      "retention": "review_required",
+      "consent": "review_required",
+      "providers": []
+    },
+    {
+      "id": "ticket_buyer_authentication",
+      "category": "authentication",
+      "fields": [
+        "password_hash",
+        "security_epoch",
+        "token_hash",
+        "purpose",
+        "expires_at_utc",
+        "consumed_at_utc",
+        "revoked_at_utc",
+        "session_hash",
+        "issued_epoch"
+      ],
+      "purpose": "ticket_buyer_authentication",
+      "basis": "review_required",
+      "retention": "review_required",
+      "consent": "review_required",
+      "providers": []
+    },
+    {
+      "id": "ticket_order_payment",
+      "category": "financial",
+      "fields": [
+        "buyer_id",
+        "event_id",
+        "public_id",
+        "checkout_key_hash",
+        "status",
+        "total_cop",
+        "ticket_type_id",
+        "ticket_name_snapshot",
+        "quantity",
+        "unit_price_cop",
+        "subtotal_cop",
+        "provider",
+        "provider_reference",
+        "provider_transaction_id",
+        "gross_amount_cop",
+        "fee_amount_cop",
+        "fee_vat_cop",
+        "withheld_amount_cop",
+        "net_amount_cop",
+        "created_at_utc",
+        "updated_at_utc"
+      ],
+      "purpose": "ticket_order_payment_reconciliation",
       "basis": "review_required",
       "retention": "review_required",
       "consent": "review_required",
