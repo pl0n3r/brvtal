@@ -19,6 +19,18 @@ function brvtal_ticket_inventory_saleable(array $event, array $type, ?DateTimeIm
 {
     $clock = brvtal_ticket_inventory_now($now)->setTimezone(new DateTimeZone('America/Bogota'));
     if (!brvtal_public_event_allows_ticketing($event, $clock)) return false;
+    // Legacy editorial timestamps are Bogota wall-clock dates, not UTC.
+    // Never allow a future publication boundary merely because the web
+    // server happens to run in UTC.
+    $notBeforeRaw = trim((string)($event['published_at'] ?? ''));
+    if ($notBeforeRaw !== '') {
+        try {
+            $notBefore = new DateTimeImmutable($notBeforeRaw, new DateTimeZone('America/Bogota'));
+        } catch (Throwable) {
+            return false;
+        }
+        if ($notBefore > $clock) return false;
+    }
     $rawDate = trim((string)($event['event_date'] ?? ''));
     if ($rawDate === '') return false;
     try {
