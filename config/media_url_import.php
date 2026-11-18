@@ -268,14 +268,12 @@ function brvtal_media_url_import_curl(string $url, string $host, string $ip, int
         $options[CURLOPT_RESOLVE] = [$host . ':443:' . $pin];
     }
     if (curl_setopt_array($ch, $options) === false) {
-        curl_close($ch);
         throw new BrvtalMediaUrlImportError('REMOTE_UNREACHABLE', 502);
     }
     $ok = curl_exec($ch);
     $errno = curl_errno($ch);
     $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
     $location = curl_getinfo($ch, CURLINFO_REDIRECT_URL) ?: null;
-    curl_close($ch);
     if ($tooLarge) {
         throw new BrvtalMediaUrlImportError('TOO_LARGE');
     }
