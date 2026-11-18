@@ -143,10 +143,10 @@ test('real-stack saves the same YYYY-MM-DD HH:MM:SS API contract and reloads the
     const dialog = page.getByRole('dialog', {name:'Elegir fecha y hora'});
     const month = dialog.locator('[data-adp-month]');
     for (let i = 0; i < 14; i++) {
-      if ((await month.textContent()).toLowerCase().includes('diciembre 2026')) break;
+      if (/diciembre(?: de)? 2026/i.test(await month.textContent())) break;
       await dialog.getByRole('button', {name:'Mes siguiente'}).click();
     }
-    await expect(month).toContainText('diciembre 2026');
+    await expect(month).toContainText(/diciembre(?: de)? 2026/i);
     await dialog.locator('[data-adp-day="5"]').click();
     await dialog.getByRole('button', {name:'10 PM', exact:true}).click();
     await dialog.getByRole('button', {name:'Listo'}).click();

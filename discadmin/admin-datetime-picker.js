@@ -105,13 +105,20 @@
     const first = (new Date(draft.year, draft.month - 1, 1).getDay() + 6) % 7;
     const days = new Date(draft.year, draft.month, 0).getDate();
     const fragment = document.createDocumentFragment();
+    let row = null;
     for (let index = 0; index < 42; index++) {
+      if (index % 7 === 0) {
+        row = document.createElement('div');
+        row.className = 'adp-row';
+        row.setAttribute('role', 'row');
+        fragment.appendChild(row);
+      }
       const day = index - first + 1;
       if (day < 1 || day > days) {
         const blank = document.createElement('span');
         blank.className = 'adp-blank';
         blank.setAttribute('aria-hidden', 'true');
-        fragment.appendChild(blank);
+        row.appendChild(blank);
         continue;
       }
       const button = document.createElement('button');
@@ -126,7 +133,7 @@
       }).format(new Date(draft.year, draft.month - 1, day)));
       button.tabIndex = day === draft.day ? 0 : -1;
       if (day === draft.day) button.classList.add('adp-selected');
-      fragment.appendChild(button);
+      row.appendChild(button);
     }
     grid.replaceChildren(fragment);
     announce();
@@ -289,6 +296,7 @@
     button.className = 'adp-trigger';
     button.setAttribute('aria-haspopup', 'dialog');
     input.classList.add('adp-native');
+    input.setAttribute('aria-hidden', 'true');
     input.tabIndex = -1;
     input.insertAdjacentElement('afterend', button);
     instances.set(input, {button});

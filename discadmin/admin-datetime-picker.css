@@ -61,10 +61,11 @@
 .adp-month-nav { margin-top: 12px; }
 .adp-month-nav button { padding: 0 12px; }
 .adp-month-nav h3 { flex: 1; margin: 0; text-align: center; text-transform: capitalize; font-size: 16px; }
-.adp-weekdays,.adp-grid { display: grid; grid-template-columns: repeat(7,minmax(0,1fr)); gap: 3px; }
+.adp-weekdays,.adp-row { display: grid; grid-template-columns: repeat(7,minmax(0,1fr)); gap: 3px; }
 .adp-weekdays { margin-top: 16px; }
 .adp-weekdays span { text-align: center; font-weight: 700; color: #bec6cb; }
 .adp-grid { margin-top: 5px; }
+.adp-row { margin-bottom: 3px; }
 .adp-grid .adp-day,.adp-blank { min-width: 0; min-height: 44px; }
 .adp-grid .adp-day { padding: 0; border-color: #394348; }
 .adp-grid .adp-day:hover { border-color: #b8ff00; }
