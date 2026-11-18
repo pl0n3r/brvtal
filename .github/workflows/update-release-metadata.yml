@@ -604,7 +604,7 @@ jobs:
         run: bash tests/e2e/run-content-core-real-stack.sh
 
   webkit:
-    name: webkit-totp
+    name: webkit
     needs: preflight
     if: needs.preflight.outputs.run_webkit == 'true'
     runs-on: ubuntu-24.04
@@ -648,8 +648,8 @@ jobs:
         if: steps.webkit-cache.outputs.cache-hit != 'true'
         run: npx playwright install webkit
 
-      - name: Run targeted WebKit TOTP regression
-        run: npx playwright test tests/e2e/discadmin-totp-login.spec.mjs --project=webkit-totp
+      - name: Run targeted WebKit TOTP and datetime-picker regressions
+        run: npx playwright test tests/e2e/discadmin-totp-login.spec.mjs tests/e2e/discadmin-datetime-picker.spec.mjs --project=webkit-totp
 
   recovery:
     name: recovery-rehearsal
@@ -810,7 +810,7 @@ jobs:
             echo "| MariaDB | **$DB_RESULT** |"
             echo "| Chromium | **$BROWSER_RESULT** |"
             echo "| Real-stack smoke | **$REALSTACK_RESULT** |"
-            echo "| WebKit TOTP | **$WEBKIT_RESULT** |"
+            echo "| WebKit browser regressions | **$WEBKIT_RESULT** |"
             echo "| Backup recovery | **$RECOVERY_RESULT** |"
             echo "| Deploy note | $deploy_note |"
             echo
