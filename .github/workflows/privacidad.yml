@@ -1,0 +1,14 @@
+name: Privacy
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+
+jobs:
+  privacy:
+    uses: pl0n3r/factory/.github/workflows/privacidad.yml@dc7a24a7ff16aa01857009aff7f9e13b0bc0ca46
+    with:
+      kit_ref: dc7a24a7ff16aa01857009aff7f9e13b0bc0ca46

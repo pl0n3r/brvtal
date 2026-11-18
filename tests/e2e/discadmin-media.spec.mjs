@@ -1,0 +1,480 @@
+import { test, expect } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+const mediaLibraryJs = readFileSync(join(process.cwd(), 'discadmin/media-library.js'), 'utf8');
+const adminModulesJs = readFileSync(join(process.cwd(), 'discadmin/admin-modules.js'), 'utf8');
+const harnessUrl = 'http://127.0.0.1:4173/discadmin/e2e.html';
+const onePixelPng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
+
+const mediaItem = {
+  id: 11,
+  type: 'image',
+  title: 'Genesis poster',
+  file_path: 'uploads/media/2026/09/genesis.jpg',
+  mime_type: 'image/jpeg',
+  file_size: 120000,
+  alt_text: 'Genesis poster alt',
+  status: 'published',
+  created_at: '2026-09-11 17:00:00',
+  engine: {
+    status: 'ready',
+    policy: { version: 3, generator: 'gd-webp', generator_version: 3, webp_quality: 82 },
+    focal_point: { x: 0.5, y: 0.5 },
+    optimization: {
+      state: 'reused',
+      generated: [],
+      repaired: [],
+      reused: ['square'],
+      aliases: {},
+      logical_variant_count: 1,
+      physical_variant_count: 1,
+      physical_bytes: 42000
+    },
+    variants: {
+      square: {
+        path: 'uploads/media/2026/09/genesis--square-480.webp',
+        width: 480,
+        height: 480,
+        mime_type: 'image/webp',
+        bytes: 42000,
+        state: 'reused',
+        generated_at: '2026-09-11T17:00:00-05:00',
+        reused_at: '2026-09-23T06:00:00-05:00'
+      }
+    }
+  },
+  quality: { grade: 'good', contexts: { square: { label: 'GRID / AVATAR', width: 800, height: 800, ready: true }, card: { label: 'CONTENT CARD', width: 1200, height: 900, ready: true }, hero: { label: 'EVENT HERO', width: 1920, height: 1080, ready: false } } }
+};
+
+const audioItem = {
+  id: 12,
+  type: 'audio',
+  title: 'Warehouse recording',
+  file_path: 'uploads/media/2026/09/warehouse-recording.mp3',
+  mime_type: 'audio/mpeg',
+  file_size: 64000,
+  alt_text: '',
+  status: 'published',
+  created_at: '2026-09-12 18:00:00',
+  usage: [{ resource: 'events', id: 42, title: 'GENESIS', field: 'soundtrack' }]
+};
+
+async function mockApi(page) {
+  await page.route('**/uploads/media/**', route => route.fulfill({ status: 200, contentType: 'image/png', body: onePixelPng }));
+  await page.route('**/discadmin/media-library.js**', route => route.fulfill({ contentType: 'application/javascript', body: mediaLibraryJs }));
+  await page.route('**/discadmin/media-library.css**', route => route.fulfill({ contentType: 'text/css', body: '' }));
+  await page.route('**/api/auth', route => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({ authenticated: true, csrf: 'csrf-token' })
+  }));
+  await page.route('**/api/index.php/auth', route => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({ authenticated: true, csrf: 'csrf-token' })
+  }));
+  await page.route('**/api/media-permissions.php', route => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({ ok: true, repaired: 0 })
+  }));
+  await page.route('**/api/media-library.php**', route => {
+    const url = new URL(route.request().url());
+    const action = url.searchParams.get('action') || 'list';
+    if (action === 'list') {
+      return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: [mediaItem, audioItem] }) });
+    }
+    if (action === 'detail') {
+      const item = Number(url.searchParams.get('id')) === audioItem.id ? audioItem : { ...mediaItem, usage: [] };
+      return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: item }) });
+    }
+    return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: mediaItem }) });
+  });
+  await page.route('**/api/index.php/events/42', route => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({ ok: true, data: { id: 42 } })
+  }));
+  await page.route('**/api/index.php/artists/7', route => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({ ok: true, data: { id: 7 } })
+  }));
+  await page.route('**/api/releases.php', route => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({ ok: true, data: {} })
+  }));
+  await page.route('**/api/blog.php', route => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({ ok: true, data: {} })
+  }));
+  await page.route('**/api/index.php/settings', route => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({ ok: true, data: {} })
+  }));
+  await page.route('**/api/index.php/sets**', route => route.fulfill({
+    status: 500,
+    contentType: 'application/json',
+    body: JSON.stringify({ ok: false, error: 'TEST_FAILURE' })
+  }));
+}
+
+async function loadHarness(page, body) {
+  await mockApi(page);
+  await page.route(harnessUrl, route => route.fulfill({
+    contentType: 'text/html; charset=utf-8',
+    body: `<!doctype html><html><head></head><body>${body}</body></html>`
+  }));
+  await page.goto(harnessUrl);
+}
+
+async function loadMediaLibraryHarness(page) {
+  await loadHarness(page, `
+    <div class="thumbcell"><div class="thumbph">IMG</div><input id="f_cover_image" value=""></div>
+    <div class="thumbcell"><div class="thumbph">IMG</div><input id="f_photo" value=""></div>
+    <script>${mediaLibraryJs}</script>
+  `);
+}
+
+async function loadAdminHarness(page) {
+  await loadHarness(page, `
+    <button id="saveBtn">SAVE</button>
+    <input id="f_title" value="Genesis">
+    <input id="f_slug" value="genesis">
+    <input id="f_event_date" value="2026-09-11T21:00">
+    <input id="f_venue" value="La Perla">
+    <input id="f_city" value="Pereira">
+    <textarea id="f_description">Test event</textarea>
+    <input id="f_skin" value="core">
+    <input id="f_accent" value="#b6ff00">
+    <input id="f_cover_image" value="/uploads/media/2026/09/genesis.jpg">
+    <input id="f_ticket_url" value="">
+    <select id="f_status"><option value="published" selected>published</option></select>
+    <input id="f_sort_order" value="0">
+    <script>
+      window.state = { section: 'events' };
+      window.csrf = 'csrf-token';
+      window.render = () => {};
+      window.closeModal = () => { window.__closed = true; };
+      window.go = async section => { window.__went = section; };
+      window.openModal = () => {};
+      window.req = async (path, options = {}) => {
+        window.__lastReq = { path, method: options.method || 'GET', body: options.body || '' };
+        const response = await fetch('/api/index.php' + path, { method: options.method || 'GET', body: options.body || null });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || payload.ok === false) throw new Error(payload.error || 'REQUEST_FAILED');
+        return payload;
+      };
+    </script>
+    <script>${adminModulesJs}</script>
+  `);
+}
+
+test('duplicate upload reuses and selects the canonical Media asset with explicit feedback', async ({ page }) => {
+  await loadHarness(page, `<section data-admin-module="media"><input id="media-search"><select id="media-type-filter"><option value=""></option></select><select id="media-month-filter"></select><button id="media-upload"></button><input id="media-file" type="file"><button id="media-register"></button><div id="media-dropzone"></div><div id="media-status"></div><div id="media-summary"></div><div id="media-grid"></div><aside id="media-inspector"></aside></section><script>${mediaLibraryJs}</script><script>BRVTALMediaLibrary.mount(document.querySelector('[data-admin-module=media]'))</script>`);
+
+  await page.route('**/api/media-library.php?action=upload', route => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({
+      ok: true,
+      duplicate: true,
+      reused: true,
+      dedupe_source: 'indexed',
+      data: { ...mediaItem, content_hash: 'a'.repeat(64) }
+    })
+  }));
+
+  await page.route('**/api/media-library.php?action=detail&id=11', route => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({
+      ok: true,
+      data: { ...mediaItem, content_hash: 'a'.repeat(64), usage: [], usage_count: 0 }
+    })
+  }));
+
+  await page.locator('#media-file').setInputFiles({
+    name: 'same-bytes-different-name.png',
+    mimeType: 'image/png',
+    buffer: onePixelPng
+  });
+
+  await expect(page.locator('#media-status')).toHaveText('Duplicate detected — existing asset reused.');
+  await expect(page.locator('.media-card.active')).toHaveAttribute('data-media-id', String(mediaItem.id));
+  await expect(page.locator('#media-inspector')).toContainText('SHA-256');
+  await expect(page.locator('#media-inspector')).toContainText('a'.repeat(64));
+});
+
+test('upload remains available before dedup migration and reports degraded mode', async ({ page }) => {
+  await loadHarness(page, `<section data-admin-module="media"><input id="media-search"><select id="media-type-filter"><option value=""></option></select><select id="media-month-filter"></select><button id="media-upload"></button><input id="media-file" type="file"><button id="media-register"></button><div id="media-dropzone"></div><div id="media-status"></div><div id="media-summary"></div><div id="media-grid"></div><aside id="media-inspector"></aside></section><script>${mediaLibraryJs}</script><script>BRVTALMediaLibrary.mount(document.querySelector('[data-admin-module=media]'))</script>`);
+
+  await page.route('**/api/media-library.php?action=upload', route => route.fulfill({
+    status: 201,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      ok: true,
+      duplicate: false,
+      reused: false,
+      content_hash: null,
+      deduplication: {
+        column: false,
+        unique_index: false,
+        ready: false,
+        migration: 'migration_media_content_hash_01.sql'
+      },
+      data: mediaItem
+    })
+  }));
+
+  await page.locator('#media-file').setInputFiles({
+    name: 'legacy-compatible.png',
+    mimeType: 'image/png',
+    buffer: onePixelPng
+  });
+
+  await expect(page.locator('#media-status')).toHaveText('Uploaded legacy-compatible.png · duplicate detection pending migration.');
+  await expect(page.locator('.media-card.active')).toHaveAttribute('data-media-id', String(mediaItem.id));
+});
+
+test('upload reports incomplete optimization without pretending success', async ({ page }) => {
+  await loadHarness(page, `<section data-admin-module="media"><input id="media-search"><select id="media-type-filter"><option value=""></option></select><select id="media-month-filter"></select><button id="media-upload"></button><input id="media-file" type="file"><button id="media-register"></button><div id="media-dropzone"></div><div id="media-status"></div><div id="media-summary"></div><div id="media-grid"></div><aside id="media-inspector"></aside></section><script>${mediaLibraryJs}</script><script>BRVTALMediaLibrary.mount(document.querySelector('[data-admin-module=media]'))</script>`);
+
+  await page.route('**/api/media-library.php?action=upload', route => route.fulfill({
+    status: 201,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      ok: true,
+      duplicate: false,
+      reused: false,
+      optimization_warning: 'GD_WEBP_UNAVAILABLE',
+      data: {
+        ...mediaItem,
+        engine: {
+          status: 'original_only',
+          reason: 'GD_WEBP_UNAVAILABLE',
+          variants: {},
+          focal_point: {x:0.5,y:0.5}
+        }
+      }
+    })
+  }));
+
+  await page.locator('#media-file').setInputFiles({
+    name: 'original-only.png',
+    mimeType: 'image/png',
+    buffer: onePixelPng
+  });
+
+  await expect(page.locator('#media-status')).toContainText('original preserved · optimization incomplete');
+  await expect(page.locator('#media-status')).toContainText('GD WEBP UNAVAILABLE');
+  await expect(page.locator('#media-status')).toHaveClass(/err/);
+});
+
+test('media picker normalizes paths, updates inputs/previews, and shows guidance', async ({ page }) => {
+  await loadMediaLibraryHarness(page);
+
+  await expect(page.locator('.media-picker-btn').first()).toBeVisible();
+  await expect(page.locator('#f_cover_image + .media-picker-btn')).toHaveText('SELECT MEDIA');
+  await page.locator('.media-picker-btn').first().click();
+  await expect(page.locator('.brvtal-media-picker h3')).toHaveText('SELECT MEDIA');
+  await page.getByRole('button', { name: /Genesis poster/i }).click();
+
+  await expect(page.locator('#f_cover_image')).toHaveValue('/uploads/media/2026/09/genesis.jpg');
+  await expect(page.locator('.thumbcell img').first()).toHaveAttribute('src', '/uploads/media/2026/09/genesis.jpg');
+  await expect(page.getByText('Media selected. Press SAVE to persist this record.')).toBeVisible();
+});
+
+test('media picker uploads a local image with CSRF and selects it without saving the parent form', async ({ page }) => {
+  await loadMediaLibraryHarness(page);
+  await page.locator('.media-picker-btn').first().click();
+  const uploaded = {
+    ...mediaItem, id: 32, title: 'Nueva portada',
+    file_path: '/uploads/media/2026/11/nueva-portada.png',
+    mime_type: 'image/png', status: 'draft'
+  };
+  let uploadRequest;
+  await page.route('**/api/media-library.php?action=upload', route => {
+    uploadRequest = route.request();
+    return route.fulfill({ status: 201, contentType:'application/json', body:JSON.stringify({ok:true, data:uploaded}) });
+  });
+  const fileChooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', {name:'SUBIR DESDE MI EQUIPO'}).click();
+  await (await fileChooser).setFiles({name:'nueva-portada.png', mimeType:'image/png', buffer:onePixelPng});
+  await expect(page.locator('#f_cover_image')).toHaveValue('/uploads/media/2026/11/nueva-portada.png');
+  await expect(page.locator('.thumbcell img').first()).toHaveAttribute('src','/uploads/media/2026/11/nueva-portada.png');
+  await expect(page.locator('.brvtal-media-picker')).toHaveCount(0);
+  expect(uploadRequest.method()).toBe('POST');
+  expect(uploadRequest.headers()['x-csrf-token']).toBe('csrf-token');
+  expect(uploadRequest.postData()).toContain('nueva-portada.png');
+  await expect(page.getByText(/Imagen subida y seleccionada.*GUARDAR/)).toBeVisible();
+});
+
+test('media picker keeps original cover and remains open on rejected or invalid local upload', async ({ page }) => {
+  await loadMediaLibraryHarness(page);
+  const cover = page.locator('#f_cover_image');
+  await cover.fill('/uploads/media/old-cover.jpg');
+  await page.locator('.media-picker-btn').first().click();
+  let requests = 0;
+  await page.route('**/api/media-library.php?action=upload', route => {
+    requests += 1;
+    return route.fulfill({status:422, contentType:'application/json', body:JSON.stringify({ok:false,error:'FILE_TOO_LARGE'})});
+  });
+  await page.locator('[data-media-file]').setInputFiles({name:'not-image.txt', mimeType:'text/plain', buffer:Buffer.from('invalid')});
+  await expect(page.locator('[data-media-upload-status]')).toContainText('Formato no admitido');
+  expect(requests).toBe(0);
+  await expect(cover).toHaveValue('/uploads/media/old-cover.jpg');
+  await page.locator('[data-media-file]').setInputFiles({name:'broken.png', mimeType:'image/png', buffer:onePixelPng});
+  await expect(page.locator('[data-media-upload-status]')).toContainText('FILE_TOO_LARGE');
+  await expect(page.locator('.brvtal-media-picker')).toHaveCount(1);
+  await expect(cover).toHaveValue('/uploads/media/old-cover.jpg');
+  expect(requests).toBe(1);
+  await page.getByRole('button', {name:/Genesis poster/}).click();
+  await expect(cover).toHaveValue('/uploads/media/2026/09/genesis.jpg');
+});
+
+test('media picker does not modify form when local file dialog is canceled', async ({ page }) => {
+  await loadMediaLibraryHarness(page);
+  await page.locator('.media-picker-btn').first().click();
+  const fileChooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', {name:'SUBIR DESDE MI EQUIPO'}).click();
+  await (await fileChooser).setFiles([]);
+  await expect(page.locator('.brvtal-media-picker')).toHaveCount(1);
+  await expect(page.locator('#f_cover_image')).toHaveValue('');
+  await page.getByRole('button', {name:'CLOSE'}).click();
+  await expect(page.locator('.brvtal-media-picker')).toHaveCount(0);
+});
+
+test('image fallback is consumed before a repeated failure degrades to a placeholder', async ({ page }) => {
+  await loadHarness(page, `<script>${mediaLibraryJs}</script>`);
+  await page.evaluate(() => {
+    const img = document.createElement('img');
+    img.id = 'fallback-image';
+    img.src = '/uploads/media/generated.webp';
+    img.dataset.fallback = '/uploads/media/original.jpg';
+    document.body.appendChild(img);
+    window.BRVTALMediaLibrary.handleImageError(img);
+  });
+
+  await expect(page.locator('#fallback-image')).toHaveAttribute('src', '/uploads/media/original.jpg');
+  await expect(page.locator('#fallback-image')).not.toHaveAttribute('data-fallback');
+
+  await page.evaluate(() => window.BRVTALMediaLibrary.handleImageError(document.getElementById('fallback-image')));
+  await expect(page.locator('.media-kind')).toHaveText('IMG');
+});
+
+test('media inspector previews contexts and submits a focal point regeneration', async ({ page }) => {
+  await loadHarness(page, `<section data-admin-module="media"><input id="media-search"><select id="media-type-filter"><option value=""></option></select><select id="media-month-filter"></select><button id="media-upload"></button><input id="media-file" type="file"><button id="media-register"></button><div id="media-dropzone"></div><div id="media-status"></div><div id="media-summary"></div><div id="media-grid"></div><aside id="media-inspector"></aside></section><script>${mediaLibraryJs}</script><script>BRVTALMediaLibrary.mount(document.querySelector('[data-admin-module=media]'))</script>`);
+  await page.getByRole('button', { name: /Genesis poster/i }).click();
+  await expect(page.getByText('FOCAL POINT / CROP')).toBeVisible();
+  await expect(page.locator('.media-context')).toHaveCount(3);
+  await page.locator('#media-focal-x').fill('75');
+  await page.locator('#media-focal-y').fill('25');
+  const transform = page.waitForRequest(request => request.url().includes('action=transform'));
+  await page.getByRole('button', { name: 'SAVE FOCUS + REGENERATE' }).click();
+  const request = await transform;
+  expect(request.postDataJSON()).toEqual({x:0.75,y:0.25});
+  await expect(page.locator('#media-inspector')).toContainText('OPTIMIZATION / REUSED');
+  await expect(page.locator('#media-inspector')).toContainText('PHYSICAL FOOTPRINT');
+  await expect(page.locator('#media-status')).toHaveText('Optimization up to date · existing variants reused.');
+});
+
+test('media inspector keeps non-image assets simple and protects referenced media', async ({ page }) => {
+  await loadHarness(page, `<section data-admin-module="media"><input id="media-search"><select id="media-type-filter"><option value=""></option></select><select id="media-month-filter"></select><button id="media-upload"></button><input id="media-file" type="file"><button id="media-register"></button><div id="media-dropzone"></div><div id="media-status"></div><div id="media-summary"></div><div id="media-grid"></div><aside id="media-inspector"></aside></section><script>${mediaLibraryJs}</script><script>BRVTALMediaLibrary.mount(document.querySelector('[data-admin-module=media]'))</script>`);
+  await page.getByRole('button', { name: /Warehouse recording/i }).click();
+
+  await expect(page.locator('#media-inspector .media-kind')).toHaveText('AUDIO');
+  await expect(page.getByText('ORIGINAL ASSET', { exact: true })).toBeVisible();
+  await expect(page.getByText('FOCAL POINT / CROP', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('USED BY / 1', { exact: true })).toBeVisible();
+  await expect(page.locator('#media-inspector .media-usage-item')).toContainText('GENESIS');
+  await expect(page.locator('#media-delete')).toBeDisabled();
+});
+
+test('event save sends selected media path and shows success feedback', async ({ page }) => {
+  await loadAdminHarness(page);
+  await page.evaluate(() => window.save('events', 42));
+
+  const lastReq = await page.evaluate(() => window.__lastReq);
+  expect(lastReq.path).toBe('/events/42');
+  expect(lastReq.method).toBe('PUT');
+  expect(JSON.parse(lastReq.body).cover_image).toBe('/uploads/media/2026/09/genesis.jpg');
+  await expect(page.getByText('Changes saved.')).toBeVisible();
+});
+
+test('artist save sends selected media path', async ({ page }) => {
+  await loadAdminHarness(page);
+  await page.evaluate(() => {
+    document.body.innerHTML += '<input id="f_name" value="PL0N3R"><input id="f_bio" value=""><input id="f_photo" value="/uploads/media/2026/09/genesis.jpg"><input id="f_instagram_url" value=""><input id="f_soundcloud_url" value=""><input id="f_website_url" value=""><select id="f_status"><option value="published" selected>published</option></select><input id="f_sort_order" value="0">';
+  });
+  await page.evaluate(() => window.save('artists', 7));
+
+  const lastReq = await page.evaluate(() => window.__lastReq);
+  expect(lastReq.path).toBe('/artists/7');
+  expect(lastReq.method).toBe('PUT');
+  expect(JSON.parse(lastReq.body).photo).toBe('/uploads/media/2026/09/genesis.jpg');
+});
+
+test('mutation feedback preserves endpoint-specific labels and precedence', async ({ page }) => {
+  await loadAdminHarness(page);
+
+  const observed = await page.evaluate(async () => {
+    const events = [];
+    const originalProgress = window.BRVTALFeedback.progress;
+    const originalSuccess = window.BRVTALFeedback.success;
+    window.BRVTALFeedback.progress = message => { events.push(['progress', message]); };
+    window.BRVTALFeedback.success = message => { events.push(['success', message]); };
+
+    const cases = [
+      ['/api/media-library.php?action=upload', 'POST'],
+      ['/api/releases.php', 'DELETE'],
+      ['/api/blog.php', 'POST'],
+      ['/api/index.php/settings', 'POST'],
+      ['/api/index.php/events/42', 'DELETE'],
+      ['/api/index.php/events/42', 'PUT']
+    ];
+
+    try {
+      for (const [url, method] of cases) {
+        await fetch(url, { method, body: '{}' });
+      }
+    } finally {
+      window.BRVTALFeedback.progress = originalProgress;
+      window.BRVTALFeedback.success = originalSuccess;
+    }
+
+    return events;
+  });
+
+  expect(observed).toEqual([
+    ['progress','Uploading media…'],
+    ['success','Media uploaded.'],
+    ['progress','Deleting release…'],
+    ['success','Release deleted.'],
+    ['progress','Saving blog post…'],
+    ['success','Blog post saved.'],
+    ['progress','Saving settings…'],
+    ['success','Settings saved.'],
+    ['progress','Deleting…'],
+    ['success','Deleted.'],
+    ['progress','Saving changes…'],
+    ['success','Changes saved.']
+  ]);
+});
+
+test('failed mutations show persistent error feedback', async ({ page }) => {
+  await loadAdminHarness(page);
+  await page.evaluate(async () => {
+    await fetch('/api/index.php/sets/1', { method: 'PUT', body: '{}' });
+  });
+
+  await expect(page.locator('.brvtal-feedback.error')).toBeVisible();
+  await expect(page.getByText('Test failure')).toBeVisible();
+});
+
+test('broken thumbnails degrade to a placeholder', async ({ page }) => {
+  await loadAdminHarness(page);
+  await page.evaluate(() => {
+    const img = document.createElement('img');
+    img.className = 'thumb';
+    img.src = 'missing.jpg';
+    document.body.appendChild(img);
+    img.dispatchEvent(new Event('error', { bubbles: true }));
+  });
+
+  await expect(page.getByText('NO IMG')).toBeVisible();
+});

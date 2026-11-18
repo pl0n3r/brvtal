@@ -1,0 +1,11 @@
+Options -Indexes
+RewriteEngine On
+
+# Runtime scripts and Factory deployment adapters are never HTTP surfaces.
+RewriteRule ^factory(?:/|$) - [F,L,NC]
+RewriteRule ^admin-password-mail-worker\.php$ - [F,L,NC]
+
+# D-060 dispatcher. The PHP boundary itself returns indistinguishable 404 when
+# key or allowlist configuration is absent, so production stays disabled by default.
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^(?:staff(?:/.*)?|summary)/?$ index.php [L,QSA,NC]

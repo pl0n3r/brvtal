@@ -1,0 +1,313 @@
+<?php
+declare(strict_types=1);
+
+require_once dirname(__DIR__, 2) . '/api/bulk-actions-lib.php';
+
+function bulk_it_assert(bool $condition, string $message): void
+{
+    if (!$condition) {
+        fwrite(STDERR, "BULK ACTIONS INTEGRATION FAILED: {$message}\n");
+        exit(1);
+    }
+}
+
+if (getenv('BRVTAL_INTEGRATION_TESTS') !== '1') {
+    echo "BRVTAL bulk actions integration skipped. Set BRVTAL_INTEGRATION_TESTS=1 to run.\n";
+    exit(0);
+}
+
+$dbName = (string)(getenv('BRVTAL_TEST_DB_NAME') ?: '');
+bulk_it_assert((bool)preg_match('/^brvtal_test[a-zA-Z0-9_]*$/', $dbName), 'test database name must start with brvtal_test');
+
+$dsn = sprintf(
+    'mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4',
+    (string)(getenv('BRVTAL_TEST_DB_HOST') ?: '127.0.0.1'),
+    (int)(getenv('BRVTAL_TEST_DB_PORT') ?: 3306),
+    $dbName
+);
+$pdo = new PDO($dsn, (string)(getenv('BRVTAL_TEST_DB_USER') ?: 'root'), (string)(getenv('BRVTAL_TEST_DB_PASS') ?: ''), [
+    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+    PDO::ATTR_EMULATE_PREPARES => false,
+]);
+
+// Production #1562: prepared string operands may use different collations.
+// Keep this fixture deterministic across CI MariaDB versions.
+$pdo->exec("SET SESSION collation_connection='utf8mb4_general_ci'");
+$collationConflict = false;
+try {
+    $pdo->query("SELECT _utf8mb4'draft' COLLATE utf8mb4_general_ci = _utf8mb4'published' COLLATE utf8mb4_unicode_ci");
+} catch (PDOException $e) {
+    $collationConflict = (int)($e->errorInfo[1] ?? 0) === 1267;
+}
+bulk_it_assert($collationConflict, 'mixed utf8mb4 collations must reproduce MariaDB error 1267 in isolation');
+
+$pdo->exec('DROP TEMPORARY TABLE IF EXISTS events');
+$pdo->exec("CREATE TEMPORARY TABLE events (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(180) NOT NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'draft',
+    event_date DATETIME NULL,
+    city VARCHAR(120) NULL,
+    description TEXT NULL,
+    published_at DATETIME NULL,
+    cancelled_at DATETIME NULL,
+    finished_at DATETIME NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+foreach (['artists','sets_media','pages'] as $table) {
+    $pdo->exec("DROP TEMPORARY TABLE IF EXISTS {$table}");
+    $pdo->exec("CREATE TEMPORARY TABLE {$table} (id INT AUTO_INCREMENT PRIMARY KEY,status VARCHAR(30) NOT NULL DEFAULT 'draft') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+}
+foreach (['releases','blog_posts'] as $table) {
+    $pdo->exec("DROP TEMPORARY TABLE IF EXISTS {$table}");
+    $pdo->exec("CREATE TEMPORARY TABLE {$table} (id INT AUTO_INCREMENT PRIMARY KEY,status VARCHAR(30) NOT NULL DEFAULT 'draft',published_at DATETIME NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+}
+
+// #173: the full selected Event set is validated before any bulk status mutation.
+$pdo->exec("INSERT INTO events(title,status) VALUES ('Incomplete bulk Event','draft')");
+$incompleteEventId = (int)$pdo->lastInsertId();
+$dateRejected = false;
+try {
+    brvtal_bulk_apply($pdo, brvtal_bulk_normalize_request([
+        'resource'=>'events',
+        'status'=>'published',
+        'ids'=>[$incompleteEventId],
+    ]));
+} catch (InvalidArgumentException $e) {
+    $dateRejected = $e->getMessage() === 'EVENT_DATE_REQUIRED';
+}
+bulk_it_assert($dateRejected, 'bulk publishing an Event without event_date must be rejected');
+bulk_it_assert(
+    (string)$pdo->query("SELECT status FROM events WHERE id={$incompleteEventId}")->fetchColumn() === 'draft',
+    'rejected bulk publication must preserve draft status'
+);
+
+$pdo->prepare('UPDATE events SET event_date=? WHERE id=?')->execute(['2026-10-31 21:00:00', $incompleteEventId]);
+$cityRejected = false;
+try {
+    brvtal_bulk_apply($pdo, brvtal_bulk_normalize_request([
+        'resource'=>'events',
+        'status'=>'published',
+        'ids'=>[$incompleteEventId],
+    ]));
+} catch (InvalidArgumentException $e) {
+    $cityRejected = $e->getMessage() === 'EVENT_CITY_REQUIRED';
+}
+bulk_it_assert($cityRejected, 'bulk publishing an Event without city must be rejected');
+bulk_it_assert(
+    (string)$pdo->query("SELECT status FROM events WHERE id={$incompleteEventId}")->fetchColumn() === 'draft',
+    'city validation failure must not modify Event status'
+);
+
+$pdo->prepare('UPDATE events SET city=? WHERE id=?')->execute(['Pereira', $incompleteEventId]);
+$descriptionRejected = false;
+try {
+    brvtal_bulk_apply($pdo, brvtal_bulk_normalize_request([
+        'resource'=>'events',
+        'status'=>'published',
+        'ids'=>[$incompleteEventId],
+    ]));
+} catch (InvalidArgumentException $e) {
+    $descriptionRejected = $e->getMessage() === 'EVENT_DESCRIPTION_REQUIRED';
+}
+bulk_it_assert($descriptionRejected, 'bulk publishing without description must be rejected');
+bulk_it_assert(
+    (string)$pdo->query("SELECT status FROM events WHERE id={$incompleteEventId}")->fetchColumn() === 'draft',
+    'missing description must preserve Event draft status'
+);
+$pdo->prepare('UPDATE events SET description=? WHERE id=?')->execute(['Synthetic complete editorial event', $incompleteEventId]);
+brvtal_bulk_apply($pdo, brvtal_bulk_normalize_request([
+    'resource'=>'events',
+    'status'=>'published',
+    'ids'=>[$incompleteEventId],
+]));
+bulk_it_assert(
+    (string)$pdo->query("SELECT status FROM events WHERE id={$incompleteEventId}")->fetchColumn() === 'published',
+    'complete Event must publish through Bulk Actions'
+);
+
+$pdo->exec("INSERT INTO events(title,status,event_date,city,description) VALUES
+    ('Bulk Event A','draft','2026-11-01 20:00:00','Pereira','Synthetic bulk event A'),
+    ('Bulk Event B','draft','2026-11-02 20:00:00','Pereira','Synthetic bulk event B')");
+$eventIds = $pdo->query("SELECT id FROM events WHERE title IN ('Bulk Event A','Bulk Event B') ORDER BY id")->fetchAll(PDO::FETCH_COLUMN);
+$result = brvtal_bulk_apply($pdo, brvtal_bulk_normalize_request([
+    'resource' => 'events',
+    'action' => 'set_status',
+    'status' => 'published',
+    'ids' => $eventIds,
+]));
+bulk_it_assert($result['matched'] === 2, 'events bulk action must match both selected rows');
+bulk_it_assert((int)$pdo->query("SELECT COUNT(*) FROM events WHERE id IN (" . implode(',', array_map(intval(...), $eventIds)) . ") AND status='published'")->fetchColumn() === 2, 'events bulk action must publish both valid rows');
+bulk_it_assert((int)$pdo->query("SELECT COUNT(*) FROM events WHERE id IN (" . implode(',', array_map(intval(...), $eventIds)) . ") AND published_at IS NOT NULL")->fetchColumn() === 2, 'bulk publishing Events must stamp published_at');
+$firstPublishedAt = (string)$pdo->query('SELECT published_at FROM events WHERE id=' . (int)$eventIds[0])->fetchColumn();
+brvtal_bulk_apply($pdo, brvtal_bulk_normalize_request([
+    'resource'=>'events',
+    'status'=>'archived',
+    'ids'=>[(int)$eventIds[0]],
+]));
+$archivedEvent = $pdo->query('SELECT status,published_at FROM events WHERE id=' . (int)$eventIds[0])->fetch(PDO::FETCH_ASSOC);
+bulk_it_assert(($archivedEvent['status'] ?? '') === 'archived', 'published Event must support archive in bulk');
+bulk_it_assert((string)($archivedEvent['published_at'] ?? '') === $firstPublishedAt, 'archiving an already public Event must preserve published_at');
+
+$pdo->exec("INSERT INTO events(title,status,event_date,city) VALUES ('Complete draft archive','draft','2026-12-01 20:00:00','Pereira')");
+$draftArchiveId = (int)$pdo->lastInsertId();
+brvtal_bulk_apply($pdo, brvtal_bulk_normalize_request([
+    'resource'=>'events',
+    'status'=>'archived',
+    'ids'=>[$draftArchiveId],
+]));
+$draftArchivedPublishedAt = $pdo->query("SELECT published_at FROM events WHERE id={$draftArchiveId}")->fetchColumn();
+bulk_it_assert($draftArchivedPublishedAt === null, 'bulk draft-to-archive must not invent publication history');
+
+$pdo->exec("INSERT INTO releases(status,published_at) VALUES ('draft',NULL),('published','2026-01-02 03:04:05')");
+$releaseIds = $pdo->query('SELECT id FROM releases ORDER BY id')->fetchAll(PDO::FETCH_COLUMN);
+brvtal_bulk_apply($pdo, brvtal_bulk_normalize_request([
+    'resource'=>'releases',
+    'status'=>'published',
+    'ids'=>[(int)$releaseIds[0]],
+]));
+$publishedRelease = $pdo->query('SELECT status,published_at FROM releases ORDER BY id LIMIT 1')->fetch(PDO::FETCH_ASSOC);
+bulk_it_assert(($publishedRelease['status'] ?? '') === 'published', 'bulk Release publish must update status');
+bulk_it_assert(trim((string)($publishedRelease['published_at'] ?? '')) !== '', 'bulk Release publish must stamp published_at');
+$releasePublishedAt = (string)$publishedRelease['published_at'];
+brvtal_bulk_apply($pdo, brvtal_bulk_normalize_request([
+    'resource'=>'releases', 'status'=>'draft', 'ids'=>[(int)$releaseIds[0]],
+]));
+$draftRelease = $pdo->query('SELECT status,published_at FROM releases ORDER BY id LIMIT 1')->fetch(PDO::FETCH_ASSOC);
+bulk_it_assert(($draftRelease['status'] ?? '') === 'draft', 'published Release must move to draft');
+bulk_it_assert((string)($draftRelease['published_at'] ?? '') === $releasePublishedAt, 'Release draft must retain its publication timestamp');
+brvtal_bulk_apply($pdo, brvtal_bulk_normalize_request([
+    'resource'=>'releases', 'status'=>'published', 'ids'=>[(int)$releaseIds[0]],
+]));
+bulk_it_assert((string)$pdo->query('SELECT published_at FROM releases ORDER BY id LIMIT 1')->fetchColumn() === $releasePublishedAt, 'republished Release must preserve its original published_at');
+
+brvtal_bulk_apply($pdo, brvtal_bulk_normalize_request([
+    'resource'=>'releases',
+    'status'=>'archived',
+    'ids'=>$releaseIds,
+]));
+bulk_it_assert((int)$pdo->query("SELECT COUNT(*) FROM releases WHERE status='archived'")->fetchColumn() === 2, 'releases must support archive in bulk');
+bulk_it_assert((string)$pdo->query('SELECT published_at FROM releases ORDER BY id LIMIT 1')->fetchColumn() === $releasePublishedAt, 'archiving a Release must preserve its original published_at');
+bulk_it_assert((string)$pdo->query('SELECT published_at FROM releases ORDER BY id DESC LIMIT 1')->fetchColumn() === '2026-01-02 03:04:05', 'bulk archive must preserve an existing Release published_at');
+
+$pdo->exec("INSERT INTO blog_posts(status,published_at) VALUES ('draft',NULL)");
+$blogId = (int)$pdo->lastInsertId();
+brvtal_bulk_apply($pdo, brvtal_bulk_normalize_request([
+    'resource'=>'blog',
+    'status'=>'published',
+    'ids'=>[$blogId],
+]));
+$publishedBlog = $pdo->query("SELECT status,published_at FROM blog_posts WHERE id={$blogId}")->fetch(PDO::FETCH_ASSOC);
+bulk_it_assert(($publishedBlog['status'] ?? '') === 'published', 'bulk Blog publish must update status');
+bulk_it_assert(trim((string)($publishedBlog['published_at'] ?? '')) !== '', 'bulk Blog publish must stamp published_at');
+$blogPublishedAt = (string)$publishedBlog['published_at'];
+// The failing production action is published -> draft, not just publish -> archive.
+brvtal_bulk_apply($pdo, brvtal_bulk_normalize_request([
+    'resource'=>'blog', 'status'=>'draft', 'ids'=>[$blogId],
+]));
+$draftBlog = $pdo->query("SELECT status,published_at FROM blog_posts WHERE id={$blogId}")->fetch(PDO::FETCH_ASSOC);
+bulk_it_assert(($draftBlog['status'] ?? '') === 'draft', 'published Blog must move back to draft');
+bulk_it_assert((string)($draftBlog['published_at'] ?? '') === $blogPublishedAt, 'Blog draft must preserve original publication timestamp');
+brvtal_bulk_apply($pdo, brvtal_bulk_normalize_request([
+    'resource'=>'blog', 'status'=>'published', 'ids'=>[$blogId],
+]));
+bulk_it_assert((string)$pdo->query("SELECT published_at FROM blog_posts WHERE id={$blogId}")->fetchColumn() === $blogPublishedAt, 'republishing Blog must not replace its original published_at');
+
+brvtal_bulk_apply($pdo, brvtal_bulk_normalize_request([
+    'resource'=>'blog',
+    'status'=>'archived',
+    'ids'=>[$blogId],
+]));
+bulk_it_assert((string)$pdo->query("SELECT published_at FROM blog_posts WHERE id={$blogId}")->fetchColumn() === $blogPublishedAt, 'archiving Blog must preserve its original published_at');
+
+$invalidStatusRejected = false;
+try {
+    brvtal_bulk_normalize_request(['resource'=>'artists','status'=>'archived','ids'=>[1]]);
+} catch (InvalidArgumentException $e) {
+    $invalidStatusRejected = $e->getMessage() === 'INVALID_BULK_STATUS';
+}
+bulk_it_assert($invalidStatusRejected, 'artists must reject archive because it is not an allowed lifecycle state');
+
+$pdo->exec("INSERT INTO pages(status) VALUES ('draft')");
+$pageId = (int)$pdo->lastInsertId();
+$rollbackVerified = false;
+try {
+    brvtal_bulk_apply($pdo, brvtal_bulk_normalize_request([
+        'resource'=>'pages',
+        'status'=>'published',
+        'ids'=>[$pageId,999999],
+    ]));
+} catch (RuntimeException $e) {
+    $rollbackVerified = $e->getMessage() === 'BULK_ITEMS_NOT_FOUND';
+}
+bulk_it_assert($rollbackVerified, 'missing IDs must reject the entire bulk operation');
+$afterRollback = (string)$pdo->query("SELECT status FROM pages WHERE id={$pageId}")->fetchColumn();
+bulk_it_assert($afterRollback === 'draft', 'missing IDs must rollback and preserve the existing status');
+
+$limitRejected = false;
+try {
+    brvtal_bulk_normalize_request(['resource'=>'blog','status'=>'draft','ids'=>range(1,101)]);
+} catch (InvalidArgumentException $e) {
+    $limitRejected = $e->getMessage() === 'BULK_LIMIT_EXCEEDED';
+}
+bulk_it_assert($limitRejected, 'more than 100 IDs must be rejected');
+
+// Exercise the exact individual Blog/Release prepared UPDATE SQL on a disposable DB.
+// These are not production API requests: endpoint auth, CSRF and public filtering
+// retain their own existing contract/E2E coverage.
+function bulk_it_endpoint_update(PDO $pdo, string $endpoint, string $table): PDOStatement
+{
+    $source = (string)file_get_contents(dirname(__DIR__, 2) . '/api/' . $endpoint);
+    $pattern = '~"(UPDATE ' . preg_quote($table, '~') . ' SET [^"]+)"~s';
+    bulk_it_assert(preg_match($pattern, $source, $match) === 1, "must locate {$table} individual UPDATE SQL");
+    return $pdo->prepare($match[1]);
+}
+
+$pdo->exec('DROP TEMPORARY TABLE IF EXISTS blog_posts');
+$pdo->exec("CREATE TEMPORARY TABLE blog_posts (
+    id INT AUTO_INCREMENT PRIMARY KEY, title VARCHAR(180), slug VARCHAR(190),
+    excerpt TEXT NULL, body TEXT NULL, cover_image VARCHAR(255) NULL,
+    seo_title VARCHAR(180) NULL, seo_description TEXT NULL,
+    status VARCHAR(30) NOT NULL, featured TINYINT NOT NULL DEFAULT 0,
+    published_at DATETIME NULL, sort_order INT NOT NULL DEFAULT 0,
+    deleted_at DATETIME NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+$pdo->exec("INSERT INTO blog_posts(title,slug,body,status,published_at,sort_order) VALUES
+    ('Synthetic Blog','synthetic-blog','Original text','published','2026-01-02 03:04:05',1),
+    ('Fresh draft','fresh-draft','Unpublished text','draft',NULL,2)");
+$blogEdit = bulk_it_endpoint_update($pdo, 'blog.php', 'blog_posts');
+$blogEdit->execute(['Synthetic Blog revised', 'synthetic-blog', null, 'Edited text', null, null, null, 'draft', 0, 0, 7, 1]);
+$editedBlog = $pdo->query('SELECT title,body,status,published_at,sort_order,deleted_at FROM blog_posts WHERE id=1')->fetch();
+bulk_it_assert(($editedBlog['status'] ?? '') === 'draft', 'individual Blog PUT must save draft');
+bulk_it_assert(($editedBlog['title'] ?? '') === 'Synthetic Blog revised' && ($editedBlog['body'] ?? '') === 'Edited text' && (int)($editedBlog['sort_order'] ?? 0) === 7, 'individual Blog PUT must retain editable fields');
+bulk_it_assert(($editedBlog['published_at'] ?? '') === '2026-01-02 03:04:05' && $editedBlog['deleted_at'] === null, 'individual Blog draft must preserve publication and deletion metadata');
+$blogEdit->execute(['Synthetic Blog revised', 'synthetic-blog', null, 'Edited text', null, null, null, 'published', 0, 1, 7, 1]);
+bulk_it_assert($pdo->query('SELECT published_at FROM blog_posts WHERE id=1')->fetchColumn() === '2026-01-02 03:04:05', 'individual Blog re-publication must retain original timestamp');
+$blogEdit->execute(['Fresh draft', 'fresh-draft', null, 'Unpublished text', null, null, null, 'published', 0, 1, 2, 2]);
+bulk_it_assert($pdo->query('SELECT published_at FROM blog_posts WHERE id=2')->fetchColumn() !== null, 'individual first Blog publication must set timestamp');
+
+$pdo->exec('DROP TEMPORARY TABLE IF EXISTS releases');
+$pdo->exec("CREATE TEMPORARY TABLE releases (
+    id INT AUTO_INCREMENT PRIMARY KEY, title VARCHAR(180), slug VARCHAR(190),
+    release_type VARCHAR(32), catalog_number VARCHAR(80) NULL,
+    release_date DATE NULL, description TEXT NULL, artwork VARCHAR(255) NULL,
+    spotify_url TEXT NULL, soundcloud_url TEXT NULL, bandcamp_url TEXT NULL,
+    youtube_url TEXT NULL, beatport_url TEXT NULL,
+    status VARCHAR(30) NOT NULL, featured TINYINT NOT NULL DEFAULT 0,
+    sort_order INT NOT NULL DEFAULT 0, published_at DATETIME NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+$pdo->exec("INSERT INTO releases(title,slug,release_type,status,published_at) VALUES
+    ('Synthetic Release','synthetic-release','ep','published','2026-01-02 03:04:05'),
+    ('Fresh Release','fresh-release','single','draft',NULL)");
+$releaseEdit = bulk_it_endpoint_update($pdo, 'releases.php', 'releases');
+$releaseEdit->execute(['Synthetic Release revised','synthetic-release','ep',null,null,'Edited text',null,null,null,null,null,null,'draft',0,5,0,1]);
+$editedRelease = $pdo->query('SELECT title,description,status,published_at,sort_order FROM releases WHERE id=1')->fetch();
+bulk_it_assert(($editedRelease['status'] ?? '') === 'draft' && ($editedRelease['title'] ?? '') === 'Synthetic Release revised', 'individual Release PUT must save draft and title');
+bulk_it_assert(($editedRelease['description'] ?? '') === 'Edited text' && (int)($editedRelease['sort_order'] ?? 0) === 5, 'individual Release PUT must keep other editable fields');
+bulk_it_assert(($editedRelease['published_at'] ?? '') === '2026-01-02 03:04:05', 'individual Release draft must preserve published_at');
+$releaseEdit->execute(['Synthetic Release revised','synthetic-release','ep',null,null,'Edited text',null,null,null,null,null,null,'published',0,5,1,1]);
+bulk_it_assert($pdo->query('SELECT published_at FROM releases WHERE id=1')->fetchColumn() === '2026-01-02 03:04:05', 'individual Release re-publication must preserve timestamp');
+$releaseEdit->execute(['Fresh Release','fresh-release','single',null,null,null,null,null,null,null,null,null,'published',0,0,1,2]);
+bulk_it_assert($pdo->query('SELECT published_at FROM releases WHERE id=2')->fetchColumn() !== null, 'individual first Release publication must set timestamp');
+
+echo "BRVTAL Bulk Actions MariaDB integration tests passed.\n";

@@ -1,0 +1,11 @@
+parameters:
+  level: 1
+  paths:
+    - api
+    - config
+    - discadmin
+    - tests
+    - index.php
+    - sitemap.php
+  tmpDir: .phpstan-cache
+  reportUnmatchedIgnoredErrors: true

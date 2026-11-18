@@ -1,0 +1,825 @@
+name: BRVTAL CI
+run-name: BRVTAL CI #${{ github.run_number }} · ${{ github.event_name }} · ${{ github.ref_name }}
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brvtal-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  preflight:
+    name: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      started_epoch: ${{ steps.scope.outputs.started_epoch }}
+      run_db: ${{ steps.scope.outputs.run_db }}
+      run_browser: ${{ steps.scope.outputs.run_browser }}
+      run_realstack: ${{ steps.scope.outputs.run_realstack }}
+      run_webkit: ${{ steps.scope.outputs.run_webkit }}
+      run_recovery: ${{ steps.scope.outputs.run_recovery }}
+      run_php: ${{ steps.scope.outputs.run_php }}
+      run_js: ${{ steps.scope.outputs.run_js }}
+      deploy_bound: ${{ steps.scope.outputs.deploy_bound }}
+      full: ${{ steps.scope.outputs.full }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Detect validation scope and publish build context
+        id: scope
+        shell: bash
+        env:
+          BRVTAL_EVENT: ${{ github.event_name }}
+          BRVTAL_REF: ${{ github.ref_name }}
+          BRVTAL_SHA: ${{ github.sha }}
+          BRVTAL_ACTOR: ${{ github.actor }}
+          BRVTAL_RUN_NUMBER: ${{ github.run_number }}
+          BRVTAL_RUN_ATTEMPT: ${{ github.run_attempt }}
+          BRVTAL_BASE_REF: ${{ github.base_ref }}
+          BRVTAL_HEAD_REF: ${{ github.head_ref }}
+          BRVTAL_BEFORE: ${{ github.event.before }}
+          BRVTAL_PR_NUMBER: ${{ github.event.pull_request.number }}
+          BRVTAL_PR_TITLE: ${{ github.event.pull_request.title }}
+          BRVTAL_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BRVTAL_SERVER_URL: ${{ github.server_url }}
+          BRVTAL_REPOSITORY: ${{ github.repository }}
+          BRVTAL_RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          echo "started_epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
+
+          source_sha="$BRVTAL_SHA"
+          if [[ "$BRVTAL_EVENT" == "pull_request" && -n "$BRVTAL_PR_HEAD_SHA" ]]; then
+            source_sha="$BRVTAL_PR_HEAD_SHA"
+          fi
+          short_sha="${source_sha:0:7}"
+
+          changed_file_list=""
+          if [[ "$BRVTAL_EVENT" == "pull_request" && -n "$BRVTAL_BASE_REF" ]]; then
+            base_sha=$(git merge-base "origin/$BRVTAL_BASE_REF" HEAD 2>/dev/null || true)
+            if [[ -n "$base_sha" ]]; then
+              changed_file_list=$(git diff --name-only "$base_sha" HEAD 2>/dev/null || true)
+            fi
+          elif [[ "$BRVTAL_BEFORE" =~ ^[0-9a-fA-F]{40}$ && ! "$BRVTAL_BEFORE" =~ ^0+$ ]]; then
+            changed_file_list=$(git diff --name-only "$BRVTAL_BEFORE" "$BRVTAL_SHA" 2>/dev/null || true)
+          fi
+          if [[ -z "$changed_file_list" ]]; then
+            changed_file_list=$(git show --pretty='' --name-only HEAD 2>/dev/null || true)
+          fi
+          changed_file_list=$(printf '%s\n' "$changed_file_list" | sed '/^[[:space:]]*$/d' | sort -u)
+          changed_count=$(printf '%s\n' "$changed_file_list" | sed '/^[[:space:]]*$/d' | wc -l | tr -d ' ')
+
+          source scripts/ci-scope.sh
+          brvtal_ci_classify_files "$changed_file_list" "$BRVTAL_EVENT"
+          full="$BRVTAL_SCOPE_FULL"
+          run_db="$BRVTAL_SCOPE_RUN_DB"
+          run_browser="$BRVTAL_SCOPE_RUN_BROWSER"
+          run_realstack="$BRVTAL_SCOPE_RUN_REALSTACK"
+          run_webkit="$BRVTAL_SCOPE_RUN_WEBKIT"
+          run_recovery="$BRVTAL_SCOPE_RUN_RECOVERY"
+          run_php="$BRVTAL_SCOPE_RUN_PHP"
+          run_js="$BRVTAL_SCOPE_RUN_JS"
+          deploy_bound="$BRVTAL_SCOPE_DEPLOY_BOUND"
+          areas="$BRVTAL_SCOPE_AREAS"
+
+          echo "full=$full" >> "$GITHUB_OUTPUT"
+          echo "run_db=$run_db" >> "$GITHUB_OUTPUT"
+          echo "run_browser=$run_browser" >> "$GITHUB_OUTPUT"
+          echo "run_realstack=$run_realstack" >> "$GITHUB_OUTPUT"
+          echo "run_webkit=$run_webkit" >> "$GITHUB_OUTPUT"
+          echo "run_recovery=$run_recovery" >> "$GITHUB_OUTPUT"
+          echo "run_php=$run_php" >> "$GITHUB_OUTPUT"
+          echo "run_js=$run_js" >> "$GITHUB_OUTPUT"
+          echo "deploy_bound=$deploy_bound" >> "$GITHUB_OUTPUT"
+
+          commit_subject=$(git log -1 --pretty=%s "$source_sha" 2>/dev/null || git log -1 --pretty=%s HEAD 2>/dev/null || echo "unknown")
+          commit_time=$(git log -1 --pretty=%cI "$source_sha" 2>/dev/null || git log -1 --pretty=%cI HEAD 2>/dev/null || echo "unknown")
+          safe_subject="${commit_subject//$'\n'/ }"
+          safe_subject="${safe_subject//|/\\|}"
+          pr_context="—"
+          if [[ -n "$BRVTAL_PR_NUMBER" ]]; then
+            clean_pr_title="${BRVTAL_PR_TITLE//$'\n'/ }"
+            clean_pr_title="${clean_pr_title//|/\\|}"
+            pr_context="#$BRVTAL_PR_NUMBER — $clean_pr_title"
+          fi
+          deploy_eligibility="NO — validation only"
+          if [[ "$BRVTAL_EVENT" == "push" && "$BRVTAL_REF" == "main" ]]; then
+            deploy_eligibility="YES — push to main / Hostinger auto-deploy candidate"
+          fi
+
+          {
+            echo "# BRVTAL CI / Deploy Candidate"
+            echo
+            echo "> Runtime build context. A deploy-eligible run does not by itself prove Hostinger deployment completion or production behavior."
+            echo
+            echo "| Field | Value |"
+            echo "|---|---|"
+            echo "| Run | [#$BRVTAL_RUN_NUMBER]($BRVTAL_SERVER_URL/$BRVTAL_REPOSITORY/actions/runs/$BRVTAL_RUN_ID) · attempt $BRVTAL_RUN_ATTEMPT |"
+            echo "| Event | \`$BRVTAL_EVENT\` |"
+            echo "| Ref | \`$BRVTAL_REF\` |"
+            echo "| Head / base | \`${BRVTAL_HEAD_REF:-—}\` → \`${BRVTAL_BASE_REF:-—}\` |"
+            echo "| PR | $pr_context |"
+            echo "| Source SHA | \`$source_sha\` (\`$short_sha\`) |"
+            echo "| Checkout SHA | \`$BRVTAL_SHA\` |"
+            echo "| Commit | $safe_subject |"
+            echo "| Commit time | \`$commit_time\` |"
+            echo "| Actor | \`$BRVTAL_ACTOR\` |"
+            echo "| Deploy eligibility | **$deploy_eligibility** |"
+            echo "| Changed files | **$changed_count** |"
+            echo "| Change surface | $areas |"
+            echo "| Validation scope | preflight=YES · fast=YES (php=$run_php · js=$run_js) · db=$run_db · chromium=$run_browser · real-stack=$run_realstack · webkit=$run_webkit · recovery=$run_recovery · deploy-bound=$deploy_bound · full=$full |"
+            echo
+            echo "## Changed files"
+            if [[ -n "$changed_file_list" ]]; then
+              echo "<details><summary>Show file list</summary>"
+              echo
+              while IFS= read -r file; do
+                [[ -n "$file" ]] && printf -- '- `%s`\n' "$file"
+              done <<< "$changed_file_list"
+              echo
+              echo "</details>"
+            else
+              echo "No changed files detected."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Validate product version transition
+        shell: bash
+        env:
+          BRVTAL_EVENT: ${{ github.event_name }}
+          BRVTAL_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BRVTAL_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BRVTAL_DEPLOY_BOUND: ${{ steps.scope.outputs.deploy_bound }}
+          BRVTAL_BEFORE: ${{ github.event.before }}
+          BRVTAL_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          compare_release_refs() {
+            local base_sha="$1"
+            local head_sha="$2"
+            if [[ ! "$base_sha" =~ ^[0-9a-fA-F]{40}$ || ! "$head_sha" =~ ^[0-9a-fA-F]{40}$ ]]; then
+              echo "Product-version validation requires exact 40-character Git SHAs." >&2
+              exit 1
+            fi
+            export BRVTAL_BASE_RELEASE
+            export BRVTAL_HEAD_RELEASE
+            BRVTAL_BASE_RELEASE="$(git show "${base_sha}:config/version.php")"
+            BRVTAL_HEAD_RELEASE="$(git show "${head_sha}:config/version.php")"
+            python scripts/release-version.py --compare-env
+          }
+
+          if [[ "$BRVTAL_DEPLOY_BOUND" == "true" ]]; then
+            if [[ "$BRVTAL_EVENT" == "pull_request" ]]; then
+              compare_release_refs "$BRVTAL_PR_BASE_SHA" "$BRVTAL_PR_HEAD_SHA"
+            elif [[ "$BRVTAL_EVENT" == "push" && "$BRVTAL_BEFORE" =~ ^[0-9a-fA-F]{40}$ && ! "$BRVTAL_BEFORE" =~ ^0+$ ]]; then
+              compare_release_refs "$BRVTAL_BEFORE" "$BRVTAL_SHA"
+            else
+              python scripts/release-version.py --check-current
+            fi
+          else
+            echo "Repository-only maintenance: product version may remain unchanged."
+            python scripts/release-version.py --check-current
+          fi
+
+  coordination:
+    name: coordination-contract
+    needs: preflight
+    if: always() && needs.preflight.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Checkout published Factory v1 behavior harness
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: pl0n3r/factory
+          ref: v1
+          path: .factory
+          persist-credentials: false
+      - name: Prove Factory v1 coordination adoption contract
+        run: |
+          set -euo pipefail
+          python3 -m unittest tests/test_factory_coordination_adoption.py
+          (
+            cd .factory
+            python3 -m unittest \
+              tests.test_coordinar_trabajo.CoordinacionTests.test_reserve_work_creates_atomic_lock_and_session \
+              tests.test_coordinar_trabajo.CoordinacionTests.test_stale_reservation_reuses_existing_branch_and_pr \
+              tests.test_coordinar_trabajo.CoordinacionTests.test_validate_pull_checks_active_session \
+              tests.test_coordinar_trabajo.CoordinacionTests.test_validate_pull_rejects_open_pr_overlap \
+              tests.test_coordinar_trabajo.CoordinacionTests.test_english_profile_supports_brvtal_coordination_contract \
+              tests.test_coordinar_trabajo.CoordinacionTests.test_english_profile_reads_brvtal_legacy_reservations \
+              tests.test_coordinar_trabajo.CoordinacionTests.test_profiles_fail_closed_on_authority_and_collision_errors
+          )
+
+  coordination-pr:
+    name: coordination
+    needs: preflight
+    if: github.event_name == 'pull_request' && needs.preflight.result == 'success'
+    # Factory v1 declares this maximum workflow_call envelope. GitHub rejects
+    # callers with a narrower envelope before its read-only validate job can run.
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      checks: write
+    # Use the Factory Kit's protected major channel by contract; @v1 promotion is
+    # exact-SHA gated in Factory rather than replaced by a consumer-local pin.
+    uses: pl0n3r/factory/.github/workflows/coordinacion.yml@v1
+    with:
+      operation: validate
+      profile: en
+      pr_number: ${{ github.event.pull_request.number }}
+      # Bootstrap-only exception: PR #728 migrates the last trusted BRVTAL v1
+      # reservation marker. Every subsequent PR must present Factory v2 fingerprinting.
+      require_reservation: ${{ github.event.pull_request.number != 728 }}
+
+  fast:
+    name: fast
+    needs: preflight
+    if: needs.preflight.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up PHP 8.5
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: '8.5'
+          coverage: none
+          ini-file: production
+          tools: phpstan:2.2.14, rector:2.8.3
+
+      - name: Validate Sonar Python runtime contract
+        shell: bash
+        run: |
+          python - <<'PY'
+          import sys
+          from pathlib import Path
+
+          runtime = f"{sys.version_info.major}.{sys.version_info.minor}"
+          matches = []
+          for raw_line in Path(".sonarcloud.properties").read_text(encoding="utf-8").splitlines():
+              line = raw_line.strip()
+              if not line or line.startswith("#"):
+                  continue
+              key, separator, value = line.partition("=")
+              if separator and key.strip() == "sonar.python.version":
+                  matches.append(value.strip())
+
+          if len(matches) != 1:
+              raise SystemExit(
+                  f"Expected exactly one sonar.python.version declaration, found {len(matches)}."
+              )
+
+          declared = {item.strip() for item in matches[0].split(",") if item.strip()}
+          if runtime not in declared:
+              raise SystemExit(
+                  f"Sonar Python runtime mismatch: CI uses {runtime}, declared versions are {sorted(declared)}."
+              )
+
+          print(f"Sonar Python analysis includes CI runtime {runtime}.")
+          PY
+
+      - name: Run PHP 8.5 compatibility and contract suite
+        if: needs.preflight.outputs.run_php == 'true'
+        run: bash scripts/php85-compatibility.sh
+
+      - name: Verify authentic Set duration backend acceptance
+        if: needs.preflight.outputs.run_php == 'true'
+        run: python3 -m unittest tests/test_set_duration_contract.py
+
+      - name: Run S27 coverage gap contracts (PHP + Node)
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v php
+          command -v node
+          python3 -m unittest -v tests/test_brechas_brvtal_33.py tests/test_brechas_brvtal_41.py
+
+      - name: Verify BRVTAL #1278 coverage and real admin denial gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v php
+          python3 -m unittest -v tests/test_cobertura_brvtal_09.py tests/test_admin_require_permissions.py
+
+      - name: Verify BRVTAL 17 executable coverage
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v tests/test_ci_cobertura_brvtal_17.py
+          if [[ -f tests/test_cobertura_brvtal_17.py ]]; then
+            python3 -m unittest -v tests/test_cobertura_brvtal_17.py
+          else
+            echo "NO_VERIFICABLE: BRVTAL 17 acceptance sheet not yet merged into main"
+          fi
+
+      - name: Verify BRVTAL 21 executable coverage
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v tests/test_ci_cobertura_brvtal_21.py
+          if [[ -f tests/test_cobertura_brvtal_21.py ]]; then
+            python3 -m unittest -v tests/test_cobertura_brvtal_21.py
+          else
+            echo "NO_VERIFICABLE: BRVTAL 21 acceptance sheet not yet merged into main"
+          fi
+
+      - name: Verify BRVTAL 08 exact coverage contract (#1600)
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v node
+          command -v php
+          python3 -m unittest -v tests/test_verificacion_brvtal_08.py
+
+      - name: Enforce image rights registry (BRVTAL #1356)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v tests/test_derechos_imagenes.py
+
+      - name: Enforce readable CSS sizes (BRVTAL #1349)
+        run: python3 -m unittest -v tests/test_css_legibility.py
+
+      - name: Run incremental PHPStan and Rector dry-run
+        if: needs.preflight.outputs.run_php == 'true'
+        shell: bash
+        env:
+          BRVTAL_EVENT: ${{ github.event_name }}
+          BRVTAL_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BRVTAL_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BRVTAL_BEFORE: ${{ github.event.before }}
+          BRVTAL_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          base_sha="$BRVTAL_BEFORE"
+          head_sha="$BRVTAL_SHA"
+          if [[ "$BRVTAL_EVENT" == "pull_request" ]]; then
+            base_sha="$BRVTAL_PR_BASE_SHA"
+            head_sha="$BRVTAL_PR_HEAD_SHA"
+          elif [[ ! "$base_sha" =~ ^[0-9a-fA-F]{40}$ || "$base_sha" =~ ^0+$ ]]; then
+            base_sha="$(git rev-parse HEAD^)"
+          fi
+          bash scripts/php-static-analysis.sh "$base_sha" "$head_sha"
+
+      - name: Validate JavaScript syntax
+        if: needs.preflight.outputs.run_js == 'true'
+        run: find discadmin js tests/e2e \( -name '*.js' -o -name '*.mjs' \) -print0 | xargs -0 -r -n1 -P 4 node --check
+
+      - name: Test CI resilience tooling
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/ci_retry.py scripts/ci_self_audit.py scripts/phpstan_diff.py tests/test_ci_dependency_pins.py tests/test_static_analysis_ci.py tests/test_phpstan_diff.py tests/test_php_static_analysis_behavior.py tests/test_factory_observer_adoption.py tests/test_lease_consumer_observer_adoption.py
+          bash -n scripts/php-static-analysis.sh
+          python3 -m unittest tests/test_ci_retry.py tests/test_ci_dependency_pins.py tests/test_static_analysis_ci.py tests/test_phpstan_diff.py tests/test_php_static_analysis_behavior.py tests/test_factory_observer_adoption.py tests/test_lease_consumer_observer_adoption.py tests/test_actions_cache_v6_adoption.py tests/test_upload_artifact_v7_adoption.py tests/test_concept05_success_visual_artifact.py tests/test_public_concept05_production_visual_evidence.py
+          python3 tests/ci-self-audit-contract.py
+
+
+  database:
+    name: database
+    needs: preflight
+    if: needs.preflight.outputs.run_db == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      mariadb:
+        image: ghcr.io/mariadb/mariadb:11.4.13-noble@sha256:3cff57293253c640483e8a19ce506cf68bf8e4529385e64aeec700c02038e7ed
+        env:
+          MARIADB_ROOT_PASSWORD: brvtal_root
+          MARIADB_DATABASE: brvtal_test_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=15
+    env:
+      BRVTAL_INTEGRATION_TESTS: '1'
+      BRVTAL_TEST_DB_HOST: 127.0.0.1
+      BRVTAL_TEST_DB_PORT: '3306'
+      BRVTAL_TEST_DB_NAME: brvtal_test_ci
+      BRVTAL_TEST_DB_USER: root
+      BRVTAL_TEST_DB_PASS: brvtal_root
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up PHP 8.5 with database extension
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: '8.5'
+          extensions: pdo_mysql
+          coverage: none
+          ini-file: production
+
+      - name: Validate Blog migration is idempotent
+        run: |
+          mysql -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci < database/migration_blog_01.sql
+          mysql -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci < database/migration_blog_01.sql
+          count=$(mysql -N -B -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci -e "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='brvtal_test_ci' AND TABLE_NAME IN ('blog_posts','blog_tags','blog_post_tags','blog_post_relations');")
+          test "$count" = "4"
+
+      - name: Run canonical MariaDB integration suite
+        run: npm run test:integration
+
+      - name: Verify Set duration migration on disposable MariaDB
+        run: python3 -m unittest discover -s tests -p test_set_duration_contract.py
+
+      - name: Validate SEO migration is idempotent
+        run: |
+          mysql -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci -e "CREATE TABLE IF NOT EXISTS events (id INT PRIMARY KEY, description TEXT); CREATE TABLE IF NOT EXISTS artists (id INT PRIMARY KEY, bio TEXT); CREATE TABLE IF NOT EXISTS sets_media (id INT PRIMARY KEY, description TEXT); CREATE TABLE IF NOT EXISTS releases (id INT PRIMARY KEY, description TEXT);"
+          mysql -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci < database/migration_seo_01.sql
+          mysql -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci < database/migration_seo_01.sql
+          count=$(mysql -N -B -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci -e "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='brvtal_test_ci' AND TABLE_NAME IN ('events','artists','sets_media','releases') AND COLUMN_NAME IN ('seo_title','seo_description');")
+          test "$count" = "8"
+
+  browser:
+    name: chromium
+    needs: preflight
+    if: needs.preflight.outputs.run_browser == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Cache npm downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      - name: Install Node test dependencies
+        run: npm install --prefer-offline --no-audit --no-fund
+
+      - name: Cache Chromium
+        id: chromium-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-chromium-${{ hashFiles('package.json') }}
+
+      - name: Install Chromium system dependencies
+        run: npx playwright install-deps chromium
+
+      - name: Install Chromium browser
+        if: steps.chromium-cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium
+
+      - name: Run Chromium browser tests
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ runner.temp }}/c05-playwright-report.json
+        run: npx playwright test --project=chromium --reporter=list,json
+
+      - name: Export verified synthetic Concept 05 owner-v2 evidence
+        id: concept05_evidence
+        if: success()
+        env:
+          C05_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: python3 tests/test_concept05_success_visual_artifact.py --export "$RUNNER_TEMP/c05-playwright-report.json"
+
+      - name: Upload verified Concept 05 owner-v2 A/B captures
+        if: success() && steps.concept05_evidence.outputs.has_evidence == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: concept05-owner-v2-ab-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_id }}
+          path: |
+            artifacts/concept05-positive/owner-v2-reference.png
+            artifacts/concept05-positive/c05-sound-390.png
+            artifacts/concept05-positive/c05-memories-390.png
+            artifacts/concept05-positive/c05-fullpage-390.png
+            artifacts/concept05-positive/c05-sound-1440.png
+            artifacts/concept05-positive/c05-memories-1440.png
+            artifacts/concept05-positive/c05-fullpage-1440.png
+            artifacts/concept05-positive/c05-owner-v2-ab-manifest.json
+            artifacts/concept05-positive/c05-export-attestation.json
+          if-no-files-found: error
+          retention-days: 14
+
+      # Public synthetic page only; captures are evidence, not approval to
+      # refresh visual baselines or bypass the failing Chromium test.
+      - name: Upload Concept 05 visual diff for manual review
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: concept05-pr-visual-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_id }}
+          path: test-results/public-concept05-fidelity-*/*
+          if-no-files-found: warn
+          retention-days: 14
+
+  realstack:
+    name: real-stack
+    needs: preflight
+    if: needs.preflight.outputs.run_realstack == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      mariadb:
+        image: ghcr.io/mariadb/mariadb:11.4.13-noble@sha256:3cff57293253c640483e8a19ce506cf68bf8e4529385e64aeec700c02038e7ed
+        env:
+          MARIADB_ROOT_PASSWORD: brvtal_root
+          MARIADB_DATABASE: brvtal_test_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=15
+    env:
+      BRVTAL_TEST_DB_HOST: 127.0.0.1
+      BRVTAL_TEST_DB_PORT: '3306'
+      BRVTAL_TEST_DB_NAME: brvtal_test_ci
+      BRVTAL_TEST_DB_USER: root
+      BRVTAL_TEST_DB_PASS: brvtal_root
+      BRVTAL_REAL_STACK_FORCE: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up PHP 8.5 with database extension
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: '8.5'
+          extensions: pdo_mysql
+          coverage: none
+          ini-file: production
+
+      - name: Cache npm downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      - name: Install Node test dependencies
+        run: npm install --prefer-offline --no-audit --no-fund
+
+      - name: Cache Chromium
+        id: chromium-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-chromium-${{ hashFiles('package.json') }}
+
+      - name: Install Chromium system dependencies
+        run: npx playwright install-deps chromium
+
+      - name: Install Chromium browser
+        if: steps.chromium-cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium
+
+      - name: Run authenticated PHP/MariaDB browser smoke
+        run: bash tests/e2e/run-content-core-real-stack.sh
+
+  webkit:
+    name: webkit-totp
+    needs: preflight
+    if: needs.preflight.outputs.run_webkit == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Cache npm downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      - name: Install Node test dependencies
+        run: npm install --prefer-offline --no-audit --no-fund
+
+      - name: Cache WebKit
+        id: webkit-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-ubuntu-24.04-playwright-webkit-${{ hashFiles('package.json') }}
+
+      - name: Install WebKit system dependencies
+        run: |
+          python3 scripts/ci_retry.py \
+            --attempts 2 \
+            --base-delay 3 \
+            --label "WebKit system dependencies" \
+            --exit-code-only \
+            -- python3 scripts/ci_bounded_command.py \
+              --timeout-seconds 240 \
+              --kill-grace-seconds 10 \
+              -- npx playwright install-deps webkit
+
+      - name: Install WebKit browser
+        if: steps.webkit-cache.outputs.cache-hit != 'true'
+        run: npx playwright install webkit
+
+      - name: Run targeted WebKit TOTP regression
+        run: npx playwright test tests/e2e/discadmin-totp-login.spec.mjs --project=webkit-totp
+
+  recovery:
+    name: recovery-rehearsal
+    needs: preflight
+    if: needs.preflight.outputs.run_recovery == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      mariadb:
+        image: ghcr.io/mariadb/mariadb:11.4.13-noble@sha256:3cff57293253c640483e8a19ce506cf68bf8e4529385e64aeec700c02038e7ed
+        env:
+          MARIADB_ROOT_PASSWORD: brvtal_root
+          MARIADB_DATABASE: brvtal_test_backup_source
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=15
+    env:
+      BRVTAL_INTEGRATION_TESTS: '1'
+      BRVTAL_BACKUP_RECOVERY_REHEARSAL: '1'
+      BRVTAL_TEST_DB_HOST: 127.0.0.1
+      BRVTAL_TEST_DB_PORT: '3306'
+      BRVTAL_TEST_DB_NAME: brvtal_test_backup_source
+      BRVTAL_TEST_DB_USER: root
+      BRVTAL_TEST_DB_PASS: brvtal_root
+      BRVTAL_BACKUP_RECOVERY_OUTPUT: artifacts/backup-recovery-rehearsal.json
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up PHP 8.5 with recovery extensions
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: '8.5'
+          extensions: pdo_mysql, zip
+          coverage: none
+          ini-file: production
+
+      - name: Run isolated backup recovery rehearsal
+        run: php tests/integration/backup-recovery-rehearsal.php
+
+      - name: Publish rehearsal summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Backup recovery rehearsal"
+            echo
+            echo "- Source: disposable MariaDB database \`brvtal_test_backup_source\`"
+            echo "- Recovery: unique \`brvtal_test_recovery_*\` database created and dropped inside this job"
+            echo "- Scope: database dump + foreign keys + view + media ZIP snapshot"
+            echo "- Production restore: **DISABLED / NOT TOUCHED**"
+            echo "- Evidence: \`backup-recovery-rehearsal.json\` artifact"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload recovery evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: backup-recovery-rehearsal-${{ github.run_id }}
+          path: artifacts/backup-recovery-rehearsal.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  validate:
+    name: validate
+    if: always()
+    needs: [preflight, coordination, coordination-pr, fast, database, browser, realstack, webkit, recovery]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Enforce validation gates
+        shell: bash
+        env:
+          PREFLIGHT_RESULT: ${{ needs.preflight.result }}
+          COORDINATION_RESULT: ${{ needs.coordination.result }}
+          COORDINATION_PR_RESULT: ${{ needs.coordination-pr.result }}
+          EXPECT_COORDINATION_PR: ${{ github.event_name == 'pull_request' }}
+          FAST_RESULT: ${{ needs.fast.result }}
+          DB_RESULT: ${{ needs.database.result }}
+          BROWSER_RESULT: ${{ needs.browser.result }}
+          REALSTACK_RESULT: ${{ needs.realstack.result }}
+          WEBKIT_RESULT: ${{ needs.webkit.result }}
+          RECOVERY_RESULT: ${{ needs.recovery.result }}
+          RUN_DB: ${{ needs.preflight.outputs.run_db }}
+          RUN_BROWSER: ${{ needs.preflight.outputs.run_browser }}
+          RUN_REALSTACK: ${{ needs.preflight.outputs.run_realstack }}
+          RUN_WEBKIT: ${{ needs.preflight.outputs.run_webkit }}
+          RUN_RECOVERY: ${{ needs.preflight.outputs.run_recovery }}
+        run: |
+          set -euo pipefail
+          failures=0
+
+          require_success() {
+            local name="$1" result="$2"
+            if [[ "$result" != "success" ]]; then
+              echo "Required gate $name ended as $result" >&2
+              failures=1
+            fi
+          }
+          require_optional() {
+            local name="$1" expected="$2" result="$3"
+            if [[ "$expected" == "true" ]]; then
+              require_success "$name" "$result"
+            elif [[ "$result" != "skipped" && "$result" != "success" ]]; then
+              echo "Skipped gate $name ended unexpectedly as $result" >&2
+              failures=1
+            fi
+          }
+
+          require_success preflight "$PREFLIGHT_RESULT"
+          require_success coordination-contract "$COORDINATION_RESULT"
+          require_optional coordination-pr "$EXPECT_COORDINATION_PR" "$COORDINATION_PR_RESULT"
+          require_success fast "$FAST_RESULT"
+          require_optional database "$RUN_DB" "$DB_RESULT"
+          require_optional chromium "$RUN_BROWSER" "$BROWSER_RESULT"
+          require_optional real-stack "$RUN_REALSTACK" "$REALSTACK_RESULT"
+          require_optional webkit "$RUN_WEBKIT" "$WEBKIT_RESULT"
+          require_optional recovery "$RUN_RECOVERY" "$RECOVERY_RESULT"
+
+          exit "$failures"
+
+      - name: Publish validation result
+        if: always()
+        shell: bash
+        env:
+          BRVTAL_EVENT: ${{ github.event_name }}
+          BRVTAL_REF: ${{ github.ref_name }}
+          PREFLIGHT_RESULT: ${{ needs.preflight.result }}
+          COORDINATION_RESULT: ${{ needs.coordination.result }}
+          COORDINATION_PR_RESULT: ${{ needs.coordination-pr.result }}
+          FAST_RESULT: ${{ needs.fast.result }}
+          DB_RESULT: ${{ needs.database.result }}
+          BROWSER_RESULT: ${{ needs.browser.result }}
+          REALSTACK_RESULT: ${{ needs.realstack.result }}
+          WEBKIT_RESULT: ${{ needs.webkit.result }}
+          RECOVERY_RESULT: ${{ needs.recovery.result }}
+          CI_STARTED_EPOCH: ${{ needs.preflight.outputs.started_epoch }}
+        run: |
+          set +e
+          deploy_note="Validation only."
+          if [[ "$BRVTAL_EVENT" == "push" && "$BRVTAL_REF" == "main" ]]; then
+            deploy_note="Source is eligible for Hostinger auto-deploy from main."
+          fi
+          {
+            echo "# BRVTAL validation result"
+            echo
+            echo "| Gate | Result |"
+            echo "|---|---|"
+            echo "| Preflight / scope | **$PREFLIGHT_RESULT** |"
+            echo "| Coordination contract | **$COORDINATION_RESULT** |"
+            echo "| Coordination PR / Factory v1 | **$COORDINATION_PR_RESULT** |"
+            echo "| Fast contracts / syntax | **$FAST_RESULT** |"
+            echo "| MariaDB | **$DB_RESULT** |"
+            echo "| Chromium | **$BROWSER_RESULT** |"
+            echo "| Real-stack smoke | **$REALSTACK_RESULT** |"
+            echo "| WebKit TOTP | **$WEBKIT_RESULT** |"
+            echo "| Backup recovery | **$RECOVERY_RESULT** |"
+            echo "| Deploy note | $deploy_note |"
+            echo
+            now=$(date +%s)
+            if [[ "$CI_STARTED_EPOCH" =~ ^[0-9]+$ ]]; then
+              echo "## Throughput telemetry"
+              echo
+              echo "- Validation DAG wall time at summary: **$(( now - CI_STARTED_EPOCH ))s**"
+              echo
+            fi
+            echo "> Pull requests and exact \`main\` pushes use the same diff-aware gates; manual dispatch runs the full matrix. CI success does **not** prove Hostinger deployment completion or production behavior."
+          } >> "$GITHUB_STEP_SUMMARY"

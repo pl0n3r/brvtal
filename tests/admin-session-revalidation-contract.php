@@ -1,0 +1,107 @@
+<?php
+declare(strict_types=1);
+
+function admin_session_contract_assert(bool $condition, string $message): void
+{
+    if (!$condition) {
+        throw new RuntimeException("ADMIN SESSION REVALIDATION CONTRACT FAILED: {$message}");
+    }
+}
+
+$auth = (string)file_get_contents(__DIR__ . '/../config/admin_auth.php');
+$bootstrap = (string)file_get_contents(__DIR__ . '/../config/bootstrap.php');
+$dbRecovery = (string)file_get_contents(__DIR__ . '/../config/db_connect_recovery.php');
+$revalidation = (string)file_get_contents(__DIR__ . '/../config/admin_session_revalidation.php');
+$api = (string)file_get_contents(__DIR__ . '/../api/index.php');
+
+admin_session_contract_assert(str_contains($bootstrap, 'brvtal_db_connect_with_recovery(')
+    && str_contains($dbRecovery, 'brvtal_db_transient_connect_failure('),
+    'database retry remains strictly isolated to the initial PDO connection boundary');
+admin_session_contract_assert(!str_contains($dbRecovery, '->query(') && !str_contains($dbRecovery, '->execute(')
+    && !str_contains($dbRecovery, '->prepare('),
+    'connection recovery must never run or retry SQL');
+
+admin_session_contract_assert(
+    str_contains($auth, "require_once __DIR__ . '/admin_session_revalidation.php';"),
+    'admin auth must load the account-state revalidation policy'
+);
+admin_session_contract_assert(
+    str_contains($revalidation, 'SELECT is_active,credential_epoch FROM admins WHERE id=? LIMIT 1'),
+    'account-state helper must query the canonical admins row by primary key'
+);
+admin_session_contract_assert(
+    str_contains($revalidation, '\'is_active\' => (int)($row[\'is_active\'] ?? 0) === 1')
+        && str_contains($revalidation, '\'credential_epoch\' => max(1'),
+    'missing and inactive admins must both fail revalidation'
+);
+admin_session_contract_assert(
+    str_contains($auth, '$adminId = (int)($_SESSION[\'admin_id\'] ?? 0);'),
+    'session authorization must normalize the current admin id before revalidation'
+);
+admin_session_contract_assert(
+    str_contains($auth, '$pdo = db();')
+        && str_contains($auth, 'brvtal_admin_account_session_state($pdo, $adminId)')
+        && str_contains($auth, '$_SESSION[\'credential_epoch\'] = $state[\'credential_epoch\'];'),
+    'every authenticated session check must connect and consult current admin state'
+);
+admin_session_contract_assert(
+    str_contains($auth, "brvtal_log('AUTH_REVALIDATION_ERROR'"),
+    'database revalidation failures must be observable'
+);
+admin_session_contract_assert(
+    preg_match('/catch\s*\(Throwable \$e\).*?return BRVTAL_ADMIN_AUTH_UNAVAILABLE;/s', $auth) === 1,
+    'database revalidation failures must fail closed without pretending the account was revoked'
+);
+admin_session_contract_assert(
+    str_contains($auth, '$unavailable ? 503 : 401')
+        && str_contains($auth, "'AUTH_REVALIDATION_UNAVAILABLE' : 'AUTH_REQUIRED'"),
+    'protected requests must preserve 401 for real auth loss and use 503 for revalidation outages'
+);
+admin_session_contract_assert(
+    str_contains($api, '$authState = brvtal_admin_authentication_state();')
+        && str_contains($api, "'AUTH_REVALIDATION_UNAVAILABLE'")
+        && str_contains($api, 'brvtal_admin_revalidation_failure_code()'),
+    'GET /auth must surface revalidation outages as sanitized 503 diagnostics'
+);
+admin_session_contract_assert(
+    str_contains($auth, "'phase' => 'connect'")
+        && str_contains($auth, "'code' => 'DB_CONNECT_UNAVAILABLE'")
+        && str_contains($auth, "'phase' => 'query'")
+        && str_contains($auth, "'code' => 'AUTH_REVALIDATION_QUERY_UNAVAILABLE'"),
+    'revalidation diagnostics must distinguish connection from query failures'
+);
+admin_session_contract_assert(
+    str_contains($auth, "brvtal_log('SECURITY', 'Admin session revoked because account or credential epoch changed'"),
+    'inactive or deleted account revocation must be security-auditable'
+);
+$authCheck = strpos($auth, 'function brvtal_admin_authentication_state(): string');
+admin_session_contract_assert($authCheck !== false, 'authenticated-session boundary must remain explicit');
+$inactiveBlock = strpos(
+    $auth,
+    'if ($state === null || !$state[\'is_active\']',
+    $authCheck
+);
+admin_session_contract_assert($inactiveBlock !== false, 'inactive/epoch branch must remain explicit');
+$inactiveSource = substr($auth, $inactiveBlock, 500);
+admin_session_contract_assert(
+    str_contains($inactiveSource, 'brvtal_admin_logout();')
+        && str_contains($inactiveSource, 'return BRVTAL_ADMIN_UNAUTHENTICATED;'),
+    'inactive, deleted or stale-epoch sessions must be destroyed and denied'
+);
+admin_session_contract_assert(
+    str_contains($auth, 'function brvtal_admin_is_authenticated(): bool')
+        && str_contains($auth, 'brvtal_admin_authentication_state() === BRVTAL_ADMIN_AUTHENTICATED'),
+    'legacy boolean callers must remain fail-closed through the tri-state boundary'
+);
+admin_session_contract_assert(
+    str_contains($auth, 'function brvtal_admin_release_session(): void')
+        && str_contains($auth, 'session_write_close();'),
+    'admin auth must expose one canonical session-lock release helper'
+);
+admin_session_contract_assert(
+    str_contains($auth, 'strtoupper((string)($_SERVER[\'REQUEST_METHOD\'] ?? \'\')) === \'GET\'')
+        && str_contains($auth, 'brvtal_admin_release_session();'),
+    'authenticated GET requests must release the PHP session lock after revalidation/activity refresh'
+);
+
+echo "BRVTAL admin session revalidation contract tests passed.\n";

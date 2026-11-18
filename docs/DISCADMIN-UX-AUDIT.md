@@ -1,0 +1,34 @@
+# BRVTAL product and DISCADMIN audit — September 2026
+
+This is a source and workflow audit of the current repository, checked against `README.md` and `docs/BRVTAL-SPEC.md`. It is not a claim that every authenticated production flow has been manually exercised with real content on every device.
+
+Follow-up as of 2026-09-13: PRs #66–#67 addressed the record-list and dialog/form findings below; PRs #68–#70 added and stabilized real-stack Content Core create/update tests. The remaining production smoke is still separate. Public mobile accessibility and loading improvements through PR #81 shift the next public pass toward measured Core Web Vitals and journey checks, rather than repeating unmeasured fixes.
+
+## Product map
+
+BRVTAL now has a public discovery/editorial surface, structured entities (events, artists, sets, releases, media, pages and blog), Content Core workflows, Theme Studio, Security / 2FA, system diagnostics, backups, activity/history, and consent-gated GA4 integration. The product direction is coherent: one platform, reusable media, explicit publication, and one DISCADMIN shell. The next quality gain comes from making routine work faster and clearer across these existing capabilities.
+
+## Prioritized findings
+
+| Priority | Finding and evidence | Recommendation |
+| --- | --- | --- |
+| P0 | The mobile sidebar used to take up to 45% of the viewport above every workspace (`discadmin/admin-modules.css`), while the base shell stacked it above content (`discadmin/index-core.php`). | Use the existing sidebar as a keyboard-accessible mobile drawer, leaving the workspace first. **Addressed.** |
+| P0 | Legacy listing CSS hid columns 2–4 below 850px (`discadmin/index-core.php`). Editors could lose date, location, status, relationship or type context when reviewing a row. | Preserve each module's key fields and actions in responsive record cards while keeping the desktop list intact. **Addressed for Events, Artists, Sets, Media and Pages.** |
+| P1 | Common navigation, form labels, helper text and actions use 8–11px text and narrow tap targets (`discadmin/index-core.php`, `discadmin/admin-modules.css`). | Establish a shared admin type/spacing/control scale, touch targets, visible focus, and predictable section hierarchy. **Shared shell and common-control pass addressed**; individual modules can continue to converge incrementally. |
+| P1 | Generated forms and modal editors had inconsistent label associations, required-state cues, keyboard/focus behavior and save/publication clarity. | Use the canonical modal and shared dialog enhancement for accessible semantics, focus containment/restoration, required-field summaries and explicit Draft/Published actions. **Addressed for legacy editors, Blog, Releases and the Content Core event modal.** |
+| P1 | The admin shell and many workflows are concentrated in large inline PHP/JS/CSS blocks (`discadmin/index-core.php`), while extensions override one another in extra stylesheets. | Incrementally extract shared shell, form and record-list behavior with browser coverage. Avoid a full rewrite; keep one canonical state and sidebar. **In progress through shared shell, record-list and dialog enhancements.** |
+| P1 | Content Core previously had a validation gap between mocked browser tests and isolated MariaDB persistence tests. | **Validated in code end to end.** CI now exercises the real DISCADMIN shell → real PHP API → disposable MariaDB stack, including authentication, Event lifecycle, ticket, roster, SEO, reopen persistence and update persistence. The remaining check is an authenticated visual smoke against the deployed Hostinger environment; do not treat CI success as production validation. |
+| P2 | Backup v1 includes manual creation and download, but restore is intentionally deferred (`README.md`, Backups Foundation). | Document and rehearse a recovery procedure with a disposable database and private files. Treat restore automation as a separate guarded project. |
+| P2 | Public discovery and responsive/performance polish remain the active roadmap priority (`README.md`, Current roadmap). | Measure actual mobile journeys and Core Web Vitals on event, artist, release and archive pages; fix the highest-friction journeys before expanding page types. |
+| P2 | GA4 only runs when configured and consented (`README.md`, Analytics/privacy foundation). | Configure the production measurement ID when ready, confirm consent transitions and event data in GA4, and keep reporting there rather than duplicating analytics in DISCADMIN. |
+
+## UX direction
+
+Use a calm, consistent admin shell: stable navigation on desktop, a single drawer on small screens, clear page titles, persistent context, readable status and feedback, and primary actions near the content they affect. Favor informative record cards on phones, simple forms with explicit save/publish states, and media previews where visual selection matters. Colors are secondary to legibility, predictable interaction and recoverability.
+
+## Suggested next sequence
+
+1. Run the remaining authenticated visual smoke of Content Core on the deployed Hostinger environment; the automated real-stack E2E path is already validated in CI.
+2. Run a measured public mobile/performance/accessibility pass, then address the highest-impact issues.
+3. Rehearse backup recovery and verify GA4 configuration/consent in production.
+4. Continue incremental extraction of shared admin UI behavior when touching remaining module-specific forms.

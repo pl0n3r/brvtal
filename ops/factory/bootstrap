@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source "$(dirname "$0")/common.sh"
+
+factory_require_production_activation
+[[ "${BRVTAL_HOSTINGER_GIT_AUTODEPLOY_DISABLED:-}" == "1" ]] || factory_die "Hostinger Git auto-deploy must be disabled before bootstrap"
+sha="$(factory_sha)"
+version="$(factory_version)"
+origin="${DOMAIN:-}"
+[[ "$origin" =~ ^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?$ ]] || factory_die "DOMAIN must be one HTTPS origin without a path"
+factory_transport bootstrap --sha "$sha" --version "$version" --origin "$origin"
+printf 'Hostinger Factory bootstrap validated: %s\n' "$sha"

@@ -1,0 +1,119 @@
+name: Authenticated Production Smoke
+run-name: Authenticated Production Smoke #${{ github.run_number }} · ${{ github.ref_name }}
+
+on:
+  workflow_dispatch:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brvtal-production-authenticated-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    name: read-only-admin-smoke
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.number == 534 &&
+       github.event.comment.user.login == github.repository_owner &&
+       github.event.comment.author_association == 'OWNER' &&
+       github.event.comment.body == '/production-smoke')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production-smoke
+    env:
+      BRVTAL_PROD_URL: https://www.brvtal.com.co
+      BRVTAL_PROD_SMOKE_TIMEOUT_MS: '720000'
+      BRVTAL_PROD_OPERATION_TIMEOUT_MS: '20000'
+      BRVTAL_PROD_ADMIN_EMAIL: ${{ secrets.BRVTAL_PROD_ADMIN_EMAIL }}
+      BRVTAL_PROD_ADMIN_PASSWORD: ${{ secrets.BRVTAL_PROD_ADMIN_PASSWORD }}
+      BRVTAL_PROD_TOTP_SECRET: ${{ secrets.BRVTAL_PROD_TOTP_SECRET }}
+      BRVTAL_PROD_SMOKE_OUTPUT: artifacts/production-authenticated-smoke.json
+
+    steps:
+      - name: Check out exact main source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Resolve exact main source
+        shell: bash
+        run: echo "BRVTAL_EXPECTED_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Require isolated smoke credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${BRVTAL_PROD_ADMIN_EMAIL}" || -z "${BRVTAL_PROD_ADMIN_PASSWORD}" ]]; then
+            echo "Configure BRVTAL_PROD_ADMIN_EMAIL and BRVTAL_PROD_ADMIN_PASSWORD in the production-smoke environment." >&2
+            exit 1
+          fi
+
+      - name: Set up Node 24
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+
+      - name: Cache npm downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-production-auth-smoke-npm-${{ hashFiles('package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-production-auth-smoke-npm-
+            ${{ runner.os }}-npm-
+
+      - name: Install test dependencies
+        run: npm install --prefer-offline --no-audit --no-fund
+
+      - name: Cache Chromium
+        id: chromium-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-production-auth-smoke-chromium-${{ hashFiles('package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-production-auth-smoke-chromium-
+            ${{ runner.os }}-playwright-chromium-
+
+      - name: Install Chromium system dependencies
+        run: npx playwright install-deps chromium
+
+      - name: Install Chromium browser
+        if: steps.chromium-cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium
+
+      - name: Run authenticated production smoke
+        run: node tests/e2e/production-authenticated-smoke.mjs
+
+      - name: Publish smoke summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Authenticated production smoke"
+            echo
+            echo "- Canonical origin: \`${BRVTAL_PROD_URL}\`"
+            echo "- Source SHA: \`${BRVTAL_EXPECTED_SHA}\`"
+            echo "- Mode: **manual or owner command / authenticated / content-read-only**"
+            echo "- Checks: deployed release identity, visible Admin product version, Event date reopen (#123), New Set relations (#124), repeated Hero Slider load (#125)"
+            echo "- Bounds: whole smoke 12m; browser/UI operations 20s unless explicitly narrower"
+            echo "- Evidence: \`production-authenticated-smoke.json\` artifact with current/failure stage + operation"
+            echo
+            echo "The smoke waits for the expected release before authentication; exact SHA is required only when the Hostinger runtime exposes an exact source. The browser guard stubs the DISCADMIN media-permission repair locally and blocks any other post-login POST/PUT/PATCH/DELETE request."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload smoke evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: production-authenticated-smoke-${{ github.run_id }}
+          path: artifacts/production-authenticated-smoke.json
+          if-no-files-found: warn
+          retention-days: 14

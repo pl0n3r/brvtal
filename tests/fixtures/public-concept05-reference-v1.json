@@ -1,0 +1,448 @@
+{
+  "version": 2,
+  "source": {
+    "name": "docs/reference/home-concept05-owner-reference-v2.png",
+    "git_blob_sha": "f3d8434a605cee56d84d97307c0e3f5a6409b84d",
+    "sha256_prefix": "62041aa6",
+    "verification": "owner-approved-v2",
+    "previous_reference": {
+      "name": "ChatGPT Image Sep 21, 2026, 11_35_32 PM.png",
+      "sha256": "01793a8dc4f33267f10e4221f0f00586ba6cc042ab1f2bfa500c4e3628dc8c3f"
+    }
+  },
+  "viewports": {
+    "desktop": {
+      "width": 1440
+    },
+    "mobile": {
+      "width": 390
+    }
+  },
+  "hero": {
+    "desktop": {
+      "title_stack": "BR/VT/AL",
+      "title_columns_ch": 2.08,
+      "documentary_left_pct": 18,
+      "documentary_width_pct": 55,
+      "statement_left_pct": 47,
+      "header_height_px": 52
+    },
+    "mobile": {
+      "title_stack": "BR/VT/AL",
+      "title_columns_ch": 2.08,
+      "header_height_px": 54,
+      "documentary_left_pct": 30,
+      "documentary_width_pct": 70,
+      "statement_position": "below-poster"
+    }
+  },
+  "invariants": [
+    "dynamic-description-hook",
+    "dynamic-documentary-hook",
+    "no-horizontal-overflow",
+    "touch-targets-at-least-44px",
+    "prefers-reduced-motion"
+  ],
+  "experience": {
+    "hierarchy": [
+      "identity-artwork",
+      "date",
+      "venue-city",
+      "ticket-state-action",
+      "lineup"
+    ],
+    "desktop": {
+      "grid_art_fr": 1.42,
+      "grid_copy_fr": 0.58,
+      "copy_overlap": "clamp(72px,6vw,96px)",
+      "artwork_min": "clamp(600px,60vw,790px)",
+      "title_max_ch": 8,
+      "ticket_cta_min_height_px": 58
+    },
+    "mobile": {
+      "artwork_aspect_ratio": "4/5",
+      "copy_overlap_px": 62,
+      "copy_left_px": 12,
+      "bottom_nav_clearance_px": 54,
+      "ticket_cta_min_height_px": 56,
+      "ticket_action_order": "first"
+    }
+  },
+  "nights_artists": {
+    "hierarchy": {
+      "nights": [
+        "documentary-media",
+        "date-city",
+        "title",
+        "lifecycle-action"
+      ],
+      "artists": [
+        "portrait",
+        "name",
+        "collective-role"
+      ]
+    },
+    "desktop": {
+      "header_mode": "compact-strip",
+      "nights_visible_cards_target": 4,
+      "nights_card_width": "clamp(270px,23.05vw,332px)",
+      "nights_media_aspect_ratio": "16/9",
+      "artists_columns": 6,
+      "artists_media_aspect_ratio": "4/5"
+    },
+    "mobile": {
+      "nights_card_width": "min(88vw,342px)",
+      "nights_grid": "42% minmax(0,1fr)",
+      "nights_media_aspect_ratio": "1/1",
+      "artists_columns": 2,
+      "artists_media_aspect_ratio": "4/5",
+      "bottom_nav_clearance_px": 42
+    },
+    "invariants": [
+      "shared-public-payload",
+      "canonical-event-routes",
+      "canonical-artist-routes",
+      "native-horizontal-night-scroll",
+      "media-fail-closed",
+      "touch-targets-at-least-44px"
+    ]
+  },
+  "sound_memories": {
+    "hierarchy": {
+      "sound": [
+        "archive-label",
+        "featured-set",
+        "relations-actions",
+        "dense-record-index"
+      ],
+      "memories": [
+        "archive-label",
+        "documentary-grid",
+        "caption-relations",
+        "archive-route"
+      ]
+    },
+    "desktop": {
+      "header_mode": "compact-strip",
+      "sound_feature_min_height_px": 182,
+      "sound_feature_columns": "36px 128px minmax(0,1fr) 84px",
+      "sound_feature_cover_aspect_ratio": "1/1",
+      "sound_record_columns": "36px minmax(0,1fr) 88px",
+      "memories_columns": 12,
+      "memories_gap_px": 4,
+      "memories_spans": [
+        5,
+        3,
+        4,
+        4,
+        5,
+        3
+      ],
+      "sound_layout": "split-feature-index",
+      "sound_list_columns": "minmax(0,1.08fr) minmax(0,.92fr)"
+    },
+    "mobile": {
+      "sound_feature_cover_aspect_ratio": "1/1",
+      "memories_columns": 2,
+      "memories_gap_px": 4,
+      "memories_full_span_cycle": 5,
+      "bottom_nav_clearance_px": 42,
+      "sound_feature_min_height_px": 92,
+      "sound_feature_columns": "28px 72px minmax(0,1fr) 52px"
+    },
+    "invariants": [
+      "shared-public-payload",
+      "canonical-set-records",
+      "safe-external-listen-only",
+      "curated-memories-only",
+      "canonical-memory-relations",
+      "viewer-focus-continuity",
+      "media-fail-closed",
+      "touch-targets-at-least-44px"
+    ]
+  },
+  "journal_connected": {
+    "hierarchy": {
+      "journal": [
+        "archive-label",
+        "featured-story",
+        "date-tags-relations",
+        "dense-story-index"
+      ],
+      "connected": [
+        "system-label",
+        "verified-nodes",
+        "verified-edges-ledger",
+        "todo-conectado"
+      ]
+    },
+    "desktop": {
+      "header_mode": "compact-strip",
+      "journal_list_columns": "minmax(0,1.18fr) minmax(320px,.82fr)",
+      "journal_feature_cover_aspect_ratio": "3/2",
+      "journal_feature_title_max_px": 68,
+      "journal_index_columns": "34px minmax(0,1fr) auto",
+      "connected_graph_min_height_px": 360,
+      "connected_columns": 5,
+      "connected_node_min_height_px": 104,
+      "connected_tagline_max_px": 92
+    },
+    "mobile": {
+      "journal_header_mode": "compact-strip",
+      "journal_index_columns": "30px minmax(0,1fr)",
+      "journal_feature_title_max_px": 42,
+      "connected_graph_min_height_px": 430,
+      "connected_columns": 2,
+      "connected_node_min_height_px": 72,
+      "connected_tagline_max_px": 58,
+      "bottom_nav_clearance_px": 42
+    },
+    "invariants": [
+      "shared-public-payload",
+      "canonical-blog-routes",
+      "canonical-blog-relations",
+      "safe-blog-cover-media",
+      "verified-relation-edges-only",
+      "zero-relations-zero-edges",
+      "touch-targets-at-least-44px",
+      "no-horizontal-overflow",
+      "prefers-reduced-motion"
+    ]
+  },
+  "footer_nav": {
+    "hierarchy": {
+      "footer": [
+        "origin",
+        "dominant-wordmark",
+        "manifesto",
+        "canonical-links",
+        "contact-collaborate",
+        "configured-socials",
+        "real-legal-year"
+      ],
+      "mobile_nav": [
+        "nights",
+        "artists",
+        "sound",
+        "records",
+        "journal"
+      ]
+    },
+    "desktop": {
+      "footer_min_height_px": 118,
+      "footer_wordmark_max_px": 72,
+      "footer_grid_columns": 12,
+      "footer_brand_column": "1/4",
+      "footer_nav_column": "4/7",
+      "footer_contact_column": "7/9",
+      "footer_social_column": "9/11",
+      "footer_legal_column": "11/-1",
+      "footer_layout": "single-horizontal-band",
+      "footer_social_keys": [
+        "instagram",
+        "soundcloud",
+        "youtube",
+        "spotify",
+        "website"
+      ]
+    },
+    "mobile": {
+      "nav_items": 5,
+      "nav_target_min_px": 48,
+      "nav_icon_width_px": 16,
+      "nav_active_rule_px": 3,
+      "safe_area": true,
+      "footer_wordmark_max_px": 96,
+      "footer_grid_gap_px": 20,
+      "footer_bottom_clearance_px": 42
+    },
+    "invariants": [
+      "canonical-shell-routes",
+      "shared-public-payload",
+      "privacy-page-fail-closed",
+      "configured-socials-only",
+      "configured-spotify-social",
+      "canonical-contact-route",
+      "aria-current-location",
+      "menu-lock-hides-and-inerts-nav",
+      "touch-targets-at-least-44px",
+      "no-horizontal-overflow",
+      "prefers-reduced-motion"
+    ]
+  },
+  "release_polish": {
+    "release": "0.1.137",
+    "responsive_widths": [
+      390,
+      430,
+      768,
+      1024,
+      1280,
+      1440,
+      1728,
+      1920
+    ],
+    "canonical_visual_widths": [
+      390,
+      1440
+    ],
+    "canonical_regions": [
+      "hero",
+      "next-experience",
+      "nights",
+      "artists",
+      "sound",
+      "memories",
+      "journal",
+      "connected",
+      "footer"
+    ],
+    "determinism": {
+      "html_class": "c5-visual-test",
+      "screenshot_animations": "disabled",
+      "screenshot_caret": "hide",
+      "baseline_refresh": "manual-review-only"
+    },
+    "accessibility_invariants": [
+      "visible-keyboard-focus",
+      "touch-targets-at-least-44px",
+      "menu-focus-trap-and-escape",
+      "audio-failure-remains-operable",
+      "mobile-safe-area",
+      "reduced-motion-preserves-content",
+      "no-essential-hover-only-actions"
+    ],
+    "performance_invariants": [
+      "hero-lcp-preloaded-and-high-priority",
+      "noncritical-media-lazy",
+      "local-images-receive-intrinsic-dimensions",
+      "coarse-pointer-skips-nonessential-motion",
+      "reduced-motion-skips-nonessential-motion",
+      "production-performance-requires-post-redesign-release"
+    ],
+    "supported_widths": [
+      390,
+      430,
+      768,
+      1024,
+      1280,
+      1440,
+      1728
+    ],
+    "extended_width_min_px": 1728,
+    "visual_regions": [
+      ".home-phase-a-hero",
+      "#genesis",
+      "#events",
+      "#artists",
+      "#sets",
+      "#media",
+      "#transmissions",
+      "#connected",
+      ".c5-footer"
+    ],
+    "deterministic_visual_class": "c5-visual-test",
+    "canonical_snapshot_widths": [
+      390,
+      1440
+    ],
+    "accessibility": {
+      "touch_target_min_px": 44,
+      "visible_focus": true,
+      "keyboard": true,
+      "safe_area": true,
+      "reduced_motion": true,
+      "coarse_pointer_lite_motion": true
+    },
+    "performance": {
+      "metrics": [
+        "lcp",
+        "cls",
+        "fcp",
+        "dom_content_loaded",
+        "load_event_end"
+      ],
+      "lazy_noncritical_media": true,
+      "async_media_decode": true,
+      "exact_main_evidence": true,
+      "minimum_release": "0.1.137"
+    }
+  },
+  "owner_reference_v2": {
+    "schema_version": 2,
+    "viewports": {
+      "desktop": {
+        "width": 1440,
+        "height": 900
+      },
+      "mobile": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    "hero": {
+      "title_stack": "BR/VT/AL",
+      "manifesto": "MÁS QUE FIESTAS. UNA CULTURA EN MOVIMIENTO.",
+      "origin": "PEREIRA / COLOMBIA · UNDERGROUND ELECTRONIC CULTURE",
+      "cta": "EXPLORA BRVTAL",
+      "documentary_label": "RAVE TILL GRAVE"
+    },
+    "section_order": [
+      "hero",
+      "next-experience",
+      "nights",
+      "artists",
+      "sound",
+      "memories",
+      "journal",
+      "connected",
+      "footer"
+    ],
+    "desktop_rows": [
+      [
+        "next-experience"
+      ],
+      [
+        "nights",
+        "artists"
+      ],
+      [
+        "sound",
+        "memories"
+      ],
+      [
+        "journal",
+        "connected"
+      ]
+    ],
+    "mobile_order": [
+      "hero",
+      "next-experience",
+      "nights",
+      "artists",
+      "sound",
+      "memories",
+      "journal",
+      "connected",
+      "footer"
+    ],
+    "shell_navigation": [
+      "NIGHTS",
+      "ARTISTS",
+      "SOUND",
+      "RECORDS",
+      "JOURNAL",
+      "CONNECTED",
+      "TICKETS"
+    ],
+    "invariants": [
+      "cms-remains-source-of-truth",
+      "single-connected-section",
+      "legacy-manifesto-removed",
+      "no-horizontal-overflow",
+      "touch-targets-at-least-44px",
+      "managed-media-fail-closed",
+      "desktop-1440-mobile-390"
+    ]
+  }
+}

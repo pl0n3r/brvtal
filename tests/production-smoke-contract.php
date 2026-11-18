@@ -1,0 +1,200 @@
+<?php
+declare(strict_types=1);
+
+$root = dirname(__DIR__);
+$workflowPath = $root . '/.github/workflows/production-authenticated-smoke.yml';
+$probePath = $root . '/tests/e2e/production-authenticated-smoke.mjs';
+$releaseObserverPath = $root . '/tests/e2e/production-release-observer.mjs';
+$releaseObserverContractPath = $root . '/tests/e2e/production-release-observer-contract.mjs';
+$writeWorkflowPath = $root . '/.github/workflows/production-page-write-smoke.yml';
+$writeProbePath = $root . '/tests/e2e/production-page-write-smoke.mjs';
+$testingPath = $root . '/docs/TESTING.md';
+
+$assert = static function (bool $condition, string $message): void {
+    if (!$condition) {
+        fwrite(STDERR, "Production smoke contract failed: {$message}\n");
+        exit(1);
+    }
+};
+
+$assert(is_file($workflowPath), 'authenticated production smoke workflow must exist');
+$assert(is_file($probePath), 'authenticated production smoke probe must exist');
+$assert(is_file($releaseObserverPath), 'production release observer helper must exist');
+$assert(is_file($releaseObserverContractPath), 'production release observer behavior contract must exist');
+$assert(is_file($writeWorkflowPath), 'controlled Page write smoke workflow must exist');
+$assert(is_file($writeProbePath), 'controlled Page write smoke probe must exist');
+
+$workflow = (string) file_get_contents($workflowPath);
+$probe = (string) file_get_contents($probePath);
+$releaseObserver = (string) file_get_contents($releaseObserverPath);
+$writeWorkflow = (string) file_get_contents($writeWorkflowPath);
+$writeProbe = (string) file_get_contents($writeProbePath);
+$testing = (string) file_get_contents($testingPath);
+
+// The authenticated production smoke may be started manually or by the repository
+// owner's exact command on #534. It must never become a push/PR/workflow_run/schedule
+// side effect or a normal deploy gate. Both paths must use source checked out from main.
+$assert(str_contains($workflow, 'name: Authenticated Production Smoke'), 'workflow name must remain explicit');
+$assert(str_contains($workflow, "  workflow_dispatch:\n"), 'workflow must remain manually dispatchable');
+$assert(!preg_match('/^\s{2}(?:push|pull_request|workflow_run|schedule):/m', $workflow), 'workflow must not run from automatic deploy/code events');
+$assert(str_contains($workflow, "  issue_comment:\n"), 'workflow must expose the owner-only issue command trigger');
+$assert(str_contains($workflow, 'types: [created]'), 'issue command must only evaluate newly created comments');
+$assert(str_contains($workflow, "github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'"), 'manual dispatch must refuse non-main refs');
+$assert(str_contains($workflow, 'github.event.issue.number == 534'), 'issue command must be restricted to #534');
+$assert(str_contains($workflow, 'github.event.comment.user.login == github.repository_owner'), 'issue command must be restricted to the repository owner');
+$assert(str_contains($workflow, "github.event.comment.author_association == 'OWNER'"), 'issue command must require OWNER association');
+$assert(str_contains($workflow, "github.event.comment.body == '/production-smoke'"), 'issue command must require exact production-smoke text');
+$assert(str_contains($workflow, 'environment: production-smoke'), 'workflow must isolate production smoke credentials');
+$assert(str_contains($workflow, 'https://www.brvtal.com.co'), 'workflow must use the canonical www production origin');
+$assert(str_contains($workflow, 'ref: main'), 'both smoke triggers must checkout canonical main');
+$assert(str_contains($workflow, 'BRVTAL_EXPECTED_SHA=$(git rev-parse HEAD)'), 'smoke evidence must resolve exact checked-out main SHA');
+$assert(str_contains($workflow, 'actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2'), 'workflow must retain downloadable evidence with the immutable v7.0.2 pin');
+$assert(str_contains($workflow, 'retention-days: 14'), 'workflow evidence must retain fourteen-day retention');
+
+// Credentials must come from GitHub secrets and must never be embedded in source.
+$assert(str_contains($workflow, 'secrets.BRVTAL_PROD_ADMIN_EMAIL'), 'admin email must come from a secret');
+$assert(str_contains($workflow, 'secrets.BRVTAL_PROD_ADMIN_PASSWORD'), 'admin password must come from a secret');
+$assert(str_contains($workflow, 'secrets.BRVTAL_PROD_TOTP_SECRET'), 'TOTP secret must come from a secret when 2FA is enabled');
+$assert(!preg_match('/BRVTAL_PROD_ADMIN_PASSWORD:\s*["\']?[A-Za-z0-9]/', $workflow), 'workflow must not hardcode an admin password');
+$assert(!preg_match('/BRVTAL_PROD_TOTP_SECRET:\s*["\']?[A-Z2-7]{8,}/', $workflow), 'workflow must not hardcode a TOTP secret');
+
+// Once login/TOTP completes, the browser must be content-read-only. The known
+// DISCADMIN permission-repair POST is fulfilled locally instead of reaching Hostinger.
+$assert(str_contains($probe, "['GET', 'HEAD', 'OPTIONS'].includes(method)"), 'probe must allow only read-only browser methods after auth');
+$assert(str_contains($probe, "url.pathname === '/api/media-permissions.php'"), 'probe must identify the automatic media-permission repair');
+$assert(str_contains($probe, 'smoke_stub: true'), 'media-permission repair must be fulfilled locally');
+$assert(str_contains($probe, "route.abort('blockedbyclient')"), 'unexpected browser mutations must be blocked');
+$assert(str_contains($probe, 'blockedMutations'), 'blocked mutations must be captured in evidence');
+$assert(str_contains($probe, 'releaseObserved'), 'smoke must capture whether the expected production release was observed');
+$assert(str_contains($probe, 'observedDeployment'), 'smoke must capture runtime deployment identity evidence');
+$assert(str_contains($releaseObserver, '/api/deployment.php?__deploy_check='), 'smoke must wait on the canonical deployment endpoint before loading DISCADMIN');
+$assert(str_contains($releaseObserver, '/api/health.php?__deploy_health_check='), 'smoke must fall back to canonical health identity when the deployment probe is unusable');
+$assert(str_contains($releaseObserver, 'fallbackReason'), 'release observation must preserve why the health fallback was needed');
+$assert(str_contains($probe, 'deploymentProbeFallbacks'), 'smoke evidence must record deployment-probe fallback diagnostics');
+$assert(str_contains($probe, 'await observeBeforeAuthenticate('), 'smoke must use the tested observe-before-auth orchestration boundary');
+$assert(str_contains($probe, 'adminVersion'), 'visible Admin product version must be captured in evidence');
+$assert(str_contains($probe, "health.status === 'ok'"), 'production smoke must require healthy public readiness');
+$assert(str_contains($probe, 'health.release_sha === expectedSha'), 'smoke must compare the public release SHA to expected main');
+$assert(!str_contains($probe, 'health.database'), 'smoke must not depend on removed private database diagnostics');
+$assert(str_contains($probe, 'Admin product version mismatch'), 'production smoke must fail on visible release mismatch');
+$assert(str_contains($probe, "target => typeof state !== 'undefined' && state.section === target"), 'sidebar navigation must await the lexical Admin state transition');
+$assert(str_contains($probe, '`navigate:${section}`'), 'navigation wait must remain bounded and stage-labelled');
+$assert(str_contains($probe, 'Production has no dated Event available'), '#123 must use existing production data rather than creating an Event');
+$assert(str_contains($probe, 'published Artist and one published Event'), '#124 must use existing published relations rather than creating data');
+$assert(str_contains($probe, 'setsApiPage'), '#124 diagnostics must capture the direct paginated Sets API result');
+$assert(str_contains($probe, 'setsBrowserNavigation'), '#124 diagnostics must distinguish browser request/response progress from API latency');
+$assert(str_contains($probe, '/api/index.php/sets?page=1&page_size=50'), '#124 diagnostics must probe the same paginated Sets list used by native navigation');
+$assert(str_contains($probe, "page.evaluate(() => window.go('hero-slider'))"), '#125 must await the real Hero Slider navigation promise');
+$assert(str_contains($probe, "const result = await window.go('dashboard');"), '#125 must await the Dashboard transition between Hero Slider attempts');
+$assert(str_contains($probe, 'opened !== true') && str_contains($probe, 'dashboardTransition.result !== true'), '#125 must fail when repeated workspace navigation does not commit');
+$assert(str_contains($probe, 'heroDashboardTransitions'), '#125 must retain Dashboard transition evidence for each Hero cycle');
+$assert(str_contains($probe, 'BRVTALAdminIA?.navigationDiagnostics?.()'), '#125 must capture safe Admin IA navigation diagnostics');
+$assert(str_contains($probe, 'BRVTALDashboardV2?.diagnostics?.()'), '#125 must capture safe Dashboard mount diagnostics');
+$assert(str_contains($probe, 'attempt <= 3'), '#125 must repeat Hero Slider loading');
+$assert(str_contains($probe, 'hero-slider-diagnostic-success-'), '#125 successful attempts must retain Hero Slider diagnostics');
+$assert(str_contains($probe, 'BRVTALHeroSliderDiagnostics?.lastLoad?.()'), '#125 evidence must read the safe Hero Slider diagnostic object');
+$assert(substr_count($probe, 'context.request.post') === 2, 'the only direct POST calls must be login and optional TOTP verification');
+$assert(!preg_match('/context\.request\.(?:put|patch|delete)\s*\(/i', $probe), 'probe must not directly mutate production content through APIRequestContext');
+$assert(!preg_match('/page\.request\.(?:post|put|patch|delete)\s*\(/i', $probe), 'probe must not mutate production content through page.request');
+
+$observerOutput = [];
+$observerStatus = 0;
+exec('node ' . escapeshellarg($releaseObserverContractPath) . ' 2>&1', $observerOutput, $observerStatus);
+$assert(
+    $observerStatus === 0,
+    'production release observer behavior contract must pass: ' . implode(' | ', $observerOutput)
+);
+
+// #1522: all primary/contextual DISCADMIN workspaces and their read-only
+// features must be checked in the SAME authenticated smoke artifact.
+$assert(str_contains($probe, 'adminCoverage: { sections: [], features: [] }'), 'full admin coverage evidence must be initialized');
+$assert(str_contains($probe, 'await auditRemainingDiscAdmin(page, context);'), 'full admin coverage must run before final guards');
+$assert(str_contains($probe, '[data-testid="settings-v2-root"]'), 'Settings must use unique workspace test id, not shared CSS attribute');
+$assert(!str_contains($probe, "coverageWorkspace(page,'settings','settings','[data-settings-v2]')"), 'Settings selector must not match the stylesheet link');
+
+$assert(str_contains($probe, 'if (evidence.authentication.http401.length)'), 'HTTP 401 must fail the full admin audit');
+$assert(str_contains($probe, "key + ':render-ready'"), 'async workspaces must await real editor hydration');
+$assert(str_contains($probe, "await runOperation(key + ':render-ready'"), 'Theme Studio render-readiness wait must be awaited');
+$assert(str_contains($probe, 'page.locator(readySelector).first().waitFor'), 'hydration must wait for an actual visible child');
+$assert(str_contains($probe, '[data-theme-tab="brand"].active'), 'Theme Studio must check a rendered active editor tab, not an empty shell');
+
+$assert(str_contains($probe, 'if (!item.pass) throw new Error('), 'a missing workspace must fail the smoke');
+foreach (['pages', 'artists', 'releases', 'blog', 'media', 'memories', 'seo', 'themeStudio', 'settings', 'systemStatus'] as $module) {
+    $assert(str_contains($probe, "'{$module}'"), "admin coverage must include {$module}");
+}
+foreach (['bulkActions', 'analyticsPrivacy', 'twoFactorUI', 'backups', 'globalSearch', 'contentHealth', 'adminActivity'] as $feature) {
+    $assert(str_contains($probe, "'{$feature}'"), "admin coverage must include {$feature}");
+}
+$assert(str_contains($probe, 'await page.route(totpRoute,async route=>'), '2FA status POST must be stubbed locally for UI-only inspection');
+$assert(str_contains($probe, 'await page.unroute(totpRoute);'), '2FA local status stub must be removed after inspection');
+$assert(str_contains($probe, 'backendVerified:false,enrollmentInvoked:false'), '2FA UI check must explicitly disclaim backend verification');
+$assert(str_contains($probe, 'valuesCaptured:false,saveInvoked:false'), 'privacy check must not capture values or save settings');
+$assert(str_contains($probe, 'createInvoked:false,restoreInvoked:false'), 'backup check must not perform backup actions');
+
+// #122 needs a real production write to validate the original failure mode, but
+// that capability must remain isolated, explicitly confirmed, narrowly scoped,
+// uniquely named, and self-cleaning.
+$assert(str_contains($writeWorkflow, 'name: Controlled Production Page Write Smoke'), 'controlled write workflow name must remain explicit');
+$assert(str_contains($writeWorkflow, "  workflow_dispatch:\n"), 'controlled write workflow must remain manually dispatchable');
+$assert(str_contains($writeWorkflow, "  workflow_run:\n"), 'controlled write workflow must expose the governed deploy-observer trigger');
+$assert(str_contains($writeWorkflow, 'workflows: ["Production Deploy Observer"]'), 'automatic write smoke must only consume the canonical deploy observer');
+$assert(str_contains($writeWorkflow, 'types: [completed]'), 'automatic write smoke must only evaluate completed observer runs');
+$assert(!preg_match('/^\s{2}(?:push|pull_request|schedule|repository_dispatch):/m', $writeWorkflow), 'controlled write workflow must not run directly from ungoverned code/schedule events');
+$assert(str_contains($writeWorkflow, 'confirm:'), 'controlled write workflow must require a confirmation input');
+$assert(str_contains($writeWorkflow, "inputs.confirm == 'WRITE_AND_DELETE_TEMP_PAGE'"), 'controlled write job must require the exact confirmation token');
+$assert(str_contains($writeWorkflow, "github.ref == 'refs/heads/main'"), 'manual controlled write workflow must refuse non-main refs');
+$assert(str_contains($writeWorkflow, "github.event.workflow_run.conclusion == 'success'"), 'automatic write smoke must require a successful observer');
+$assert(str_contains($writeWorkflow, "github.event.workflow_run.head_branch == 'main'"), 'automatic write smoke must require the observer main branch');
+$assert(str_contains($writeWorkflow, "github.event.workflow_run.event == 'push'"), 'automatic write smoke must require a main push observer');
+$assert(str_contains($writeWorkflow, "vars.BRVTAL_APP_PHASE == 'construction'"), 'automatic production mutation must require explicit construction phase');
+$assert(str_contains($writeWorkflow, 'environment: production-smoke'), 'controlled write workflow must isolate production credentials');
+$assert(str_contains($writeWorkflow, 'https://www.brvtal.com.co'), 'controlled write workflow must use the canonical www production origin');
+$assert(str_contains($writeWorkflow, "github.event.workflow_run.head_sha || github.sha"), 'automatic write evidence and checkout must bind to the observer exact SHA');
+$assert(str_contains($writeWorkflow, "github.event_name == 'workflow_run' && 'WRITE_AND_DELETE_TEMP_PAGE' || inputs.confirm"), 'automatic confirmation may only be synthesized inside the gated workflow-run job');
+$assert(str_contains($writeWorkflow, 'BRVTAL_PROD_PAGE_WRITE_MODE:'), 'write-smoke evidence must expose execution mode');
+$assert(str_contains($writeWorkflow, 'automatic-construction'), 'write-smoke evidence must distinguish automatic construction mode');
+$backupJob = strpos($writeWorkflow, "  backup:\n");
+$smokeJob = strpos($writeWorkflow, "  smoke:\n");
+$assert(is_int($backupJob) && is_int($smokeJob) && $backupJob < $smokeJob, 'canonical backup job must precede the production write-smoke job');
+$backupBlock = substr($writeWorkflow, $backupJob, $smokeJob - $backupJob);
+$smokeBlock = substr($writeWorkflow, $smokeJob);
+$assert(str_contains($backupBlock, 'name: exact-target-production-backup'), 'write smoke must use an isolated exact-target backup prerequisite');
+$assert(str_contains($backupBlock, 'secrets.DEPLOY_TOKEN'), 'backup job must receive the existing deploy token');
+$assert(str_contains($backupBlock, 'secrets.DEPLOY_SSH_KEY'), 'backup job must receive the existing deploy SSH key');
+$assert(str_contains($backupBlock, 'GITHUB_SHA="${BRVTAL_EXPECTED_SHA}" BRVTAL_FACTORY_ADAPTER_MODE=production bash ops/factory/backup'), 'backup must use the canonical adapter for the exact target SHA');
+$assert(str_contains($backupBlock, 'actual_sha="$(git rev-parse HEAD)"'), 'backup job must resolve the checked-out SHA');
+$assert(str_contains($backupBlock, '[[ "$actual_sha" == "$BRVTAL_EXPECTED_SHA" ]]'), 'backup job must bind the checkout identity to the exact target SHA');
+$assert(str_contains($smokeBlock, 'needs: backup'), 'browser mutation must depend on successful backup completion');
+$assert(str_contains($smokeBlock, "needs.backup.result == 'success'"), 'browser mutation must require explicit backup success');
+$assert(substr_count($writeWorkflow, 'ref: main') >= 2, 'privileged backup and smoke checkouts must use trusted main');
+$assert(!str_contains($writeWorkflow, 'ref: ${{ github.event.workflow_run.head_sha'), 'workflow-run data must not select executable checkout code');
+$assert(str_contains($smokeBlock, 'Require exact trusted main identity'), 'browser smoke must verify trusted main still matches the observed SHA');
+$assert(str_contains($smokeBlock, '[[ "$actual_sha" == "$BRVTAL_EXPECTED_SHA" ]]'), 'browser smoke must fail closed if main advanced after observation');
+$assert(!str_contains($smokeBlock, 'secrets.DEPLOY_TOKEN') && !str_contains($smokeBlock, 'secrets.DEPLOY_SSH_KEY'), 'deploy transport secrets must stay outside the browser smoke job');
+$assert(str_contains($writeWorkflow, 'secrets.BRVTAL_PROD_ADMIN_EMAIL'), 'controlled write email must come from a secret');
+$assert(str_contains($writeWorkflow, 'secrets.BRVTAL_PROD_ADMIN_PASSWORD'), 'controlled write password must come from a secret');
+$assert(str_contains($writeWorkflow, 'secrets.BRVTAL_PROD_TOTP_SECRET'), 'controlled write TOTP must come from a secret when enabled');
+$assert(str_contains($writeWorkflow, 'actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2'), 'controlled write workflow must retain evidence with the immutable v7.0.2 pin');
+$assert(str_contains($writeWorkflow, 'retention-days: 14'), 'controlled write evidence must retain fourteen-day retention');
+$assert(!preg_match('/BRVTAL_PROD_ADMIN_PASSWORD:\s*["\']?[A-Za-z0-9]/', $writeWorkflow), 'controlled write workflow must not hardcode an admin password');
+$assert(!preg_match('/BRVTAL_PROD_TOTP_SECRET:\s*["\']?[A-Z2-7]{8,}/', $writeWorkflow), 'controlled write workflow must not hardcode a TOTP secret');
+
+$assert(str_contains($writeProbe, "const requiredConfirmation = 'WRITE_AND_DELETE_TEMP_PAGE';"), 'write probe must independently require the confirmation token');
+$assert(str_contains($writeProbe, 'BRVTAL_EXPECTED_SHA is required for controlled production writes'), 'write probe must require exact deployment identity');
+$assert(str_contains($writeProbe, '`production-smoke-122-${shortSha}-${uniqueSuffix}`'), 'write probe must use a unique #122 namespace');
+$assert(str_contains($writeProbe, "const pageContent = { text: 'Manifiesto' };"), 'write probe must reproduce the valid JSON payload');
+$assert(str_contains($writeProbe, "status: 'published'"), 'write probe must reproduce the published Page status');
+$assert(str_contains($writeProbe, 'content_json: JSON.stringify(pageContent)'), 'write probe must submit content_json through the production Pages API');
+$assert(substr_count($writeProbe, 'context.request.post') === 3, 'write probe POST calls must be login, optional TOTP, and one Page create');
+$assert(substr_count($writeProbe, 'context.request.delete') === 1, 'write probe must delete only the temporary Page it created');
+$assert(!preg_match('/context\.request\.(?:put|patch)\s*\(/i', $writeProbe), 'write probe must not PUT/PATCH production content');
+$assert(str_contains($writeProbe, 'await deleteCreatedPage(context, csrf, createdPageId);'), 'write probe must always attempt cleanup of its temporary Page');
+$assert(str_contains($writeProbe, "verifyResponse.status() !== 404"), 'write probe must verify the temporary Page is absent after cleanup');
+$assert(str_contains($writeProbe, 'findPageBySlug(context, pageSlug)'), 'write probe must recover and remove a uniquely named Page even after an ambiguous create response');
+
+// Documentation must preserve the distinction between code-ready and actually run.
+$assert(str_contains($testing, 'Authenticated production smoke'), 'testing docs must document the authenticated smoke procedure');
+$assert(str_contains($testing, 'Controlled production Page write smoke'), 'testing docs must document the isolated #122 production write procedure');
+$assert(str_contains($testing, 'VALIDATED IN PRODUCTION'), 'testing docs must preserve production-validation terminology');
+
+echo "Production smoke safety contract passed.\n";

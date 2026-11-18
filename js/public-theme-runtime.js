@@ -1,0 +1,425 @@
+(() => {
+  'use strict';
+
+  const html = document.documentElement;
+  const queryAll = (selector, root = document) => [...root.querySelectorAll(selector)];
+  let mobileQuery = null;
+  let currentBranding = null;
+  let menuObserver = null;
+  let previewTheme = null;
+  const previewMode = new URLSearchParams(window.location.search).get('theme_studio_preview') === '1';
+
+  function safeAsset(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    try {
+      const url = new URL(raw, location.href);
+      if (!/^https?:$/i.test(url.protocol)) return '';
+      return url.href;
+    } catch (_) {
+      return '';
+    }
+  }
+
+  function safeColor(value, fallback = '') {
+    const raw = String(value || '').trim();
+    return raw && window.CSS?.supports?.('color', raw) ? raw : fallback;
+  }
+
+  function safeCssValue(property, value, fallback = '') {
+    const raw = String(value || '').trim();
+    return raw && window.CSS?.supports?.(property, raw) ? raw : fallback;
+  }
+
+  function safeFont(value, fallback = '') {
+    const raw = String(value || '').trim();
+    return /^[a-z0-9\s,"'_-]{1,180}$/i.test(raw) ? raw : fallback;
+  }
+
+  const GOOGLE_FONT_QUERY = Object.freeze({
+    'Space Grotesk':'Space+Grotesk:wght@400;500;600;700',
+    'Barlow Condensed':'Barlow+Condensed:wght@400;500;600;700;800;900',
+    'Inter Tight':'Inter+Tight:wght@400;500;600;700;800',
+    'Space Mono':'Space+Mono:wght@400;700',
+    'IBM Plex Mono':'IBM+Plex+Mono:wght@400;500;600;700',
+  });
+
+  function fontFamilyName(stack) {
+    return String(stack || '').split(',')[0].trim().replace(/^["']|["']$/g, '');
+  }
+
+  function ensureThemeFonts(typography) {
+    const families = [...new Set(['display','body','mono']
+      .map(key => GOOGLE_FONT_QUERY[fontFamilyName(typography?.[key])])
+      .filter(Boolean))];
+    let link = document.getElementById('brvtal-theme-fonts');
+    if (!families.length) { link?.remove(); return; }
+    if (!link) {
+      link = document.createElement('link');
+      link.id = 'brvtal-theme-fonts';
+      link.rel = 'stylesheet';
+      document.head.appendChild(link);
+    }
+    link.href = 'https://fonts.googleapis.com/css2?' + families.map(family => 'family=' + family).join('&') + '&display=swap';
+  }
+
+  function bool(value, fallback = true) {
+    return typeof value === 'boolean' ? value : fallback;
+  }
+
+  function ensureRuntimeStyle() {
+    if (document.getElementById('brvtal-theme-runtime-style')) return;
+    const style = document.createElement('style');
+    style.id = 'brvtal-theme-runtime-style';
+    style.textContent = `
+      html[data-theme-nav-fixed="0"] .nav{position:absolute}
+      html[data-theme-nav-transparent="0"] .nav{background:var(--theme-surface,var(--bg));}
+      html[data-theme-nav-blur="0"] .nav{backdrop-filter:none;-webkit-backdrop-filter:none}
+      html[data-theme-brand-position="center"] .brand{position:absolute;left:50%;transform:translateX(-50%);align-items:center;text-align:center}
+      .theme-brand-image{display:block;width:auto;max-width:132px;height:36px;object-fit:contain;object-position:left center}
+      .brand[data-theme-logo="1"]>span[data-site-name]{display:none}
+      html[data-theme-brand-position="center"] .theme-brand-image{object-position:center}
+      html[data-theme-scene-indicator="0"] .nav-center{display:none!important}
+      html[data-theme-sound-toggle="0"] #soundToggle{display:none!important}
+      html[data-theme-grain="0"] #fxCanvas{display:none!important}
+      html[data-theme-scanlines="0"] .hero-scan,
+      html[data-theme-scanlines="0"] .genesis-scanline,
+      html[data-theme-scanlines="0"] .genesis-noise,
+      html[data-theme-scanlines="0"] .manifesto-noise,
+      html[data-theme-scanlines="0"] .loader-noise{display:none!important}
+      html[data-theme-glitch="0"] .hero-title:after,
+      html[data-theme-glitch="0"] .loader-mark:after,
+      html[data-theme-glitch="0"] .genesis-copy h2:after{display:none!important;animation:none!important;text-shadow:none!important}
+      html[data-theme-cursor="0"] body{cursor:auto!important}
+      html[data-theme-cursor="0"] .cursor,
+      html[data-theme-cursor="0"] .cursor-label{display:none!important}
+      html[data-theme-magnetic="0"] .magnetic{transform:none!important}
+      html[data-theme-motion="subtle"] [class*="glitch"],html[data-theme-motion="subtle"] .audio-bg{animation-duration:8s!important}
+      html[data-theme-motion="minimal"] [class*="glitch"],html[data-theme-motion="minimal"] .audio-bg{animation:none!important}
+      html[data-theme-motion="reduced"] *,html[data-theme-motion="reduced"] *:before,html[data-theme-motion="reduced"] *:after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}
+      html[data-theme-menu-style="slide"] .menu-panel{top:0;left:auto;width:min(560px,100vw);transform:translateX(102%)!important;transition:transform .55s cubic-bezier(.16,1,.3,1)}
+      html[data-theme-menu-style="slide"][data-theme-menu-open="1"] .menu-panel{transform:translateX(0)!important}
+      html[data-theme-menu-style="dropdown"] .menu-panel{bottom:auto;min-height:min(720px,86vh);transform:translateY(-102%)!important;transition:transform .55s cubic-bezier(.16,1,.3,1)}
+      html[data-theme-menu-style="dropdown"][data-theme-menu-open="1"] .menu-panel{transform:translateY(0)!important}
+      html[data-theme-menu-style="dropdown"] .menu-panel-inner{padding-top:105px}
+      html[data-theme-menu-style="dropdown"] .menu-panel nav a{font-size:clamp(42px,7vw,96px)}
+      .theme-preloader-logo{display:block;max-width:min(390px,72vw);max-height:110px;object-fit:contain;margin:20px 0 14px}
+      .loader-inner[data-theme-wordmark="1"] .loader-mark{display:none}
+      html{--theme-display-font:"Space Grotesk",Arial,sans-serif;--theme-body-font:"Space Grotesk",Arial,sans-serif;--theme-mono-font:"Space Mono",monospace}
+      body{font-family:var(--theme-body-font)}
+      h1,h2,h3,h4,.brand,.menu-panel nav a,.loader-mark{font-family:var(--theme-display-font)}
+      .mono,.eyebrow,.hero-sub,.hero-bottom,.scene-index,.nav-center,.sound,.menu,.event-status,.set-num{font-family:var(--theme-mono-font)}
+      .hero-title{font-size:var(--theme-h1,clamp(100px,22vw,340px));letter-spacing:var(--theme-tracking,-.07em)}
+      body{font-size:var(--theme-body-size,16px)}
+      @media(max-width:900px){.theme-brand-image{max-width:112px;height:30px}.theme-preloader-logo{max-width:min(300px,74vw);max-height:82px}}
+    `;
+    document.head.appendChild(style);
+  }
+
+  function setToken(name, value) {
+    if (value) html.style.setProperty(name, value);
+  }
+
+  function loadControlledImage(image, src, onReady, onError) {
+    image.onload = () => onReady?.(image);
+    image.onerror = () => onError?.(image);
+    image.src = src;
+    if (image.complete && image.naturalWidth > 0) onReady?.(image);
+  }
+
+  function ensureMobileQuery() {
+    if (!mobileQuery) mobileQuery = window.matchMedia('(max-width: 900px)');
+    return mobileQuery;
+  }
+
+  function brandingLogos(branding) {
+    const query = ensureMobileQuery();
+    const mainLogo = safeAsset(branding.logo);
+    const selectedVisualLogo = (query.matches ? safeAsset(branding.mobileLogo) : '') || mainLogo;
+    const wordmark = safeAsset(branding.wordmark);
+    return {
+      selectedVisualLogo,
+      mainLogo,
+      headerLogo: wordmark || selectedVisualLogo,
+    };
+  }
+
+  function ensureHeaderBrandImage(brand, branding) {
+    let image = brand.querySelector('.theme-brand-image');
+    if (image) return image;
+    image = document.createElement('img');
+    image.className = 'theme-brand-image';
+    image.alt = String(branding.siteName || 'BRVTAL');
+    brand.prepend(image);
+    return image;
+  }
+
+  function syncHeaderBranding(branding, headerLogo) {
+    const brand = document.querySelector('.brand');
+    if (!brand) return;
+
+    const currentImage = brand.querySelector('.theme-brand-image');
+    delete brand.dataset.themeLogo;
+    if (!headerLogo) {
+      currentImage?.remove();
+      return;
+    }
+
+    const image = currentImage || ensureHeaderBrandImage(brand, branding);
+    image.alt = String(branding.siteName || 'BRVTAL');
+    loadControlledImage(image, headerLogo, () => {
+      brand.dataset.themeLogo = '1';
+    }, failed => {
+      delete brand.dataset.themeLogo;
+      failed.remove();
+    });
+  }
+
+  function clearHeroBrandImage(heroLogo, sources) {
+    heroLogo.hidden = true;
+    heroLogo.removeAttribute('src');
+    heroLogo.removeAttribute('srcset');
+    sources.forEach(source => {
+      source.removeAttribute('srcset');
+      source.removeAttribute('sizes');
+    });
+  }
+
+  function syncHeroBranding(branding, selectedVisualLogo, mainLogo) {
+    const heroLogo = document.querySelector('.hero-logo');
+    if (!heroLogo) return;
+
+    const picture = heroLogo.closest('picture');
+    const sources = picture ? [...picture.querySelectorAll('source')] : [];
+    const logo = selectedVisualLogo || mainLogo;
+    if (!logo) {
+      clearHeroBrandImage(heroLogo, sources);
+      return;
+    }
+
+    heroLogo.removeAttribute('srcset');
+    heroLogo.alt = String(branding.siteName || 'BRVTAL') + ' logo';
+    sources.forEach(source => {
+      source.srcset = logo;
+      source.sizes = '100vw';
+    });
+    loadControlledImage(heroLogo, logo, loaded => {
+      loaded.hidden = false;
+    }, failed => {
+      clearHeroBrandImage(failed, sources);
+    });
+  }
+
+  function updateBrandLogo() {
+    const branding = currentBranding || {};
+    const { selectedVisualLogo, mainLogo, headerLogo } = brandingLogos(branding);
+    syncHeaderBranding(branding, headerLogo);
+    syncHeroBranding(branding, selectedVisualLogo, mainLogo);
+  }
+
+  function wireMenuObserver(style) {
+    const panel = document.getElementById('menuPanel');
+    html.dataset.themeMenuStyle = ['fullscreen','dropdown','slide'].includes(style) ? style : 'fullscreen';
+    if (!panel) return;
+    const sync = () => { html.dataset.themeMenuOpen = panel.getAttribute('aria-hidden') === 'false' ? '1' : '0'; };
+    menuObserver?.disconnect();
+    menuObserver = new MutationObserver(sync);
+    menuObserver.observe(panel, { attributes:true, attributeFilter:['aria-hidden'] });
+    sync();
+  }
+
+  function applyBrandCopy(branding) {
+    const siteName = String(branding.siteName || '').trim();
+    const tagline = String(branding.tagline || '').trim();
+    if (siteName) {
+      queryAll('[data-site-name]').forEach(node => { node.textContent = siteName; });
+      const heroTitle = document.querySelector('.hero-title');
+      if (heroTitle) {
+        heroTitle.textContent = siteName;
+        heroTitle.dataset.text = siteName;
+      }
+      const loaderMark = document.querySelector('.loader-mark');
+      if (loaderMark) {
+        loaderMark.textContent = siteName;
+        loaderMark.dataset.text = siteName;
+      }
+    }
+    if (tagline) queryAll('[data-site-tagline]').forEach(node => { node.textContent = tagline; });
+  }
+
+  function bindResponsiveBranding() {
+    const query = ensureMobileQuery();
+    if (query.__brvtalThemeBound) return;
+    query.addEventListener?.('change', updateBrandLogo);
+    query.__brvtalThemeBound = true;
+  }
+
+  function syncThemeFavicon(branding) {
+    const favicon = safeAsset(branding.favicon);
+    if (!favicon) return;
+    let link = document.querySelector('link[rel~="icon"][data-theme-favicon]') || document.querySelector('link[rel~="icon"]');
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'icon';
+      document.head.appendChild(link);
+    }
+    link.dataset.themeFavicon = '1';
+    link.href = favicon;
+  }
+
+  function preloaderLogo(branding) {
+    const wordmark = safeAsset(branding.wordmark);
+    const preloader = safeAsset(branding.preloaderLogo);
+    const mainLogo = safeAsset(branding.logo);
+    return {
+      wordmark,
+      logo: wordmark || preloader || mainLogo,
+    };
+  }
+
+  function ensurePreloaderImage(loaderInner) {
+    let image = loaderInner.querySelector('.theme-preloader-logo');
+    if (image) return image;
+    image = document.createElement('img');
+    image.className = 'theme-preloader-logo';
+    image.alt = '';
+    image.setAttribute('aria-hidden', 'true');
+    loaderInner.querySelector('.loader-mark')?.after(image);
+    return image;
+  }
+
+  function syncPreloaderBranding(branding) {
+    const loaderInner = document.querySelector('.loader-inner');
+    if (!loaderInner) return;
+
+    const { wordmark, logo } = preloaderLogo(branding);
+    const currentImage = loaderInner.querySelector('.theme-preloader-logo');
+    delete loaderInner.dataset.themeWordmark;
+    if (!logo) {
+      currentImage?.remove();
+      return;
+    }
+
+    const image = currentImage || ensurePreloaderImage(loaderInner);
+    loadControlledImage(image, logo, () => {
+      if (wordmark) loaderInner.dataset.themeWordmark = '1';
+    }, failed => {
+      delete loaderInner.dataset.themeWordmark;
+      failed.remove();
+    });
+  }
+
+  function applyBranding(branding) {
+    currentBranding = branding || {};
+    applyBrandCopy(currentBranding);
+    updateBrandLogo();
+    bindResponsiveBranding();
+    syncThemeFavicon(currentBranding);
+    syncPreloaderBranding(currentBranding);
+  }
+
+  function applyColors(colors) {
+    const c = colors || {};
+    const bg = safeColor(c.bg);
+    const text = safeColor(c.text);
+    const muted = safeColor(c.muted);
+    const primary = safeColor(c.primary);
+    const accent = safeColor(c.accent);
+    const border = safeColor(c.border);
+    const surface = safeColor(c.surface);
+    setToken('--bg', bg);
+    setToken('--fg', text);
+    setToken('--muted', muted);
+    setToken('--red', primary);
+    setToken('--acid', accent);
+    setToken('--signal', accent);
+    setToken('--line', border);
+    setToken('--theme-surface', surface);
+    const themeColor = document.querySelector('meta[name="theme-color"]');
+    if (themeColor && bg) themeColor.setAttribute('content', bg);
+  }
+
+  function applyTypography(typography) {
+    const t = typography || {};
+    ensureThemeFonts(t);
+    setToken('--theme-display-font', safeFont(t.display));
+    setToken('--theme-body-font', safeFont(t.body));
+    setToken('--theme-mono-font', safeFont(t.mono));
+    setToken('--theme-h1', safeCssValue('font-size', t.h1));
+    setToken('--theme-body-size', safeCssValue('font-size', t.bodySize));
+    setToken('--theme-tracking', safeCssValue('letter-spacing', t.tracking));
+  }
+
+  function applyNavigation(navigation, sound) {
+    const n = navigation || {};
+    html.dataset.themeNavFixed = bool(n.fixed, true) ? '1' : '0';
+    html.dataset.themeNavTransparent = bool(n.transparentHero, true) ? '1' : '0';
+    html.dataset.themeNavBlur = bool(n.blur, true) ? '1' : '0';
+    html.dataset.themeBrandPosition = n.logoPosition === 'center' ? 'center' : 'left';
+    html.dataset.themeSceneIndicator = bool(n.sceneIndicator, true) ? '1' : '0';
+    html.dataset.themeSoundToggle = bool(n.soundToggle, true) && bool(sound?.enabled, true) ? '1' : '0';
+    wireMenuObserver(String(n.menuStyle || 'fullscreen'));
+  }
+
+  function applyEffects(effects) {
+    const e = effects || {};
+    html.dataset.themeGrain = bool(e.grain, true) ? '1' : '0';
+    html.dataset.themeScanlines = bool(e.scanlines, true) ? '1' : '0';
+    html.dataset.themeGlitch = bool(e.glitch, true) ? '1' : '0';
+    html.dataset.themeCursor = bool(e.cursor, true) ? '1' : '0';
+    html.dataset.themeMagnetic = bool(e.magnetic, true) ? '1' : '0';
+    html.dataset.themeMotion = ['brvtal','subtle','minimal','reduced'].includes(String(e.motion || '')) ? String(e.motion) : 'brvtal';
+  }
+
+  function applyTheme(theme) {
+    if (!theme || typeof theme !== 'object') return false;
+    ensureRuntimeStyle();
+    html.dataset.brvtalTheme = String(theme.slug || 'core').slice(0, 60);
+    applyColors(theme.colors);
+    applyTypography(theme.typography);
+    applyNavigation(theme.navigation, theme.sound);
+    applyEffects(theme.effects);
+    applyBranding(theme.branding);
+    // Canonical SEO is rendered server-side. Legacy theme.seo values are kept
+    // in storage for round-trip compatibility but never mutate document meta.
+    window.dispatchEvent(new CustomEvent('brvtal:theme-applied', { detail:{ slug:html.dataset.brvtalTheme } }));
+    return true;
+  }
+
+  function receivePreviewTheme(event) {
+    if (!previewMode || window.parent === window) return;
+    if (event.origin !== window.location.origin || event.source !== window.parent) return;
+    const message = event.data;
+    if (!message || message.type !== 'brvtal:theme-preview' || message.version !== 1) return;
+    if (!message.theme || typeof message.theme !== 'object' || Array.isArray(message.theme)) return;
+    previewTheme = message.theme;
+    html.dataset.themePreview = '1';
+    applyTheme(previewTheme);
+  }
+
+  window.addEventListener('message', receivePreviewTheme);
+
+  function settingsFromPayload(source) {
+    const payload = source?.payload ?? source;
+    const root = payload?.data && typeof payload.data === 'object' ? payload.data : payload;
+    return root?.settings && typeof root.settings === 'object' ? root.settings : {};
+  }
+
+  async function resolveSettings() {
+    if (window.BRVTALPublicDataPromise) {
+      try { return settingsFromPayload(await window.BRVTALPublicDataPromise); }
+      catch (_) {}
+    }
+    const response = await fetch('/api/public.php', { credentials:'same-origin', headers:{ Accept:'application/json' }, cache:'no-store' });
+    if (!response.ok) throw new Error('THEME_PUBLIC_API_' + response.status);
+    return settingsFromPayload(await response.json());
+  }
+
+  window.BRVTALThemeRuntime = { apply:applyTheme, resolveSettings };
+  window.BRVTALThemeReady = resolveSettings()
+    .then(settings => applyTheme(previewTheme || settings.theme || null))
+    .catch(error => {
+      console.warn('[BRVTAL] Theme runtime kept static fallbacks.', error);
+      return false;
+    });
+})();

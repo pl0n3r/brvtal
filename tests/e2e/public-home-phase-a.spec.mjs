@@ -1,0 +1,82 @@
+import { test, expect } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+const css = [
+  'css/style.css',
+  'css/public-home-phase-a.css',
+].map(path => readFileSync(join(process.cwd(), path), 'utf8')).join('\n');
+
+const markup = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style></head><body>
+  <header class="nav"><a class="brand"><span>BRVTAL</span></a></header>
+  <section class="hero scene home-phase-a-hero">
+    <div class="hero-grid"></div><div class="hero-scan"></div><div class="hero-glitch-lines"></div>
+    <div class="hero-copy"><div class="eyebrow mono">CULTURA ELECTRÓNICA UNDERGROUND / PEREIRA / COLOMBIA</div><h1 class="hero-title" data-text="BRVTAL">BRVTAL</h1><div class="hero-sub"><span>RAVE TILL GRAVE</span><span>DESDE 2026</span></div><div class="hero-declaration"><span class="mono">BRVTAL / CULTURAL SIGNAL</span><strong>EVENTOS / SONIDO / ARTISTAS / ARCHIVO</strong><p>BUILT IN PEREIRA. CONNECTED THROUGH CULTURA ELECTRÓNICA UNDERGROUND.</p></div></div>
+    <div class="hero-logo-wrap"></div><div class="hero-bottom mono"><span>01 / 07</span><span>DESLIZA PARA ENTRAR</span><span>RUIDO / SEÑAL / MÚSICA</span></div>
+  </section>
+  <section class="genesis scene home-phase-a-experience">
+    <div class="genesis-copy"><div class="eyebrow mono">PRÓXIMA EXPERIENCIA / BRVTAL</div><h2 data-text="UMBRAL 03 // NUCLEO NEURAL + MAREA CIEGA">UMBRAL 03 // NUCLEO NEURAL + MAREA CIEGA</h2><p class="genesis-tag">ÚLTIMAS ENTRADAS.</p><div class="genesis-data mono"><span>21.11.2026</span><span>22:00</span><span>PEREIRA / WAREHOUSE 09</span></div><div class="experience-lineup"><span class="mono">LINEUP</span><p>PL0N3R <i>/</i> DNL5 <i>/</i> HAKKI</p></div><div class="experience-actions"><a class="enter" href="#event">ENTRAR <span>↗</span></a><a class="ticket-cta" href="#tickets">TICKETS <span>↗</span></a></div></div>
+  </section>
+</body></html>`;
+
+test('Phase A keeps the cultural statement visible on desktop', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.setContent(markup);
+
+  await expect(page.locator('.hero-declaration')).toBeVisible();
+  await expect(page.locator('.hero-declaration strong')).toContainText('EVENTOS / SONIDO / ARTISTAS / ARCHIVO');
+  await expect(page.locator('.hero-copy .eyebrow')).toContainText('PEREIRA / COLOMBIA');
+  await expect(page.locator('.ticket-cta')).toBeVisible();
+
+  const accent = await page.locator('.hero-declaration').evaluate(el => getComputedStyle(el).borderLeftColor);
+  expect(accent).not.toBe('rgba(0, 0, 0, 0)');
+});
+
+test('Phase A desktop hero stays below the fixed nav without title/declaration overlap', async ({ page }) => {
+  for (const viewport of [{width:1440,height:800},{width:1920,height:900}]) {
+    await page.setViewportSize(viewport);
+    await page.setContent(markup);
+
+    const geometry = await page.evaluate(() => {
+      const rect = selector => document.querySelector(selector).getBoundingClientRect();
+      const nav = rect('.nav');
+      const hero = rect('.home-phase-a-hero');
+      const copy = rect('.hero-copy');
+      const title = rect('.hero-title');
+      const declaration = rect('.hero-declaration');
+      return {
+        navBottom:nav.bottom,
+        heroBottom:hero.bottom,
+        copyTop:copy.top,
+        titleBottom:title.bottom,
+        declarationTop:declaration.top,
+        declarationBottom:declaration.bottom,
+        titleFontSize:parseFloat(getComputedStyle(document.querySelector('.hero-title')).fontSize),
+      };
+    });
+
+    expect(geometry.copyTop).toBeGreaterThanOrEqual(geometry.navBottom + 24);
+    expect(geometry.titleBottom).toBeLessThanOrEqual(geometry.declarationTop);
+    expect(geometry.declarationBottom).toBeLessThan(geometry.heroBottom - 40);
+    expect(geometry.titleFontSize).toBeLessThanOrEqual(220);
+  }
+});
+
+test('Phase A prioritizes event info and actions without mobile overflow', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.setContent(markup);
+
+  const ticketHeight = await page.locator('.ticket-cta').evaluate(el => el.getBoundingClientRect().height);
+  const enterHeight = await page.locator('.experience-actions .enter').evaluate(el => el.getBoundingClientRect().height);
+  expect(ticketHeight).toBeGreaterThanOrEqual(44);
+  expect(enterHeight).toBeGreaterThanOrEqual(44);
+
+  const metrics = await page.evaluate(() => ({
+    viewport: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+  }));
+  expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.viewport);
+
+  await expect(page.locator('.genesis-data')).toContainText('PEREIRA / WAREHOUSE 09');
+  await expect(page.locator('.experience-lineup')).toContainText('PL0N3R');
+});

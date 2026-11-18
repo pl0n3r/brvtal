@@ -1,0 +1,52 @@
+<?php
+declare(strict_types=1);
+
+require_once __DIR__ . '/../config/bootstrap.php';
+require_once __DIR__ . '/../config/deployment.php';
+require_once __DIR__ . '/../config/deploy_readiness.php';
+
+// Public readiness is deliberately coarse. Detailed database and migration
+// diagnostics remain available through authenticated DISCADMIN endpoints.
+$exact = brvtalDeploymentIsExact();
+$resolvedSha = $exact ? brvtal_deployment_sha() : null;
+$deployment = [
+    'commit' => $resolvedSha,
+    'source' => brvtal_deployment_source(),
+    'exact' => $exact,
+    'version' => BRVTAL_APP_VERSION,
+];
+
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+
+try {
+    $pdo = db();
+    $pdo->query('SELECT 1');
+    $migrationStatus = brvtal_migration_status($pdo, dirname(__DIR__) . '/database');
+    $readiness = brvtalFactoryReadinessState($exact, $resolvedSha, $migrationStatus);
+    $statusCode = $readiness['ready'] ? 200 : 503;
+
+    json_response([
+        'ok' => $readiness['ready'],
+        'app' => 'BRVTAL',
+        'status' => $readiness['status'],
+        'version' => BRVTAL_APP_VERSION,
+        'release_sha' => $readiness['release_sha'],
+        'deployment' => $deployment,
+    ], $statusCode);
+} catch (Throwable $e) {
+    brvtal_log('HEALTH_ERROR', 'Standalone health check failed', ['message' => $e->getMessage()]);
+    $readiness = brvtalFactoryReadinessState($exact, $resolvedSha, [
+        'registry_exists' => false,
+        'migrations' => [],
+        'orphaned_records' => [],
+    ]);
+
+    json_response([
+        'ok' => false,
+        'app' => 'BRVTAL',
+        'status' => 'degraded',
+        'version' => BRVTAL_APP_VERSION,
+        'release_sha' => $readiness['release_sha'],
+        'deployment' => $deployment,
+    ], 503);
+}

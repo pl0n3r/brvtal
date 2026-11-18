@@ -1,0 +1,415 @@
+<?php
+declare(strict_types=1);
+
+function brvtal_public_version_srcset_value(string $value, string $version): string
+{
+    if ($version === '') return $value;
+
+    return preg_replace_callback(
+        '~(?<url>/?(?:assets|uploads)/[^,\s?]+)(?:\?[^,\s]*)?~',
+        static fn(array $match): string => $match['url'] . '?v=' . rawurlencode($version),
+        $value
+    ) ?? $value;
+}
+
+function brvtal_public_version_assets(string $html, string $version): string
+{
+    if ($version === '') return $html;
+
+    $html = preg_replace_callback(
+        '~(?<prefix>(?:href|src)="/?(?:css|js|assets|uploads)/[^"?]+)(?:\?[^"#]*)?(?<suffix>")~',
+        static fn(array $match): string => $match['prefix'] . '?v=' . rawurlencode($version) . $match['suffix'],
+        $html
+    ) ?? $html;
+
+    return preg_replace_callback(
+        '~(?<attribute>srcset|imagesrcset)="(?<value>[^"]+)"~i',
+        static fn(array $match): string => $match['attribute'] . '="' . brvtal_public_version_srcset_value($match['value'], $version) . '"',
+        $html
+    ) ?? $html;
+}
+
+function brvtal_public_preload_home_lcp(string $html): string
+{
+    $coreStyle = '<link rel="stylesheet" href="css/style.css">';
+    $desktopPreload = '<link data-brvtal-lcp-preload="desktop" rel="preload" as="image" href="assets/brvtal-logo-640.webp" imagesrcset="assets/brvtal-logo-640.webp 640w, assets/brvtal-logo-886.webp 886w" imagesizes="(min-width: 1239px) 520px, 42vw" type="image/webp" media="(min-width: 901px)" fetchpriority="high">';
+    $mobilePreload = '<link data-brvtal-lcp-preload="mobile" rel="preload" as="image" href="assets/brvtal-logo.jpeg" media="(max-width: 900px)" fetchpriority="high">';
+
+    if (!str_contains($html, $coreStyle) || str_contains($html, 'data-brvtal-lcp-preload="desktop"')) {
+        return $html;
+    }
+
+    return str_replace($coreStyle, $desktopPreload . "\n  " . $mobilePreload . "\n  " . $coreStyle, $html);
+}
+
+function brvtal_public_keep_home_lcp_visible(string $html): string
+{
+    $coreStyle = '<link rel="stylesheet" href="css/style.css">';
+    $criticalStyle = '<style data-brvtal-lcp-visible>.hero-logo-wrap{opacity:1!important}</style>';
+
+    if (!str_contains($html, $coreStyle) || str_contains($html, $criticalStyle)) {
+        return $html;
+    }
+
+    return str_replace($coreStyle, $criticalStyle . "\n  " . $coreStyle, $html);
+}
+
+function brvtal_public_dedupe_decorative_assets(string $html): string
+{
+    if (!str_contains($html, 'rel="icon"')) {
+        $html = str_replace(
+            '</head>',
+            "  <link rel=\"icon\" type=\"image/jpeg\" href=\"assets/brvtal-logo.jpeg\">\n</head>",
+            $html
+        );
+    }
+
+    $html = str_replace(
+        '<div class="hero-logo-glitch"></div>',
+        '<div class="hero-logo-glitch" style="background-image:none"><picture style="display:block;width:100%;height:100%"><source media="(min-width: 901px)" type="image/webp" srcset="assets/brvtal-logo-640.webp 640w, assets/brvtal-logo-886.webp 886w" sizes="(min-width: 1239px) 520px, 42vw"><img src="assets/brvtal-logo.jpeg" alt="" aria-hidden="true" loading="eager" decoding="async" style="width:100%;height:100%;object-fit:cover;display:block"></picture></div>',
+        $html
+    );
+
+    $html = str_replace(
+        '<div class="genesis-bg"></div>',
+        '<div class="genesis-bg" style="background-image:none"><picture style="display:block;width:100%;height:100%"><source media="(min-width: 901px)" type="image/webp" srcset="assets/flyers/genesis-640.webp 640w, assets/flyers/genesis-886.webp 886w" sizes="100vw"><img src="assets/flyers/F60DFB48-3DB5-4E3E-B627-BF1B8129EB1D_1_105_c.jpeg" alt="" aria-hidden="true" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;display:block"></picture></div>',
+        $html
+    );
+
+    return $html;
+}
+
+function brvtal_public_optimize_font_stylesheet(string $html): string
+{
+    $href = 'https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800;900&family=Space+Mono:wght@400;700&display=swap';
+    $blocking = '<link href="' . $href . '" rel="stylesheet">';
+    if (!str_contains($html, $blocking)) return $html;
+
+    $preload = '<link rel="preload" href="' . $href . '" as="style" onload="this.onload=null;this.rel=\'stylesheet\'">';
+    $fallback = '<noscript><link href="' . $href . '" rel="stylesheet"></noscript>';
+
+    return str_replace($blocking, $preload . "\n  " . $fallback, $html);
+}
+
+function brvtal_public_inline_stylesheets(string $html, array $paths): string
+{
+    $root = realpath(dirname(__DIR__));
+    if ($root === false) return $html;
+    $root = rtrim(str_replace('\\', '/', $root), '/');
+
+    $inline = [];
+    foreach ($paths as $requestedPath) {
+        $path = ltrim(trim((string)$requestedPath), '/');
+        if ($path === '' || !str_starts_with($path, 'css/') || str_contains($path, '..')) continue;
+
+        $absolute = realpath(dirname(__DIR__) . '/' . $path);
+        if ($absolute === false || !is_file($absolute)) continue;
+        $absolute = str_replace('\\', '/', $absolute);
+        if (!str_starts_with($absolute, $root . '/css/')) continue;
+
+        $css = @file_get_contents($absolute);
+        if (!is_string($css) || $css === '') continue;
+        $inline[$path] = $css;
+    }
+    if ($inline === []) return $html;
+
+    return preg_replace_callback(
+        '~<link\b(?=[^>]*\brel="stylesheet")(?=[^>]*\bhref="([^"]+)")[^>]*>~i',
+        static function (array $match) use ($inline): string {
+            $href = (string)$match[1];
+            $path = parse_url($href, PHP_URL_PATH);
+            $path = is_string($path) ? ltrim($path, '/') : '';
+            if (!isset($inline[$path])) return $match[0];
+
+            return '<style data-brvtal-inline="' . htmlspecialchars($path, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '">' . $inline[$path] . '</style>';
+        },
+        $html
+    ) ?? $html;
+}
+
+function brvtal_public_defer_stylesheets(string $html, array $paths): string
+{
+    $targets = [];
+    foreach ($paths as $path) {
+        $path = ltrim(trim((string)$path), '/');
+        if ($path !== '') $targets[$path] = true;
+    }
+    if (!$targets) return $html;
+
+    return preg_replace_callback(
+        '~<link\b(?=[^>]*\brel="stylesheet")(?=[^>]*\bhref="([^"]+)")[^>]*>~i',
+        static function (array $match) use ($targets): string {
+            $tag = $match[0];
+            $href = (string)$match[1];
+            $path = parse_url($href, PHP_URL_PATH);
+            $path = is_string($path) ? ltrim($path, '/') : '';
+            if (!isset($targets[$path])) return $tag;
+
+            return '<link rel="stylesheet" href="' . $href . '" media="print" onload="this.media=\'all\'">'
+                . '<noscript><link rel="stylesheet" href="' . $href . '"></noscript>';
+        },
+        $html
+    ) ?? $html;
+}
+
+function brvtal_public_local_image_dimensions(string $src): ?array
+{
+    static $cache = [];
+
+    $src = trim(html_entity_decode($src, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+    if ($src === '' || str_contains($src, "\0")) return null;
+    if (array_key_exists($src, $cache)) return $cache[$src];
+
+    $parts = parse_url($src);
+    if ($parts === false || isset($parts['scheme']) || isset($parts['host'])) {
+        return $cache[$src] = null;
+    }
+
+    $path = ltrim((string)($parts['path'] ?? ''), '/');
+    if ($path === '' || str_contains($path, '..')) {
+        return $cache[$src] = null;
+    }
+    if (!str_starts_with($path, 'assets/') && !str_starts_with($path, 'uploads/')) {
+        return $cache[$src] = null;
+    }
+
+    $root = realpath(dirname(__DIR__));
+    $absolute = realpath(dirname(__DIR__) . '/' . $path);
+    if ($root === false || $absolute === false) {
+        return $cache[$src] = null;
+    }
+
+    $root = rtrim(str_replace('\\', '/', $root), '/');
+    $absolute = str_replace('\\', '/', $absolute);
+    if ($absolute !== $root && !str_starts_with($absolute, $root . '/')) {
+        return $cache[$src] = null;
+    }
+
+    $info = @getimagesize($absolute);
+    if (!is_array($info) || (int)($info[0] ?? 0) < 1 || (int)($info[1] ?? 0) < 1) {
+        return $cache[$src] = null;
+    }
+
+    return $cache[$src] = [
+        'width' => (int)$info[0],
+        'height' => (int)$info[1],
+    ];
+}
+
+/**
+ * Build a safe, aspect-ratio-preserving WebP srcset for server-rendered
+ * CMS upload images. Original URLs remain the fallback and are never deleted.
+ * A missing/broken Media Engine sidecar leaves the original untouched.
+ */
+function brvtal_public_home_webp_srcset(string $src): ?array
+{
+    $path = parse_url(html_entity_decode($src, ENT_QUOTES | ENT_HTML5, 'UTF-8'), PHP_URL_PATH);
+    if (!is_string($path) || !str_starts_with(ltrim($path, '/'), 'uploads/')) {
+        return null;
+    }
+
+    require_once __DIR__ . '/../api/public-media-delivery.php';
+    $delivery = brvtal_public_media_delivery_for_path('/' . ltrim($path, '/'));
+    if ($delivery === null) return null;
+
+    $originalWidth = (int)($delivery['width'] ?? 0);
+    $originalHeight = (int)($delivery['height'] ?? 0);
+    if ($originalWidth < 1 || $originalHeight < 1) return null;
+
+    $entries = [];
+    foreach (['display', 'w1280', 'w1920'] as $name) {
+        $variant = $delivery['variants'][$name] ?? null;
+        if (!is_array($variant)) continue;
+        $width = (int)($variant['width'] ?? 0);
+        $height = (int)($variant['height'] ?? 0);
+        $url = (string)($variant['src'] ?? '');
+        if ($width < 1 || $height < 1 || !str_starts_with($url, '/uploads/')) continue;
+
+        // Do not mix cropped squares/cards with the original aspect ratio.
+        $originalRatio = $originalWidth / $originalHeight;
+        if (abs($width / $height - $originalRatio) > $originalRatio * 0.03) continue;
+
+        $absolute = realpath(dirname(__DIR__) . '/' . ltrim($url, '/'));
+        $root = realpath(dirname(__DIR__) . '/uploads');
+        if ($absolute === false || $root === false || !str_starts_with($absolute, $root . DIRECTORY_SEPARATOR)) {
+            continue;
+        }
+        $details = @getimagesize($absolute);
+        if (!is_array($details) || ($details['mime'] ?? '') !== 'image/webp') continue;
+        $entries[$width] = htmlspecialchars($url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . ' ' . $width . 'w';
+    }
+
+    if ($entries === []) return null;
+    ksort($entries, SORT_NUMERIC);
+    return [
+        'srcset' => implode(', ', $entries),
+        'width' => $originalWidth,
+        'height' => $originalHeight,
+    ];
+}
+
+
+/**
+ * Remove duplicate local Home assets after all Concept05 and legacy injections.
+ * Keep the LAST stylesheet to preserve the final cascade, and the FIRST script
+ * to preserve execution order. A noscript fallback is not a second network
+ * request in JS-enabled browsing and must never be removed with its live link.
+ */
+function brvtalPublicHomeDedupeAssets(string $html): string
+{
+    if (preg_match_all(
+        '~<link\b[^>]*>|<style\b[^>]*>.*?</style\s*>|<script\b[^>]*>.*?</script\s*>~is',
+        $html,
+        $tags,
+        PREG_OFFSET_CAPTURE
+    ) === false) {
+        return $html;
+    }
+    preg_match_all('~<noscript\b[^>]*>.*?</noscript\s*>~is', $html, $noscripts, PREG_OFFSET_CAPTURE);
+
+    $lastCss = [];
+    $firstScript = [];
+    $removed = [];
+    foreach ($tags[0] as [$tag, $offset]) {
+        $fallback = false;
+        foreach ($noscripts[0] ?? [] as [$block, $start]) {
+            if ($offset >= $start && $offset < $start + strlen($block)) {
+                $fallback = true;
+                break;
+            }
+        }
+        $scope = $fallback ? 'noscript:' : 'active:';
+        $key = '';
+        $isStylesheet = false;
+
+        if (preg_match('~^<link\b~i', $tag) === 1) {
+            if (preg_match('~\brel\s*=\s*(["\'])stylesheet\1~i', $tag) !== 1
+                || preg_match('~\bhref\s*=\s*(["\'])(.*?)\1~i', $tag, $attribute) !== 1) {
+                continue;
+            }
+            $url = parse_url(html_entity_decode($attribute[2], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+            if (!is_array($url) || isset($url['scheme']) || isset($url['host'])) {
+                continue;
+            }
+            $path = ltrim((string)($url['path'] ?? ''), '/');
+            if (!str_starts_with($path, 'css/')) {
+                continue;
+            }
+            $media = 'all';
+            if (preg_match('~\bmedia\s*=\s*(["\'])(.*?)\1~i', $tag, $attribute) === 1) {
+                $media = strtolower(trim($attribute[2]));
+            }
+            $key = $scope . 'css-link:' . $media . ':' . $path;
+            $isStylesheet = true;
+        } elseif (preg_match('~^<style\b~i', $tag) === 1) {
+            if (preg_match('~\bdata-brvtal-inline\s*=\s*(["\'])(.*?)\1~i', $tag, $attribute) !== 1) {
+                continue;
+            }
+            $key = $scope . 'css-inline:' . $attribute[2];
+            $isStylesheet = true;
+        } elseif (preg_match('~^<script\b~i', $tag) === 1) {
+            if (preg_match('~\bsrc\s*=\s*(["\'])(.*?)\1~i', $tag, $attribute) !== 1) {
+                continue;
+            }
+            $url = parse_url(html_entity_decode($attribute[2], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+            if (!is_array($url) || isset($url['scheme']) || isset($url['host'])) {
+                continue;
+            }
+            $path = ltrim((string)($url['path'] ?? ''), '/');
+            if (!str_starts_with($path, 'js/')) {
+                continue;
+            }
+            $opening = substr($tag, 0, (strpos($tag, '>') ?: strlen($tag)) + 1);
+            $type = '';
+            if (preg_match('~\btype\s*=\s*(["\'])(.*?)\1~i', $opening, $typeMatch) === 1) {
+                $type = strtolower(trim($typeMatch[2]));
+            }
+            $mode = (preg_match('~\bdefer(?:\s|=|>)~i', $opening) === 1 ? 'd' : '-')
+                . (preg_match('~\basync(?:\s|=|>)~i', $opening) === 1 ? 'a' : '-')
+                . (preg_match('~\bnomodule(?:\s|=|>)~i', $opening) === 1 ? 'n' : '-');
+            $key = $scope . 'script:' . $type . ':' . $mode . ':' . $path;
+        }
+
+        if ($key === '') {
+            continue;
+        }
+        $range = [$offset, strlen($tag)];
+        if ($isStylesheet) {
+            if (isset($lastCss[$key])) {
+                $removed[] = $lastCss[$key];
+            }
+            $lastCss[$key] = $range;
+        } elseif (isset($firstScript[$key])) {
+            $removed[] = $range;
+        } else {
+            $firstScript[$key] = true;
+        }
+    }
+
+    // Offsets refer to the original HTML; edit from right to left.
+    usort($removed, static fn(array $a, array $b): int => $b[0] <=> $a[0]);
+    foreach ($removed as [$offset, $length]) {
+        $html = substr_replace($html, '', $offset, $length);
+    }
+
+    return $html;
+}
+
+function brvtal_public_optimize_home_images(string $html): string
+{
+    $html = brvtalPublicHomeDedupeAssets($html);
+    return preg_replace_callback(
+        '~<img\b[^>]*>~i',
+        static function (array $match): string {
+            $tag = $match[0];
+            $isHeroLogo = preg_match('~class="[^"]*\bhero-logo\b[^"]*"~i', $tag) === 1;
+            $attributes = [];
+
+            if (preg_match('~\bloading\s*=~i', $tag) !== 1) {
+                $attributes[] = 'loading="' . ($isHeroLogo ? 'eager' : 'lazy') . '"';
+            }
+            if ($isHeroLogo && preg_match('~\bfetchpriority\s*=~i', $tag) !== 1) {
+                $attributes[] = 'fetchpriority="high"';
+            }
+            if (preg_match('~\bdecoding\s*=~i', $tag) !== 1) {
+                $attributes[] = 'decoding="async"';
+            }
+
+            $hasWidth = preg_match('~\bwidth\s*=~i', $tag) === 1;
+            $hasHeight = preg_match('~\bheight\s*=~i', $tag) === 1;
+            if ((!$hasWidth || !$hasHeight) && preg_match('~\bsrc\s*=\s*(["\'])(.*?)\1~i', $tag, $srcMatch) === 1) {
+                $dimensions = brvtal_public_local_image_dimensions((string)$srcMatch[2]);
+                if (is_array($dimensions)) {
+                    if (!$hasWidth) {
+                        $attributes[] = 'width="' . $dimensions['width'] . '"';
+                        $hasWidth = true;
+                    }
+                    if (!$hasHeight) {
+                        $attributes[] = 'height="' . $dimensions['height'] . '"';
+                        $hasHeight = true;
+                    }
+                }
+            }
+
+            // Choose an existing WebP derivative before the browser requests
+            // a multi-megabyte upload. The original src stays as the fallback.
+            if (preg_match('~\\bsrcset\\s*=~i', $tag) !== 1
+                && preg_match('~\\bsrc\\s*=\\s*(["\\\'])(.*?)\\1~i', $tag, $sourceMatch) === 1) {
+                $responsive = brvtal_public_home_webp_srcset((string)$sourceMatch[2]);
+                if ($responsive !== null) {
+                    $attributes[] = 'srcset="' . $responsive['srcset'] . '"';
+                    if (preg_match('~\\bsizes\\s*=~i', $tag) !== 1) {
+                        $attributes[] = 'sizes="(max-width: 900px) 100vw, 50vw"';
+                    }
+                    if (!$hasWidth) $attributes[] = 'width="' . $responsive['width'] . '"';
+                    if (!$hasHeight) $attributes[] = 'height="' . $responsive['height'] . '"';
+                }
+            }
+
+            if (!$attributes) return $tag;
+
+            return preg_replace('~^<img\b~i', '<img ' . implode(' ', $attributes), $tag, 1) ?? $tag;
+        },
+        $html
+    ) ?? $html;
+}

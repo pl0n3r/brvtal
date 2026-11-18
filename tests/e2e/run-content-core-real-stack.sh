@@ -1,0 +1,206 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ "${GITHUB_ACTIONS:-}" != "true" && "${BRVTAL_REAL_STACK_FORCE:-0}" != "1" ]]; then
+  echo "Skipping Content Core real-stack smoke outside GitHub Actions. Set BRVTAL_REAL_STACK_FORCE=1 to run it locally."
+  exit 0
+fi
+
+DB_HOST="${BRVTAL_TEST_DB_HOST:-127.0.0.1}"
+DB_PORT="${BRVTAL_TEST_DB_PORT:-3306}"
+DB_NAME="${BRVTAL_TEST_DB_NAME:-brvtal_test_ci}"
+DB_USER="${BRVTAL_TEST_DB_USER:-root}"
+DB_PASS="${BRVTAL_TEST_DB_PASS:-brvtal_root}"
+BASE_URL="${BRVTAL_REAL_STACK_URL:-http://127.0.0.1:4174}"
+ADMIN_EMAIL="${BRVTAL_REAL_STACK_ADMIN_EMAIL:-ci-admin@brvtal.test}"
+ADMIN_PASSWORD="${BRVTAL_REAL_STACK_ADMIN_PASSWORD:-brvtal-ci-password}"
+RECOVERY_ADMIN_EMAIL="${BRVTAL_REAL_STACK_RECOVERY_ADMIN_EMAIL:-ci-recovery@brvtal.test}"
+PHP_LOG="${RUNNER_TEMP:-/tmp}/brvtal-real-stack-php.log"
+INDEXNOW_STUB_PORT="${BRVTAL_INDEXNOW_STUB_PORT:-4175}"
+INDEXNOW_STUB_ORIGIN="http://127.0.0.1:${INDEXNOW_STUB_PORT}"
+INDEXNOW_STUB_URL="${INDEXNOW_STUB_ORIGIN}/indexnow"
+INDEXNOW_STUB_LOG="${RUNNER_TEMP:-/tmp}/brvtal-indexnow-stub.log"
+MAIL_CAPTURE="${RUNNER_TEMP:-/tmp}/brvtal-password-mail.jsonl"
+rm -f "$MAIL_CAPTURE"
+
+if [[ ! "$DB_NAME" =~ ^brvtal_test[a-zA-Z0-9_]*$ ]]; then
+  echo "Refusing to run real-stack smoke against non-test database: $DB_NAME" >&2
+  exit 1
+fi
+
+DB_CLI="${BRVTAL_TEST_DB_CLI:-}"
+if [[ -z "$DB_CLI" ]]; then
+  if command -v mariadb >/dev/null 2>&1; then
+    DB_CLI="mariadb"
+  elif command -v mysql >/dev/null 2>&1; then
+    DB_CLI="mysql"
+  else
+    echo "Neither mariadb nor mysql client is available." >&2
+    exit 1
+  fi
+fi
+
+mysql_root=("$DB_CLI" -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USER" -p"$DB_PASS")
+mysql_db=("$DB_CLI" -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USER" -p"$DB_PASS" "$DB_NAME")
+
+"${mysql_root[@]}" -e "DROP DATABASE IF EXISTS \`$DB_NAME\`; CREATE DATABASE \`$DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+
+sed \
+  -e "s/CREATE DATABASE IF NOT EXISTS brvtal /CREATE DATABASE IF NOT EXISTS $DB_NAME /" \
+  -e "s/USE brvtal;/USE $DB_NAME;/" \
+  database/schema.sql | "${mysql_root[@]}"
+
+"${mysql_db[@]}" < database/migration_content_core_01.sql
+"${mysql_db[@]}" < database/migration_artist_collective_membership_01.sql
+"${mysql_db[@]}" < database/migration_releases_01.sql
+"${mysql_db[@]}" < database/migration_blog_01.sql
+"${mysql_db[@]}" < database/migration_blog_trash_01.sql
+"${mysql_db[@]}" < database/migration_seo_01.sql
+"${mysql_db[@]}" < database/migration_totp_foundation.sql
+"${mysql_db[@]}" < database/migration_admin_activity_01.sql
+"${mysql_db[@]}" < database/migration_memories_01.sql
+"${mysql_db[@]}" < database/migration_memory_relations_01.sql
+
+ADMIN_HASH="$(php -r 'echo password_hash(getenv("BRVTAL_REAL_STACK_ADMIN_PASSWORD") ?: "brvtal-ci-password", PASSWORD_DEFAULT);')"
+"${mysql_db[@]}" -e "INSERT INTO admins(email,password_hash,name,is_active,totp_enabled) VALUES ('$ADMIN_EMAIL','$ADMIN_HASH','CI Admin',1,0),('$RECOVERY_ADMIN_EMAIL','$ADMIN_HASH','CI Recovery Admin',1,0);"
+"${mysql_db[@]}" -e "INSERT INTO artists(name,slug,bio,status,is_collective_member,sort_order) VALUES ('PL0N3R SMOKE','pl0n3r-smoke','Real-stack smoke artist','published',1,1),('DNL5 SMOKE','dnl5-smoke','Secondary smoke artist','published',1,2);"
+
+mkdir -p storage/logs storage/rate_limits uploads/ci
+printf 'BRVTAL CI hero fixture\n' > uploads/ci/hero-integrity.jpg
+"${mysql_db[@]}" -e "INSERT INTO media(type,title,file_path,mime_type,file_size,alt_text,status) VALUES ('image','CI Hero','/uploads/ci/hero-integrity.jpg','image/jpeg',22,'CI Hero','published'),('image','CI Missing Hero','/uploads/ci/hero-missing.jpg','image/jpeg',22,'CI Missing Hero','published');"
+cat > config/config.php <<PHP
+<?php
+return [
+    'app' => [
+        'name' => 'BRVTAL',
+        'base_url' => '$BASE_URL',
+        'timezone' => 'America/Bogota',
+        'debug' => false,
+    ],
+    'db' => [
+        'host' => '$DB_HOST',
+        'port' => $DB_PORT,
+        'name' => '$DB_NAME',
+        'user' => '$DB_USER',
+        'pass' => '$DB_PASS',
+        'charset' => 'utf8mb4',
+    ],
+    'security' => [
+        'session_name' => 'BRVTAL_ADMIN_CI',
+        'csrf_key' => 'ci-only-csrf-key-9c7bff9-real-stack-smoke',
+        'encryption_key' => 'ci-only-encryption-key-32-bytes-minimum-real-stack',
+    ],
+    'hosting' => [
+        'storage_quota_bytes' => 25 * 1024 * 1024 * 1024,
+    ],
+    'backups' => [
+        'media_archive_max_bytes' => 2 * 1024 * 1024 * 1024,
+    ],
+    'indexnow' => [
+        'endpoint' => '$INDEXNOW_STUB_URL',
+    ],
+];
+PHP
+
+cleanup() {
+  local status=$?
+  if [[ -n "${PHP_PID:-}" ]]; then kill "$PHP_PID" >/dev/null 2>&1 || true; fi
+  if [[ -n "${INDEXNOW_PID:-}" ]]; then kill "$INDEXNOW_PID" >/dev/null 2>&1 || true; fi
+  if [[ -n "${PASSWORD_WORKER_PID:-}" ]]; then kill "$PASSWORD_WORKER_PID" >/dev/null 2>&1 || true; fi
+  rm -f config/config.php uploads/ci/hero-integrity.jpg "$MAIL_CAPTURE" "${BULK_FIXTURE_SQL:-}"
+  if [[ $status -ne 0 && -f "$PHP_LOG" ]]; then
+    echo "--- PHP server log ---" >&2
+    cat "$PHP_LOG" >&2 || true
+  fi
+  if [[ $status -ne 0 && -f "$INDEXNOW_STUB_LOG" ]]; then
+    echo "--- IndexNow stub log ---" >&2
+    cat "$INDEXNOW_STUB_LOG" >&2 || true
+  fi
+  exit "$status"
+}
+trap cleanup EXIT INT TERM
+
+BRVTAL_INDEXNOW_STUB_PORT="$INDEXNOW_STUB_PORT" node tests/e2e/indexnow-receiver.mjs >"$INDEXNOW_STUB_LOG" 2>&1 &
+INDEXNOW_PID=$!
+
+stub_ready=0
+for _ in $(seq 1 40); do
+  if curl -fsS "$INDEXNOW_STUB_ORIGIN/health" >/dev/null 2>&1; then
+    stub_ready=1
+    break
+  fi
+  if ! kill -0 "$INDEXNOW_PID" >/dev/null 2>&1; then
+    echo "IndexNow stub exited before becoming ready." >&2
+    exit 1
+  fi
+  sleep 0.1
+done
+if [[ "$stub_ready" != "1" ]]; then
+  echo "Timed out waiting for IndexNow stub." >&2
+  exit 1
+fi
+
+BRVTAL_MAIL_TESTING=1 BRVTAL_MAIL_CAPTURE_FILE="$MAIL_CAPTURE" PHP_CLI_SERVER_WORKERS="${PHP_CLI_SERVER_WORKERS:-4}" php -S 127.0.0.1:4174 -t . >"$PHP_LOG" 2>&1 &
+PHP_PID=$!
+
+ready=0
+for _ in $(seq 1 40); do
+  if curl -fsS "$BASE_URL/api/index.php/health" >/dev/null 2>&1; then
+    ready=1
+    break
+  fi
+  if ! kill -0 "$PHP_PID" >/dev/null 2>&1; then
+    echo "PHP development server exited before becoming ready." >&2
+    exit 1
+  fi
+  sleep 0.25
+done
+
+if [[ "$ready" != "1" ]]; then
+  echo "Timed out waiting for BRVTAL real-stack test server." >&2
+  exit 1
+fi
+
+password_worker() {
+  while kill -0 "$PHP_PID" >/dev/null 2>&1; do
+    BRVTAL_MAIL_TESTING=1 BRVTAL_MAIL_CAPTURE_FILE="$MAIL_CAPTURE" \
+      php ops/admin-password-mail-worker.php --once >/dev/null 2>&1 || true
+    sleep 0.2
+  done
+}
+password_worker &
+PASSWORD_WORKER_PID=$!
+
+export BRVTAL_REAL_STACK_URL="$BASE_URL"
+export BRVTAL_REAL_STACK_ADMIN_EMAIL="$ADMIN_EMAIL"
+export BRVTAL_REAL_STACK_ADMIN_PASSWORD="$ADMIN_PASSWORD"
+export BRVTAL_REAL_STACK_RECOVERY_ADMIN_EMAIL="$RECOVERY_ADMIN_EMAIL"
+export BRVTAL_INDEXNOW_STUB_ORIGIN="$INDEXNOW_STUB_ORIGIN"
+export BRVTAL_MAIL_CAPTURE_FILE="$MAIL_CAPTURE"
+npx playwright test \
+  tests/e2e/discadmin-premium-real-stack.spec.mjs \
+  tests/e2e/admin-performance-real-stack.spec.mjs \
+  tests/e2e/content-core-real-stack.spec.mjs \
+  tests/e2e/discadmin-event-version-restore.spec.mjs \
+  tests/e2e/theme-active-reference-real-stack.spec.mjs \
+  tests/e2e/public-preview-real-stack.spec.mjs \
+  tests/e2e/event-publication-invariant-real-stack.spec.mjs \
+  tests/e2e/blog-relation-integrity-real-stack.spec.mjs \
+  tests/e2e/memory-relations-real-stack.spec.mjs \
+  tests/e2e/hero-slider-integrity-real-stack.spec.mjs \
+  tests/e2e/indexnow-real-stack.spec.mjs \
+  tests/e2e/discadmin-password-recovery-real-stack.spec.mjs \
+  --project=chromium
+
+BULK_FIXTURE_SQL="${RUNNER_TEMP:-/tmp}/brvtal-bulk-cursor-fixtures.sql"
+{
+  echo "INSERT INTO events(title,slug,event_date,venue,city,description,status,sort_order) VALUES"
+  for i in $(seq 1 605); do
+    terminator=","
+    if [[ "$i" == "605" ]]; then terminator=";"; fi
+    printf "('BULK CURSOR FIXTURE %04d','bulk-cursor-fixture-%04d','2026-12-31 21:00:00','CI Warehouse','Pereira','Disposable Bulk Catalog Cursor V2 fixture','draft',%d)%s\\n" "$i" "$i" "$i" "$terminator"
+  done
+} > "$BULK_FIXTURE_SQL"
+"${mysql_db[@]}" < "$BULK_FIXTURE_SQL"
+
+npx playwright test tests/e2e/discadmin-bulk-actions-cursor.spec.mjs --project=chromium --workers=1

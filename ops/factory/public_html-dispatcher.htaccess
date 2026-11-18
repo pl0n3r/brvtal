@@ -1,0 +1,14 @@
+# BRVTAL FACTORY DISPATCHER v1
+Options -Indexes
+DirectoryIndex index.php index.html
+
+RewriteEngine On
+
+# Reject direct browser access to the internal release pointer while allowing
+# the internal rewrite below to traverse it.
+RewriteCond %{THE_REQUEST} "\\s/+\\.factory-current(?:[/?\\s])" [NC]
+RewriteRule ^\\.factory-current(?:/.*)?$ - [F,L]
+
+# public_html remains the fixed Hostinger document root. Every request is
+# dispatched internally to the atomically switched release symlink.
+RewriteRule ^(?!\\.factory-current(?:/|$))(.*)$ .factory-current/$1 [L]

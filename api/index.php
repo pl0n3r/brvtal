@@ -1,0 +1,1194 @@
+<?php
+declare(strict_types=1);
+require_once __DIR__ . '/../config/admin_activity.php';
+require_once __DIR__ . '/../config/artist_hero_framing.php';
+require_once __DIR__ . '/../config/migration_reconcile.php';
+require_once __DIR__ . '/../config/event_lifecycle.php';
+require_once __DIR__ . '/../config/set_publication.php';
+require_once __DIR__ . '/../config/totp_auth.php';
+require_once __DIR__ . '/../config/password_rate_limit.php';
+require_once __DIR__ . '/../config/admin_password_security.php';
+require_once __DIR__ . '/../config/indexnow.php';
+require_once __DIR__ . '/../config/hero_slider_integrity.php';
+require_once __DIR__ . '/../config/public_home.php';
+require_once __DIR__ . '/admin-read-plan.php';
+require_once __DIR__ . '/route.php';
+require_once __DIR__ . '/pages-contract.php';
+require_once __DIR__ . '/content-validation.php';
+
+function client_key(): string {
+    $ip = (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+    return hash('sha256', $ip . '|' . strtolower((string)($_POST['email'] ?? '')));
+}
+
+function rate_limit_login(string $email, bool $recordFailure = false): void {
+    $state = $recordFailure
+        ? brvtal_password_rate_limit_failure($email)
+        : brvtal_password_rate_limit_check($email);
+    if (!$state['limited']) return;
+    $retryAfter = max(1, (int)$state['retry_after']);
+    json_response(
+        ['ok'=>false,'error'=>'RATE_LIMITED','retry_after'=>$retryAfter],
+        429,
+        ['Retry-After'=>(string)$retryAfter]
+    );
+}
+
+function reset_login_rate_limit(string $email): void {
+    brvtal_password_rate_limit_reset($email);
+}
+
+function brvtal_auth_password_error_status(Throwable $e): ?array
+{
+    if ($e->getMessage() === 'RATE_LIMITED') {
+        return ['error' => 'RATE_LIMITED', 'status' => 429];
+    }
+    $known = [
+        'INVALID_CREDENTIALS',
+        'PASSWORD_TOO_SHORT',
+        'PASSWORD_TOO_LONG',
+        'PASSWORD_REUSED',
+        'PASSWORD_COMMON',
+        'PASSWORD_HASH_FAILED',
+        'RESET_TOKEN_INVALID',
+        'SECOND_FACTOR_REQUIRED',
+        'PASSWORD_CHANGE_CONFLICT',
+    ];
+    $code = $e->getMessage();
+    return in_array($code, $known, true)
+        ? ['error' => $code, 'status' => 422]
+        : null;
+}
+
+function method_not_allowed(): never { json_response(['ok'=>false,'error'=>'METHOD_NOT_ALLOWED'],405,['Allow'=>'GET, POST, PUT, DELETE']); }
+function ensure_string(array &$d, string $key, int $max): void { if (array_key_exists($key,$d)) $d[$key] = mb_substr(trim((string)$d[$key]),0,$max); }
+/** Nullable canonical duration in seconds, never inferred from a title or embed. */
+function brvtal_set_duration_normalize(mixed $value): ?int
+{
+    if ($value === null) {
+        return null;
+    }
+    // A canonical decimal string is allowed for regular admin form controls.
+    // Leading zeroes, whitespace, exponents, booleans and floats are ambiguous.
+    if (is_string($value) && preg_match('/^[1-9][0-9]{0,4}$/D', $value) === 1) {
+        $value = (int)$value;
+    }
+    if (!is_int($value) || $value < 1 || $value > 86400) {
+        throw new InvalidArgumentException('INVALID_SET_DURATION');
+    }
+    return $value;
+}
+
+/** Deny duration writes until the additive Set duration schema is physically ready. */
+function brvtal_set_duration_schema_ready(PDO $pdo): bool
+{
+    $st = $pdo->prepare(
+        'SELECT DATA_TYPE, COLUMN_TYPE, IS_NULLABLE FROM information_schema.COLUMNS '
+        . 'WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?'
+    );
+    $st->execute(['sets_media', 'duration_seconds']);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+    return brvtalMigrationDurationColumnMatches($row);
+}
+
+function brvtal_set_duration_require_schema(PDO $pdo, string $resource, array $payload): void
+{
+    if ($resource !== 'sets' || !array_key_exists('duration_seconds', $payload)) {
+        return;
+    }
+    if (!brvtal_set_duration_schema_ready($pdo)) {
+        json_response(['ok' => false, 'error' => 'SET_DURATION_SCHEMA_PENDING', 'field' => 'duration_seconds'], 503);
+    }
+}
+
+function sanitize_payload(string $resource, array $d): array {
+    if ($resource === 'sets' && array_key_exists('duration_seconds', $d)) {
+        try {
+            $d['duration_seconds'] = brvtal_set_duration_normalize($d['duration_seconds']);
+        } catch (InvalidArgumentException) {
+            json_response(['ok' => false, 'error' => 'INVALID_SET_DURATION', 'field' => 'duration_seconds'], 422);
+        }
+    }
+    $limits=['title'=>180,'slug'=>190,'name'=>180,'venue'=>180,'city'=>120,'skin'=>60,'accent'=>30,'cover_image'=>500,'ticket_url'=>700,'photo'=>500,'instagram_url'=>700,'soundcloud_url'=>700,'website_url'=>700,'external_url'=>700,'embed_url'=>700,'file_path'=>500,'mime_type'=>120,'alt_text'=>255,'seo_title'=>190,'seo_description'=>320,'locale'=>2,'platform'=>20,'status'=>20,'type'=>20,'role'=>80,'currency'=>3,'price'=>30,'payment_instructions'=>4000];
+    foreach($limits as $k=>$n) ensure_string($d,$k,$n);
+    foreach(['ticket_url','instagram_url','soundcloud_url','website_url','external_url','embed_url'] as $k) if(array_key_exists($k,$d)) { $v=valid_url_or_empty($d[$k]); if($d[$k]!=='' && $v===null) json_response(['ok'=>false,'error'=>'INVALID_URL','field'=>$k],422); $d[$k]=$v; }
+    if(isset($d['slug'])) $d['slug']=slugify((string)$d['slug']);
+    if(isset($d['accent']) && $d['accent']!=='' && !preg_match('/^#[0-9a-fA-F]{6}$/',(string)$d['accent'])) json_response(['ok'=>false,'error'=>'INVALID_ACCENT'],422);
+    if(isset($d['status']) && !in_array($d['status'], $resource==='events'?['draft','published','upcoming','tickets_available','last_tickets','sold_out','cancelled','finished','archived']:($resource==='ticket_types'?['draft','active','inactive','sold_out']:['draft','published']), true)) json_response(['ok'=>false,'error'=>'INVALID_STATUS'],422);
+    if(isset($d['locale']) && !in_array($d['locale'],['es','en'],true)) json_response(['ok'=>false,'error'=>'INVALID_LOCALE'],422);
+    if(isset($d['platform']) && !in_array($d['platform'],['soundcloud','youtube','spotify','other'],true)) json_response(['ok'=>false,'error'=>'INVALID_PLATFORM'],422);
+    if($resource==='ticket_types' && isset($d['event_id']) && (int)$d['event_id']<1) json_response(['ok'=>false,'error'=>'INVALID_EVENT_ID'],422);
+    if($resource==='ticket_types' && isset($d['name']) && trim((string)$d['name'])==='') json_response(['ok'=>false,'error'=>'TICKET_NAME_REQUIRED'],422);
+    if(isset($d['currency']) && $d['currency']!=='' && !preg_match('/^[A-Z]{3}$/',(string)$d['currency'])) json_response(['ok'=>false,'error'=>'INVALID_CURRENCY'],422);
+    if(isset($d['price']) && $d['price']!=='' && (!is_numeric($d['price']) || (float)$d['price']<0)) json_response(['ok'=>false,'error'=>'INVALID_PRICE'],422);
+    if(isset($d['content_json']) && strlen((string)$d['content_json']) > 2*1024*1024) json_response(['ok'=>false,'error'=>'CONTENT_TOO_LARGE'],422);
+    if($resource==='pages' && array_key_exists('content_json',$d)) { $pageContentError=brvtal_page_content_json_error($d['content_json']); if($pageContentError!==null) json_response(['ok'=>false,'error'=>$pageContentError,'field'=>'content_json'],422); }
+    $temporal=brvtal_content_temporal_normalize($resource,$d);
+    if($temporal['error']!==null) json_response(['ok'=>false,'error'=>$temporal['error']['error'],'field'=>$temporal['error']['field']],422);
+    $visualError=brvtalContentVisualShapeError($resource,$temporal['payload']);
+    if($visualError!==null) json_response(['ok'=>false,'error'=>$visualError['error'],'field'=>$visualError['field']],422);
+    return $temporal['payload'];
+}
+function allowed_fields(string $resource): array
+{
+    return [
+        'events' => [
+            'title','slug','event_date','venue','city','description','skin','accent',
+            'cover_image','ticket_url','ticket_instructions','ticket_qr','featured',
+            'archive_year','status','sort_order','publish_at',
+        ],
+        'artists' => [
+            'name','slug','bio','photo','instagram_url','soundcloud_url','website_url',
+            'is_collective_member','status','sort_order',
+        ],
+        'sets' => [
+            'title','slug','artist_id','event_id','platform','external_url','embed_url',
+            'cover_image','description','duration_seconds','status','sort_order',
+        ],
+        'media' => ['type','title','file_path','mime_type','file_size','alt_text','status'],
+        'pages' => ['title','slug','locale','content_json','seo_title','seo_description','status'],
+        'ticket_types' => [
+            'event_id','name','description','price','currency','external_url',
+            'payment_instructions','qr_image','status','available_from',
+            'available_until','sort_order',
+        ],
+    ][$resource] ?? [];
+}
+/** Generate a stable unique slug when a Set is created without one. */
+function brvtal_available_set_slug(PDO $pdo, string $title, ?int $excludeId = null): string
+{
+    $base = substr(slugify($title), 0, 180);
+    if ($base === '') $base = 'set';
+    $sql = 'SELECT COUNT(*) FROM sets_media WHERE slug = ?';
+    if ($excludeId !== null) $sql .= ' AND id <> ?';
+    $check = $pdo->prepare($sql);
+    for ($n = 0; $n < 1000; ++$n) {
+        $candidate = $n === 0 ? $base : substr($base, 0, 170) . '-' . ($n + 1);
+        $params = $excludeId === null ? [$candidate] : [$candidate, $excludeId];
+        $check->execute($params);
+        if ((int)$check->fetchColumn() === 0) return $candidate;
+    }
+    throw new RuntimeException('SET_SLUGS_EXHAUSTED');
+}
+
+function brvtalSetArtistsReady(PDO $pdo): bool
+{
+    $st=$pdo->query("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='set_artists'");
+    return (int)$st->fetchColumn()===1;
+}
+
+/** @return ?list<int> Null means no relationship update was requested. */
+function brvtalSetArtistsInput(PDO $pdo,array $input,array &$fields): ?array
+{
+    if (!array_key_exists('artist_ids',$input) && !array_key_exists('artist_id',$input)) return null;
+    $raw=array_key_exists('artist_ids',$input) ? $input['artist_ids']
+        : ((($input['artist_id']??null)===null || $input['artist_id']==='') ? [] : [$input['artist_id']]);
+    if (!is_array($raw) || !array_is_list($raw) || count($raw)>30) {
+        json_response(['ok'=>false,'error'=>'INVALID_SET_ARTISTS','field'=>'artist_ids'],422);
+    }
+    $ids=[];
+    foreach ($raw as $value) {
+        $valid=is_int($value) || (is_string($value) && preg_match('/^[1-9][0-9]*$/D',$value));
+        if (!$valid || (int)$value<1 || (int)$value>2147483647) {
+            json_response(['ok'=>false,'error'=>'INVALID_SET_ARTISTS','field'=>'artist_ids'],422);
+        }
+        $ids[(int)$value]=(int)$value;
+    }
+    $ids=array_values($ids);
+    if (!brvtalSetArtistsReady($pdo)) {
+        json_response(['ok'=>false,'error'=>'SET_ARTISTS_SCHEMA_PENDING'],503);
+    }
+    if ($ids!==[]) {
+        $marks=implode(',',array_fill(0,count($ids),'?'));
+        $st=$pdo->prepare("SELECT id FROM artists WHERE id IN ({$marks})");
+        $st->execute($ids);
+        if (count($st->fetchAll(PDO::FETCH_COLUMN))!==count($ids)) {
+            json_response(['ok'=>false,'error'=>'SET_ARTIST_NOT_FOUND','field'=>'artist_ids'],422);
+        }
+    }
+    $fields['artist_id']=$ids[0]??null;
+    return $ids;
+}
+
+function brvtalSetArtistsSync(PDO $pdo,int $setId,array $ids): void
+{
+    $st=$pdo->prepare('DELETE FROM set_artists WHERE set_id=?');
+    $st->execute([$setId]);
+    $st=$pdo->prepare('INSERT INTO set_artists(set_id,artist_id,sort_order) VALUES(?,?,?)');
+    foreach ($ids as $order=>$artistId) $st->execute([$setId,$artistId,$order]);
+}
+
+/** @return mixed Fully populated rows for DiscAdmin, including unpublished DJs. */
+function brvtalSetArtistsEnrich(PDO $pdo,mixed $raw): mixed
+{
+    if (!is_array($raw) || $raw===[]) return $raw;
+    $single=!array_is_list($raw);
+    $rows=$single?[$raw]:$raw;
+    $setIds=array_values(array_unique(array_filter(array_map(static fn(array $r):int=>(int)($r['id']??0),$rows))));
+    $linked=[];
+    if ($setIds!==[] && brvtalSetArtistsReady($pdo)) {
+        $marks=implode(',',array_fill(0,count($setIds),'?'));
+        $st=$pdo->prepare("SELECT sa.set_id,sa.artist_id,a.name FROM set_artists sa JOIN artists a ON a.id=sa.artist_id WHERE sa.set_id IN ({$marks}) ORDER BY sa.sort_order,sa.artist_id");
+        $st->execute($setIds);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $a) $linked[(int)$a['set_id']][]=$a;
+    }
+    $legacyIds=[];
+    foreach ($rows as $r) if (empty($linked[(int)($r['id']??0)]) && (int)($r['artist_id']??0)>0) $legacyIds[(int)$r['artist_id']]=(int)$r['artist_id'];
+    $legacyNames=[];
+    if ($legacyIds!==[]) {
+        $marks=implode(',',array_fill(0,count($legacyIds),'?'));
+        $st=$pdo->prepare("SELECT id,name FROM artists WHERE id IN ({$marks})");
+        $st->execute(array_values($legacyIds));
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $a) $legacyNames[(int)$a['id']]=$a['name'];
+    }
+    foreach ($rows as &$r) {
+        $items=$linked[(int)($r['id']??0)]??[];
+        $legacy=(int)($r['artist_id']??0);
+        if (!$items && isset($legacyNames[$legacy])) $items=[['artist_id'=>$legacy,'name'=>$legacyNames[$legacy]]];
+        $r['artist_ids']=array_map(static fn(array $a):int=>(int)$a['artist_id'],$items);
+        $r['artist_names']=array_map(static fn(array $a):string=>(string)$a['name'],$items);
+        $r['artist_name']=implode(', ',$r['artist_names']);
+    }
+    unset($r);
+    return $single?$rows[0]:$rows;
+}
+
+function table_for(string $resource): string { return ['events'=>'events','artists'=>'artists','sets'=>'sets_media','media'=>'media','pages'=>'pages','ticket_types'=>'event_ticket_types','settings'=>'settings'][$resource] ?? ''; }
+function brvtal_activity_audited_resource(string $resource): bool { return in_array($resource,['events','artists','sets','pages','ticket_types'],true); }
+function brvtal_activity_fetch_resource(PDO $pdo, string $table, int $id, bool $lock = false): ?array {
+    $sql="SELECT * FROM {$table} WHERE id=? LIMIT 1" . ($lock ? ' FOR UPDATE' : '');
+    $st=$pdo->prepare($sql);$st->execute([$id]);$row=$st->fetch(PDO::FETCH_ASSOC);return $row?:null;
+}
+/** Acquire the cross-session database mutex that serializes Theme setting references. */
+function brvtalAcquireThemeReferenceMutex(PDO $pdo): void
+{
+    $st = $pdo->prepare('SELECT GET_LOCK(?, 5)');
+    $st->execute(['brvtal.theme_reference']);
+    if ((int)$st->fetchColumn() !== 1) {
+        json_response(['ok' => false, 'error' => 'THEME_SETTINGS_BUSY'], 503);
+    }
+}
+
+/** Release the Theme reference mutex without masking the request result. */
+function brvtalReleaseThemeReferenceMutex(PDO $pdo): void
+{
+    try {
+        $st = $pdo->prepare('SELECT RELEASE_LOCK(?)');
+        $st->execute(['brvtal.theme_reference']);
+        $st->fetchColumn();
+    } catch (Throwable $e) {
+        brvtal_log('THEME_SETTINGS_LOCK_RELEASE_FAILED', 'Could not release Theme settings mutex', [
+            'class' => $e::class,
+        ]);
+    }
+}
+
+function handle_exception(Throwable $e): never {
+    if($e instanceof RuntimeException && $e->getMessage()==='ACTIVITY_SCHEMA_MISSING') json_response(['ok'=>false,'error'=>'ACTIVITY_SCHEMA_MISSING'],503);
+    brvtal_log('API_ERROR','Unhandled API exception',['class'=>$e::class,'message'=>$e->getMessage(),'line'=>$e->getLine()]); json_response(['ok'=>false,'error'=>'INTERNAL_ERROR'],500);
+}
+
+try {
+    $method=$_SERVER['REQUEST_METHOD']??'GET';
+    $route=brvtal_api_parse_route((string)($_SERVER['REQUEST_URI']??'/'),(string)($_SERVER['SCRIPT_NAME']??''));
+    $segments=$route['segments'];
+    $resource=$route['resource'];
+    $id=$route['id'];
+    $action=$route['action'];
+
+    if ($resource === 'health') {
+        if ($method !== 'GET') method_not_allowed();
+        $started = microtime(true);
+
+        try {
+            $pdo = db();
+        } catch (Throwable $e) {
+            brvtal_log('HEALTH_ERROR', 'Health database connection failed', [
+                'class' => $e::class,
+                'phase' => 'connect',
+                'code' => 'DB_CONNECT_UNAVAILABLE',
+            ]);
+            json_response([
+                'ok' => false,
+                'status' => 'degraded',
+                'database' => 'error',
+                'code' => 'DB_CONNECT_UNAVAILABLE',
+                'time' => date(DATE_ATOM),
+            ], 503);
+        }
+
+        try {
+            $pdo->query('SELECT 1');
+        } catch (Throwable $e) {
+            brvtal_log('HEALTH_ERROR', 'Health database query failed', [
+                'class' => $e::class,
+                'phase' => 'query',
+                'code' => 'DB_QUERY_UNAVAILABLE',
+            ]);
+            json_response([
+                'ok' => false,
+                'status' => 'degraded',
+                'database' => 'error',
+                'code' => 'DB_QUERY_UNAVAILABLE',
+                'time' => date(DATE_ATOM),
+            ], 503);
+        }
+
+        json_response([
+            'ok' => true,
+            'app' => 'BRVTAL',
+            'status' => 'healthy',
+            'database' => 'connected',
+            'driver' => $pdo->getAttribute(PDO::ATTR_DRIVER_NAME),
+            'server' => $pdo->getAttribute(PDO::ATTR_SERVER_VERSION),
+            'php' => PHP_VERSION,
+            'time' => date(DATE_ATOM),
+            'latency_ms' => round((microtime(true) - $started) * 1000, 2),
+        ]);
+    }
+
+    if ($resource==='auth') {
+        brvtal_admin_session_start();
+
+        if ($method==='POST') {
+            $peek=input_json();
+            if (($peek['action'] ?? '') === 'totp_cancel') {
+                brvtal_totp_pending_clear();
+                json_response(['ok'=>true]);
+            }
+            $GLOBALS['brvtal_auth_input']=$peek;
+        }
+
+        if (($method==='POST' && isset($_GET['logout'])) || $method==='DELETE') {
+            brvtal_admin_logout();
+            json_response(['ok'=>true]);
+        }
+
+        if ($method === 'GET') {
+            $authState = brvtal_admin_authentication_state();
+            if ($authState === BRVTAL_ADMIN_AUTH_UNAVAILABLE) {
+                brvtal_admin_release_session();
+                $payload = ['ok' => false, 'error' => 'AUTH_REVALIDATION_UNAVAILABLE'];
+                $code = brvtal_admin_revalidation_failure_code();
+                if ($code !== null) {
+                    $payload['code'] = $code;
+                }
+                json_response($payload, 503);
+            }
+            $authenticated = $authState === BRVTAL_ADMIN_AUTHENTICATED;
+            $csrfToken = $authenticated ? brvtal_admin_csrf_token() : null;
+            brvtal_admin_release_session();
+            json_response(['ok' => true, 'authenticated' => $authenticated, 'csrf' => $csrfToken]);
+        }
+
+        if($method==='POST') {
+            $d=$GLOBALS['brvtal_auth_input'] ?? input_json();
+            unset($GLOBALS['brvtal_auth_input']);
+
+            $authAction = (string)($d['action'] ?? '');
+            if ($authAction === 'forgot_password') {
+                $baseUrl = (string)($config['app']['base_url'] ?? 'https://www.brvtal.com.co');
+                try {
+                    brvtal_admin_password_forgot(db(), (string)($d['email'] ?? ''), $baseUrl);
+                } catch (DomainException $e) {
+                    if ($e->getMessage() === 'RATE_LIMITED') {
+                        json_response([
+                            'ok' => false,
+                            'error' => 'RATE_LIMITED',
+                            'message' => 'Si la cuenta existe, enviaremos instrucciones de recuperación.',
+                        ], 429);
+                    }
+                    throw $e;
+                }
+                json_response([
+                    'ok' => true,
+                    'message' => 'Si la cuenta existe, enviaremos instrucciones de recuperación.',
+                ]);
+            }
+            if ($authAction === 'reset_password') {
+                $token = trim((string)($d['token'] ?? ''));
+                $newPassword = (string)($d['new_password'] ?? '');
+                if ($token === '' || $newPassword === '') {
+                    json_response(['ok'=>false,'error'=>'RESET_INPUT_REQUIRED'],422);
+                }
+                try {
+                    $resetResult = brvtal_password_reset_consume(
+                        db(),
+                        $token,
+                        $newPassword,
+                        (string)($d['totp_code'] ?? '')
+                    );
+                } catch (Throwable $e) {
+                    $mapped = brvtal_auth_password_error_status($e);
+                    if ($mapped !== null) {
+                        json_response(['ok'=>false,'error'=>$mapped['error']],$mapped['status']);
+                    }
+                    throw $e;
+                }
+                brvtalAdminPasswordNotifyChanged((string)$resetResult['email'], 'recovery');
+                brvtal_admin_logout();
+                json_response(['ok'=>true]);
+            }
+            if ($authAction === 'change_password') {
+                if (!brvtal_admin_is_authenticated()) {
+                    json_response(['ok'=>false,'error'=>'AUTH_REQUIRED'],401);
+                }
+                brvtal_admin_require_csrf((string)($d['csrf'] ?? ''));
+                $adminId = (int)($_SESSION['admin_id'] ?? 0);
+                try {
+                    $changeResult = brvtal_admin_change_password(
+                        db(),
+                        $adminId,
+                        (string)($d['current_password'] ?? ''),
+                        (string)($d['new_password'] ?? '')
+                    );
+                } catch (Throwable $e) {
+                    $mapped = brvtal_auth_password_error_status($e);
+                    if ($mapped !== null) {
+                        json_response(['ok'=>false,'error'=>$mapped['error']],$mapped['status']);
+                    }
+                    throw $e;
+                }
+                brvtal_admin_login_session($adminId);
+                brvtalAdminPasswordNotifyChanged((string)$changeResult['email'], 'authenticated');
+                json_response(['ok'=>true,'csrf'=>brvtal_admin_csrf_token()]);
+            }
+            if(($d['action'] ?? '') === 'totp_verify') {
+                $pendingId=brvtal_totp_pending_admin_id();
+                if($pendingId===null) json_response(['ok'=>false,'error'=>'TOTP_CHALLENGE_EXPIRED'],401);
+                brvtal_totp_rate_limit($pendingId);
+                $code=trim((string)($d['code']??''));
+                if($code==='') json_response(['ok'=>false,'error'=>'TOTP_CODE_REQUIRED'],422);
+                $st=db()->prepare('SELECT id,email,name,is_active,totp_enabled,totp_secret_enc FROM admins WHERE id=? LIMIT 1'); $st->execute([$pendingId]); $a=$st->fetch();
+                if(!$a || !(int)$a['is_active'] || !(int)$a['totp_enabled']) { brvtal_totp_pending_clear(); json_response(['ok'=>false,'error'=>'TOTP_UNAVAILABLE'],401); }
+                $secret=brvtal_totp_decrypt_secret((string)$a['totp_secret_enc']);
+                $valid=$secret!==null && brvtal_totp_verify($secret,$code,null,1);
+                if(!$valid) $valid=brvtal_totp_recovery_verify(db(),$pendingId,$code);
+                if(!$valid) { brvtal_log('SECURITY','Invalid TOTP challenge',['admin_id'=>$pendingId]); json_response(['ok'=>false,'error'=>'INVALID_TOTP'],401); }
+                brvtal_totp_complete_login(db(),$a);
+            } $email=strtolower(trim((string)($d['email']??''))); $pass=(string)($d['password']??'');
+            if(!filter_var($email,FILTER_VALIDATE_EMAIL)||strlen($email)>190||$pass==='') json_response(['ok'=>false,'error'=>'EMAIL_AND_PASSWORD_REQUIRED'],422);
+            rate_limit_login($email);
+            $st=db()->prepare('SELECT id,email,password_hash,name,totp_enabled,totp_secret_enc FROM admins WHERE email=? AND is_active=1 LIMIT 1'); $st->execute([$email]); $a=$st->fetch();
+  if(!$a || !password_verify($pass,(string)$a['password_hash'])) { brvtal_log('AUTH_FAIL','Invalid admin login',['email'=>$email]); rate_limit_login($email,true); json_response(['ok'=>false,'error'=>'INVALID_CREDENTIALS'],401); }
+  reset_login_rate_limit($email);
+  if((int)($a['totp_enabled'] ?? 0) === 1) {
+      if(empty($a['totp_secret_enc'])) { brvtal_log('SECURITY','TOTP enabled without encrypted secret',['admin_id'=>(int)$a['id']]); json_response(['ok'=>false,'error'=>'TOTP_CONFIGURATION_ERROR'],503); }
+      brvtal_totp_pending_set((int)$a['id'],(string)$a['email']);
+      brvtal_log('SECURITY','TOTP challenge issued',['admin_id'=>(int)$a['id']]);
+      json_response(['ok'=>true,'requires_totp'=>true,'admin'=>['id'=>(int)$a['id'],'name'=>$a['name'],'email'=>$a['email']]]);
+  }
+  brvtal_admin_login_session((int)$a['id']);
+  db()->prepare('UPDATE admins SET last_login_at=NOW() WHERE id=?')->execute([$a['id']]);
+  brvtal_log('AUTH_OK','Admin login successful',['admin_id'=>(int)$a['id']]);
+  json_response(['ok'=>true,'admin'=>['id'=>(int)$a['id'],'name'=>$a['name'],'email'=>$a['email']],'csrf'=>brvtal_admin_csrf_token()]);
+        }
+
+        method_not_allowed();
+    }
+
+    if($resource==='public') {
+        require __DIR__ . '/public.php';
+        exit;
+    }
+
+    brvtal_admin_require();
+    if($resource==='dashboard') {
+    if($method!=='GET') method_not_allowed();
+    $pdo=db(); $counts=[];
+    foreach(['events','artists','sets_media','media','pages'] as $t)$counts[$t]=(int)$pdo->query("SELECT COUNT(*) FROM {$t}")->fetchColumn();
+    $counts['published_events']=(int)$pdo->query("SELECT COUNT(*) FROM events WHERE status='published'")->fetchColumn();
+    $counts['published_artists']=(int)$pdo->query("SELECT COUNT(*) FROM artists WHERE status='published'")->fetchColumn();
+    $counts['analytics_30d']=(int)$pdo->query("SELECT COUNT(*) FROM analytics_events WHERE created_at>=DATE_SUB(NOW(),INTERVAL 30 DAY)")->fetchColumn();
+    $counts['db_driver']=$pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+    $counts['db_server']=$pdo->getAttribute(PDO::ATTR_SERVER_VERSION);
+    $recent=[];
+    $recent['events']=$pdo->query("SELECT id,title,slug,event_date,venue,city,cover_image,status FROM events ORDER BY id DESC LIMIT 5")->fetchAll();
+    $recent['artists']=$pdo->query("SELECT id,name,slug,photo,status FROM artists ORDER BY id DESC LIMIT 5")->fetchAll();
+    $recent['sets']=$pdo->query("SELECT s.id,s.title,s.slug,s.artist_id,s.event_id,s.platform,s.cover_image,s.status,a.name artist_name,e.title event_title FROM sets_media s LEFT JOIN artists a ON a.id=s.artist_id LEFT JOIN events e ON e.id=s.event_id ORDER BY s.id DESC LIMIT 5")->fetchAll();
+    $recent['media']=$pdo->query("SELECT id,type,title,file_path,mime_type,status,created_at FROM media ORDER BY id DESC LIMIT 5")->fetchAll();
+    json_response(['ok'=>true,'data'=>$counts,'recent'=>$recent]);
+}
+
+    if($resource==='events' && $action==='lineup' && $id!==null) {
+        if($method!=='GET'&&$method!=='POST')method_not_allowed(); if($method==='POST')brvtal_admin_require_csrf(); $pdo=db();
+        if($method==='GET'){ $st=$pdo->prepare("SELECT ea.artist_id,ea.lineup_order,ea.role,a.name,a.slug,a.photo FROM event_artists ea JOIN artists a ON a.id=ea.artist_id WHERE ea.event_id=? ORDER BY ea.lineup_order ASC,a.name ASC");$st->execute([$id]);json_response(['ok'=>true,'data'=>$st->fetchAll()]); }
+        $d=input_json();$items=$d['lineup']??[];if(!is_array($items)||count($items)>200)json_response(['ok'=>false,'error'=>'INVALID_LINEUP'],422);
+        $pdo->beginTransaction();
+        try {
+            $eventLock=$pdo->prepare('SELECT title FROM events WHERE id=? LIMIT 1 FOR UPDATE');$eventLock->execute([$id]);$eventTitle=$eventLock->fetchColumn();if($eventTitle===false)json_response(['ok'=>false,'error'=>'NOT_FOUND'],404);
+            $beforeSt=$pdo->prepare('SELECT artist_id,lineup_order,role FROM event_artists WHERE event_id=? ORDER BY lineup_order,artist_id');$beforeSt->execute([$id]);$beforeLineup=$beforeSt->fetchAll(PDO::FETCH_ASSOC);
+            $pdo->prepare('DELETE FROM event_artists WHERE event_id=?')->execute([$id]);
+            $st=$pdo->prepare('INSERT INTO event_artists(event_id,artist_id,lineup_order,role) VALUES(?,?,?,?)');
+            foreach($items as $i=>$item){$aid=(int)($item['artist_id']??0);if($aid>0)$st->execute([$id,$aid,$i,mb_substr(trim((string)($item['role']??'')),0,80)]);}
+            $afterSt=$pdo->prepare('SELECT artist_id,lineup_order,role FROM event_artists WHERE event_id=? ORDER BY lineup_order,artist_id');$afterSt->execute([$id]);$afterLineup=$afterSt->fetchAll(PDO::FETCH_ASSOC);
+            $before=['event_id'=>$id,'lineup'=>$beforeLineup];$after=['event_id'=>$id,'lineup'=>$afterLineup];
+            if(brvtal_activity_changed_fields(brvtal_activity_snapshot('event_lineup',$before),brvtal_activity_snapshot('event_lineup',$after))!==[]){brvtal_activity_record($pdo,'lineup_update','event_lineup',$id,$before,$after,['source'=>'lineup_api'],(string)$eventTitle);}
+            $pdo->commit();
+            brvtalIndexNowNotifyEventId($pdo, $id);
+            json_response(['ok' => true]);
+        }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();if($e instanceof RuntimeException&&$e->getMessage()==='ACTIVITY_SCHEMA_MISSING')throw $e;brvtal_log('DB_ERROR','Lineup save failed',['event_id'=>$id,'message'=>$e->getMessage()]);json_response(['ok'=>false,'error'=>'LINEUP_SAVE_ERROR'],500);}
+    }
+
+    if($resource==='upload') {
+        if($method!=='POST')method_not_allowed(); brvtal_admin_require_csrf();
+        if(empty($_FILES['file'])||$_FILES['file']['error']!==UPLOAD_ERR_OK)json_response(['ok'=>false,'error'=>'UPLOAD_REQUIRED'],422);
+        $f=$_FILES['file']; if(!is_uploaded_file($f['tmp_name']))json_response(['ok'=>false,'error'=>'INVALID_UPLOAD'],422); $max=25*1024*1024; if((int)$f['size']<=0||$f['size']>$max)json_response(['ok'=>false,'error'=>'FILE_TOO_LARGE'],422);
+        $mime=new finfo(FILEINFO_MIME_TYPE)->file($f['tmp_name']);
+        $allowed=['image/jpeg'=>'jpg','image/png'=>'png','image/webp'=>'webp','image/gif'=>'gif','video/mp4'=>'mp4','audio/mpeg'=>'mp3','audio/wav'=>'wav','application/pdf'=>'pdf'];
+        if(!isset($allowed[$mime]))json_response(['ok'=>false,'error'=>'FILE_TYPE_NOT_ALLOWED'],422);
+        if(str_starts_with($mime,'image/') && @getimagesize($f['tmp_name'])===false)json_response(['ok'=>false,'error'=>'INVALID_IMAGE'],422);
+        $folder=strtolower(trim((string)($_POST['folder']??'media'),'/')); if(!preg_match('/^[a-z0-9_-]{1,40}$/',$folder))$folder='media';
+        $root=__DIR__.'/../uploads/'.$folder; if(!is_dir($root)&&!mkdir($root,0750,true)&&!is_dir($root))json_response(['ok'=>false,'error'=>'UPLOAD_STORAGE_ERROR'],500);
+        $name=bin2hex(random_bytes(16)).'.'.$allowed[$mime];$dest=$root.'/'.$name; if(!move_uploaded_file($f['tmp_name'],$dest))json_response(['ok'=>false,'error'=>'UPLOAD_FAILED'],500); @chmod($dest,0640);
+        $public='/uploads/'.$folder.'/'.$name; $type=str_starts_with($mime,'image/')?'image':(str_starts_with($mime,'video/')?'video':(str_starts_with($mime,'audio/')?'audio':'document')); $st=db()->prepare('INSERT INTO media(type,title,file_path,mime_type,file_size,alt_text,status) VALUES(?,?,?,?,?,?,?)');$title=mb_substr(trim((string)($_POST['title']??'Media')),0,180);$alt=mb_substr(trim((string)($_POST['alt_text']??'')),0,255);$st->execute([$type,$title,$public,$mime,(int)$f['size'],$alt,'published']);json_response(['ok'=>true,'data'=>['id'=>(int)db()->lastInsertId(),'path'=>$public,'mime_type'=>$mime,'size'=>(int)$f['size']]],201);
+    }
+
+    $resources=['events','artists','sets','media','pages','ticket_types','settings']; if(!in_array($resource,$resources,true))json_response(['ok'=>false,'error'=>'NOT_FOUND'],404); $table=table_for($resource); if($method!=='GET')brvtal_admin_require_csrf(); $pdo=db();
+    if ($method === 'GET') {
+        $pagination = null;
+        $readPlan = brvtalAdminCollectionReadPlan($resource, $_GET);
+        if ($readPlan !== null) {
+            if ($readPlan['error'] !== null) {
+                json_response(
+                    ['ok' => false, 'error' => $readPlan['error']],
+                    $readPlan['status']
+                );
+            }
+            $st = $pdo->prepare((string)$readPlan['sql']);
+            $st->execute($readPlan['params']);
+            $rows = $st->fetchAll();
+        } elseif ($resource === 'settings') {
+            $rows = $pdo->query(
+                "SELECT * FROM settings "
+                . "WHERE setting_key<>'security.totp_encryption_key' "
+                . "AND setting_key NOT LIKE 'admin.grid.%' AND setting_key NOT LIKE 'admin.dashboard.%' "
+                . "ORDER BY setting_key"
+            )->fetchAll();
+        } elseif ($id !== null) {
+            $st = $pdo->prepare("SELECT * FROM {$table} WHERE id=? LIMIT 1");
+            $st->execute([$id]);
+            $rows = $st->fetch();
+            if (!$rows) {
+                json_response(['ok' => false, 'error' => 'NOT_FOUND'], 404);
+            }
+        } else {
+            $pagePlan = brvtalAdminCollectionPagination($resource, $_GET);
+            // Match DATETIME values against the application's configured timezone.
+            // One immutable request clock is bound in both SQL branches, independent
+            // of the MariaDB session timezone; no user input enters ORDER BY.
+            $eventNow = $resource === 'events'
+                ? new DateTimeImmutable('now')->format('Y-m-d H:i:s')
+                : null;
+            $orderBy = match ($resource) {
+                'artists', 'sets' => 'sort_order ASC,id ASC',
+                'events' => 'event_date IS NULL ASC, event_date < ? ASC, CASE WHEN event_date >= ? THEN event_date END ASC, event_date DESC, id DESC',
+                default => 'id DESC',
+            };
+            $orderParams = $eventNow === null ? [] : [$eventNow, $eventNow];
+
+            if ($pagePlan !== null) {
+                if ($pagePlan['error'] !== null) {
+                    json_response(
+                        ['ok' => false, 'error' => $pagePlan['error']],
+                        $pagePlan['status']
+                    );
+                }
+                $whereSql = (string)$pagePlan['where_sql'];
+                $queryParams = $pagePlan['params'];
+
+                $countStatement = $pdo->prepare("SELECT COUNT(*) FROM {$table}{$whereSql}");
+                $countStatement->execute($queryParams);
+                $total = (int)$countStatement->fetchColumn();
+
+                $pagination = brvtalAdminCollectionPaginationMeta(
+                    (int)$pagePlan['page'],
+                    (int)$pagePlan['page_size'],
+                    $total
+                );
+                $pagination['query'] = (string)$pagePlan['query'];
+
+                $limit = (int)$pagination['page_size'];
+                $offset = (int)$pagination['offset'];
+                $statement = $pdo->prepare(
+                    "SELECT * FROM {$table}{$whereSql} ORDER BY {$orderBy} LIMIT {$limit} OFFSET {$offset}"
+                );
+                $statement->execute([...$queryParams, ...$orderParams]);
+                $rows = $statement->fetchAll();
+            } elseif ($resource === 'events') {
+                $statement = $pdo->prepare("SELECT * FROM {$table} ORDER BY {$orderBy}");
+                $statement->execute($orderParams);
+                $rows = $statement->fetchAll();
+            } else {
+                $rows = $pdo->query("SELECT * FROM {$table} ORDER BY {$orderBy}")->fetchAll();
+            }
+        }
+        if ($resource === 'sets') $rows=brvtalSetArtistsEnrich($pdo,$rows);
+        if ($resource === 'artists' && is_array($rows)) {
+            $rows = brvtalArtistCollectiveMembershipEnrichResult($rows);
+            $rows = brvtalArtistHeroEnrich($pdo, $rows);
+        }
+        $response = ['ok' => true, 'data' => $rows];
+        if ($pagination !== null) {
+            $response['pagination'] = $pagination;
+        }
+        json_response($response);
+    }
+    if($method==='POST') {
+        $d=input_json();
+        if ($resource === 'settings') {
+            $keyState = brvtal_setting_key_normalize((string)($d['setting_key'] ?? ''));
+            if ($keyState['error'] !== null) {
+                json_response(
+                    ['ok' => false, 'error' => $keyState['error']['error'], 'field' => $keyState['error']['field']],
+                    422
+                );
+            }
+
+            $key = (string)$keyState['key'];
+            if ($key === '' || strlen($key) > 120) {
+                json_response(['ok' => false, 'error' => 'KEY_REQUIRED'], 422);
+            }
+            if ($key === 'security.totp_encryption_key' || (str_starts_with($key, 'admin.grid.') || str_starts_with($key, 'admin.dashboard.'))) {
+                json_response(['ok' => false, 'error' => 'PROTECTED_SETTING'], 403);
+            }
+
+            $value = (string)($d['setting_value'] ?? '');
+            $themeSettingError = brvtal_theme_setting_error($key, $value);
+            if ($themeSettingError !== null) {
+                json_response(
+                    ['ok' => false, 'error' => $themeSettingError['error'], 'field' => $themeSettingError['field']],
+                    422
+                );
+            }
+
+            if (strlen($value) > 2 * 1024 * 1024) {
+                json_response(['ok' => false, 'error' => 'VALUE_TOO_LARGE'], 422);
+            }
+            $isJson = (int)($d['is_json'] ?? 0);
+            if (in_array($key, ['privacy.controller_name','privacy.controller_email','privacy.response_time',
+                'privacy.controller_phone','privacy.controller_domicile','privacy.controller_address',
+                'privacy.rights_contact_area','privacy.consultation_time','privacy.claim_time'], true)) {
+                $privacyLimit = $key === 'privacy.controller_phone' ? 40 : 160;
+                if (in_array($key, ['privacy.controller_email','privacy.controller_address'], true)) {
+                    $privacyLimit = 254;
+                } elseif (in_array($key, ['privacy.controller_name','privacy.response_time'], true)) {
+                    // Preserve the existing API limit for legacy settings.
+                    $privacyLimit = 400;
+                }
+                $plain = trim($value);
+                if ($isJson !== 0 || strlen($plain) > $privacyLimit
+                    || preg_match('/[<>\x00-\x1F\x7F]/', $plain) === 1) {
+                    json_response(['ok' => false, 'error' => 'INVALID_PRIVACY_VALUE', 'field' => 'setting_value'], 422);
+                }
+                if ($key === 'privacy.controller_email' && $plain !== ''
+                    && filter_var($plain, FILTER_VALIDATE_EMAIL) === false) {
+                    json_response(['ok' => false, 'error' => 'INVALID_PRIVACY_EMAIL', 'field' => 'setting_value'], 422);
+                }
+                if ($key === 'privacy.controller_phone' && $plain !== ''
+                    && (preg_match('/^\+?[0-9][0-9() .-]*$/D', $plain) !== 1
+                        || preg_match_all('/[0-9]/', $plain) < 7
+                        || preg_match_all('/[0-9]/', $plain) > 20)) {
+                    json_response(['ok' => false, 'error' => 'INVALID_PRIVACY_PHONE', 'field' => 'setting_value'], 422);
+                }
+                $value = $plain;
+            }
+            $invalidJson = $isJson === 1
+                && json_decode($value, true) === null
+                && strtolower(trim($value)) !== 'null';
+            if ($invalidJson) {
+                json_response(['ok' => false, 'error' => 'INVALID_SETTING_JSON'], 422);
+            }
+            if ($key === BRVTAL_HERO_SLIDER_SETTING_KEY) {
+                $heroSliderError = brvtalHeroSliderSettingError($pdo, $value, $isJson);
+                if ($heroSliderError !== null) {
+                    json_response(
+                        [
+                            'ok' => false,
+                            'error' => $heroSliderError['error'],
+                            'field' => $heroSliderError['field'],
+                        ],
+                        422
+                    );
+                }
+            }
+
+            if ($key === BRVTAL_INDEXNOW_SETTING_KEY) {
+                $indexNowError = brvtalIndexNowSettingError($value, $isJson);
+                if ($indexNowError !== null) {
+                    json_response(
+                        ['ok' => false, 'error' => $indexNowError['error'], 'field' => $indexNowError['field']],
+                        422
+                    );
+                }
+            }
+
+            $previousSettingSt = $pdo->prepare(
+                'SELECT setting_value,is_json FROM settings WHERE setting_key=? LIMIT 1'
+            );
+            $previousSettingSt->execute([$key]);
+            $previousSetting = $previousSettingSt->fetch(PDO::FETCH_ASSOC);
+            $settingChanged = !is_array($previousSetting)
+                || (string)($previousSetting['setting_value'] ?? '') !== $value
+                || (int)($previousSetting['is_json'] ?? 0) !== $isJson;
+
+            $themeMutation = str_starts_with($key, 'theme.');
+            if ($themeMutation) {
+                brvtalAcquireThemeReferenceMutex($pdo);
+            }
+
+            try {
+                $pdo->beginTransaction();
+                if ($themeMutation) {
+                    $activeTheme = $pdo->query(
+                        "SELECT setting_value FROM settings WHERE setting_key='theme.active' LIMIT 1 FOR UPDATE"
+                    )->fetchColumn();
+                    $themeDefinitionUpdateError = brvtalThemeDefinitionUpdateError(
+                        $key,
+                        $isJson,
+                        $value,
+                        is_string($activeTheme) ? trim($activeTheme) : null
+                    );
+                    if ($themeDefinitionUpdateError !== null) {
+                        $pdo->rollBack();
+                        brvtalReleaseThemeReferenceMutex($pdo);
+                        json_response(
+                            [
+                                'ok' => false,
+                                'error' => $themeDefinitionUpdateError['error'],
+                                'field' => $themeDefinitionUpdateError['field'],
+                            ],
+                            422
+                        );
+                    }
+                }
+
+                $themeReferenceError = brvtalThemeActiveReferenceError(
+                    $key,
+                    $value,
+                    static function (string $slug) use ($pdo): bool {
+                        $st = $pdo->prepare(
+                            'SELECT setting_value FROM settings WHERE setting_key=? AND is_json=1 LIMIT 1 FOR UPDATE'
+                        );
+                        $st->execute(['theme.' . $slug]);
+                        $raw = $st->fetchColumn();
+                        if (!is_string($raw)) {
+                            return false;
+                        }
+                        $decoded = json_decode($raw, true);
+                        return is_array($decoded);
+                    }
+                );
+                if ($themeReferenceError !== null) {
+                    if ($pdo->inTransaction()) {
+                        $pdo->rollBack();
+                    }
+                    if ($themeMutation) {
+                        brvtalReleaseThemeReferenceMutex($pdo);
+                    }
+                    json_response(
+                        [
+                            'ok' => false,
+                            'error' => $themeReferenceError['error'],
+                            'field' => $themeReferenceError['field'],
+                        ],
+                        422
+                    );
+                }
+
+                // Prevent stale or forged media relations inside the write transaction.
+                if ($key === 'site' && $isJson === 1) {
+                    $site = json_decode($value, true);
+                    foreach (['hero_face', 'crowd', 'artists', 'nights', 'memories'] as $slot) {
+                        $field = 'c05_media_' . $slot;
+                        if (!is_array($site) || !array_key_exists($field, $site) || $site[$field] === null) {
+                            continue;
+                        }
+                        if (!brvtal_c05_media_published($pdo, $site[$field], true)) {
+                            $pdo->rollBack();
+                            json_response(['ok' => false, 'error' => 'C05_MEDIA_NOT_PUBLISHED', 'field' => $field], 422);
+                        }
+                    }
+                }
+                $st = $pdo->prepare(
+                    'INSERT INTO settings(setting_key,setting_value,is_json) VALUES(?,?,?) '
+                    . 'ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value),is_json=VALUES(is_json)'
+                );
+                $st->execute([$key, $value, $isJson]);
+
+                if ($settingChanged && brvtalActivitySettingKeyAuditable($key)) {
+                    $beforeSettingAudit = is_array($previousSetting)
+                        ? ['setting_key' => $key, 'is_json' => (int)($previousSetting['is_json'] ?? 0)]
+                        : null;
+                    $afterSettingAudit = ['setting_key' => $key, 'is_json' => $isJson];
+                    brvtal_activity_record(
+                        $pdo,
+                        'setting_update',
+                        'settings',
+                        null,
+                        $beforeSettingAudit,
+                        $afterSettingAudit,
+                        [
+                            'source' => $themeMutation ? 'theme_studio' : 'settings_api',
+                            'setting_key' => $key,
+                            'value_changed' => true,
+                            'theme_mutation' => $themeMutation,
+                        ],
+                        $key
+                    );
+                }
+                $pdo->commit();
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
+                if ($themeMutation) {
+                    brvtalReleaseThemeReferenceMutex($pdo);
+                }
+                throw $e;
+            }
+
+            if ($themeMutation) {
+                brvtalReleaseThemeReferenceMutex($pdo);
+            }
+            if ($settingChanged) {
+                brvtalIndexNowNotifySetting($pdo, $key);
+            }
+            json_response(['ok' => true]);
+        }
+        $heroIncluded = $resource === 'artists' && array_key_exists('hero_framing', $d);
+        $hero = $heroIncluded ? brvtalArtistHeroValidate($d['hero_framing']) : null;
+        if ($heroIncluded && $hero === null) {
+            json_response(['ok' => false, 'error' => 'INVALID_ARTIST_HERO_FRAMING', 'field' => 'hero_framing'], 422);
+        }
+        $d = sanitize_payload($resource, $d);
+        $allowed = allowed_fields($resource);
+        $p = [];
+        foreach ($allowed as $f) {
+            if (array_key_exists((string) $f, $d)) {
+                $p[$f] = $d[$f];
+            }
+        }
+        $setArtistIds=$resource==='sets' ? brvtalSetArtistsInput($pdo,$d,$p) : null;
+        if ($resource === 'artists') {
+            $p = brvtalArtistCollectiveMembershipStoragePayload($pdo, $p);
+        }
+        if ($resource === 'events') {
+            $scheduleError = brvtal_event_publish_at_error([], $p);
+            if ($scheduleError !== null) {
+                json_response(
+                    ['ok' => false, 'error' => $scheduleError['error'], 'field' => $scheduleError['field']],
+                    422
+                );
+            }
+        }
+        if ($resource === 'events') {
+            $p = brvtal_event_lifecycle_patch([], $p);
+        }
+        if ($resource === 'events') {
+            $eventStateError = brvtal_event_publication_error(array_replace(['status' => 'draft'], $p));
+            if ($eventStateError !== null) {
+                json_response(
+                    ['ok' => false, 'error' => $eventStateError['error'], 'field' => $eventStateError['field']],
+                    422
+                );
+            }
+        }
+        if ($resource === 'pages' && !array_key_exists('locale', $p)) {
+            $p['locale'] = 'en';
+        }
+        if ($resource === 'pages') {
+            if (!array_key_exists('slug', $p) || $p['slug'] === '') {
+                $p['slug'] = slugify((string)($p['title'] ?? ''));
+            }
+            $pageIdentityError = brvtal_page_identity_error($p);
+            if ($pageIdentityError !== null) {
+                json_response(
+                    ['ok' => false, 'error' => $pageIdentityError['error'], 'field' => $pageIdentityError['field']],
+                    422
+                );
+            }
+            $pageStateError = brvtal_page_publication_error(
+                array_replace(['status' => 'draft', 'locale' => 'en'], $p)
+            );
+            if ($pageStateError !== null) {
+                json_response(['ok' => false, 'error' => $pageStateError, 'field' => 'locale'], 422);
+            }
+        }
+        if ($resource === 'ticket_types') {
+            $ticketWindowError = brvtal_ticket_window_error($p);
+            if ($ticketWindowError !== null) {
+                json_response(
+                    ['ok' => false, 'error' => $ticketWindowError['error'], 'field' => $ticketWindowError['field']],
+                    422
+                );
+            }
+        }
+        if ($resource === 'sets') {
+            $setPublicationError = brvtal_set_publication_error(
+                array_replace(['status' => 'draft', 'external_url' => ''], $p)
+            );
+            if ($setPublicationError !== null) {
+                json_response(['ok' => false, 'error' => $setPublicationError, 'field' => 'external_url'], 422);
+            }
+        }
+        if ($resource === 'events' && empty($p['title'])) {
+            json_response(['ok' => false, 'error' => 'TITLE_REQUIRED'], 422);
+        }
+        if ($resource === 'artists' && empty($p['name'])) {
+            json_response(['ok' => false, 'error' => 'NAME_REQUIRED'], 422);
+        }
+        if ($resource === 'sets' && empty($p['title'])) {
+            json_response(['ok' => false, 'error' => 'TITLE_REQUIRED'], 422);
+        }
+        $visualPublicationError = brvtalContentVisualPublicationError(
+            $resource,
+            array_replace(['status' => 'draft'], $p)
+        );
+        if ($visualPublicationError !== null) {
+            json_response(
+                [
+                    'ok' => false,
+                    'error' => $visualPublicationError['error'],
+                    'field' => $visualPublicationError['field'],
+                ],
+                422
+            );
+        }
+        if ($resource !== 'sets' && isset($p['slug']) && $p['slug'] === '') {
+            $p['slug'] = slugify((string)($p['title'] ?? $p['name'] ?? 'item'));
+        }
+        if (!$p) {
+            json_response(['ok' => false, 'error' => 'NO_FIELDS'], 422);
+        }
+        brvtal_set_duration_require_schema($pdo, $resource, $p);
+        $audited=brvtal_activity_audited_resource($resource);if($audited)$pdo->beginTransaction();
+        $setCreateLocked = false;
+        try {
+            if ($resource === 'sets') {
+                $mutex = $pdo->prepare('SELECT GET_LOCK(?, 5)');
+                $mutex->execute(['brvtal.sets.create']);
+                if ((int)$mutex->fetchColumn() !== 1) {
+                    throw new RuntimeException('SETS_CREATE_BUSY');
+                }
+                $setCreateLocked = true;
+                $p['sort_order'] = (int)$pdo->query('SELECT COALESCE(MIN(sort_order), 0) - 1 FROM sets_media')->fetchColumn();
+                if (trim((string)($p['slug'] ?? '')) === '') {
+                    $p['slug'] = brvtal_available_set_slug($pdo, (string)($p['title'] ?? 'Set'));
+                }
+            }
+            $fields = array_keys($p);
+            $cols = implode(',', array_map(fn($f) => "`{$f}`", $fields));
+            $marks = implode(',', array_fill(0, count($fields), '?'));
+            $st = $pdo->prepare("INSERT INTO {$table} ({$cols}) VALUES ({$marks})");
+            $st->execute(array_values($p));
+            $newId = (int)$pdo->lastInsertId();
+            if ($resource==='sets' && $setArtistIds!==null) brvtalSetArtistsSync($pdo,$newId,$setArtistIds);
+            if ($heroIncluded) {
+                brvtalArtistHeroWrite($pdo, $newId, $hero);
+            }
+            if ($audited) {
+                $after = brvtal_activity_fetch_resource($pdo, $table, $newId);
+                brvtal_activity_record(
+                    $pdo,
+                    'create',
+                    $resource,
+                    $newId,
+                    null,
+                    $after,
+                    ['source' => 'core_api']
+                );
+                $pdo->commit();
+                brvtalIndexNowNotifyChange($pdo, $resource, null, $after);
+            }
+            if ($setCreateLocked) {
+                $pdo->query("SELECT RELEASE_LOCK('brvtal.sets.create')");
+                $setCreateLocked = false;
+            }
+            json_response(['ok' => true, 'id' => $newId], 201);
+        } catch (PDOException $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            if ($setCreateLocked) $pdo->query("SELECT RELEASE_LOCK('brvtal.sets.create')");
+            brvtal_log('DB_ERROR', 'Insert failed', [
+                'resource' => $resource,
+                'code' => $e->errorInfo[1] ?? null,
+            ]);
+            if ((int)($e->errorInfo[1] ?? 0) === 1062) {
+                json_response(['ok' => false, 'error' => 'DUPLICATE_SLUG'], 409);
+            }
+            json_response(['ok' => false, 'error' => 'DATABASE_ERROR'], 500);
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            if ($setCreateLocked) $pdo->query("SELECT RELEASE_LOCK('brvtal.sets.create')");
+            throw $e;
+        }
+    }
+    if($method==='PUT'&&$id!==null){
+        $d = input_json();
+        $heroIncluded = $resource === 'artists' && array_key_exists('hero_framing', $d);
+        $hero = $heroIncluded ? brvtalArtistHeroValidate($d['hero_framing']) : null;
+        if ($heroIncluded && $hero === null) {
+            json_response(['ok' => false, 'error' => 'INVALID_ARTIST_HERO_FRAMING', 'field' => 'hero_framing'], 422);
+        }
+        $d = sanitize_payload($resource, $d);
+        $allowed = allowed_fields($resource);
+        $p = [];
+        foreach ($allowed as $f) {
+            if (array_key_exists((string) $f, $d)) {
+                $p[$f] = $d[$f];
+            }
+        }
+        $setArtistIds=$resource==='sets' ? brvtalSetArtistsInput($pdo,$d,$p) : null;
+        if ($resource === 'artists') {
+            $p = brvtalArtistCollectiveMembershipStoragePayload($pdo, $p);
+        }
+        if (!$p) {
+            json_response(['ok' => false, 'error' => 'NO_FIELDS'], 422);
+        }
+        brvtal_set_duration_require_schema($pdo, $resource, $p);
+        $audited=brvtal_activity_audited_resource($resource);$pdo->beginTransaction();
+        try{
+            $before=brvtal_activity_fetch_resource($pdo,$table,$id,true);
+            if($before===null){$pdo->rollBack();json_response(['ok'=>false,'error'=>'NOT_FOUND'],404);}
+            if ($resource === 'sets') {
+                unset($p['sort_order']);
+                if (array_key_exists('slug', $p) && $p['slug'] === '') {
+                    $p['slug'] = (string)($before['slug'] ?? '');
+                    if ($p['slug'] === '') $p['slug'] = brvtal_available_set_slug($pdo, (string)($p['title'] ?? $before['title'] ?? 'Set'), $id);
+                }
+            }
+            if($resource==='events'){$scheduleError=brvtal_event_publish_at_error($before,$p);if($scheduleError!==null){$pdo->rollBack();json_response(['ok'=>false,'error'=>$scheduleError['error'],'field'=>$scheduleError['field']],422);}}
+            if($resource==='events')$p=brvtal_event_lifecycle_patch($before,$p);if($resource==='events'){$eventStateError=brvtal_event_publication_error(array_replace($before,$p));if($eventStateError!==null){$pdo->rollBack();json_response(['ok'=>false,'error'=>$eventStateError['error'],'field'=>$eventStateError['field']],422);}}
+            if($resource==='pages'){$pageState=array_replace($before,$p);if(array_key_exists('slug',$p)&&$p['slug']===''){$p['slug']=slugify((string)($pageState['title']??''));$pageState=array_replace($before,$p);}$pageIdentityError=brvtal_page_identity_error($pageState);if($pageIdentityError!==null){$pdo->rollBack();json_response(['ok'=>false,'error'=>$pageIdentityError['error'],'field'=>$pageIdentityError['field']],422);}$pageStateError=brvtal_page_publication_error($pageState);if($pageStateError!==null){$pdo->rollBack();json_response(['ok'=>false,'error'=>$pageStateError,'field'=>'locale'],422);}}
+            if($resource==='ticket_types'){$ticketWindowError=brvtal_ticket_window_error(array_replace($before,$p));if($ticketWindowError!==null){$pdo->rollBack();json_response(['ok'=>false,'error'=>$ticketWindowError['error'],'field'=>$ticketWindowError['field']],422);}}
+            if($resource==='sets'){$setPublicationError=brvtal_set_publication_error(array_replace($before,$p));if($setPublicationError!==null){$pdo->rollBack();json_response(['ok'=>false,'error'=>$setPublicationError,'field'=>'external_url'],422);}}
+            $visualPublicationError=brvtalContentVisualPublicationError($resource,array_replace($before,$p));if($visualPublicationError!==null){$pdo->rollBack();json_response(['ok'=>false,'error'=>$visualPublicationError['error'],'field'=>$visualPublicationError['field']],422);}
+            if(!$p){$pdo->rollBack();json_response(['ok'=>false,'error'=>'NO_FIELDS'],422);}
+            $set=implode(', ',array_map(fn($f)=>"`{$f}` = ?",array_keys($p)));$vals=array_values($p);$vals[]=$id;$st=$pdo->prepare("UPDATE {$table} SET {$set} WHERE id=?");$st->execute($vals);$changed=(int)$st->rowCount();
+            if ($resource==='sets' && $setArtistIds!==null) { brvtalSetArtistsSync($pdo,$id,$setArtistIds); $changed=max(1,$changed); }
+            if ($heroIncluded) {
+                brvtalArtistHeroWrite($pdo, $id, $hero);
+            }
+            if($audited){$after=brvtal_activity_fetch_resource($pdo,$table,$id);if($after!==null)brvtal_activity_record($pdo,'update',$resource,$id,$before,$after,['source'=>'core_api']);}
+            $pdo->commit();
+            if ($audited && $changed > 0 && $after !== null) {
+                brvtalIndexNowNotifyChange($pdo, $resource, $before, $after);
+            }
+            json_response(['ok'=>true,'changed'=>$changed]);
+        }catch(PDOException $e){if($pdo->inTransaction())$pdo->rollBack();brvtal_log('DB_ERROR','Update failed',['resource'=>$resource,'id'=>$id,'code'=>$e->errorInfo[1]??null]);if((int)($e->errorInfo[1]??0)===1062){$key=(string)($e->errorInfo[2]??'');$isSlug=stripos($key,'slug')!==false;json_response(['ok'=>false,'error'=>$isSlug?'DUPLICATE_SLUG':'DUPLICATE_VALUE','field'=>$isSlug?'slug':null],409);}json_response(['ok'=>false,'error'=>'DATABASE_ERROR'],500);}catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
+    }
+    if($method==='DELETE'&&$id!==null){
+        $audited=brvtal_activity_audited_resource($resource);$pdo->beginTransaction();
+        try{
+            $before=brvtal_activity_fetch_resource($pdo,$table,$id,true);
+            if($before===null){$pdo->rollBack();json_response(['ok'=>false,'error'=>'NOT_FOUND'],404);}
+            $st=$pdo->prepare("DELETE FROM {$table} WHERE id=?");$st->execute([$id]);$deleted=(int)$st->rowCount();
+            if ($resource === 'artists' && $deleted === 1) {
+                $heroSetting = $pdo->prepare('DELETE FROM settings WHERE setting_key=?');
+                $heroSetting->execute([brvtalArtistHeroSettingKey($id)]);
+            }
+            if($deleted!==1){$pdo->rollBack();json_response(['ok'=>false,'error'=>'NOT_FOUND'],404);}
+            if($audited)brvtal_activity_record($pdo,'delete',$resource,$id,$before,null,['source'=>'core_api']);
+            $pdo->commit();
+            if ($audited) {
+                brvtalIndexNowNotifyChange($pdo, $resource, $before, null);
+            }
+            json_response(['ok'=>true,'deleted'=>1]);
+        }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
+    }
+    if ($method === 'DELETE' && $resource === 'settings' && $id === null) {
+        $keyState = brvtal_setting_key_normalize((string)($_GET['key'] ?? ''));
+        if ($keyState['error'] !== null) {
+            json_response(
+                ['ok' => false, 'error' => $keyState['error']['error'], 'field' => $keyState['error']['field']],
+                422
+            );
+        }
+
+        $key = (string)$keyState['key'];
+        if ($key === '') {
+            json_response(['ok' => false, 'error' => 'KEY_REQUIRED'], 422);
+        }
+        if ($key === 'security.totp_encryption_key' || (str_starts_with($key, 'admin.grid.') || str_starts_with($key, 'admin.dashboard.'))) {
+            json_response(['ok' => false, 'error' => 'PROTECTED_SETTING'], 403);
+        }
+
+        $previousSettingDelete = null;
+        $themeMutation = str_starts_with($key, 'theme.');
+        if ($themeMutation) {
+            brvtalAcquireThemeReferenceMutex($pdo);
+        }
+
+        try {
+            $pdo->beginTransaction();
+            $previousSettingDeleteSt = $pdo->prepare(
+                'SELECT is_json FROM settings WHERE setting_key=? LIMIT 1 FOR UPDATE'
+            );
+            $previousSettingDeleteSt->execute([$key]);
+            $previousSettingDelete = $previousSettingDeleteSt->fetch(PDO::FETCH_ASSOC);
+
+            if ($themeMutation) {
+                $activeTheme = $pdo->query(
+                    "SELECT setting_value FROM settings WHERE setting_key='theme.active' LIMIT 1 FOR UPDATE"
+                )->fetchColumn();
+                $themeDeleteError = brvtalThemeDeleteReferenceError(
+                    $key,
+                    is_string($activeTheme) ? trim($activeTheme) : null
+                );
+                if ($themeDeleteError !== null) {
+                    $pdo->rollBack();
+                    brvtalReleaseThemeReferenceMutex($pdo);
+                    json_response(
+                        ['ok' => false, 'error' => $themeDeleteError['error'], 'field' => $themeDeleteError['field']],
+                        409
+                    );
+                }
+            }
+
+            $st = $pdo->prepare('DELETE FROM settings WHERE setting_key=?');
+            $st->execute([$key]);
+            $deleted = (int)$st->rowCount();
+
+            if ($deleted > 0 && brvtalActivitySettingKeyAuditable($key)) {
+                brvtal_activity_record(
+                    $pdo,
+                    'setting_delete',
+                    'settings',
+                    null,
+                    is_array($previousSettingDelete)
+                        ? ['setting_key' => $key, 'is_json' => (int)($previousSettingDelete['is_json'] ?? 0)]
+                        : ['setting_key' => $key, 'is_json' => 0],
+                    null,
+                    [
+                        'source' => $themeMutation ? 'theme_studio' : 'settings_api',
+                        'setting_key' => $key,
+                        'theme_mutation' => $themeMutation,
+                    ],
+                    $key
+                );
+            }
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            if ($themeMutation) {
+                brvtalReleaseThemeReferenceMutex($pdo);
+            }
+            throw $e;
+        }
+
+        if ($themeMutation) {
+            brvtalReleaseThemeReferenceMutex($pdo);
+        }
+        if ($deleted > 0) {
+            brvtalIndexNowNotifySetting($pdo, $key);
+        }
+        json_response(['ok' => true, 'deleted' => $deleted]);
+    }
+    method_not_allowed();
+} catch(Throwable $e) { handle_exception($e); }

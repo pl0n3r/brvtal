@@ -1,0 +1,176 @@
+/*
+ * BRVTAL — Cromo layer (public home).
+ * Every rule is scoped to `html.cromo`, which js/public-cromo.js sets only
+ * after the WebGL shader compiled. Without it the Concept 05 look is intact.
+ * Colors come from the Theme Studio variables (--bg, --fg, --red).
+ */
+
+@font-face{
+  font-family:"Broken Glass";
+  src:url("../assets/fonts/BrokenGlass.ttf") format("truetype");
+  font-style:normal;
+  font-weight:400;
+  font-display:swap;
+}
+
+/* Font activation is controlled exclusively by html.cromo display selectors. */
+html.cromo #cromoGL{
+  position:fixed;
+  inset:0;
+  width:100%;
+  height:100%;
+  z-index:0;
+  pointer-events:none;
+  background:#050505;
+}
+
+html.cromo body{background:transparent}
+html.cromo main#top{position:relative;z-index:1;background:transparent}
+
+/* The chrome field shows through the hero; sections are dark plates over it. */
+html.cromo main#top>.home-phase-a-hero{
+  background:transparent;
+  background-image:none;
+}
+html.cromo main#top .c5-board-region{background:transparent}
+html.cromo main#top section.scene:not(.home-phase-a-hero),
+html.cromo .footer.c5-footer{
+  background-color:rgba(5,5,5,.88);
+}
+html.cromo .nav{background-color:rgba(5,5,5,.9)}
+
+/* Wordmark: white fill with a hard dark outline stays readable on chrome. */
+html.cromo .home-phase-a-hero .hero-title{
+  font-family:"Broken Glass",var(--theme-display-font,"Barlow Condensed"),sans-serif;
+  font-weight:400;
+  line-height:.9;
+  color:var(--fg,#f4f1e8);
+  -webkit-text-stroke:clamp(3px,.6vw,9px) #050505;
+  paint-order:stroke fill;
+  text-shadow:.04em .05em 0 var(--red,#d31822);
+  animation:cromo-rise 1s cubic-bezier(.22,1,.36,1) backwards;
+}
+@keyframes cromo-rise{
+  from{transform:translateY(14%) rotate(1.5deg)}
+  to{transform:none}
+}
+
+/* Hero text sits on dark plates so it never depends on the shader frame. */
+html.cromo body main#top .home-phase-a-hero .hero-copy .eyebrow,
+html.cromo body main#top .home-phase-a-hero .hero-copy .hero-sub,
+html.cromo body main#top .home-phase-a-hero .c5-hero-statement{
+  background:rgba(3,3,3,.9);
+  padding:.5em .9em;
+}
+html.cromo body .home-phase-a-hero .hero-copy .eyebrow{width:fit-content;max-width:100%}
+
+/* Legacy glitch decoration competes with the chrome; the outline replaces it. */
+html.cromo body .home-phase-a-hero .hero-glitch-lines,
+html.cromo body .home-phase-a-hero .hero-title::after{display:none}
+
+/* Section headings: same outline treatment so they survive the transparent gaps. */
+html.cromo main#top section.scene h2{
+  font-family:"Broken Glass",var(--theme-display-font,"Barlow Condensed"),sans-serif;
+  font-weight:400;
+  line-height:.96;
+  overflow-wrap:anywhere;
+  -webkit-text-stroke:2px #050505;
+  paint-order:stroke fill;
+}
+
+@media(prefers-reduced-motion:reduce){
+  html.cromo .home-phase-a-hero .hero-title{animation:none}
+}
+
+/* Compact display glyphs fill the mobile hero without horizontal overflow. */
+@media(max-width:600px){
+  html.cromo [data-concept="05"] .home-phase-a-hero .hero-title{
+    width:100%;
+    max-width:100%;
+    min-width:0;
+    font-size:clamp(110px,46vw,260px);
+    line-height:.85;
+    letter-spacing:-.012em;
+    overflow-wrap:normal;
+    word-break:normal;
+    white-space:nowrap;
+  }
+  html.cromo main#top section.scene h2{
+    max-width:100%;
+    font-size:clamp(48px,13vw,82px);
+    -webkit-text-stroke:1px #050505;
+  }
+}
+
+/* Narrow Cromo section headers: Broken Glass must never collide with labels.
+   Desktop and non-Cromo pages remain unchanged. */
+@media(max-width:700px){
+  html.cromo body main#top .section-head,
+  html.cromo body main#top .media-title{
+    display:flex;
+    flex-direction:column;
+    flex-wrap:nowrap;
+    align-items:flex-start;
+    justify-content:flex-start;
+    gap:8px;
+    min-width:0;
+    max-width:100%;
+  }
+  html.cromo body main#top .section-head h2,
+  html.cromo body main#top .media-title h2{
+    order:2;
+    display:block;
+    flex:0 1 auto;
+    width:100%;
+    min-width:0;
+    max-width:100%;
+    margin:0;
+    font-size:clamp(38px,10vw,60px);
+    line-height:1;
+    overflow-wrap:anywhere;
+    -webkit-text-stroke:1px #050505;
+  }
+  html.cromo body main#top .section-head > .mono:first-child,
+  html.cromo body main#top .media-title > .mono:first-child{order:1}
+  html.cromo body main#top .section-head > span:last-child,
+  html.cromo body main#top .media-title > span:last-child{
+    display:inline-flex;
+    position:relative;
+    z-index:2;
+    order:3;
+    flex:0 0 auto;
+    align-self:flex-start;
+    width:fit-content;
+    max-width:100%;
+    white-space:normal;
+    overflow-wrap:anywhere;
+  }
+  /* Night-card corner decoration must stay behind UPCOMING and NEXT EXPERIENCE. */
+  html.cromo [data-concept="05"] .event-card.c5-night-card::after{
+    z-index:1;
+    max-width:calc(100% - 18px);
+    pointer-events:none;
+  }
+  html.cromo [data-concept="05"] .c5-night-card .event-info{
+    position:relative;
+    z-index:5;
+    min-width:0;
+  }
+  html.cromo [data-concept="05"] .c5-night-card .event-info > .mono,
+  html.cromo [data-concept="05"] .c5-night-card .event-status{
+    position:relative;
+    z-index:6;
+    width:fit-content;
+    max-width:100%;
+    line-height:1.3;
+    white-space:normal;
+    overflow-wrap:anywhere;
+  }
+  html.cromo [data-concept="05"] .c5-experience-artwork-label{
+    z-index:6;
+    max-width:calc(100% - 20px);
+    line-height:1.3;
+    white-space:normal;
+    overflow-wrap:anywhere;
+  }
+}

@@ -1,0 +1,29 @@
+name: Production Deploy Observer
+run-name: Production Deploy Observer #${{ github.run_number }} · ${{ github.ref_name }}
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  observe:
+    name: release-deploy-marker
+    uses: pl0n3r/factory/.github/workflows/observar.yml@v1
+    with:
+      domain: https://www.brvtal.com.co
+      health_path: /api/health.php
+      paths: '["/"]'
+      version_source: config/version.php
+      version_format: php-const
+      version_key: BRVTAL_APP_VERSION
+      expected_sha: ${{ github.sha }}
+      # Public health already fails closed on DB/migration drift; schema detail is private.
+      # Factory still checks HTTP 200, status, exact SHA and version.
+      require_schema: false
+      convergence_attempts: 5
+      convergence_delay_seconds: 30
+      label_language: en
