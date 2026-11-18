@@ -311,6 +311,12 @@ jobs:
         if: needs.preflight.outputs.run_php == 'true'
         run: python3 -m unittest tests/test_set_duration_contract.py
 
+      - name: Verify legal handoff exact-copy acceptance (BRVTAL #1766 AC-01)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v tests.test_revision_juridica.RevisionJuridicaTests.test_exact_copies_bundle_and_sync_workflow
+
       - name: Run S27 coverage gap contracts (PHP + Node)
         shell: bash
         run: |
