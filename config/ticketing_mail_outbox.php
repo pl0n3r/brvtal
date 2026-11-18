@@ -16,6 +16,9 @@ function brvtal_ticket_mail_enqueue(
         && getenv('BRVTAL_TICKET_MAIL_PRIVACY_APPROVED') !== '1') {
         throw new RuntimeException('MAIL_PRIVACY_NOT_APPROVED');
     }
+    if (!$pdo->inTransaction()) {
+        throw new RuntimeException('MAIL_TRANSACTION_REQUIRED');
+    }
     if (!preg_match('/^[A-Za-z0-9:_-]{1,128}$/D', $key)
         || !preg_match('/^[A-Za-z0-9:_-]{1,128}$/D', $reference)
         || !filter_var($recipient, FILTER_VALIDATE_EMAIL)

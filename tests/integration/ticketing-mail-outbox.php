@@ -63,6 +63,13 @@ try {
     mail_assert($e->getMessage() === 'MAIL_PRIVACY_NOT_APPROVED', 'privacy gate reason');
 }
 putenv('BRVTAL_TICKET_MAIL_TESTING=1');
+try {
+    brvtal_ticket_mail_enqueue($pdo, 'ticket:outside:1', 'entry:1',
+        'buyer@example.test', 'Entrada', 'Contenido');
+    mail_assert(false, 'enqueue outside transaction should fail closed');
+} catch (RuntimeException $e) {
+    mail_assert($e->getMessage() === 'MAIL_TRANSACTION_REQUIRED', 'transaction reason');
+}
 mail_assert((int)$pdo->query('SELECT COUNT(*) FROM ticket_mail_outbox')->fetchColumn() === 0,
     'blocked privacy write remains empty');
 
@@ -77,6 +84,7 @@ $pdo->beginTransaction();
 $id = brvtal_ticket_mail_enqueue($pdo, 'ticket:synthetic:1', 'entry:1',
     'buyer@example.test', 'Entrada', 'Contenido');
 $pdo->commit();
+$pdo->beginTransaction();
 mail_assert($id === brvtal_ticket_mail_enqueue($pdo, 'ticket:synthetic:1', 'entry:1',
     'buyer@example.test', 'Entrada', 'Contenido'), 'unique logical message');
 try {
@@ -86,6 +94,7 @@ try {
 } catch (DomainException $e) {
     mail_assert($e->getMessage() === 'MAIL_KEY_CONFLICT', 'key conflict reason');
 }
+$pdo->commit();
 mail_assert((int)$pdo->query('SELECT COUNT(*) FROM ticket_mail_outbox')->fetchColumn() === 1,
     'one email row after duplicate webhook');
 
@@ -111,16 +120,20 @@ mail_assert($count === 3, 'no duplicate delivery after acceptance');
 mail_assert((string)$pdo->query('SELECT status FROM synthetic_paid_ticket')->fetchColumn() === 'paid',
     'paid ticket unchanged by mail failure');
 
+$pdo->beginTransaction();
 $id2 = brvtal_ticket_mail_enqueue($pdo, 'ticket:synthetic:2', 'entry:2',
     'buyer2@example.test', 'Entrada', 'Contenido');
+$pdo->commit();
 putenv('BRVTAL_TICKET_MAIL_MODE=disabled');
 mail_assert(brvtal_ticket_mail_deliver_one($pdo) === 'failed', 'disabled transport terminal');
 mail_assert(brvtal_ticket_mail_redrive($pdo, $id2), 'safe manual redrive');
 putenv('BRVTAL_TICKET_MAIL_MODE=mock');
 mail_assert(brvtal_ticket_mail_deliver_one($pdo) === 'accepted', 'redrive accepted');
 
+$pdo->beginTransaction();
 $id3 = brvtal_ticket_mail_enqueue($pdo, 'ticket:synthetic:3', 'entry:3',
     'buyer3@example.test', 'Entrada', 'Contenido');
+$pdo->commit();
 $pdo->prepare('UPDATE ticket_mail_outbox SET attempts=4 WHERE id=?')->execute([$id3]);
 mail_assert(brvtal_ticket_mail_deliver_one($pdo, static fn() => ['status' => 503]) === 'uncertain',
     'max retries fail closed to reconciliation');
