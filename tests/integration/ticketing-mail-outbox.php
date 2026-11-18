@@ -16,6 +16,7 @@ mail_assert(brvtal_ticket_resend_send($fixture)['code'] === 'transport_disabled'
 
 putenv('BRVTAL_TICKET_MAIL_MODE=mock');
 putenv('BRVTAL_TICKET_MAIL_TESTING=1');
+putenv('BRVTAL_TICKET_MAIL_API_KEY=synthetic-test-key-must-not-leak');
 mail_assert(brvtal_ticket_resend_send($fixture)['state'] === 'accepted', 'mock accepted');
 $seen = [];
 $transport = static function ($payload, $headers) use (&$seen): array {
@@ -28,6 +29,8 @@ mail_assert(brvtal_ticket_resend_send($fixture, $transport)['code'] === 'provide
 mail_assert(brvtal_ticket_resend_send($fixture, $transport)['state'] === 'accepted', '200 accepted');
 mail_assert(count($seen) === 3, 'mock transport calls');
 mail_assert($seen[0][1][2] === 'Idempotency-Key: ticket:synthetic:1', 'stable provider key');
+mail_assert($seen[0][1][0] === 'Authorization: Bearer ', 'mock must not expose API key');
+putenv('BRVTAL_TICKET_MAIL_API_KEY');
 
 if (getenv('BRVTAL_INTEGRATION_TESTS') !== '1') {
     echo "BRVTAL ticket-mail transport mock OK; MariaDB skipped.\n";

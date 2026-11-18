@@ -28,8 +28,9 @@ function brvtal_ticket_mail_enqueue(
     }
     $fingerprint = hash('sha256', json_encode([$reference, $recipient, $subject, $body], JSON_THROW_ON_ERROR));
     $stmt = $pdo->prepare('INSERT INTO ticket_mail_outbox
-        (message_key,payload_hash,related_ref,recipient_email,subject,body_text)
-        VALUES (?,?,?,?,?,?) ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)');
+        (message_key,payload_hash,related_ref,recipient_email,subject,body_text,next_attempt_at,created_at,updated_at)
+        VALUES (?,?,?,?,?,?,UTC_TIMESTAMP(),UTC_TIMESTAMP(),UTC_TIMESTAMP())
+        ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)');
     $stmt->execute([$key, $fingerprint, $reference, $recipient, $subject, $body]);
     $id = (int)$pdo->lastInsertId();
     $read = $pdo->prepare('SELECT payload_hash FROM ticket_mail_outbox WHERE id=?');

@@ -29,6 +29,8 @@ function brvtal_ticket_resend_send(array $job, ?callable $request = null): array
     $from = trim((string)getenv('BRVTAL_TICKET_MAIL_FROM'));
     $apiKey = (string)getenv('BRVTAL_TICKET_MAIL_API_KEY');
     if ($test) {
+        // A mock must never pass a configured production secret to callbacks.
+        $apiKey = '';
         $domain = 'brvtal.invalid';
         $from = 'Pruebas BRVTAL <test@brvtal.invalid>';
     }
@@ -37,6 +39,7 @@ function brvtal_ticket_resend_send(array $job, ?callable $request = null): array
         || !preg_match('/^[A-Za-z0-9:_-]{1,128}$/D', $key)
         || $subject === '' || strlen($subject) > 255
         || $body === '' || strlen($body) > 50000
+        || strpbrk($from, "\r\n") !== false
         || !filter_var($fromEmail, FILTER_VALIDATE_EMAIL)
         || !filter_var($domain, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME)
         || strtolower((string)substr(strrchr($fromEmail, '@') ?: '', 1)) !== $domain
