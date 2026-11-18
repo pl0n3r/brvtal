@@ -191,6 +191,10 @@ function brvtalMigrationProofSpecifications(): array
             ['uniq_memories_media', 'idx_memories_public'],
             true
         ),
+        'migration_memories_youtube_01.sql' => [
+            'column:memories.youtube_id',
+            'column-type:memories.youtube_id=char(11)',
+        ],
         'migration_memory_relations_01.sql' => brvtalMigrationObjectRequirements(
             'memory_relations',
             ['related_type', 'related_id'],

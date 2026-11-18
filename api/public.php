@@ -135,14 +135,20 @@ function brvtal_public_memories(PDO $pdo): array
         return [];
     }
 
+    // Allow safe read-only operation while a pending deploy has not run the
+    // explicit nullable-column migration yet; no YouTube item leaks pre-migration.
+    $column = $pdo->query("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='memories' AND COLUMN_NAME='youtube_id'");
+    $hasYoutube = (int)$column->fetchColumn() === 1;
+    $youtubeSelect = $hasYoutube ? 'm.youtube_id' : 'NULL AS youtube_id';
+    $youtubeCoverGuard = $hasYoutube ? " AND (m.youtube_id IS NULL OR media.type='image')" : '';
     $rows = $pdo->query(
-        "SELECT m.id,m.media_id,m.title,m.context,m.sort_order,
+        "SELECT m.id,m.media_id,{$youtubeSelect},m.title,m.context,m.sort_order,
                 media.type,media.file_path,media.mime_type,media.file_size,media.alt_text,media.created_at
          FROM memories m
          JOIN media ON media.id=m.media_id
          WHERE m.status='published'
            AND media.status='published'
-           AND media.type IN ('image','video','audio')
+           AND media.type IN ('image','video','audio'){$youtubeCoverGuard}
          ORDER BY m.sort_order ASC,m.id ASC"
     )->fetchAll(PDO::FETCH_ASSOC);
 
