@@ -190,6 +190,7 @@ npx playwright test \
   tests/e2e/hero-slider-integrity-real-stack.spec.mjs \
   tests/e2e/indexnow-real-stack.spec.mjs \
   tests/e2e/discadmin-password-recovery-real-stack.spec.mjs \
+  tests/e2e/discadmin-lineup-draft-artist.spec.mjs \
   --project=chromium
 
 BULK_FIXTURE_SQL="${RUNNER_TEMP:-/tmp}/brvtal-bulk-cursor-fixtures.sql"
