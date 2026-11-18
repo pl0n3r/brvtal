@@ -317,6 +317,12 @@ jobs:
           set -euo pipefail
           python3 -m unittest -v tests.test_revision_juridica.RevisionJuridicaTests.test_exact_copies_bundle_and_sync_workflow
 
+      - name: Verify Artist card portrait PHP contract (BRVTAL #1704)
+        shell: bash
+        run: |
+          set -euo pipefail
+          php tests/public-entity-card-framing-contract.php
+
       - name: Run S27 coverage gap contracts (PHP + Node)
         shell: bash
         run: |

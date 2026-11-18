@@ -491,8 +491,10 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
                 : ($safeInternalUrl($item['url'] ?? '') ?: $safeUrl($item['url'] ?? ''));
             $artistCard = ($item['route_type'] ?? '') === 'artists';
             // Artist portraits require the uncropped display variant; other entities keep card variants.
-            $mediaContext = $artistCard ? 'display' : 'card';
-            $visual = !empty($item['image']) ? '<img src="' . $escape(brvtal_public_absolute_url(brvtal_public_media_variant((string)$item['image'], $mediaContext), $base)) . '" alt="" loading="lazy" decoding="async">' : '<span class="entity-card-mark">BRVTAL</span>';
+            $mediaSource = $artistCard
+                ? brvtal_public_media_variant((string)$item['image'], 'display')
+                : brvtal_public_media_variant((string)$item['image'], 'card');
+            $visual = !empty($item['image']) ? '<img src="' . $escape(brvtal_public_absolute_url($mediaSource, $base)) . '" alt="" loading="lazy" decoding="async">' : '<span class="entity-card-mark">BRVTAL</span>';
             $cardStyle = '';
             $cardFraming = $artistCard ? brvtalArtistHeroValidate($item['card_framing'] ?? null) : null;
             if ($cardFraming !== null) {
