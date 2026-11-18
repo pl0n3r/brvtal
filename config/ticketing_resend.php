@@ -83,7 +83,6 @@ function brvtal_ticket_resend_send(array $job, ?callable $request = null): array
         ]);
         $bodyResponse = curl_exec($curl);
         $status = (int)curl_getinfo($curl, CURLINFO_HTTP_CODE);
-        curl_close($curl);
         if (!is_string($bodyResponse)) {
             return ['state' => 'uncertain', 'code' => 'network_unknown'];
         }
