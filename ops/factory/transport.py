@@ -823,11 +823,20 @@ def assert_factory_readiness(origin: str, sha: str, version: str) -> None:
         raise TransportError("Factory readiness probe returned invalid JSON") from None
     if not isinstance(payload, dict):
         raise TransportError("Factory readiness payload is invalid")
+    # Public health emits status=ok only after the private migration verifier
+    # passes. Requiring schema_up_to_date here would leak private DB state and
+    # reject valid recovery: the field is deliberately absent from public JSON.
+    deployment = payload.get("deployment")
     if (
-        payload.get("status") != "ok"
+        payload.get("ok") is not True
+        or payload.get("status") != "ok"
         or payload.get("version") != safe_version
         or payload.get("release_sha") != safe_sha
-        or payload.get("schema_up_to_date") is not True
+        or not isinstance(deployment, dict)
+        or deployment.get("exact") is not True
+        or deployment.get("source") != "git_checkout"
+        or deployment.get("commit") != safe_sha
+        or deployment.get("version") != safe_version
     ):
         raise TransportError("Factory readiness does not match exact release/schema expectation")
 
