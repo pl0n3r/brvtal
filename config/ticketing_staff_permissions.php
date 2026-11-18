@@ -14,6 +14,9 @@ function brvtalTicketingCan(string $role, string $capability): bool
         'door' => ['view','door'],
     ];
     $role = strtolower(trim($role));
+    if (in_array($role, ['root', 'owner', 'platform_owner'], true)) {
+        $role = 'superadmin';
+    }
     return in_array($capability, $grants[$role] ?? [], true);
 }
 

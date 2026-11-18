@@ -62,10 +62,10 @@ test('door role sees only Puerta, and denied fragment cannot mount data', async 
 
 test('server-side permissions refuse buyer and sensitive staff operations', async () => {
   const evaluated = JSON.parse(execFileSync('php',['-r',
-    "require 'config/ticketing_staff_permissions.php'; echo json_encode([brvtalTicketingCan('buyer','view'),brvtalTicketingCan('door','finance'),brvtalTicketingCan('admin','refund'),brvtalTicketingCan('superadmin','refund'),brvtalTicketingProviderStatus()]);"
+    "require 'config/ticketing_staff_permissions.php'; echo json_encode([brvtalTicketingCan('buyer','view'),brvtalTicketingCan('door','finance'),brvtalTicketingCan('admin','refund'),brvtalTicketingCan('superadmin','refund'),brvtalTicketingCan('root','settings'),brvtalTicketingCan('untrusted','view'),brvtalTicketingProviderStatus()]);"
   ],{encoding:'utf8'}));
-  expect(evaluated.slice(0,4)).toEqual([false,false,false,true]);
-  expect(evaluated[4]).toEqual({wompi:'disabled',resend:'disabled',health:'not_checked'});
+  expect(evaluated.slice(0,6)).toEqual([false,false,false,true,true,false]);
+  expect(evaluated[6]).toEqual({wompi:'disabled',resend:'disabled',health:'not_checked'});
   expect(core).toContain("['ticketing','BOLETERÍA']");
   expect(core).toContain("window.BRVTALTicketing.mount()");
   expect(php).toContain('brvtal_admin_require();');
