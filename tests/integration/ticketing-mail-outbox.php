@@ -54,6 +54,18 @@ $pdo->exec((string)file_get_contents(__DIR__ . '/../../database/migration_ticket
 $pdo->exec("CREATE TABLE synthetic_paid_ticket (id INT PRIMARY KEY,status VARCHAR(20) NOT NULL)");
 $pdo->exec("INSERT INTO synthetic_paid_ticket VALUES (1,'paid')");
 
+putenv('BRVTAL_TICKET_MAIL_TESTING=0');
+try {
+    brvtal_ticket_mail_enqueue($pdo, 'ticket:disabled:1', 'entry:1',
+        'buyer@example.test', 'Entrada', 'Contenido');
+    mail_assert(false, 'privacy gate must reject enqueue');
+} catch (RuntimeException $e) {
+    mail_assert($e->getMessage() === 'MAIL_PRIVACY_NOT_APPROVED', 'privacy gate reason');
+}
+putenv('BRVTAL_TICKET_MAIL_TESTING=1');
+mail_assert((int)$pdo->query('SELECT COUNT(*) FROM ticket_mail_outbox')->fetchColumn() === 0,
+    'blocked privacy write remains empty');
+
 // Enqueue must remain part of the payment's transaction, not commit on its own.
 $pdo->beginTransaction();
 brvtal_ticket_mail_enqueue($pdo, 'ticket:rollback:1', 'entry:1', 'buyer@example.test', 'Entrada', 'Contenido');
