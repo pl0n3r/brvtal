@@ -53,6 +53,7 @@ youtube_contract_assert(!str_contains($migration, 'UPDATE memories') && !str_con
 youtube_contract_assert(str_contains($api, 'YOUTUBE_COVER_MUST_BE_IMAGE'), 'admin requires image cover for YouTube');
 youtube_contract_assert(str_contains($api, 'brvtal_admin_require_csrf();'), 'admin mutation remains CSRF-protected');
 youtube_contract_assert(str_contains($api, 'm.youtube_id'), 'admin retrieves associated YouTube ID');
+youtube_contract_assert(str_contains($api, '$youtubeReady && $youtubeProvided'), 'omitted YouTube field must not be rewritten on update');
 youtube_contract_assert(str_contains($public, 'm.youtube_id IS NULL OR media.type=\'image\''), 'public query hides invalid YouTube covers');
 youtube_contract_assert(str_contains($public, "m.status='published'") && str_contains($public, "media.status='published'"), 'public query protects draft memories and covers');
 youtube_contract_assert(str_contains($public, "'m.youtube_id'"), 'public query delivers only DB-controlled identifiers');

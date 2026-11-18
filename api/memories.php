@@ -283,17 +283,19 @@ try {
             brvtal_memories_json(['ok'=>false,'error'=>'MEMORY_RELATIONS_SCHEMA_MISSING'], 409);
         }
         $data = brvtal_memories_validate($pdo, $input, $existing);
+        $youtubeProvided = array_key_exists('youtube_url', $input);
         $youtubeReady = brvtal_memories_youtube_schema_ready($pdo);
         if (!$youtubeReady && $data['youtube_id'] !== null) {
             brvtal_memories_json(['ok'=>false,'error'=>'MEMORIES_YOUTUBE_MIGRATION_REQUIRED'], 503);
         }
         try {
             $pdo->beginTransaction();
-            $st = $pdo->prepare($youtubeReady
+            // An omitted YouTube field must not overwrite a concurrent edit with a stale value.
+            $st = $pdo->prepare($youtubeReady && $youtubeProvided
                 ? 'UPDATE memories SET media_id=?,youtube_id=?,title=?,context=?,status=?,sort_order=? WHERE id=?'
                 : 'UPDATE memories SET media_id=?,title=?,context=?,status=?,sort_order=? WHERE id=?');
             $params = [$data['media_id'],$data['title'],$data['context'],$data['status'],$data['sort_order'],$id];
-            if ($youtubeReady) array_splice($params, 1, 0, [$data['youtube_id']]);
+            if ($youtubeReady && $youtubeProvided) array_splice($params, 1, 0, [$data['youtube_id']]);
             $st->execute($params);
             if ($relationsProvided) {
                 brvtal_memory_replace_relations($pdo, $id, $input['relations']);

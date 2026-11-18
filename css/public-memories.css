@@ -2,3 +2,5 @@
 
 /* YouTube is not requested until the first explicit play: only a local cover is visible. */
 .public-media-open{position:relative}.public-memory-youtube-play{pointer-events:none;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:grid;place-items:center;width:clamp(54px,8vw,84px);height:clamp(54px,8vw,84px);border:2px solid #fff;border-radius:50%;background:rgba(255,32,56,.94);color:white;font:700 26px/1 Arial,sans-serif;box-shadow:0 0 0 8px rgba(0,0,0,.28)}.public-media-open:hover .public-memory-youtube-play,.public-media-open:focus-visible .public-memory-youtube-play{background:#fff;color:#ff2038}.public-memory-youtube-frame{display:block;border:0;width:min(100%,1100px);height:auto;aspect-ratio:16/9;background:#000;max-height:72vh}
+
+.public-memory-youtube-cover{position:relative;display:block;width:min(100%,1100px);padding:0;border:0;background:#020303;cursor:pointer}.public-memory-youtube-cover:focus-visible{outline:2px solid #fff;outline-offset:-2px}.public-memory-youtube-cover:hover .public-memory-youtube-play,.public-memory-youtube-cover:focus-visible .public-memory-youtube-play{background:#fff;color:#ff2038}

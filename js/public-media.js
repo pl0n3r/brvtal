@@ -148,11 +148,27 @@
     viewer.querySelectorAll('video,audio').forEach(media => { try { media.pause(); } catch (_) {} });
     viewer.remove(); window.BRVTALScrollLock?.unlock('media-viewer'); state.lastFocus?.focus?.(); state.lastFocus=null; state.viewerItems=[];
   }
-  function viewerMediaNode(item) {
+  function viewerMediaNode(item, playYoutube=false) {
     const type=mediaType(item), url=fileUrl(item.file_path), title=item.title||item.alt_text||'BRVTAL memory';
     if (!url) return create('div',{className:'public-media-viewer-audio',text:'MEDIA UNAVAILABLE'});
     if (isYoutubeMemory(item)) {
-      // This is the first and only moment an external YouTube resource is requested.
+      if (!playYoutube) {
+        // Gallery navigation must never contact YouTube before an explicit Play action.
+        const cover=create('button',{className:'public-memory-youtube-cover'});
+        cover.type='button';
+        cover.setAttribute('aria-label',`Play ${title}`);
+        const candidate=deliveryCandidate(url,'viewer'), image=create('img');
+        image.src=candidate?.src||url; image.alt=String(item.alt_text||title);
+        image.dataset.brvtalOriginalSrc=url; image.dataset.brvtalImageContext='viewer';
+        const play=create('span',{className:'public-memory-youtube-play',text:'▶'});
+        play.setAttribute('aria-hidden','true');
+        cover.append(image,play);
+        cover.addEventListener('click',()=>{
+          if (cover.isConnected) cover.replaceWith(viewerMediaNode(item,true));
+        });
+        return cover;
+      }
+      // The explicit card or viewer Play action is the only moment YouTube is requested.
       const iframe=create('iframe',{className:'public-memory-youtube-frame'});
       iframe.src=`https://www.youtube-nocookie.com/embed/${item.youtube_id}?autoplay=1&rel=0&playsinline=1`;
       iframe.title=`YouTube video: ${title}`;
@@ -178,7 +194,7 @@
     image.src=candidate?.src||url; image.alt=String(item.alt_text||title); image.dataset.brvtalOriginalSrc=url; image.dataset.brvtalImageContext='viewer';
     return image;
   }
-  function showViewerItem() {
+  function showViewerItem(playYoutube=false) {
     const item=state.viewerItems[state.viewerIndex], viewer=document.getElementById('public-media-viewer');
     if (!item || !viewer) return;
     const dialog=qs('[role="dialog"]',viewer), stage=qs('[data-public-media-stage]',viewer), titleNode=qs('[data-public-media-title]',viewer), context=qs('[data-public-media-context]',viewer), position=qs('[data-public-media-position]',viewer);
@@ -186,7 +202,7 @@
     const title=item.title||item.alt_text||'BRVTAL memory', type=mediaType(item);
     dialog.setAttribute('aria-label',String(title));
     viewer.querySelectorAll('video,audio').forEach(media => { try { media.pause(); } catch (_) {} });
-    const media=viewerMediaNode(item); stage.replaceChildren(media); if (media instanceof HTMLImageElement) applyResponsiveImage(media,'viewer');
+    const media=viewerMediaNode(item,playYoutube); stage.replaceChildren(media); if (media instanceof HTMLImageElement) applyResponsiveImage(media,'viewer');
     const audio = media instanceof HTMLAudioElement ? media : media.querySelector?.('audio');
     if (audio) {
       audio.addEventListener('error', () => {
@@ -239,7 +255,7 @@
     state.viewerItems=state.items.filter(entry=>fileUrl(entry.file_path)&&mediaType(entry)!=='other'&&visibleIds.has(Number(entry.id)));
     if (!state.viewerItems.some(entry=>Number(entry.id)===Number(item.id))) state.viewerItems=[item];
     state.viewerIndex=Math.max(0,state.viewerItems.findIndex(entry=>Number(entry.id)===Number(item.id)));
-    const viewer=buildViewer(); document.body.appendChild(viewer); window.BRVTALScrollLock?.lock('media-viewer'); showViewerItem();
+    const viewer=buildViewer(); document.body.appendChild(viewer); window.BRVTALScrollLock?.lock('media-viewer'); showViewerItem(isYoutubeMemory(item));
     const close=viewer.querySelector('[data-public-media-close]'), prev=viewer.querySelector('[data-public-media-prev]'), next=viewer.querySelector('[data-public-media-next]');
     if (!close || !prev || !next) { closeViewer(); return; }
     prev.hidden=state.viewerItems.length<2; next.hidden=state.viewerItems.length<2;

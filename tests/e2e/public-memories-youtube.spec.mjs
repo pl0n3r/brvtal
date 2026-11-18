@@ -39,6 +39,24 @@ test('YouTube memory is a first-party cover until play; nocookie iframe stops an
   await expect(page.locator('iframe')).toHaveCount(0);
   expect(network).toEqual([]);
 
+  // Navigation between mixed memories must not trigger a YouTube request.
+  await page.getByRole('button',{name:'Open Other memory'}).click();
+  await expect(page.getByRole('dialog',{name:'Other memory'})).toBeVisible();
+  await page.getByRole('button',{name:'Previous memory'}).click();
+  const coverDialog = page.getByRole('dialog',{name:'Ritual nocturno'});
+  await expect(coverDialog.locator('.public-memory-youtube-cover img'))
+    .toHaveAttribute('src','/uploads/ritual-cover.jpg');
+  await expect(coverDialog.locator('iframe')).toHaveCount(0);
+  expect(network).toEqual([]);
+  await coverDialog.getByRole('button',{name:'Play Ritual nocturno'}).click();
+  await expect(coverDialog.locator('iframe')).toHaveAttribute('src',
+    `https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=1&rel=0&playsinline=1`);
+  await page.getByRole('button',{name:'Next memory'}).click();
+  await page.getByRole('button',{name:'Previous memory'}).click();
+  await expect(coverDialog.locator('iframe')).toHaveCount(0);
+  await expect(coverDialog.getByRole('button',{name:'Play Ritual nocturno'})).toBeVisible();
+  await page.getByRole('button',{name:/CLOSE/}).click();
+
   await page.getByRole('button',{name:'VIDEO'}).click();
   await expect(page.locator('[data-public-media-item]:not([hidden])')).toHaveCount(1);
   const play = page.getByRole('button',{name:'Play Ritual nocturno'});
