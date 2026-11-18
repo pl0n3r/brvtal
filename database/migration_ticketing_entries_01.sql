@@ -80,10 +80,14 @@ CREATE TABLE IF NOT EXISTS ticket_checkins (
     REFERENCES events(id) ON DELETE RESTRICT,
   CONSTRAINT fk_ticket_checkins_entry_event FOREIGN KEY (entry_id, event_id)
     REFERENCES ticket_entries(id, event_id) ON DELETE RESTRICT,
+  -- An accepted scan must identify a credential version of the SAME entry.
+  -- Composite FK also preserves immutable credential history for audit.
+  CONSTRAINT fk_ticket_checkins_entry_credential FOREIGN KEY (entry_id, credential_version)
+    REFERENCES ticket_entry_credentials(entry_id, version) ON DELETE RESTRICT,
   CONSTRAINT fk_ticket_checkins_operator FOREIGN KEY (operator_admin_id)
     REFERENCES admins(id) ON DELETE RESTRICT,
   CONSTRAINT chk_ticket_checkin_result CHECK (
-    (outcome = 'accepted' AND entry_id IS NOT NULL AND reason_code IS NULL) OR
+    (outcome = 'accepted' AND entry_id IS NOT NULL AND credential_version IS NOT NULL AND reason_code IS NULL) OR
     (outcome = 'rejected' AND reason_code IS NOT NULL)
   )
 ) ENGINE=InnoDB;

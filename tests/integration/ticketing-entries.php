@@ -135,6 +135,8 @@ $request = random_bytes(16);
 $pdo->prepare($checkin)->execute([$request, 1, $second, 1, 7, 'synthetic-scanner', 'accepted', null]);
 $pdo->prepare($checkin)->execute([random_bytes(16), 1, null, null, 7, 'synthetic-scanner', 'rejected', 'unknown_credential']);
 ticket_entries_reject($pdo, $checkin, [$request, 1, $second, 1, 7, 'synthetic-scanner', 'accepted', null], 'idempotent scan request');
+ticket_entries_reject($pdo, $checkin, [random_bytes(16), 1, $second, 99, 7, 'synthetic-scanner', 'accepted', null], 'accepted scan cannot name nonexistent credential version');
+ticket_entries_reject($pdo, $checkin, [random_bytes(16), 1, $second, null, 7, 'synthetic-scanner', 'accepted', null], 'accepted scan must identify credential version');
 ticket_entries_reject($pdo, $checkin, [random_bytes(16), 2, $second, 1, 7, 'synthetic-scanner', 'accepted', null], 'cross-event scan FK');
 ticket_entries_reject($pdo, $checkin, [random_bytes(16), 1, null, null, 7, 'synthetic-scanner', 'accepted', null], 'cannot accept unknown credential');
 ticket_entries_assert((int)$pdo->query("SELECT COUNT(*) FROM ticket_checkins WHERE outcome='rejected' AND entry_id IS NULL AND reason_code='unknown_credential'")->fetchColumn() === 1, 'rejected scans remain auditable without token hash');
