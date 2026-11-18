@@ -21,7 +21,8 @@ test('buyer security primitives never share admin cookie or bypass pending schem
   expect(api).toContain("'CSRF_INVALID'");
   expect(api).not.toContain('admin_id');
   // Unknown identities still run the password verifier, avoiding a cheap timing oracle.
-  expect(security).toContain('BRVTAL_BUYER_DUMMY_PASSWORD_HASH');
+  expect(security).not.toContain('BRVTAL_BUYER_DUMMY_PASSWORD_HASH');
+  expect(api).toContain('password_hash(bin2hex(random_bytes(16)), PASSWORD_DEFAULT)');
   expect(api).toContain('password_verify($password, $storedHash)');
 });
 

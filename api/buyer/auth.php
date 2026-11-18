@@ -69,9 +69,11 @@ try {
     );
     $q->execute([$email]);
     $buyer = $q->fetch(PDO::FETCH_ASSOC);
-    // Verify exactly once for known and unknown accounts to reduce timing leaks.
+    // One password_hash and one password_verify per attempt for both known
+    // and unknown buyers. No hard-coded credential or reusable dummy digest.
+    $dummyHash = password_hash(bin2hex(random_bytes(16)), PASSWORD_DEFAULT);
     $storedHash = is_array($buyer) && is_string($buyer['password_hash'] ?? null)
-        ? $buyer['password_hash'] : BRVTAL_BUYER_DUMMY_PASSWORD_HASH;
+        ? $buyer['password_hash'] : $dummyHash;
     $passwordMatches = password_verify($password, $storedHash);
     $valid = is_array($buyer) && $passwordMatches && !empty($buyer['email_verified_at']);
     if (!$valid) {
