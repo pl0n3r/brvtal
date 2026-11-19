@@ -73,20 +73,21 @@ register_shutdown_function(static function() use($server,$dbname):void {
 $db=new PDO("mysql:host={$host};port={$port};dbname={$dbname};charset=utf8mb4",$user,$pass,
     [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,
      PDO::ATTR_EMULATE_PREPARES=>false]);
-$db->exec("CREATE TABLE ticket_orders(id INT PRIMARY KEY,status VARCHAR(16) NOT NULL,
+$db->exec("CREATE TABLE ticket_orders(id BIGINT UNSIGNED PRIMARY KEY,status VARCHAR(16) NOT NULL,
  currency CHAR(3) NOT NULL,total_cop BIGINT NOT NULL,updated_at_utc DATETIME(6) NULL) ENGINE=InnoDB");
-$db->exec("CREATE TABLE ticket_payment_attempts(id INT PRIMARY KEY,order_id INT NOT NULL,
+$db->exec("CREATE TABLE ticket_payment_attempts(id BIGINT UNSIGNED PRIMARY KEY,order_id INT NOT NULL,
  provider VARCHAR(24) NOT NULL,provider_reference VARCHAR(190) NOT NULL,
  provider_transaction_id VARCHAR(190) NULL,gross_amount_cop BIGINT NOT NULL,
  status VARCHAR(16) NOT NULL,updated_at_utc DATETIME(6) NULL,
  UNIQUE KEY uq_tx (provider,provider_transaction_id),UNIQUE KEY uq_ref (provider,provider_reference)) ENGINE=InnoDB");
-$db->exec("CREATE TABLE ticket_payment_webhook_events(id INT AUTO_INCREMENT PRIMARY KEY,
- attempt_id INT NOT NULL,provider_transaction_id VARCHAR(190) NOT NULL,
- event_checksum CHAR(64) NOT NULL,signed_status VARCHAR(16) NOT NULL,
- event_timestamp BIGINT UNSIGNED NOT NULL,
- UNIQUE KEY uq_event(attempt_id,event_checksum)) ENGINE=InnoDB");
-$db->exec("CREATE TABLE ticket_issue_outbox(id INT AUTO_INCREMENT PRIMARY KEY,
- order_id INT NOT NULL UNIQUE,payment_attempt_id INT NOT NULL) ENGINE=InnoDB");
+$migration=file_get_contents(__DIR__ . '/../../database/migration_ticketing_webhook_01.sql');
+t08(is_string($migration) && $migration !== '', 'migration fixture available');
+$runMigration=static function() use($db,$migration):void {
+    foreach(explode(';',$migration) as $statement) {
+        if(trim($statement)!=='') $db->exec($statement);
+    }
+};
+$runMigration();
 $db->exec("INSERT INTO ticket_orders VALUES (42,'pending','COP',50000,NULL)");
 $insert=$db->prepare("INSERT INTO ticket_payment_attempts VALUES
  (1,42,'wompi',?,NULL,50000,'created',NULL)");
@@ -119,9 +120,13 @@ $bad=$provider; $bad['amount_in_cents']=500;
 t08Reject(fn()=>$process($signed,$bad),'WEBHOOK_PROVIDER_MISMATCH');
 $db->exec("UPDATE ticket_orders SET status='pending' WHERE id=42");
 $db->exec("UPDATE ticket_payment_attempts SET status='created',provider_transaction_id=NULL WHERE id=1");
-$db->exec("DROP TABLE ticket_orders");
+$db->exec("DROP TABLE ticket_payment_webhook_events");
 try { $process($signed,$provider); throw new RuntimeException('expected DB failure'); }
 catch(PDOException) { /* retry must not acknowledge as applied */ }
 t08($db->query("SELECT status FROM ticket_payment_attempts WHERE id=1")->fetchColumn()==='created',
     'DB outage rolled back event');
-echo "BRVTAL T08 verified signed events, duplicate/reverse, tampering and DB retry guard.\n";
+$runMigration();
+t08($process($signed,$provider)==='approved','retry after DB recovery');
+t08((int)$db->query('SELECT COUNT(*) FROM ticket_issue_outbox')->fetchColumn()===1,
+    'retry never duplicates issuance');
+echo "BRVTAL T08 verified signed events, migration, outbox, reversals and DB recovery.\n";
