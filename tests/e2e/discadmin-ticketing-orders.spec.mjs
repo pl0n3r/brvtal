@@ -18,7 +18,10 @@ async function start(page, reply, kind = 'orders') {
   await page.route('**/discadmin/t18-fixture.html', route => route.fulfill({
     contentType:'text/html',
     body:'<!doctype html><html lang="es"><meta name="viewport" content="width=device-width,initial-scale=1">'
-      + '<style>' + css + '</style><section data-admin-module="ticketing"><div id="ticketing-panel"></div></section></html>'
+      + '<style>' + css + '</style><section data-admin-module="ticketing">'
+      + '<button type="button" data-ticketing-tab="orders" aria-selected="' + String(kind==='orders') + '">Pedidos</button>'
+      + '<button type="button" data-ticketing-tab="buyers" aria-selected="' + String(kind==='buyers') + '">Compradores</button>'
+      + '<div id="ticketing-panel"></div></section></html>'
   }));
   await page.route('**/discadmin/ticketing-orders.js', route => route.fulfill({contentType:'text/javascript',body:js}));
   await page.route('**/discadmin/ticketing-orders.php', route => route.fulfill({contentType:'text/html',body:fixture}));
