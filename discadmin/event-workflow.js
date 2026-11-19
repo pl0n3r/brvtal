@@ -54,7 +54,8 @@
       INVALID_TIMETABLE_STATUS:'Timetable status must be draft or approved.',
       TIMETABLE_OVERLAP:'Timetable slots cannot overlap.',
       TIMETABLE_ARTIST_NOT_FOUND:'One timetable Artist no longer exists. Reload the Event and try again.',
-      TIMETABLE_NOT_READY:'Wait for timetable to load before saving this Event.'
+      TIMETABLE_NOT_READY:'Wait for timetable to load before saving this Event.',
+      EVENT_PUBLISH_AT_MUST_BE_FUTURE:'La fecha programada debe ser futura.'
     };
     return messages[code] || String(code || 'EVENT_WORKFLOW_FAILED').replace(/_/g, ' ').toLowerCase().replace(/^\w/, c => c.toUpperCase());
   }
@@ -82,7 +83,7 @@
     const event = {
       id:eventId || null,
       title:value(root, 'e_title').trim(),
-      slug:value(root, 'e_slug').trim(),
+      slug:value(root, 'e_slug').trim() || value(root, 'e_title').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,''),
       description:value(root, 'e_description'),
       cover_image:value(root, 'e_cover_image'),
       accent:normalizedAccent(root),
@@ -92,11 +93,32 @@
       venue:value(root, 'e_venue').trim(),
       venue_address:value(root, 'e_venue_address').trim(),
       archive_year:value(root, 'e_archive_year') ? Number(value(root, 'e_archive_year')) : null,
-      status:value(root, 'e_status') || 'draft',
+      status:(root.querySelector('#e_status')?.value==='scheduled'?'published':
+        root.querySelector('#e_status')?.value==='published'&&root.querySelector('#e_status')?.dataset.changed!=='1'&&
+        !['draft','cancelled','published'].includes(root.querySelector('#e_status')?.dataset.originalStatus||'published')?root.querySelector('#e_status').dataset.originalStatus:
+        value(root, 'e_status')||'draft'),
+      publish_at:value(root, 'e_status')==='scheduled'?value(root,'e_publish_at').replace('T',' '):null,
       ticket_instructions:value(root, 'e_ticket_instructions'),
       ticket_qr:value(root, 'e_ticket_qr'),
       ticket_url:value(root, 'e_ticket_url')
     };
+    // The atomic endpoint accepts SEO metadata only when the editor includes
+    // it explicitly; otherwise a valid title/description edit would silently
+    // save an empty SEO title. Never overwrite stored SEO when the UI is absent.
+    const seoTitle=field(root,'e_seo_title');
+    const seoDescription=field(root,'e_seo_description');
+    if(seoTitle&&seoDescription){
+      event.seo_title=String(seoTitle.value||'');
+      event.seo_description=String(seoDescription.value||'');
+    }
+    if(value(root,'e_status')==='scheduled'){
+      const publishAt=value(root,'e_publish_at');
+      // Offset-free publish_at is interpreted in America/Bogota by PHP.
+      // Browser-local Date.parse can reject valid times in a different zone.
+      // Leave the future-time comparison to the authoritative server.
+      if(!publishAt)
+        throw new Error('EVENT_PUBLISH_AT_MUST_BE_FUTURE');
+    }
     if (!event.title) throw new Error('TITLE_REQUIRED');
     if (event.status !== 'draft' && !event.event_date) throw new Error('EVENT_DATE_REQUIRED');
     if (event.status !== 'draft' && !event.city) throw new Error('EVENT_CITY_REQUIRED');
@@ -156,32 +178,76 @@
     return selected;
   }
 
+  function parseHour(input) {
+    const raw=String(input||'').trim();
+    const matched=raw.match(/^(\d{1,2}):(\d{2})\s*(am|pm)$/i);
+    if(matched){
+      const h=Number(matched[1]),m=Number(matched[2]);
+      if(h<1||h>12||m>59)throw new Error('INVALID_TIMETABLE_WINDOW');
+      return (h%12+(matched[3].toLowerCase()==='pm'?12:0))*60+m;
+    }
+    const legacy=raw.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
+    if(legacy)return Number(legacy[1])*60+Number(legacy[2]);
+    throw new Error('INVALID_TIMETABLE_WINDOW');
+  }
+  function localDay(eventDate,offset) {
+    const day=String(eventDate||'').slice(0,10);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(day))throw new Error('EVENT_DATE_REQUIRED');
+    const d=new Date(day+'T12:00:00Z');
+    if(!Number.isFinite(d.valueOf()))throw new Error('EVENT_DATE_REQUIRED');
+    d.setUTCDate(d.getUTCDate()+offset);
+    return d.toISOString().slice(0,10);
+  }
+  function timetableEventAnchor(eventDate, timezone) {
+    const raw=String(eventDate||'');
+    if(!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(raw))
+      throw new Error('EVENT_DATE_REQUIRED');
+    // Event local time is America/Bogota (UTC-05, without DST).
+    // Existing rows may use another IANA zone; compute their day and
+    // midnight rollover against the same instant in the row's timezone.
+    const instant=new Date(raw.slice(0,16)+':00-05:00');
+    if(!Number.isFinite(instant.valueOf()))throw new Error('EVENT_DATE_REQUIRED');
+    const parts=Object.fromEntries(new Intl.DateTimeFormat('en-US',{
+      timeZone:timezone,year:'numeric',month:'2-digit',day:'2-digit',
+      hour:'2-digit',minute:'2-digit',hourCycle:'h23'
+    }).formatToParts(instant).filter(part=>part.type!=='literal').map(part=>[part.type,part.value]));
+    return {day:parts.year+'-'+parts.month+'-'+parts.day,minute:Number(parts.hour)*60+Number(parts.minute)};
+  }
   function timetablePayloads(root) {
-    const holder = root.querySelector('#eventTimetable');
-    if (!holder) return null;
-    return [...holder.querySelectorAll('.timetable-row')].map((row, index) => {
-      const read = key => String(row.querySelector('[data-k="' + key + '"]')?.value ?? '');
-      const artistId = Number(read('artist_id') || 0);
-      const label = read('label').trim();
-      if (artistId < 1 && !label) throw new Error('TIMETABLE_SLOT_IDENTITY_REQUIRED');
-      const startsAt = read('starts_at');
-      const endsAt = read('ends_at');
-      if (!startsAt || !endsAt || endsAt <= startsAt) throw new Error('INVALID_TIMETABLE_WINDOW');
-      const timezone = read('timezone').trim();
-      if (!timezone) throw new Error('INVALID_TIMETABLE_TIMEZONE');
-      const status = read('status') || 'draft';
-      if (!['draft','approved'].includes(status)) throw new Error('INVALID_TIMETABLE_STATUS');
-      const item = {
-        artist_id:artistId > 0 ? artistId : null,
-        label:artistId > 0 ? null : label,
-        starts_at:startsAt,
-        ends_at:endsAt,
+    const holder=root.querySelector('#eventTimetable');
+    if(!holder)return null;
+    const eventDate=value(root,'e_event_date');
+    return [...holder.querySelectorAll('.timetable-row')].map((row,index)=>{
+      const read=key=>String(row.querySelector('[data-k="'+key+'"]')?.value??'').trim();
+      const artistId=Number(read('artist_id')||0),label=read('label');
+      if(artistId<1&&!label)throw new Error('TIMETABLE_SLOT_IDENTITY_REQUIRED');
+      const startMinutes=parseHour(read('starts_at')),endMinutes=parseHour(read('ends_at'));
+      const timezone=row.dataset.timezone||'America/Bogota';
+      const anchor=timetableEventAnchor(eventDate,timezone);
+      const startOffset=startMinutes<anchor.minute?1:0;
+      const endOffset=startOffset+(endMinutes<=startMinutes?1:0);
+      const stamp=(minutes,offset)=>localDay(anchor.day,offset)+'T'+String(Math.floor(minutes/60)).padStart(2,'0')+':'+String(minutes%60).padStart(2,'0');
+      const status=row.dataset.status||'approved';
+      // Keep historical timestamp precision only while its event date and
+      // rollover context match the new dates reconstructed from this snapshot.
+      const startDay=localDay(anchor.day,startOffset);
+      const endDay=localDay(anchor.day,endOffset);
+      const startUnchanged=!!row.dataset.originalStarts
+        && read('starts_at')===row.dataset.originalStartHour
+        && row.dataset.originalStarts.slice(0,10)===startDay;
+      const endUnchanged=!!row.dataset.originalEnds
+        && read('ends_at')===row.dataset.originalEndHour
+        && row.dataset.originalEnds.slice(0,10)===endDay;
+      const item={
+        artist_id:artistId>0?artistId:null,
+        label:artistId>0?null:label,
+        starts_at:startUnchanged?row.dataset.originalStarts:stamp(startMinutes,startOffset),
+        ends_at:endUnchanged?row.dataset.originalEnds:stamp(endMinutes,endOffset),
         timezone,
         status,
         sort_order:index
       };
-      const id = Number(row.dataset.id || 0);
-      if (id > 0) item.id = id;
+      const id=Number(row.dataset.id||0);if(id>0)item.id=id;
       return item;
     });
   }
@@ -309,9 +375,10 @@
         requireLoadedEventRelations();
         const eventData = eventPayload(root,activeEventId);
         const tickets = ticketPayloads(root);
+        // Capture date-dependent timetable before asynchronous lineup I/O.
+        const timetable = timetablePayloads(root);
         const beforeLineup = await existingLineup(activeEventId);
         const lineup = lineupPayload(root,beforeLineup);
-        const timetable = timetablePayloads(root);
         const {eventId,result} = await submitEventWorkflow(eventData,tickets,lineup,timetable);
         await finishEventSave(eventId,submittedDraft,eventData,tickets,lineup,timetable,result);
         return true;

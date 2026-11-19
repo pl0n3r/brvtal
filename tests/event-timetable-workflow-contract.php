@@ -36,7 +36,7 @@ event_timetable_workflow_assert(str_contains($endpoint, "'GET','POST'"), 'event 
 event_timetable_workflow_assert(str_contains($endpoint, "'timetable'=>brvtalEventTimetableForEditor"), 'GET must return editor timetable');
 event_timetable_workflow_assert(str_contains($endpoint, "'timetable_count'=>count"), 'workflow log must include timetable count');
 
-event_timetable_workflow_assert(str_contains($markup, '06 · TIMETABLE'), 'existing Event wizard must gain TIMETABLE step');
+event_timetable_workflow_assert(str_contains($markup, '03 · Lineup y horarios'), 'timetable must be in the consolidated third editor step');
 event_timetable_workflow_assert(str_contains($markup, 'id="eventTimetable"'), 'wizard must own one timetable editor container');
 event_timetable_workflow_assert(str_contains($core, 'refreshTimetable'), 'Content Core must hydrate timetable for existing Events');
 event_timetable_workflow_assert(str_contains($core, 'Atomic Event workflow unavailable. Reload DISCADMIN.'), 'Content Core must fail closed if the canonical atomic wrapper is unavailable with TIMETABLE present');

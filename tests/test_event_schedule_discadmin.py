@@ -39,25 +39,25 @@ class EventScheduleDiscadminTests(unittest.TestCase):
         html = self.content()
 
         self.assertIn('id="e_publish_schedule_field"', html)
-        self.assertIn('label for="e_publish_at">Publish not before</label>', html)
+        self.assertIn('label for="e_publish_at">Publicar a partir de</label>', html)
         self.assertIn('id="e_publish_at"', html)
         self.assertIn('type="datetime-local"', html)
         self.assertIn('aria-describedby="e_publish_at_help"', html)
         self.assertIn('id="e_publish_at_help"', html)
         self.assertIn('role="status"', html)
-        self.assertEqual(html.count('data-step="'), 6)
+        self.assertEqual(html.count('data-step="'), 5)
         self.assertNotIn('data-step="7"', html)
         self.assertNotIn('data-content="7"', html)
 
     def test_editor_serializes_publish_at_never_published_at(self) -> None:
         core = self.core_js()
 
-        self.assertIn("const rawPublishAt=$('#e_publish_at')?.value||'';", core)
+        self.assertIn("function eventPublishAt(){", core)
         self.assertIn(
-            "const publishAt=eventPublishScheduleEnabled()&&rawPublishAt?rawPublishAt.replace('T',' '):null;",
+            "const publishAt=eventPublishAt();",
             core,
         )
-        self.assertIn("status:$('#e_status').value,publish_at:publishAt", core)
+        self.assertIn("status:eventSaveStatus(),publish_at:publishAt", core)
         self.assertNotIn("published_at:publishAt", core)
         self.assertNotIn("published_at:rawPublishAt", core)
 
@@ -77,12 +77,15 @@ const helpers=source.slice(start,end);
 const context={Date,Set,Number,String};
 vm.createContext(context);
 vm.runInContext(helpers,context);
-const now=Date.parse('2026-10-04T18:00:00');
+// UTC browser: the server treats naive timestamps as UTC-05.
+const now=Date.parse('2026-10-04T23:00:00Z');
 const future=context.eventPublishScheduleInputValue({published_at:'2026-10-04 19:30:00'},now);
 const past=context.eventPublishScheduleInputValue({published_at:'2026-10-04 17:30:00'},now);
 console.log(JSON.stringify({future,past}));
 """
         self.assertIn("eventPublishScheduleInputValue(currentEvent)", core)
+        self.assertIn("eventBogotaMs(raw)", core)
+        self.assertIn("const instant=eventBogotaMs(raw)", core)
         self.assertIn("publish_at:publishAt", core)
         self.assertIn(":null;", core)
         result = json.loads(self.run_node(harness))
@@ -92,12 +95,12 @@ console.log(JSON.stringify({future,past}));
         core = self.core_js()
 
         self.assertIn(
-            "new Set(['published','upcoming','tickets_available','last_tickets','sold_out'])",
+            "new Set(['scheduled'])",
             core,
         )
         self.assertIn("input.disabled=!enabled", core)
         self.assertIn("input.setAttribute('aria-disabled',enabled?'false':'true')", core)
-        self.assertIn("Draft and historical states cannot be scheduled.", core)
+        self.assertIn("Selecciona Programado para elegir cuándo publicar.", core)
         self.assertIn("$('#e_status')?.addEventListener('change',syncEventPublishScheduleControl);", core)
         self.assertIn("openEventHistory", core)
         self.assertIn("previewEvent", core)

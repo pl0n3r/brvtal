@@ -54,7 +54,7 @@ class EventVersionHistoryDiscadminTests(unittest.TestCase):
             html,
             r'<button\s+[^>]*id="cc-historyBtn"[^>]*type="button"[^>]*class="btn"[^>]*hidden[^>]*disabled[^>]*onclick="BRVTALContentCore\.openEventHistory\(\)"',
         )
-        self.assertEqual(html.count('data-step="'), 6)
+        self.assertEqual(html.count('data-step="'), 5)
         self.assertNotIn('data-step="7"', html)
         self.assertNotIn('data-content="7"', html)
         self.assertIn("function syncEventHistoryControl()", core)

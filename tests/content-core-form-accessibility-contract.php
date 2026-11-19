@@ -94,29 +94,30 @@ foreach ([
 }
 
 $xpath = new DOMXPath($document);
-$wizardSteps = $xpath->query('//div[contains(concat(" ", normalize-space(@class), " "), " step ")]');
-content_core_a11y_assert($wizardSteps !== false && $wizardSteps->length === 6, 'Event wizard must keep six step indicators.');
+$wizardSteps = $xpath->query('//button[contains(concat(" ", normalize-space(@class), " "), " step ")]');
+content_core_a11y_assert($wizardSteps !== false && $wizardSteps->length === 5, 'Event editor must have exactly five commercial steps.');
 foreach ($wizardSteps as $wizardStep) {
     content_core_a11y_assert($wizardStep instanceof DOMElement, 'Wizard step indicator must remain an element.');
-    content_core_a11y_assert(!$wizardStep->hasAttribute('role'), 'Wizard step indicators must not claim button semantics without interaction.');
-    content_core_a11y_assert(!$wizardStep->hasAttribute('tabindex'), 'Wizard step indicators must not enter the tab order when they are not interactive.');
+    content_core_a11y_assert($wizardStep->getAttribute('type') === 'button', 'Each step is an interactive native button with no form submit side-effect.');
+    content_core_a11y_assert($wizardStep->hasAttribute('data-step'), 'Every step must retain keyboard-accessible navigation.');
 }
 
 $insightsPanel = $xpath->query('//*[@data-event-insights-panel]')->item(0);
 content_core_a11y_assert($insightsPanel instanceof DOMElement, 'Event Insights panel must remain present.');
 $contentParent = $insightsPanel->parentNode;
+$foundPromotionAncestor = false;
 while ($contentParent instanceof DOMElement) {
     $classes = preg_split('/\s+/', trim($contentParent->getAttribute('class'))) ?: [];
-    content_core_a11y_assert(
-        !in_array('step-content', $classes, true),
-        'Event Insights panel must stay outside wizard step-content navigation.'
-    );
-    content_core_a11y_assert(
-        strtolower($contentParent->tagName) !== 'form',
-        'Event Insights panel must stay outside the Event save form.'
-    );
+    if (in_array('step-content', $classes, true)) {
+        content_core_a11y_assert(
+            $contentParent->getAttribute('data-content') === '4',
+            'Event Insights must be folded inside Promotion, not shown in other steps.'
+        );
+        $foundPromotionAncestor = true;
+    }
     $contentParent = $contentParent->parentNode;
 }
+content_core_a11y_assert($foundPromotionAncestor, 'Event Insights must have a Promotion step ancestor.');
 
 $insightsStatus = $document->getElementById('eventInsightsStatus');
 content_core_a11y_assert($insightsStatus instanceof DOMElement, 'Event Insights status must remain present.');
