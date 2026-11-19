@@ -40,7 +40,7 @@ try {
     ] as $sql) $pdo->exec($sql);
     $page=brvtalTicketAdminPage($pdo,brvtalTicketAdminFilters(['kind'=>'orders','event_id'=>'6']));
     t18Assert(count($page['rows'])===2,'no row multiplication from item/payment/mail joins');
-    $o=array_values(array_filter($page['rows'],static fn($x)=>(int)$x['id']===91))[0];
+    $o=array_first(array_filter($page['rows'],static fn($x)=>(int)$x['id']===91));
     t18Assert((int)$o['units']===3&&(int)$o['entries']===3&&(int)$o['approvals']===1,'independent counts');
     t18Assert($o['total_cop']==75000&&$o['mail_state']==='failed','total and latest mail state');
     $pages=brvtalTicketAdminPage($pdo,brvtalTicketAdminFilters(['kind'=>'orders','limit'=>'1']));
