@@ -31,10 +31,6 @@ try {
         json_response(['ok'=>false,'error'=>'EXPORT_FORBIDDEN'], 403);
     }
     $page = brvtalTicketAdminPage($pdo, $filter);
-    if (!$canBuyers) {
-        foreach ($page['rows'] as &$row) unset($row['email']);
-        unset($row);
-    }
     if ($filter['order_id'] !== null) {
         $page['rows'] = array_values(array_filter($page['rows'], static fn(array $row): bool =>
             (int)$row['id'] === $filter['order_id']));
@@ -48,6 +44,11 @@ try {
             (int)$row['id'] === $filter['order_id']));
         if (!$page['rows']) json_response(['ok'=>false,'error'=>'ORDER_NOT_FOUND'], 404);
         $page['detail'] = brvtalTicketAdminDetail($pdo, $filter['order_id']);
+    }
+    // Redact after detail fallback too, never leak buyer email to records-only staff.
+    if (!$canBuyers) {
+        foreach ($page['rows'] as &$row) unset($row['email']);
+        unset($row);
     }
     if ($filter['format'] === 'csv') {
         header('Content-Type: text/csv; charset=utf-8');
