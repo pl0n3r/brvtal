@@ -54,7 +54,8 @@
       INVALID_TIMETABLE_STATUS:'Timetable status must be draft or approved.',
       TIMETABLE_OVERLAP:'Timetable slots cannot overlap.',
       TIMETABLE_ARTIST_NOT_FOUND:'One timetable Artist no longer exists. Reload the Event and try again.',
-      TIMETABLE_NOT_READY:'Wait for timetable to load before saving this Event.'
+      TIMETABLE_NOT_READY:'Wait for timetable to load before saving this Event.',
+      EVENT_PUBLISH_AT_MUST_BE_FUTURE:'La fecha programada debe ser futura.'
     };
     return messages[code] || String(code || 'EVENT_WORKFLOW_FAILED').replace(/_/g, ' ').toLowerCase().replace(/^\w/, c => c.toUpperCase());
   }
@@ -101,6 +102,11 @@
       ticket_qr:value(root, 'e_ticket_qr'),
       ticket_url:value(root, 'e_ticket_url')
     };
+    if(value(root,'e_status')==='scheduled'){
+      const publishAt=value(root,'e_publish_at');
+      if(!publishAt||!Number.isFinite(Date.parse(publishAt))||Date.parse(publishAt)<=Date.now())
+        throw new Error('EVENT_PUBLISH_AT_MUST_BE_FUTURE');
+    }
     if (!event.title) throw new Error('TITLE_REQUIRED');
     if (event.status !== 'draft' && !event.event_date) throw new Error('EVENT_DATE_REQUIRED');
     if (event.status !== 'draft' && !event.city) throw new Error('EVENT_CITY_REQUIRED');

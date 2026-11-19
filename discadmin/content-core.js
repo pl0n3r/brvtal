@@ -40,7 +40,7 @@ function brvtalEventRestoreInputValue(field,value){
   if(value===null||value===undefined)return '';
   if(field==='featured')return Number(value)?'1':'0';
   if(field==='event_date')return String(value).replace(' ','T').slice(0,16);
-  if(field==='status')return eventEditorStatus(value);
+  if(field==='status')return ['draft','cancelled'].includes(String(value||'').toLowerCase())?String(value).toLowerCase():'published';
   return String(value);
 }
 function brvtalTicketDateInputValue(value){return value?String(value).replace(' ','T').slice(0,16):''}
@@ -401,6 +401,13 @@ function eventSaveStatus(){
 function eventPublishAt(){
   return eventPublishScheduleEnabled()?($('#e_publish_at')?.value||'').replace('T',' '):null;
 }
+function eventScheduleError(){
+  if(!eventPublishScheduleEnabled())return '';
+  const raw=$('#e_publish_at')?.value||'';
+  return !raw||!Number.isFinite(Date.parse(raw))||Date.parse(raw)<=Date.now()
+    ? 'La fecha de publicación debe ser futura.'
+    : '';
+}
 function eventSlug(){
   const raw=$('#e_slug')?.value.trim()||'';
   const title=$('#e_title')?.value.trim()||'';
@@ -621,6 +628,8 @@ async function saveEvent(){
   const accent=rawAccent?(window.BRVTALAdminColorField?.normalize(rawAccent)||rawAccent):'';
   const publishAt=eventPublishAt();
   const payload={title:$('#e_title').value.trim(),slug:eventSlug(),description:$('#e_description').value,cover_image:$('#e_cover_image').value,accent,featured:Number($('#e_featured').value),event_date:rawDate?rawDate.replace('T',' '):null,city:$('#e_city').value.trim(),venue:$('#e_venue').value.trim(),venue_address:$('#e_venue_address')?.value.trim()||'',archive_year:Number($('#e_archive_year').value)||null,status:eventSaveStatus(),publish_at:publishAt,ticket_instructions:$('#e_ticket_instructions').value,ticket_qr:$('#e_ticket_qr').value,ticket_url:$('#e_ticket_url').value};
+  const scheduleError=eventScheduleError();
+  if(scheduleError){msg(scheduleError,false,'eventNotice');return false;}
   const validationError=validateEventPayload(payload);
   if(validationError){msg(validationError,false,'eventNotice');return false}
   if(!validateTicketRows())return false;
