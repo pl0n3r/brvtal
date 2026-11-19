@@ -106,7 +106,7 @@ function brvtalFinanceReport(PDO $db, ?int $eventId, ?string $from, ?string $to,
     if ($from !== null) { $where[]='o.created_at_utc>=?'; $params[]=$from.' 00:00:00'; }
     if ($to !== null) {
         $where[]='o.created_at_utc<?';
-        $params[]=(new DateTimeImmutable($to, new DateTimeZone('UTC')))->modify('+1 day')->format('Y-m-d').' 00:00:00';
+        $params[]=new DateTimeImmutable($to, new DateTimeZone('UTC'))->modify('+1 day')->format('Y-m-d').' 00:00:00';
     }
     $sql = 'SELECT o.id,o.event_id,o.total_cop,o.currency,o.status FROM ticket_orders o WHERE ' .
         implode(' AND ', $where) . ' ORDER BY o.id DESC LIMIT 5001';
