@@ -539,7 +539,7 @@ function addTicket(t={}){
   const rowId='ticket_'+(++ticketRowSeq);
   d.className='ticket-row';
   if(t.id){d.dataset.id=String(t.id);}
-  d.innerHTML=`<div class="ticket-row-head"><strong>TICKET TYPE</strong><button type="button" class="icon" aria-label="Remove ticket type" onclick="this.closest('.ticket-row').remove()">REMOVE</button></div>
+  d.innerHTML=`<div class="ticket-row-head"><strong>TICKET TYPE</strong><button type="button" class="icon" aria-label="Remove ticket type" data-remove-ticket>REMOVE</button></div>
   <div class="ticket-grid">
     <label class="ticket-field"><span>Name *</span><input data-k="name" aria-label="Ticket name" maxlength="120" placeholder="Preventa" value="${esc(t.name||'')}"></label>
     <label class="ticket-field"><span>Price</span><input data-k="price" aria-label="Ticket price" type="number" min="0" step="0.01" placeholder="20000" value="${esc(t.price??'')}"></label>
@@ -552,6 +552,10 @@ function addTicket(t={}){
     <label class="ticket-field ticket-wide"><span>Payment instructions</span><textarea data-k="payment_instructions" aria-label="Ticket payment instructions" maxlength="4000" placeholder="Nequi, transfer or pickup instructions">${esc(t.payment_instructions||'')}</textarea></label>
     <div class="ticket-field ticket-wide"><label for="${rowId}_qr">QR image</label><input id="${rowId}_qr" data-k="qr_image" data-media-picker="image" aria-label="Ticket QR image" maxlength="500" placeholder="/uploads/…" value="${esc(t.qr_image||'')}"></div>
   </div>`;
+  d.querySelector('[data-remove-ticket]')?.addEventListener('click',()=>{
+    d.remove();
+    eventEditorRefresh();
+  });
   $('#tickets').appendChild(d);
   eventSalesRefresh();
 }

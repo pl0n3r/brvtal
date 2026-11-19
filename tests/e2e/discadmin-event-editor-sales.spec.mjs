@@ -57,6 +57,19 @@ test('editor has five commercial steps, a single publication control and legacy 
   await expect(page.locator('#e_publish_at')).toBeEnabled();
 });
 
+test('removing a ticket immediately updates availability and publication checklist',async({page})=>{
+  await openEditor(page);
+  await page.evaluate(()=>window.BRVTALContentCore.openEvent());
+  await page.locator('[data-step="2"]').click();
+  await page.evaluate(()=>window.BRVTALContentCore.addTicket({name:'General',status:'active',price:30000,currency:'COP'}));
+  await expect(page.locator('#e_sales_state')).toContainText('disponible');
+  await page.locator('#tickets [data-remove-ticket]').click();
+  await expect(page.locator('#tickets .ticket-row')).toHaveCount(0);
+  await expect(page.locator('#e_sales_state')).toHaveText('Sin boletas configuradas');
+  await page.locator('[data-step="5"]').click();
+  await expect(page.locator('#e_publish_checklist [data-state="warning"]')).toContainText(['Imagen principal','Boleta con precio','Descripción']);
+});
+
 test('night timetable uses hours, rolls into next day and keeps UTC input contract',async({page})=>{
   await openEditor(page);
   await page.evaluate(()=>window.BRVTALContentCore.openEvent());
