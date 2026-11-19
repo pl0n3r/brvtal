@@ -360,6 +360,14 @@ async function initAuth(){const j=window.BRVTALAdminAuthBoundary?.auth?await win
 async function loadEvents({required=false}={}){try{const j=await api('/events');events=j.data||j.events||[];renderEvents();return true}catch(e){msg('Could not load events: '+e.message,false);if(required)throw e;return false}}
 function renderEvents(){const q=($('#eventSearch').value||'').toLowerCase();const a=events.filter(x=>JSON.stringify(x).toLowerCase().includes(q));$('#eventsTable').innerHTML='<div class="th"><div>EVENT</div><div>DATE</div><div>STATUS</div><div></div></div>'+(a.length?a.map(x=>`<div class="tr"><div><div class="title">${esc(x.title||x.name)}</div><div class="meta">${esc(x.city||'')} ${x.venue?'· '+esc(x.venue):''}</div></div><div>${esc(x.event_date||'—')}</div><div><span class="pill">${esc(x.status||'draft')}</span></div><div class="actions"><button class="icon" onclick="BRVTALContentCore.openEvent(${Number(x.id)})">EDIT</button></div></div>`).join(''):'<div class="empty">No events found.</div>')}
 function fill(id,v){const el=$('#'+id);if(el)el.value=v??''}
+// Event publication DATETIMEs are in the server's America/Bogota timezone
+// (UTC-05 year-round), not in the browser's local timezone.
+function eventBogotaMs(value){
+  const normalized=String(value||'').trim().replace(' ','T');
+  if(!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(normalized))return NaN;
+  const stamp=normalized.length===16?normalized+':00':normalized;
+  return Date.parse(stamp+'-05:00');
+}
 const EVENT_PUBLIC_SCHEDULE_STATUSES=new Set(['scheduled']);
 function eventPublishScheduleEnabled(status=$('#e_status')?.value){
   return EVENT_PUBLIC_SCHEDULE_STATUSES.has(String(status||'').trim());
@@ -367,7 +375,7 @@ function eventPublishScheduleEnabled(status=$('#e_status')?.value){
 function eventPublishScheduleInputValue(event,nowMs=Date.now()){
   const raw=String(event?.published_at||'').trim();
   if(!raw)return '';
-  const ms=Date.parse(raw.includes('T')?raw:raw.replace(' ','T'));
+  const ms=eventBogotaMs(raw);
   if(!Number.isFinite(ms)||ms<=nowMs)return '';
   return raw.replace(' ','T').slice(0,16);
 }
@@ -404,7 +412,8 @@ function eventPublishAt(){
 function eventScheduleError(){
   if(!eventPublishScheduleEnabled())return '';
   const raw=$('#e_publish_at')?.value||'';
-  return !raw||!Number.isFinite(Date.parse(raw))||Date.parse(raw)<=Date.now()
+  const instant=eventBogotaMs(raw);
+  return !Number.isFinite(instant)||instant<=Date.now()
     ? 'La fecha de publicación debe ser futura.'
     : '';
 }
@@ -425,7 +434,7 @@ function eventSalesRefresh(){
   const out=$('#e_sales_state');if(out)out.textContent=eventSalesState();
   const date=$('#e_event_date')?.value||'';
   const dateOut=$('#e_date_state');
-  if(dateOut)dateOut.textContent=!date?'Por definir':Date.parse(date)<Date.now()?'Finalizado':'Próximo';
+  if(dateOut)dateOut.textContent=!date?'Por definir':eventBogotaMs(date)<Date.now()?'Finalizado':'Próximo';
   const checklist=$('#e_publish_checklist');
   if(checklist){
     const tickets=$$('#tickets .ticket-row');

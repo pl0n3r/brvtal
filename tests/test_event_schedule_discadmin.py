@@ -77,12 +77,15 @@ const helpers=source.slice(start,end);
 const context={Date,Set,Number,String};
 vm.createContext(context);
 vm.runInContext(helpers,context);
-const now=Date.parse('2026-10-04T18:00:00');
+// UTC browser: the server treats naive timestamps as UTC-05.
+const now=Date.parse('2026-10-04T23:00:00Z');
 const future=context.eventPublishScheduleInputValue({published_at:'2026-10-04 19:30:00'},now);
 const past=context.eventPublishScheduleInputValue({published_at:'2026-10-04 17:30:00'},now);
 console.log(JSON.stringify({future,past}));
 """
         self.assertIn("eventPublishScheduleInputValue(currentEvent)", core)
+        self.assertIn("eventBogotaMs(raw)", core)
+        self.assertIn("const instant=eventBogotaMs(raw)", core)
         self.assertIn("publish_at:publishAt", core)
         self.assertIn(":null;", core)
         result = json.loads(self.run_node(harness))
