@@ -55,7 +55,7 @@ function migration_cli_find(string $directory, string $name): string
  * Only allowlisted categories leave the CLI during a failed production reconcile.
  * Exception messages, PDO errorInfo detail and SQL are NEVER emitted or logged.
  */
-function migration_cli_reconcile_safe_code(Throwable $exception): int
+function migrationCliReconcileSafeCode(Throwable $exception): int
 {
     if ($exception instanceof PDOException) {
         $info = $exception->errorInfo ?? null;
@@ -72,10 +72,15 @@ function migration_cli_reconcile_safe_code(Throwable $exception): int
         if ($class === '42') {
             return 122; // DDL/schema SQL or permissions (ambiguous; no auto-retry).
         }
+        // Check only trusted numeric vendor codes; never inspect the error text.
+        $driverCode = is_array($info) ? ($info[1] ?? null) : null;
+        if ($state === 'HY000' && (is_int($driverCode) || is_string($driverCode))
+            && in_array((string)$driverCode, ['2002', '2003', '2006', '2013'], true)) {
+            return 121; // MySQL connection failure after any recovery attempt.
+        }
         // MySQL/MariaDB reports a failed FK CREATE TABLE as SQLSTATE HY000
         // with driver code 1005 (errno 150). Inspect only numeric codes: never
         // parse or expose the driver message, table names, or SQL text.
-        $driverCode = is_array($info) ? ($info[1] ?? null) : null;
         if ($state === 'HY000' && (is_int($driverCode) || is_string($driverCode))
             && in_array((string)$driverCode, ['1005', '1215', '1822', '3780'], true)) {
             return 122; // Allowlisted DDL/FK failure; no automatic retry.
@@ -96,7 +101,8 @@ function migration_cli_reconcile_safe_code(Throwable $exception): int
         }
         foreach ([
             'MIGRATION_RECONCILIATION_', 'MIGRATION_SCHEMA_PROOF_',
-            'MIGRATION_NON_ADDITIVE_SQL', 'MIGRATION_REGISTRY_FILE_MISSING',
+            'MIGRATION_NON_ADDITIVE_SQL', 'MIGRATION_CHECKSUM_MISMATCH',
+            'MIGRATION_REGISTRY_FILE_MISSING',
             'MIGRATION_SQL_READ_FAILED:',
         ] as $safePrefix) {
             if (str_starts_with($message, $safePrefix)) {
@@ -220,7 +226,7 @@ try {
     );
 } catch (Throwable $exception) {
     if ($command === 'reconcile') {
-        $safeCode = migration_cli_reconcile_safe_code($exception);
+        $safeCode = migrationCliReconcileSafeCode($exception);
         try {
             brvtal_log('MIGRATION_ERROR', 'Migration reconciliation failed.', [
                 'command' => 'reconcile',

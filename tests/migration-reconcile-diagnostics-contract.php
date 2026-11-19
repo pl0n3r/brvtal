@@ -26,7 +26,14 @@ copy($src, $dir . '/scripts/migrations.php');
 file_put_contents($dir . '/config/bootstrap.php', <<<'PHP'
 <?php
 class DiagnosticFakePDO extends PDO { public function __construct() {} }
-function db(): PDO { return new DiagnosticFakePDO(); }
+function db(): PDO {
+    if (getenv('DIAGNOSTIC_KIND') === 'db_connection') {
+        $error = new PDOException('SECRET_SQL DSN token=SECRET_PII');
+        $error->errorInfo = ['HY000', 2002, 'SECRET_PII'];
+        throw $error;
+    }
+    return new DiagnosticFakePDO();
+}
 function brvtal_log(string $kind, string $label, array $context): void {
     file_put_contents(getenv('DIAGNOSTIC_LOG'), json_encode([$kind,$label,$context]));
 }
@@ -52,6 +59,7 @@ function brvtalMigrationReconcileHistorical(PDO $pdo, string $dir, ?string $acto
         'auth' => '28000',
         'ddl' => '42S01',
         'fk_ddl' => 'HY000',
+        'unknown_hy000' => 'HY000',
         'constraint' => '23000',
         'serial' => '40001',
         'unknown_db' => 'HY000',
@@ -67,15 +75,19 @@ function brvtalMigrationReconcileHistorical(PDO $pdo, string $dir, ?string $acto
     if ($kind === 'policy') {
         throw new RuntimeException('MIGRATION_RECONCILIATION_DRIFT');
     }
+    if ($kind === 'checksum') {
+        throw new RuntimeException('MIGRATION_CHECKSUM_MISMATCH');
+    }
     throw new RuntimeException('SECRET_SQL password=bearer@email.com');
 }
 PHP
 );
 
 $cases = [
-    'connection'=>121, 'auth'=>121, 'ddl'=>122, 'fk_ddl'=>122, 'constraint'=>123,
+    'connection'=>121, 'auth'=>121, 'db_connection'=>121,
+    'ddl'=>122, 'fk_ddl'=>122, 'unknown_hy000'=>125, 'constraint'=>123,
     'serial'=>124, 'unknown_db'=>125, 'partial'=>126,
-    'policy'=>120, 'unclassified'=>125,
+    'policy'=>120, 'checksum'=>120, 'unclassified'=>125,
 ];
 
 try {
@@ -104,11 +116,12 @@ try {
         $stderr = stream_get_contents($pipes[2]); fclose($pipes[2]);
         $code = proc_close($proc);
         diagnostic_expect($code === $expected, "{$kind} exit={$code} expected={$expected}");
-        diagnostic_expect(is_file($reached), "{$kind}: should reach synthetic reconcile");
+        diagnostic_expect($kind === 'db_connection' ? !is_file($reached) : is_file($reached),
+            "{$kind}: synthetic reconcile invocation mismatch");
         diagnostic_expect($stdout === '', "{$kind}: stdout must be empty");
         $printed = (string)$stderr . (string)@file_get_contents($log);
         diagnostic_expect(str_contains($printed, 'safe_code') && str_contains($printed, (string)$expected), "{$kind}: safe category absent");
-        diagnostic_expect(!preg_match('/SECRET_SQL|SECRET_PII|personal_email|bearer@email|password=/', $printed), "{$kind}: secret leaked");
+        diagnostic_expect(!preg_match('/SECRET_SQL|SECRET_PII|personal_email|bearer@email|password=|migration_secret\\.sql/', $printed), "{$kind}: secret leaked");
     }
 
     // Backup evidence gate: no call to reconcile, regardless of write permissions.
