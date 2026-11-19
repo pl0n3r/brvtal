@@ -554,38 +554,46 @@ function timetableArtistOptions(selectedId){
   });
   return options.join('');
 }
+function eventFormatHour(raw){
+  const match=String(raw||'').match(/(?:T|\s)?(\d{2}):(\d{2})(?::\d{2})?$/);
+  if(!match)return '';
+  const hour=Number(match[1]),minute=match[2];
+  return String(hour%12||12)+':'+minute+(hour>=12?' pm':' am');
+}
 function addTimetableRow(item={}){
+  const holder=$('#eventTimetable');if(!holder)return null;
   const row=document.createElement('div');
   const artistId=Number(item.artist_id||0);
-  const starts=String(item.starts_at||'').replace(' ','T').slice(0,16);
-  const ends=String(item.ends_at||'').replace(' ','T').slice(0,16);
-  const timezone=String(item.timezone||Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC');
+  const timezone=String(item.timezone||'America/Bogota');
+  const status=String(item.status||'approved');
   row.className='ticket-row timetable-row';
   if(item.id)row.dataset.id=String(item.id);
-  row.innerHTML='<div class="ticket-row-head"><strong>TIMETABLE SLOT</strong><button type="button" class="icon" aria-label="Remove timetable slot" onclick="this.closest(\'.timetable-row\').remove()">REMOVE</button></div>'
+  row.dataset.timezone=timezone;
+  row.dataset.status=status;
+  row.dataset.originalStarts=String(item.starts_at||'');
+  row.dataset.originalEnds=String(item.ends_at||'');
+  row.dataset.originalStartHour=eventFormatHour(item.starts_at);
+  row.dataset.originalEndHour=eventFormatHour(item.ends_at);
+  row.innerHTML='<div class="ticket-row-head"><strong>FRANJA HORARIA</strong><button type="button" class="icon" aria-label="Remove timetable slot" onclick="this.closest(\\'.timetable-row\\').remove()">QUITAR</button></div>'
     +'<div class="ticket-grid">'
-    +'<label class="ticket-field"><span>Artist</span><select data-k="artist_id" aria-label="Timetable artist">'+timetableArtistOptions(artistId)+'</select></label>'
-    +'<label class="ticket-field"><span>External label</span><input data-k="label" aria-label="Timetable external label" maxlength="180" value="'+esc(artistId?'':(item.label||''))+'" placeholder="Opening / Guest"></label>'
-    +'<label class="ticket-field"><span>Starts</span><input data-k="starts_at" aria-label="Timetable starts" type="datetime-local" value="'+esc(starts)+'"></label>'
-    +'<label class="ticket-field"><span>Ends</span><input data-k="ends_at" aria-label="Timetable ends" type="datetime-local" value="'+esc(ends)+'"></label>'
-    +'<label class="ticket-field"><span>Timezone</span><input data-k="timezone" aria-label="Timetable timezone" maxlength="64" value="'+esc(timezone)+'" placeholder="America/Bogota"></label>'
-    +'<label class="ticket-field"><span>Status</span><select data-k="status" aria-label="Timetable status"><option value="draft" '+(item.status!=='approved'?'selected':'')+'>draft</option><option value="approved" '+(item.status==='approved'?'selected':'')+'>approved</option></select></label>'
+    +'<label class="ticket-field"><span>Artista</span><select data-k="artist_id" aria-label="Timetable artist">'+timetableArtistOptions(artistId)+'</select></label>'
+    +'<label class="ticket-field"><span>Nombre externo</span><input data-k="label" aria-label="Timetable external label" maxlength="180" value="'+esc(artistId?'':(item.label||''))+'"></label>'
+    +'<label class="ticket-field"><span>Comienza</span><input data-k="starts_at" aria-label="Timetable starts" type="text" inputmode="text" placeholder="9:00 pm" value="'+esc(eventFormatHour(item.starts_at))+'"></label>'
+    +'<label class="ticket-field"><span>Termina</span><input data-k="ends_at" aria-label="Timetable ends" type="text" inputmode="text" placeholder="1:00 am" value="'+esc(eventFormatHour(item.ends_at))+'"></label>'
     +'</div>';
-  const artist=row.querySelector('[data-k="artist_id"]');
-  const label=row.querySelector('[data-k="label"]');
-  const syncIdentity=()=>{
-    const linked=Number(artist?.value||0)>0;
-    if(label){
-      label.disabled=linked;
-      if(linked)label.value='';
-    }
-  };
-  artist?.addEventListener('change',syncIdentity);
-  syncIdentity();
-  const holder=$('#eventTimetable');
-  if(!holder)return null;
-  holder.appendChild(row);
-  return row;
+  if(status==='draft'){
+    const note=document.createElement('div');
+    note.className='event-timetable-note';
+    note.textContent='Franja antigua en borrador. No aparece en público. ';
+    const button=document.createElement('button');
+    button.type='button';button.textContent='Mostrar en público';
+    button.addEventListener('click',()=>{row.dataset.status='approved';note.remove();});
+    note.appendChild(button);row.appendChild(note);
+  }
+  const artist=row.querySelector('[data-k="artist_id"]'),label=row.querySelector('[data-k="label"]');
+  const sync=()=>{const linked=Number(artist?.value||0)>0;if(label){label.disabled=linked;if(linked)label.value='';}};
+  artist?.addEventListener('change',sync);sync();
+  holder.appendChild(row);return row;
 }
 function renderTimetable(rows=[]){
   const holder=$('#eventTimetable');

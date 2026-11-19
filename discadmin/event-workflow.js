@@ -159,32 +159,53 @@
     return selected;
   }
 
+  function parseHour(input) {
+    const raw=String(input||'').trim();
+    const matched=raw.match(/^(\d{1,2}):(\d{2})\s*(am|pm)$/i);
+    if(matched){
+      const h=Number(matched[1]),m=Number(matched[2]);
+      if(h<1||h>12||m>59)throw new Error('INVALID_TIMETABLE_WINDOW');
+      return (h%12+(matched[3].toLowerCase()==='pm'?12:0))*60+m;
+    }
+    const legacy=raw.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
+    if(legacy)return Number(legacy[1])*60+Number(legacy[2]);
+    throw new Error('INVALID_TIMETABLE_WINDOW');
+  }
+  function localDay(eventDate,offset) {
+    const day=String(eventDate||'').slice(0,10);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(day))throw new Error('EVENT_DATE_REQUIRED');
+    const d=new Date(day+'T12:00:00Z');
+    if(!Number.isFinite(d.valueOf()))throw new Error('EVENT_DATE_REQUIRED');
+    d.setUTCDate(d.getUTCDate()+offset);
+    return d.toISOString().slice(0,10);
+  }
   function timetablePayloads(root) {
-    const holder = root.querySelector('#eventTimetable');
-    if (!holder) return null;
-    return [...holder.querySelectorAll('.timetable-row')].map((row, index) => {
-      const read = key => String(row.querySelector('[data-k="' + key + '"]')?.value ?? '');
-      const artistId = Number(read('artist_id') || 0);
-      const label = read('label').trim();
-      if (artistId < 1 && !label) throw new Error('TIMETABLE_SLOT_IDENTITY_REQUIRED');
-      const startsAt = read('starts_at');
-      const endsAt = read('ends_at');
-      if (!startsAt || !endsAt || endsAt <= startsAt) throw new Error('INVALID_TIMETABLE_WINDOW');
-      const timezone = read('timezone').trim();
-      if (!timezone) throw new Error('INVALID_TIMETABLE_TIMEZONE');
-      const status = read('status') || 'draft';
-      if (!['draft','approved'].includes(status)) throw new Error('INVALID_TIMETABLE_STATUS');
-      const item = {
-        artist_id:artistId > 0 ? artistId : null,
-        label:artistId > 0 ? null : label,
-        starts_at:startsAt,
-        ends_at:endsAt,
+    const holder=root.querySelector('#eventTimetable');
+    if(!holder)return null;
+    const eventDate=value(root,'e_event_date');
+    return [...holder.querySelectorAll('.timetable-row')].map((row,index)=>{
+      const read=key=>String(row.querySelector('[data-k="'+key+'"]')?.value??'').trim();
+      const artistId=Number(read('artist_id')||0),label=read('label');
+      if(artistId<1&&!label)throw new Error('TIMETABLE_SLOT_IDENTITY_REQUIRED');
+      const startMinutes=parseHour(read('starts_at')),endMinutes=parseHour(read('ends_at'));
+      const startBase=parseHour((eventDate.split('T')[1]||'').slice(0,5)||'00:00');
+      const startOffset=startMinutes<startBase?1:0;
+      const endOffset=startOffset+(endMinutes<=startMinutes?1:0);
+      const stamp=(minutes,offset)=>localDay(eventDate,offset)+'T'+String(Math.floor(minutes/60)).padStart(2,'0')+':'+String(minutes%60).padStart(2,'0');
+      const timezone=row.dataset.timezone||'America/Bogota';
+      const status=row.dataset.status||'approved';
+      const startUnchanged=!!row.dataset.originalStarts&&read('starts_at')===row.dataset.originalStartHour;
+      const endUnchanged=!!row.dataset.originalEnds&&read('ends_at')===row.dataset.originalEndHour;
+      const item={
+        artist_id:artistId>0?artistId:null,
+        label:artistId>0?null:label,
+        starts_at:startUnchanged?row.dataset.originalStarts:stamp(startMinutes,startOffset),
+        ends_at:endUnchanged?row.dataset.originalEnds:stamp(endMinutes,endOffset),
         timezone,
         status,
         sort_order:index
       };
-      const id = Number(row.dataset.id || 0);
-      if (id > 0) item.id = id;
+      const id=Number(row.dataset.id||0);if(id>0)item.id=id;
       return item;
     });
   }

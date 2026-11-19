@@ -40,6 +40,18 @@ function brvtal_event_state_error(array $state): ?array
     return brvtal_event_publication_error($state);
 }
 
+
+/** Editor-facing publication label. Public lifecycle still reads original persisted status. */
+function brvtal_event_editor_publication(string $status, bool $futureSchedule = false): string
+{
+    $status = strtolower(trim($status));
+    if ($status === 'draft' || $status === 'cancelled') return $status;
+    if ($futureSchedule && in_array($status, ['published','upcoming','tickets_available','last_tickets','sold_out'], true)) {
+        return 'scheduled';
+    }
+    return 'published';
+}
+
 function brvtal_event_workflow_event(array $input): array
 {
     $allowedStatuses = ['draft','published','upcoming','tickets_available','last_tickets','sold_out','cancelled','finished','archived'];
