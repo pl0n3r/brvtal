@@ -574,7 +574,7 @@ function addTimetableRow(item={}){
   row.dataset.originalEnds=String(item.ends_at||'');
   row.dataset.originalStartHour=eventFormatHour(item.starts_at);
   row.dataset.originalEndHour=eventFormatHour(item.ends_at);
-  row.innerHTML='<div class="ticket-row-head"><strong>FRANJA HORARIA</strong><button type="button" class="icon" aria-label="Remove timetable slot" onclick="this.closest(\\'.timetable-row\\').remove()">QUITAR</button></div>'
+  row.innerHTML='<div class="ticket-row-head"><strong>FRANJA HORARIA</strong><button type="button" class="icon" data-remove-timetable aria-label="Remove timetable slot">QUITAR</button></div>'
     +'<div class="ticket-grid">'
     +'<label class="ticket-field"><span>Artista</span><select data-k="artist_id" aria-label="Timetable artist">'+timetableArtistOptions(artistId)+'</select></label>'
     +'<label class="ticket-field"><span>Nombre externo</span><input data-k="label" aria-label="Timetable external label" maxlength="180" value="'+esc(artistId?'':(item.label||''))+'"></label>'
@@ -590,6 +590,7 @@ function addTimetableRow(item={}){
     button.addEventListener('click',()=>{row.dataset.status='approved';note.remove();});
     note.appendChild(button);row.appendChild(note);
   }
+  row.querySelector('[data-remove-timetable]')?.addEventListener('click',()=>{row.remove();eventEditorRefresh();});
   const artist=row.querySelector('[data-k="artist_id"]'),label=row.querySelector('[data-k="label"]');
   const sync=()=>{const linked=Number(artist?.value||0)>0;if(label){label.disabled=linked;if(linked)label.value='';}};
   artist?.addEventListener('change',sync);sync();
