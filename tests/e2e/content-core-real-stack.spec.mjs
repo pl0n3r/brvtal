@@ -75,6 +75,7 @@ test('Content Core saves Event, Tickets, roster and SEO through one atomic workf
     await step(5).click();
     await page.locator('#e_status').selectOption('published');
     await step(2).click();
+    await page.locator('.event-legacy-tickets > summary').click();
     await page.locator('#e_ticket_url').fill('https://tickets.example/ci-atomic');
 
     await step(2).click();

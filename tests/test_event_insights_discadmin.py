@@ -54,7 +54,9 @@ class EventInsightsDiscadminTests(unittest.TestCase):
         self.assertIn('data-event-insights-panel', html)
         self.assertNotIn('data-step="7"', html)
         self.assertNotIn('data-content="7"', html)
-        self.assertLess(html.index("</form>"), html.index("data-event-insights-panel"))
+        self.assertGreater(html.index("</form>"), html.index("data-event-insights-panel"))
+        self.assertIn('<details class="event-insights-details">', html)
+        self.assertIn('data-content="4"', html)
         self.assertIn('id="eventInsightsWindow"', html)
         for metric in ("Users", "Sessions", "Views"):
             self.assertIn(f'id="eventInsights{metric}"', html)
@@ -222,12 +224,11 @@ function moduleWith(fetchImpl){
         core = self.core_js()
 
         for step in (
-            "01 · IDENTITY",
-            "02 · DATE & PLACE",
-            "03 · LIFECYCLE",
-            "04 · TICKETS",
-            "05 · ROSTER",
-            "06 · TIMETABLE",
+            "01 · Evento",
+            "02 · Boletas",
+            "03 · Lineup y horarios",
+            "04 · Promoción",
+            "05 · Publicar",
         ):
             self.assertIn(step, html)
 
