@@ -487,7 +487,22 @@ marker_tmp="$marker.tmp.$BASHPID"
 printf 'backup-ready\n' > "$marker_tmp" || exit 74
 mv -f -- "$marker_tmp" "$marker" || exit 74
 
-BRVTAL_MIGRATIONS_ALLOW_WRITE=1 BRVTAL_MIGRATION_RECONCILE_BACKUP_READY=1 BRVTAL_MIGRATION_ACTOR=factory-reconcile php scripts/migrations.php reconcile --confirm --json >/dev/null || exit 75
+if BRVTAL_MIGRATIONS_ALLOW_WRITE=1 BRVTAL_MIGRATION_RECONCILE_BACKUP_READY=1 BRVTAL_MIGRATION_ACTOR=factory-reconcile php scripts/migrations.php reconcile --confirm --json >/dev/null; then
+    :
+else
+    reconcile_code=$?
+    # Only explicit, deterministic CLI categories can escape SSH; unknown => 75.
+    case "$reconcile_code" in
+        120) exit 77 ;;
+        121) exit 78 ;;
+        122) exit 79 ;;
+        123) exit 80 ;;
+        124) exit 81 ;;
+        125) exit 82 ;;
+        126) exit 83 ;;
+        *) exit 75 ;;
+    esac
+fi
 
 php scripts/migrations.php verify-plan __NONE__ >/dev/null || exit 76
 """
@@ -987,6 +1002,13 @@ def reconcile_migrations(config: Config, sha: str, version: str, origin: str) ->
             74: "backup marker",
             75: "reconciliation",
             76: "post-reconcile verification",
+            77: "policy or schema proof",
+            78: "database availability or permission",
+            79: "schema SQL or DDL conflict",
+            80: "database integrity constraint",
+            81: "transaction serialization",
+            82: "unclassified reconcile failure",
+            83: "post-apply schema proof mismatch",
         }
         stage = stages.get(int(failure.group(1))) if failure else None
         if stage is not None:
