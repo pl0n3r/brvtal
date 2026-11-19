@@ -445,15 +445,16 @@ site_root="$1"
 sha="$2"
 public="$site_root/public_html"
 state="$site_root/factory-state"
-test -d "$public"
-test ! -L "$public"
+# Fixed stage exit codes only; never echo the remote command, stderr or data.
+test -d "$public" || exit 70
+test ! -L "$public" || exit 70
 observed="$(git -C "$public" rev-parse HEAD 2>/dev/null || true)"
-test "$observed" = "$sha"
-mkdir -p -- "$state"
-test ! -L "$state"
+test "$observed" = "$sha" || exit 70
+mkdir -p -- "$state" || exit 70
+test ! -L "$state" || exit 70
 
-cd "$public"
-plan="$(php scripts/migrations.php reconcile-plan --json)"
+cd "$public" || exit 70
+plan="$(php scripts/migrations.php reconcile-plan --json)" || exit 71
 printf '%s' "$plan" | php -r '
 $plan = json_decode(stream_get_contents(STDIN), true, 512, JSON_THROW_ON_ERROR);
 if (!is_array($plan) || !isset($plan["blocked"]) || !is_array($plan["blocked"])) {
@@ -462,9 +463,10 @@ if (!is_array($plan) || !isset($plan["blocked"]) || !is_array($plan["blocked"]))
 if ($plan["blocked"] !== []) {
     exit(86);
 }
-'
+' || exit 72
 
-php <<'PHP'
+# Backup must reach ready state before the first production migration write.
+php <<'PHP' || exit 73
 <?php
 declare(strict_types=1);
 require "config/bootstrap.php";
@@ -480,14 +482,14 @@ if (($manifest["status"] ?? "") !== "ready") {
 PHP
 
 marker="$state/migration-reconcile-backup-$sha.ok"
-test ! -L "$marker"
+test ! -L "$marker" || exit 74
 marker_tmp="$marker.tmp.$BASHPID"
-printf 'backup-ready\n' > "$marker_tmp"
-mv -f -- "$marker_tmp" "$marker"
+printf 'backup-ready\n' > "$marker_tmp" || exit 74
+mv -f -- "$marker_tmp" "$marker" || exit 74
 
-BRVTAL_MIGRATIONS_ALLOW_WRITE=1 BRVTAL_MIGRATION_RECONCILE_BACKUP_READY=1 BRVTAL_MIGRATION_ACTOR=factory-reconcile php scripts/migrations.php reconcile --confirm --json >/dev/null
+BRVTAL_MIGRATIONS_ALLOW_WRITE=1 BRVTAL_MIGRATION_RECONCILE_BACKUP_READY=1 BRVTAL_MIGRATION_ACTOR=factory-reconcile php scripts/migrations.php reconcile --confirm --json >/dev/null || exit 75
 
-php scripts/migrations.php verify-plan __NONE__ >/dev/null
+php scripts/migrations.php verify-plan __NONE__ >/dev/null || exit 76
 """
 
 
@@ -971,7 +973,25 @@ def reconcile_migrations(config: Config, sha: str, version: str, origin: str) ->
     safe_version = _safe_version(version)
     safe_origin = _safe_origin(origin)
     _assert_identity(safe_origin, safe_sha, safe_version)
-    ssh_script(config, _RECONCILE_MIGRATIONS, safe_sha)
+    try:
+        ssh_script(config, _RECONCILE_MIGRATIONS, safe_sha)
+    except TransportError as exc:
+        # The SSH transport suppresses remote stderr (credentials, SQL/PII).
+        # These exit codes are emitted by our fixed, allowlisted shell stages.
+        failure = re.fullmatch(r"SSH command failed with exit code (\d{1,3})", str(exc))
+        stages = {
+            70: "remote preflight",
+            71: "read-only plan",
+            72: "plan guard",
+            73: "backup",
+            74: "backup marker",
+            75: "reconciliation",
+            76: "post-reconcile verification",
+        }
+        stage = stages.get(int(failure.group(1))) if failure else None
+        if stage is not None:
+            raise TransportError(f"production migration reconcile failed at {stage} stage") from None
+        raise
     assert_factory_readiness(safe_origin, safe_sha, safe_version)
     _assert_public_smoke(safe_origin)
 
