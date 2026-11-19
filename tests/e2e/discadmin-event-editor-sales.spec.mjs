@@ -29,7 +29,7 @@ async function openEditor(page,options={}){
         s.events=[{...record.event,id, published_at:record.event.publish_at||null}];
         s.ticketTypes=record.ticket_types.map((ticket,i)=>({...ticket,id:i+1,event_id:id}));
         s.timetable=record.timetable||[];
-        return payload({ok:true,data:{event:{id,...record.event},tickets:s.ticketTypes}});
+        return payload({ok:true,data:{event:{...record.event,id},tickets:s.ticketTypes}});
       }
       return payload({ok:false,error:'UNEXPECTED_ROUTE '+method+' '+path},404);
     };
