@@ -75,6 +75,68 @@ class ProductionMigrationReconcileWorkflowTests(unittest.TestCase):
         with self.assertRaisesRegex(error, "proofs are invalid"):
             sanitize(payload)
 
+    def test_remote_reconcile_has_distinct_fail_closed_stages_and_backup_first(self):
+        """Opaque remote errors must identify the failed gate without exposing SQL or private values."""
+        namespace = runpy.run_path(str(ROOT / "ops/factory/transport.py"))
+        script = namespace["_RECONCILE_MIGRATIONS"]
+        expected = {
+            70: "remote preflight",
+            71: "read-only plan",
+            72: "plan guard",
+            73: "backup",
+            74: "backup marker",
+            75: "reconciliation",
+            76: "post-reconcile verification",
+        }
+        for code in expected:
+            self.assertIn(f"|| exit {code}", script)
+        self.assertLess(script.index("reconcile-plan --json"), script.index("brvtal_backup_create"))
+        self.assertLess(script.index("brvtal_backup_create"), script.index("BRVTAL_MIGRATIONS_ALLOW_WRITE=1"))
+        self.assertLess(script.index("BRVTAL_MIGRATIONS_ALLOW_WRITE=1"), script.index("verify-plan __NONE__"))
+        self.assertIn('if ($plan["blocked"] !== [])', script)
+        self.assertIn('($manifest["status"] ?? "") !== "ready"', script)
+        self.assertIn("BRVTAL_MIGRATION_RECONCILE_BACKUP_READY=1", script)
+        self.assertNotIn("set +e", script)
+
+        reconcile = namespace["reconcile_migrations"]
+        globals_ = reconcile.__globals__
+        failure_type = namespace["TransportError"]
+        sha = "a" * 40
+        for code, label in expected.items():
+            with self.subTest(remote_exit_code=code):
+                remote = mock.Mock(side_effect=failure_type(f"SSH command failed with exit code {code}"))
+                with mock.patch.dict(globals_, {
+                    "_assert_identity": mock.Mock(),
+                    "ssh_script": remote,
+                    "assert_factory_readiness": mock.Mock(),
+                    "_assert_public_smoke": mock.Mock(),
+                }):
+                    with self.assertRaisesRegex(failure_type, f"failed at {label} stage"):
+                        reconcile(None, sha, "0.1.261", "https://www.brvtal.com.co")
+                    remote.assert_called_once()
+                    globals_["assert_factory_readiness"].assert_not_called()
+        # SSH transport failure and unknown remote exits are never interpreted
+        # as a successful stage or as permission to retry/reconcile blindly.
+        for code in (1, 255):
+            with self.subTest(unknown_remote_exit_code=code):
+                with mock.patch.dict(globals_, {
+                    "_assert_identity": mock.Mock(),
+                    "ssh_script": mock.Mock(side_effect=failure_type(f"SSH command failed with exit code {code}")),
+                }):
+                    with self.assertRaisesRegex(failure_type, f"SSH command failed with exit code {code}"):
+                        reconcile(None, sha, "0.1.261", "https://www.brvtal.com.co")
+
+    def test_ssh_failure_never_forwards_raw_remote_stderr(self):
+        namespace = runpy.run_path(str(ROOT / "ops/factory/transport.py"))
+        private_marker = "DATABASE_PASSWORD_SHOULD_NOT_LEAK"
+        with mock.patch("subprocess.run", return_value=SimpleNamespace(
+            returncode=73, stdout="", stderr=private_marker,
+        )):
+            with self.assertRaises(namespace["TransportError"]) as raised:
+                namespace["_run"](["ssh"], input_text="exit 73", label="SSH command")
+        self.assertIn("exit code 73", str(raised.exception))
+        self.assertNotIn(private_marker, str(raised.exception))
+
     def test_readiness_public_contract_without_private_schema(self):
         """Exact HTTPS health remains fail-closed without leaking migration metadata."""
         namespace = runpy.run_path(str(ROOT / "ops/factory/transport.py"))
