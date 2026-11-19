@@ -104,6 +104,87 @@ window.BRVTALArtistHeroPreview = (() => {
     syncControls(root,viewport);
   }
 
+
+  function photoImportError(code, fallback) {
+    const value = String(code || '').toUpperCase();
+    if (/URL|HTTPS|SCHEME|HOST|PRIVATE|LOCAL|DNS|REDIRECT/.test(value)) return 'Enlace no válido. Pega una URL HTTPS pública de imagen.';
+    if (/SIZE|LARGE|LIMIT|BIG/.test(value)) return 'La imagen es demasiado grande (máximo 8 MB).';
+    if (/MIME|TYPE|IMAGE|FORMAT|CONTENT/.test(value)) return 'El enlace no contiene una imagen JPEG, PNG o WebP válida.';
+    if (/TIMEOUT|CONNECT|NETWORK|FETCH|REMOTE|HTTP|UNREACHABLE/.test(value)) return 'El sitio no respondió. Inténtalo de nuevo.';
+    return fallback || 'No se pudo importar la foto. La imagen anterior se conserva.';
+  }
+
+  async function importPhoto(root, form, button) {
+    const urlInput = form.querySelector('#artistPhotoImportUrl');
+    const status = form.querySelector('#artistPhotoImportStatus');
+    const photo = form.querySelector('#f_photo');
+    if (!urlInput || !status || !photo || button.disabled) return;
+    const raw = String(urlInput.value || '').trim();
+    try {
+      const parsed = new URL(raw);
+      if (parsed.protocol !== 'https:' || parsed.username || parsed.password) throw new Error('INVALID_URL');
+    } catch (_) {
+      status.dataset.error = 'true';
+      status.textContent = photoImportError('INVALID_URL');
+      return;
+    }
+    button.disabled = true;
+    status.dataset.error = 'false';
+    status.textContent = 'Descargando y registrando la imagen en Media…';
+    try {
+      let token = (typeof csrf !== 'undefined' && csrf) ? csrf : '';
+      if (!token) {
+        const authResponse = await fetch('/api/auth',{credentials:'same-origin',cache:'no-store'});
+        const auth = await authResponse.json();
+        if (!authResponse.ok || !auth.authenticated || !auth.csrf) throw new Error('AUTH_REQUIRED');
+        token = auth.csrf;
+      }
+      const downloaded = await fetch('/api/media-import-url.php',{
+        method:'POST',credentials:'same-origin',cache:'no-store',
+        headers:{'Content-Type':'application/json','X-CSRF-Token':token},
+        body:JSON.stringify({url:raw})
+      });
+      if (!downloaded.ok) {
+        const error = await downloaded.json().catch(() => ({}));
+        throw new Error(error.error || ('HTTP_' + downloaded.status));
+      }
+      const mime = (downloaded.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+      const extensions = {'image/jpeg':'jpg','image/png':'png','image/webp':'webp'};
+      if (!extensions[mime]) throw new Error('INVALID_IMAGE_TYPE');
+      const blob = await downloaded.blob();
+      if (!blob.size || blob.size > 8 * 1024 * 1024) throw new Error('IMAGE_SIZE_LIMIT');
+      const file = new File([blob],'importada.' + extensions[mime],{type:mime});
+      const formData = new FormData();
+      formData.append('file',file);
+      formData.append('title','Foto importada');
+      const uploaded = await fetch('/api/media-library.php?action=upload',{
+        method:'POST',credentials:'same-origin',cache:'no-store',
+        headers:{'X-CSRF-Token':token},body:formData
+      });
+      const payload = await uploaded.json().catch(() => ({}));
+      if (!uploaded.ok || payload.ok !== true) throw new Error(payload.error || ('HTTP_' + uploaded.status));
+      const path = payload.data && payload.data.file_path;
+      if (typeof path !== 'string' || !path.startsWith('/uploads/')) throw new Error('INVALID_FILE_PATH');
+      if (!form.isConnected || !root.isConnected) return;
+      photo.value = path;
+      root.dataset.igPreview = '';
+      photo.dispatchEvent(new Event('input',{bubbles:true}));
+      photo.dispatchEvent(new Event('change',{bubbles:true}));
+      const thumb = form.querySelector('.thumbcell img');
+      if (thumb) thumb.src = path;
+      sync(root);
+      status.dataset.error = 'false';
+      status.textContent = 'Foto importada y registrada en Media. Guarda el artista para asociarla.';
+    } catch (error) {
+      if (form.isConnected) {
+        status.dataset.error = 'true';
+        status.textContent = photoImportError(error.message);
+      }
+    } finally {
+      button.disabled = false;
+    }
+  }
+
   function attach(root) {
     if (!root || root.dataset.heroBound === '1') return;
     root.dataset.heroBound = '1';
@@ -160,6 +241,8 @@ window.BRVTALArtistHeroPreview = (() => {
       }
     });
     const form = root.closest('#mcontent');
+    const importButton = form?.querySelector('#artistPhotoImportBtn');
+    importButton?.addEventListener('click',() => { void importPhoto(root,form,importButton); });
     form?.querySelector('#f_photo')?.addEventListener('input',() => sync(root));
     form?.querySelector('#f_name')?.addEventListener('input',() => sync(root));
     form?.querySelector('#f_is_collective_member')?.addEventListener('change',() => sync(root));
