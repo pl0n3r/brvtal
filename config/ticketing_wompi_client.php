@@ -23,7 +23,7 @@ function brvtal_ticket_wompi_config(?array $override = null): array
         throw new DomainException('WOMPI_CREDENTIALS_MISSING');
     }
     $raw = $env('BRVTAL_TICKET_WOMPI_ENABLED_METHODS');
-    $methods = array_values(array_unique(array_filter(array_map('trim', explode(',', $raw)))));
+    $methods = array_values(array_unique(array_filter(array_map(trim(...), explode(',', $raw)))));
     if (!$methods || array_diff($methods, ['CARD', 'NEQUI', 'PSE'])) {
         throw new DomainException('WOMPI_METHODS_UNAVAILABLE');
     }
