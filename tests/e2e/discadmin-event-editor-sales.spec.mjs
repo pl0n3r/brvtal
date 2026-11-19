@@ -73,7 +73,12 @@ test('night timetable uses hours, rolls into next day and keeps UTC input contra
   await expect(row.locator('[data-k="timezone"]')).toHaveCount(0);
   await page.locator('[data-step="5"]').click();
   await page.locator('#e_status').selectOption('published');
-  expect(await page.evaluate(()=>window.BRVTALContentCore.saveEvent())).toBe(true);
+  const saveResult=await page.evaluate(async()=>({
+    ok:await window.BRVTALContentCore.saveEvent(),
+    notice:document.querySelector('#eventNotice')?.textContent||'',
+    payloads:window.__salesFixture.writes
+  }));
+  expect(saveResult.ok,JSON.stringify(saveResult)).toBe(true);
   const writes=await page.evaluate(()=>window.__salesFixture.writes);
   expect(writes).toHaveLength(1);
   expect(writes[0].event.status).toBe('published');
