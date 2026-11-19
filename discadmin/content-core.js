@@ -362,13 +362,13 @@ function renderEvents(){const q=($('#eventSearch').value||'').toLowerCase();cons
 function fill(id,v){const el=$('#'+id);if(el)el.value=v??''}
 // Event publication DATETIMEs are in the server's America/Bogota timezone
 // (UTC-05 year-round), not in the browser's local timezone.
+const EVENT_PUBLIC_SCHEDULE_STATUSES=new Set(['scheduled']);
 function eventBogotaMs(value){
   const normalized=String(value||'').trim().replace(' ','T');
   if(!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(normalized))return NaN;
   const stamp=normalized.length===16?normalized+':00':normalized;
   return Date.parse(stamp+'-05:00');
 }
-const EVENT_PUBLIC_SCHEDULE_STATUSES=new Set(['scheduled']);
 function eventPublishScheduleEnabled(status=$('#e_status')?.value){
   return EVENT_PUBLIC_SCHEDULE_STATUSES.has(String(status||'').trim());
 }
