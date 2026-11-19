@@ -30,7 +30,7 @@ export async function mount(panel) {
         const table=document.createElement('table');
         const header=table.createTHead().insertRow();
         ['Evento','Bruto','Descuentos','Aprobado','Pagos','Pendientes','Rechazados','Reembolsados',
-         'Entradas','Comisión','IVA','Retenciones','Abono','Diferencia'].forEach(h => {
+         'Entradas','Cupos','Checkins','Comisión','IVA','Retenciones','Neto reportado','Diferencia teórica'].forEach(h => {
           const th=document.createElement('th'); th.scope='col'; th.textContent=h; header.appendChild(th);
         });
         const body=table.createTBody();
@@ -38,12 +38,15 @@ export async function mount(panel) {
           const tr=body.insertRow();
           [row.event_id,fmt(row.gross_cop),fmt(row.discount_cop),fmt(row.approved_cop),
            row.paid_orders,row.pending_orders,row.declined_orders,row.refunded_orders,row.tickets,
+           row.capacity===null?'Sin evidencia':row.capacity, row.checkins===null?'Sin evidencia':row.checkins,
            fmt(row.fee_cop),fmt(row.fee_vat_cop),fmt(row.withheld_cop),
            fmt(row.payout_cop),fmt(row.difference_cop)].forEach(value => cell(tr,value));
           const details=body.insertRow().insertCell();
-          details.colSpan=14;
+          details.colSpan=16;
           details.textContent='Tipos: ' + (row.types.map(t =>
-            'Tipo '+t.ticket_type_id+': '+t.quantity+' boletas / '+fmt(t.gross_cop)).join(' | ') || 'sin ventas');
+            'Tipo '+t.ticket_type_id+': '+t.quantity+' boletas / '+fmt(t.gross_cop)).join(' | ') || 'sin ventas') +
+            '. Transacciones: ' + (row.transactions.map(t => String(t.transaction_id || 'sin referencia') +
+            ' (pedido ' + t.order_id + ', settlement sin verificar)').join(' | ') || 'sin evidencia');
         }
         results.appendChild(table);
       } catch (error) {
