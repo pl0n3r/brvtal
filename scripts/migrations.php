@@ -22,7 +22,6 @@ if ($actor === '') {
     $actor = get_current_user() ?: 'cli';
 }
 $deploySha = brvtal_deployment_sha();
-$pdo = db();
 
 function migration_cli_fail(string $message, int $code = 1): never
 {
@@ -52,7 +51,56 @@ function migration_cli_find(string $directory, string $name): string
     return $files[$name];
 }
 
+/**
+ * Only allowlisted categories leave the CLI during a failed production reconcile.
+ * Exception messages, PDO errorInfo detail and SQL are NEVER emitted or logged.
+ */
+function migration_cli_reconcile_safe_code(Throwable $exception): int
+{
+    if ($exception instanceof PDOException) {
+        $info = $exception->errorInfo ?? null;
+        $state = is_array($info) && is_string($info[0] ?? null)
+            ? strtoupper($info[0])
+            : (is_string($exception->getCode()) ? strtoupper($exception->getCode()) : '');
+        if (preg_match('/^[A-Z0-9]{5}$/', $state) !== 1) {
+            return 125; // Opaque database failure.
+        }
+        $class = substr($state, 0, 2);
+        if ($class === '08' || $class === '28' || str_starts_with($state, 'HYT')) {
+            return 121; // Connection, authentication or timeout.
+        }
+        if ($class === '42') {
+            return 122; // DDL/schema SQL or permissions (ambiguous; no auto-retry).
+        }
+        if ($class === '23') {
+            return 123; // Integrity constraint.
+        }
+        if ($class === '40') {
+            return 124; // Transaction/serialization failure (no auto-retry).
+        }
+        return 125;
+    }
+
+    if ($exception instanceof RuntimeException) {
+        $message = $exception->getMessage();
+        if (str_starts_with($message, 'MIGRATION_SCHEMA_PROOF_FAILED_AFTER_APPLY:')) {
+            return 126; // Potential partial DDL: never retry blindly.
+        }
+        foreach ([
+            'MIGRATION_RECONCILIATION_', 'MIGRATION_SCHEMA_PROOF_',
+            'MIGRATION_NON_ADDITIVE_SQL', 'MIGRATION_REGISTRY_FILE_MISSING',
+            'MIGRATION_SQL_READ_FAILED:',
+        ] as $safePrefix) {
+            if (str_starts_with($message, $safePrefix)) {
+                return 120; // Fail-closed plan, proof or migration safety guard.
+            }
+        }
+    }
+    return 125; // No raw error text from unexpected exception classes.
+}
+
 try {
+    $pdo = db();
     if ($command === 'status') {
         $status = brvtal_migration_status($pdo, $directory);
         if ($json) {
@@ -163,6 +211,18 @@ try {
         'verify-plan <name|__NONE__>, init --confirm, apply <name> --confirm, baseline <name> --confirm'
     );
 } catch (Throwable $exception) {
+    if ($command === 'reconcile') {
+        $safeCode = migration_cli_reconcile_safe_code($exception);
+        try {
+            brvtal_log('MIGRATION_ERROR', 'Migration reconciliation failed.', [
+                'command' => 'reconcile',
+                'safe_code' => $safeCode,
+            ]);
+        } catch (Throwable) {
+            // An unavailable logger must not expose the original exception.
+        }
+        migration_cli_fail('reconciliation failed; sanitized category only', $safeCode);
+    }
     brvtal_log('MIGRATION_ERROR', 'Migration command failed.', [
         'command' => $command,
         'message' => $exception->getMessage(),
