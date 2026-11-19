@@ -105,7 +105,7 @@ function brvtal_wompi_hook_enqueue(PDO $db, int $orderId, int $attemptId): void
 {
     $db->prepare("INSERT INTO ticket_issue_outbox (order_id,payment_attempt_id)
         SELECT id,? FROM ticket_orders WHERE id=? AND status='paid'
-        ON DUPLICATE KEY UPDATE id=id")->execute([$attemptId,$orderId]);
+        ON DUPLICATE KEY UPDATE payment_attempt_id=ticket_issue_outbox.payment_attempt_id")->execute([$attemptId,$orderId]);
 }
 
 /** Single row-locked transaction; repeated/out-of-order notifications are no-ops. */
