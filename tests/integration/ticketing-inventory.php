@@ -188,9 +188,18 @@ $eventDate = $wall->modify('+3 days')->format('Y-m-d H:i:s');
 $fromDate = $wall->modify('-1 hour')->format('Y-m-d H:i:s');
 $untilDate = $wall->modify('+2 seconds')->format('Y-m-d H:i:s');
 $eventUpdate=$db->prepare("UPDATE events SET event_date=?,published_at=? WHERE id=1");
-$eventUpdate->execute([$eventDate,$fromDate]);
+// Public visibility also parses legacy timestamps in the server's timezone;
+// publish well before the test window so the ONLY crossing boundary is
+// available_until while the worker waits on the Event row lock.
+$publishedDate=$wall->modify('-2 days')->format('Y-m-d H:i:s');
+$eventUpdate->execute([$eventDate,$publishedDate]);
 $windowUpdate=$db->prepare("UPDATE event_ticket_types SET available_from=?,available_until=? WHERE id=10");
 $windowUpdate->execute([$fromDate,$untilDate]);
+inventoryAssert(brvtal_ticket_inventory_saleable(
+    ['status'=>'published','event_date'=>$eventDate,'published_at'=>$publishedDate],
+    ['status'=>'active','currency'=>'COP','available_from'=>$fromDate,'available_until'=>$untilDate],
+    $wall
+), 'wall-clock fixture must be saleable before the Event lock wait');
 $db->beginTransaction();
 $db->query("SELECT id FROM events WHERE id=1 FOR UPDATE")->fetchColumn();
 $proc=proc_open([PHP_BINARY,__FILE__,'--wall',$name,'202','0'],
