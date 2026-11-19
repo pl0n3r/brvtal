@@ -39,13 +39,13 @@ class EventScheduleDiscadminTests(unittest.TestCase):
         html = self.content()
 
         self.assertIn('id="e_publish_schedule_field"', html)
-        self.assertIn('label for="e_publish_at">Publish not before</label>', html)
+        self.assertIn('label for="e_publish_at">Publicar a partir de</label>', html)
         self.assertIn('id="e_publish_at"', html)
         self.assertIn('type="datetime-local"', html)
         self.assertIn('aria-describedby="e_publish_at_help"', html)
         self.assertIn('id="e_publish_at_help"', html)
         self.assertIn('role="status"', html)
-        self.assertEqual(html.count('data-step="'), 6)
+        self.assertEqual(html.count('data-step="'), 5)
         self.assertNotIn('data-step="7"', html)
         self.assertNotIn('data-content="7"', html)
 
@@ -54,10 +54,10 @@ class EventScheduleDiscadminTests(unittest.TestCase):
 
         self.assertIn("const rawPublishAt=$('#e_publish_at')?.value||'';", core)
         self.assertIn(
-            "const publishAt=eventPublishScheduleEnabled()&&rawPublishAt?rawPublishAt.replace('T',' '):null;",
+            "const publishAt=eventPublishAt();",
             core,
         )
-        self.assertIn("status:$('#e_status').value,publish_at:publishAt", core)
+        self.assertIn("status:eventSaveStatus(),publish_at:publishAt", core)
         self.assertNotIn("published_at:publishAt", core)
         self.assertNotIn("published_at:rawPublishAt", core)
 
@@ -92,12 +92,12 @@ console.log(JSON.stringify({future,past}));
         core = self.core_js()
 
         self.assertIn(
-            "new Set(['published','upcoming','tickets_available','last_tickets','sold_out'])",
+            "new Set(['scheduled'])",
             core,
         )
         self.assertIn("input.disabled=!enabled", core)
         self.assertIn("input.setAttribute('aria-disabled',enabled?'false':'true')", core)
-        self.assertIn("Draft and historical states cannot be scheduled.", core)
+        self.assertIn("Selecciona Programado para elegir cuándo publicar.", core)
         self.assertIn("$('#e_status')?.addEventListener('change',syncEventPublishScheduleControl);", core)
         self.assertIn("openEventHistory", core)
         self.assertIn("previewEvent", core)

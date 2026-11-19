@@ -456,7 +456,12 @@ function initEventSalesEditor(){
   const modal=$('#eventModal');if(!modal||modal.dataset.salesReady==='1')return;
   modal.dataset.salesReady='1';
   modal.addEventListener('input',event=>{
-    if(event.target?.closest('#eventForm')){eventEditorRefresh();}
+    if(event.target?.id==='e_share_image'&&$('#e_cover_image')){
+      $('#e_cover_image').value=event.target.value;
+    }else if(event.target?.id==='e_cover_image'&&$('#e_share_image')){
+      $('#e_share_image').value=event.target.value;
+    }
+    if(event.target?.closest('#eventForm'))eventEditorRefresh();
   });
   modal.addEventListener('change',event=>{
     if(event.target?.id==='e_status'){
@@ -482,7 +487,7 @@ function initEventSalesEditor(){
 function jumpStep(n){if(!Number.isInteger(Number(n))||Number(n)<1||Number(n)>eventWizardLastStep())return;currentStep=Number(n);setStep();}
 function syncEventMapPreview(){const address=$('#e_venue_address')?.value.trim()||'';const link=$('#e_venue_map_preview');if(!link)return;link.hidden=!address;if(address)link.href='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(address);else link.removeAttribute('href')}
 if(typeof document!=='undefined')document.addEventListener('input',event=>{if(event.target?.id==='e_venue_address')syncEventMapPreview()});
-function openEvent(id=null){currentEvent=events.find(x=>Number(x.id)===Number(id))||null;$('#eventHeading').textContent=currentEvent?'EDIT EVENT':'NEW EVENT';fill('e_title',currentEvent?.title);fill('e_slug',currentEvent?.slug);fill('e_description',currentEvent?.description);fill('e_cover_image',currentEvent?.cover_image);fill('e_accent',currentEvent?.accent);window.BRVTALAdminColorField?.sync($('#e_accent'));fill('e_featured',currentEvent?.featured?'1':'0');fill('e_event_date',currentEvent?.event_date?String(currentEvent.event_date).replace(' ','T').slice(0,16):'');fill('e_city',currentEvent?.city);fill('e_venue',currentEvent?.venue);fill('e_venue_address',currentEvent?.venue_address);syncEventMapPreview();fill('e_archive_year',currentEvent?.archive_year);fill('e_status',eventEditorPublication(currentEvent));if($('#e_status'))delete $('#e_status').dataset.changed;fill('e_publish_at',eventPublishScheduleInputValue(currentEvent));syncEventPublishScheduleControl();fill('e_ticket_instructions',currentEvent?.ticket_instructions);fill('e_ticket_qr',currentEvent?.ticket_qr);fill('e_ticket_url',currentEvent?.ticket_url);$('#tickets').innerHTML='';(currentEvent?.ticket_types||[]).forEach(addTicket);renderEventArtists();currentStep=1;setStep();syncEventHistoryControl();$('#eventModal').classList.add('open');initEventSalesEditor();eventEditorRefresh()}
+function openEvent(id=null){currentEvent=events.find(x=>Number(x.id)===Number(id))||null;$('#eventHeading').textContent=currentEvent?'EDIT EVENT':'NEW EVENT';fill('e_title',currentEvent?.title);fill('e_slug',currentEvent?.slug);fill('e_description',currentEvent?.description);fill('e_cover_image',currentEvent?.cover_image);fill('e_share_image',currentEvent?.cover_image);fill('e_accent',currentEvent?.accent);window.BRVTALAdminColorField?.sync($('#e_accent'));fill('e_featured',currentEvent?.featured?'1':'0');fill('e_event_date',currentEvent?.event_date?String(currentEvent.event_date).replace(' ','T').slice(0,16):'');fill('e_city',currentEvent?.city);fill('e_venue',currentEvent?.venue);fill('e_venue_address',currentEvent?.venue_address);syncEventMapPreview();fill('e_archive_year',currentEvent?.archive_year);fill('e_status',eventEditorPublication(currentEvent));if($('#e_status'))delete $('#e_status').dataset.changed;fill('e_publish_at',eventPublishScheduleInputValue(currentEvent));syncEventPublishScheduleControl();fill('e_ticket_instructions',currentEvent?.ticket_instructions);fill('e_ticket_qr',currentEvent?.ticket_qr);fill('e_ticket_url',currentEvent?.ticket_url);$('#tickets').innerHTML='';(currentEvent?.ticket_types||[]).forEach(addTicket);renderEventArtists();currentStep=1;setStep();syncEventHistoryControl();$('#eventModal').classList.add('open');initEventSalesEditor();eventEditorRefresh()}
 function closeEvent(force=false){
   const modal=$('#eventModal');
   const close=()=>modal.classList.remove('open');
@@ -605,7 +610,6 @@ function renderTimetable(rows=[]){
 async function saveEvent(){
   const rawDate=$('#e_event_date').value;
   const rawAccent=$('#e_accent').value.trim();
-  const rawPublishAt=$('#e_publish_at')?.value||'';
   const accent=rawAccent?(window.BRVTALAdminColorField?.normalize(rawAccent)||rawAccent):'';
   const publishAt=eventPublishAt();
   const payload={title:$('#e_title').value.trim(),slug:eventSlug(),description:$('#e_description').value,cover_image:$('#e_cover_image').value,accent,featured:Number($('#e_featured').value),event_date:rawDate?rawDate.replace('T',' '):null,city:$('#e_city').value.trim(),venue:$('#e_venue').value.trim(),venue_address:$('#e_venue_address')?.value.trim()||'',archive_year:Number($('#e_archive_year').value)||null,status:eventSaveStatus(),publish_at:publishAt,ticket_instructions:$('#e_ticket_instructions').value,ticket_qr:$('#e_ticket_qr').value,ticket_url:$('#e_ticket_url').value};

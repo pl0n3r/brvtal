@@ -150,7 +150,7 @@ brvtal_admin_require();
     <div class="sectionhead"><strong>Promoción y compartir</strong></div>
     <div class="form">
       <div class="field full"><label for="e_description">Descripción para vender el evento</label><textarea id="e_description" maxlength="65535" aria-describedby="e_description_count e_description_help"></textarea><small id="e_description_help">Cuenta por qué vale la pena asistir, sin inventar precios ni disponibilidad.</small><output id="e_description_count" aria-live="polite">0 caracteres</output></div>
-      <div class="field"><label for="e_share_image">Imagen para compartir (opcional)</label><input id="e_share_image" maxlength="500" placeholder="Se usa el afiche si no defines otra"></div>
+      <div class="field"><label for="e_share_image">Imagen para compartir</label><input id="e_share_image" maxlength="500" placeholder="Se usa el afiche principal"><small>Sin nuevo campo de datos: editarla también actualiza el afiche principal, y se guarda en el evento.</small></div>
       <div class="field"><label for="e_featured">Destacar en el inicio</label><select id="e_featured"><option value="0">No</option><option value="1">Sí</option></select></div>
     </div>
     <div id="e_seo_slot" aria-label="SEO y vista previa de buscadores"></div>
