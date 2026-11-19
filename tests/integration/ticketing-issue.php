@@ -124,7 +124,8 @@ $past=new DateTimeImmutable('-1 day',new DateTimeZone('UTC'));
 $token=$raws[0];$public=$ids[0];
 $payload=brvtal_ticket_issue_qr_payload($db,8,$public,$token,$future);
 t09($payload==='BRVTAL:T1:'.$public.':'.$token,'same credential can render again');
-t09(!str_contains($payload,'@') && !str_contains($payload,'100'),'QR omits PII and sequence');
+t09((bool)preg_match('/^BRVTAL:T1:[a-f0-9]{32}:[A-Za-z0-9_-]{43}$/D',$payload)
+    && !str_contains($payload,'@'),'QR is opaque without buyer PII');
 $download=brvtal_ticket_issue_download($db,8,$public,$token,$future);
 t09($download['content']===$payload && $download['cache_control']==='private, no-store',
     'authorized download is private and regenerates the same token');
