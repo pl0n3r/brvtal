@@ -83,7 +83,8 @@ $db->exec("CREATE TABLE ticket_payment_attempts(id BIGINT UNSIGNED PRIMARY KEY,o
 $migration=file_get_contents(__DIR__ . '/../../database/migration_ticketing_webhook_01.sql');
 t08(is_string($migration) && $migration !== '', 'migration fixture available');
 $runMigration=static function() use($db,$migration):void {
-    foreach(explode(';',$migration) as $statement) {
+    $ddl=preg_replace('/^\h*--[^\r\n]*$/m', '', $migration);
+    foreach(explode(';',(string)$ddl) as $statement) {
         if(trim($statement)!=='') $db->exec($statement);
     }
 };
