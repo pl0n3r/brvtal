@@ -74,7 +74,7 @@
       });
       const result = await json(response);
       const checkout = result.checkout;
-      sessionStorage.setItem(storageKey, String(result.order_id));
+      try { sessionStorage.setItem(storageKey, String(result.order_id)); } catch { /* Private mode. */ }
       say('Reserva preparada. El pago sigue pendiente hasta confirmación del servidor.');
       if (checkout.environment === 'mock') return; // Synthetic mode NEVER charges.
       if (checkout.environment !== 'sandbox' || checkout.currency !== 'COP'
@@ -106,6 +106,6 @@
   update();
   try {
     const orderId = sessionStorage.getItem(storageKey);
-    if (orderId && /^[1-9][0-9]{0,17}$/.test(orderId)) refresh(orderId);
+    if (orderId && /^[1-9]\d{0,17}$/.test(orderId)) void refresh(orderId);
   } catch { /* Storage disabled: no claim of confirmed payment. */ }
 })();

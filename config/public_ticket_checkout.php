@@ -76,6 +76,7 @@ function brvtal_public_ticket_checkout_prepare(PDO $db, int $eventId, int $buyer
         throw new InvalidArgumentException('INVALID_CHECKOUT_METHOD');
     }
     $digest = hash('sha256','t13|'.$buyerId.'|'.$eventId.'|'.$key);
+    if ($db->inTransaction()) throw new LogicException('CHECKOUT_TRANSACTION_ALREADY_ACTIVE');
     $db->beginTransaction();
     try {
         $q = $db->prepare('SELECT id,status,event_id,buyer_id FROM ticket_orders

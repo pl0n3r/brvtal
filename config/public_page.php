@@ -702,7 +702,9 @@ JS;
         : '';
 
     $eventStylesheet = $isEvent ? '<link rel="stylesheet" href="/css/public-event-record.css">' : '';
-    if ($internalEnabled) $eventStylesheet .= '<link rel="stylesheet" href="/css/public-ticket-checkout.css">';
+    if ($internalEnabled) {
+        $eventStylesheet .= '<link rel="stylesheet" href="/css/public-ticket-checkout.css">';
+    }
     $checkoutScript = $internalEnabled ? '<script src="/js/public-ticket-checkout.js" defer></script>' : '';
     $eventPalette = brvtalPublicEventPalette((string)($entity['accent'] ?? ''));
     $bodyClass = $isEvent ? 'entity-page entity-page--event entity-page--event-' . $recordState . ' cromo-page' : 'entity-page cromo-page';

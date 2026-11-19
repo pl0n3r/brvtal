@@ -160,6 +160,16 @@ function brvtalMigrationProofSpecifications(): array
             ),
             ['table:event_ticket_types', 'table:artist_collective_history']
         ),
+        'migration_ticketing_webhook_01.sql' => array_merge(
+            brvtalMigrationObjectRequirements('ticket_payment_webhook_events',
+                ['attempt_id','provider_transaction_id','event_checksum',
+                 'signed_status','event_timestamp','received_at_utc'],
+                ['uq_ticket_payment_webhook_event','idx_ticket_payment_webhook_transaction'], true),
+            brvtalMigrationObjectRequirements('ticket_issue_outbox',
+                ['order_id','payment_attempt_id','state','attempts',
+                 'next_attempt_at_utc','created_at_utc','updated_at_utc'],
+                ['uq_ticket_issue_outbox_order','idx_ticket_issue_outbox_due'], true)
+        ),
         'migration_ticketing_reservations_01.sql' => array_merge(
             brvtalMigrationObjectRequirements('ticket_inventory_events',
                 ['event_id','capacity'], ['PRIMARY'], true),
