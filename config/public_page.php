@@ -264,7 +264,7 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
     $eventPlaceholders = brvtal_public_sql_placeholders($eventStatuses);
 
     if ($type === 'events') {
-        $detail = brvtal_page_row($pdo, "SELECT event_date,venue,city,status,skin,accent,ticket_url,ticket_instructions,published_at,finished_at,cancelled_at FROM events WHERE id=? LIMIT 1", [$id], true);
+        $detail = brvtal_page_row($pdo, "SELECT event_date,venue,venue_address,city,status,skin,accent,ticket_url,ticket_instructions,published_at,finished_at,cancelled_at FROM events WHERE id=? LIMIT 1", [$id], true);
         $isHistorical = brvtal_public_event_is_historical($detail);
         $allowsTicketing = brvtal_public_event_allows_ticketing($detail);
         if (!$allowsTicketing) {
@@ -573,6 +573,48 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
         $recordBand = '<section class="event-record-band" aria-label="Ciclo de vida del evento"><div><span>' . $escape($bandLabel) . '</span><strong>' . $escape($bandValue) . '</strong></div><p>FICHA OFICIAL DEL EVENTO / BRVTAL</p></section>';
     }
 
+    $mapSection = '';
+    $mapScript = '';
+    if ($isEvent) {
+        $address = trim((string)($entity['venue_address'] ?? ''));
+        if ($address !== '') {
+            $query = rawurlencode($address);
+            $embedUrl = $escape('https://www.google.com/maps?q=' . $query . '&output=embed');
+            $mapsUrl = $escape('https://www.google.com/maps/search/?api=1&query=' . $query);
+            $place = $escape(implode(' · ', array_filter([
+                trim((string)($entity['venue'] ?? '')),
+                trim((string)($entity['city'] ?? '')),
+            ])));
+            $mapSection = '<section class="event-map" id="como-llegar" aria-label="Cómo llegar">'
+                . '<div class="event-map-details"><p class="entity-section-label">TU DESTINO</p>'
+                . '<h2>Cómo llegar</h2><strong>' . $place . '</strong>'
+                . '<address>' . $escape($address) . '</address>'
+                . '<div class="event-map-actions"><button type="button" data-event-map-embed="' . $embedUrl . '">Ver mapa</button>'
+                . '<a href="' . $mapsUrl . '" target="_blank" rel="noopener noreferrer">Abrir en Google Maps ↗</a></div></div>'
+                . '<div class="event-map-frame" aria-live="polite"><p>El mapa se mostrará aquí al pulsar Ver mapa.</p></div></section>';
+            $mapScript = <<<'JS'
+<script>
+document.addEventListener('click', function (event) {
+  const button = event.target.closest('[data-event-map-embed]');
+  if (!button) return;
+  const url = button.dataset.eventMapEmbed || '';
+  if (!url.startsWith('https://www.google.com/maps?q=')) return;
+  const frameContainer = button.closest('.event-map')?.querySelector('.event-map-frame');
+  if (!frameContainer) return;
+  const iframe = document.createElement('iframe');
+  iframe.src = url;
+  iframe.title = 'Mapa de Google Maps para llegar al evento';
+  iframe.loading = 'lazy';
+  iframe.referrerPolicy = 'no-referrer-when-downgrade';
+  iframe.setAttribute('allowfullscreen', '');
+  frameContainer.replaceChildren(iframe);
+  button.hidden = true;
+});
+</script>
+JS;
+        }
+    }
+
     $topbar = brvtalPublicCromoTopbar($backHref, $backLabel);
 
     return <<<HTML
@@ -610,8 +652,10 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
     </section>
     {$degradedNotice}
     {$related}
+    {$mapSection}
   </main>
   <footer><strong>BRVTAL</strong><span>PEREIRA / COLOMBIA</span><span>RAVE TILL GRAVE</span></footer>
+  {$mapScript}
   <script src="/js/public-cromo.js" defer></script>
   <script src="/js/public-cromo-sound.js" defer></script>
   <script src="/js/public-cromo-pages.js" defer></script>

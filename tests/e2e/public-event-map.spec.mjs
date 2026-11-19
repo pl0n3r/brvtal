@@ -1,0 +1,19 @@
+import { test, expect } from '@playwright/test';
+import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+const css = ['css/public-entity.css','css/public-event-record.css','css/public-cromo.css','css/public-cromo-pages.css'].map(p=>readFileSync(p,'utf8')).join('\\n');
+const php = String.raw`require_once 'config/public_page.php';
+$page=['entity'=>['id'=>9,'route_type'=>'events','title'=>'Genesis','description'=>'En vivo','venue'=>'Sala X','city'=>'Pereira','venue_address'=>'Calle 8 & 9, Pereira'],'facts'=>['DATE'=>'28.11.2026','LOCATION'=>'Sala X, Pereira'],'links'=>[],'record'=>['state'=>'active','status'=>'UPCOMING'],'related'=>[],'degraded'=>false];
+$seo=['title'=>'Genesis','description'=>'En vivo','image'=>'','canonical'=>'https://www.brvtal.com.co/events/genesis'];
+echo brvtal_public_entity_page($page,$seo);`;
+test('Google Maps iframe is created only after an explicit click, with encoded address', async ({ page }) => {
+  const html=execFileSync('php',['-r',php],{encoding:'utf8'}).replace('</head>','<style>'+css+'</style></head>');
+  await page.setContent(html);
+  await expect(page.locator('.event-map')).toBeVisible();
+  await expect(page.locator('iframe[src*="google.com/maps"]')).toHaveCount(0);
+  await expect(page.getByRole('link',{name:/Abrir en Google Maps/})).toHaveAttribute('href',/query=Calle%208%20%26%209%2C%20Pereira/);
+  await page.getByRole('button',{name:'Ver mapa'}).click();
+  await expect(page.locator('.event-map iframe')).toHaveAttribute('src',/google.com\\/maps\\?q=Calle%208%20%26%209%2C%20Pereira/);
+  await expect(page.locator('.event-map iframe')).toHaveAttribute('loading','lazy');
+  await expect(page.locator('.event-map iframe')).toHaveAttribute('referrerpolicy','no-referrer-when-downgrade');
+});
