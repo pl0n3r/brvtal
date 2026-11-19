@@ -7,6 +7,7 @@ require_once __DIR__ . '/../config/public_i18n.php';
 require_once __DIR__ . '/../config/public_home.php';
 require_once __DIR__ . '/../config/memory_relations.php';
 require_once __DIR__ . '/../config/artist_collective_membership.php';
+require_once __DIR__ . '/../config/artist_hero_framing.php';
 require_once __DIR__ . '/../config/instagram_profile_photo.php';
 require_once __DIR__ . '/../config/public_page.php';
 require_once __DIR__ . '/public-archive.php';
@@ -307,6 +308,9 @@ try {
          ORDER BY sort_order ASC, name ASC"
     )->fetchAll();
     $artists = array_map(brvtalIgEnrichArtist(...), $artists);
+    // Public cards use the same validated, defaulted framing as DISCADMIN.
+    // Enrichment only adds bounded numeric fields; no raw settings are exposed.
+    $artists = brvtalArtistHeroEnrich($pdo, $artists);
 
     // Keep public Sets readable before the additive duration migration lands.
     // Never invent a duration when the physical column does not exist.
