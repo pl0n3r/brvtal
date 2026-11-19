@@ -14,7 +14,7 @@
   let intent = null;
   const say = text => { status.textContent = text; };
   const selected = () => type.selectedOptions[0];
-  function update() {
+  function update(resetIntent = false) {
     const option = selected();
     const max = Math.min(20, Number(option?.dataset.available || 0));
     quantity.max = String(max);
@@ -23,10 +23,10 @@
     button.disabled = !valid;
     total.textContent = valid ? money.format(Number(option.dataset.price) * count)
       : 'Cantidad fuera del cupo disponible';
-    intent = null; // Change of selection creates a new intent; retry keeps it.
+    if (resetIntent) intent = null; // A network retry reuses the same checkout intent.
   }
-  type.addEventListener('change', update);
-  quantity.addEventListener('input', update);
+  type.addEventListener('change', () => update(true));
+  quantity.addEventListener('input', () => update(true));
   method.addEventListener('change', () => { intent = null; });
   async function json(response) {
     const payload = await response.json();
