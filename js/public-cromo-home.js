@@ -27,28 +27,6 @@
     const clean = String(value ?? '').replace(/\s+/g, ' ').trim();
     return max && clean.length > max ? clean.slice(0, max - 1).trimEnd() + '…' : clean;
   };
-  // CMS biography is never parsed as HTML: the DOM sink is textContent.
-  // Bound the formatting pass and only remove Markdown presentation tokens.
-  const plainArtistBio = (value) => {
-    const source = String(value ?? '').slice(0, 2000);
-    const clean = source
-      .replace(/!?\[([^\]\n]{1,120})\]\([^)\n]{1,400}\)/g, '$1')
-      .replace(/(^|\n)[ \t]{0,3}#{1,6}[ \t]+/g, '$1')
-      .replace(/(^|\n)[ \t]{0,3}>[ \t]?/g, '$1')
-      .replaceAll('**', '').replaceAll('__', '').replaceAll('~~', '')
-      .replace(/[*_`]/g, '');
-    return text(clean, 90);
-  };
-
-  // Validate public framing numbers again before putting them into CSS values.
-  const artistCardCrop = (raw) => {
-    const value = raw && typeof raw === 'object' ? raw : {};
-    const good = (key, min, max) =>
-      typeof value[key] === 'number' && Number.isFinite(value[key])
-      && value[key] >= min && value[key] <= max;
-    return good('zoom', 0.8, 2.2) && good('x', 0, 100) && good('y', 0, 100)
-      ? value : { zoom: 1, x: 50, y: 50 };
-  };
 
   const safeUrl = (value) => {
     const raw = String(value || '').trim();
@@ -585,31 +563,29 @@
       const sameOrigin = (value) => value && new URL(value, location.origin).origin === location.origin;
       // Only same-origin CMS media or the authenticated, server-side Meta proxy are usable.
       if (sameOrigin(photo)) {
+        // Same full-photo card as DISCADMIN › Edit Artists: whole photo, no crop or zoom.
+        // hero_framing belongs to the artist page header, not to this card.
+        const frame = el('span', { class: 'ac-frame' });
         const image = el('img', { class: 'photo', alt: '', loading: 'lazy', decoding: 'async' });
-        for (const viewport of ['desktop', 'mobile']) {
-          const crop = artistCardCrop(a.hero_framing?.[viewport]);
-          image.style.setProperty('--cr-artist-' + viewport + '-zoom', String(crop.zoom));
-          image.style.setProperty('--cr-artist-' + viewport + '-x', crop.x + '%');
-          image.style.setProperty('--cr-artist-' + viewport + '-y', crop.y + '%');
-        }
         image.addEventListener('error', () => {
           if (sameOrigin(cms) && image.src !== new URL(cms, location.origin).href) {
             image.src = cms; // Official Meta photo failed: preserve editorial CMS source.
             return;
           }
-          image.remove();
+          frame.remove();
           card.classList.remove('cr-has-photo');
           fallback.hidden = false;
         });
         image.src = photo;
         fallback.hidden = true;
         card.classList.add('cr-has-photo');
-        card.append(image);
+        frame.append(image);
+        card.append(frame);
       }
-      card.append(fallback,
+      // el() prefixes every class with "cr-": pass "artist-membership", not "cr-artist-membership".
+      card.append(fallback, el('span', { class: 'ac-cap' },
         el('span', { class: 'nm', text: text(a.name) }),
-        el('span', { class: 'cr-artist-membership', text: isCollective(a) ? 'MIEMBRO DEL COLECTIVO BRVTAL' : 'ARTISTA INVITADO' }),
-        el('span', { class: 'rl', text: plainArtistBio(a.bio) }));
+        el('span', { class: 'artist-membership', text: isCollective(a) ? 'MIEMBRO DEL COLECTIVO BRVTAL' : 'ARTISTA INVITADO' })));
       return card;
     };
     const artistsGrid = el('div', { class: 'artists' }, roster.map(artistCard));
