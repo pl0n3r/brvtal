@@ -355,7 +355,7 @@ async function initAuth(){const j=window.BRVTALAdminAuthBoundary?.auth?await win
 async function loadEvents({required=false}={}){try{const j=await api('/events');events=j.data||j.events||[];renderEvents();return true}catch(e){msg('Could not load events: '+e.message,false);if(required)throw e;return false}}
 function renderEvents(){const q=($('#eventSearch').value||'').toLowerCase();const a=events.filter(x=>JSON.stringify(x).toLowerCase().includes(q));$('#eventsTable').innerHTML='<div class="th"><div>EVENT</div><div>DATE</div><div>STATUS</div><div></div></div>'+(a.length?a.map(x=>`<div class="tr"><div><div class="title">${esc(x.title||x.name)}</div><div class="meta">${esc(x.city||'')} ${x.venue?'· '+esc(x.venue):''}</div></div><div>${esc(x.event_date||'—')}</div><div><span class="pill">${esc(x.status||'draft')}</span></div><div class="actions"><button class="icon" onclick="BRVTALContentCore.openEvent(${Number(x.id)})">EDIT</button></div></div>`).join(''):'<div class="empty">No events found.</div>')}
 function fill(id,v){const el=$('#'+id);if(el)el.value=v??''}
-const EVENT_PUBLIC_SCHEDULE_STATUSES=new Set(['published','upcoming','tickets_available','last_tickets','sold_out']);
+const EVENT_PUBLIC_SCHEDULE_STATUSES=new Set(['scheduled']);
 function eventPublishScheduleEnabled(status=$('#e_status')?.value){
   return EVENT_PUBLIC_SCHEDULE_STATUSES.has(String(status||'').trim());
 }
@@ -367,23 +367,122 @@ function eventPublishScheduleInputValue(event,nowMs=Date.now()){
   return raw.replace(' ','T').slice(0,16);
 }
 function syncEventPublishScheduleControl(){
-  const input=$('#e_publish_at');
-  const helper=$('#e_publish_at_help');
-  const field=$('#e_publish_schedule_field');
+  const input=$('#e_publish_at'), field=$('#e_publish_schedule_field');
   if(!input)return;
   const enabled=eventPublishScheduleEnabled();
   input.disabled=!enabled;
   input.setAttribute('aria-disabled',enabled?'false':'true');
   if(field)field.dataset.state=enabled?'available':'disabled';
-  if(helper){
-    helper.textContent=enabled
-      ? 'The Event remains private until this date/time boundary. Visibility is evaluated on request; no cron is required.'
-      : 'Choose published, upcoming or an active ticket lifecycle to schedule publication. Draft and historical states cannot be scheduled.';
+  const help=$('#e_publish_at_help');
+  if(help)help.textContent=enabled?'El evento se hará visible al llegar esta fecha.':'Selecciona Programado para elegir cuándo publicar.';
+}
+function eventEditorStatus(raw){
+  const status=String(raw||'draft').toLowerCase().trim();
+  return status==='draft'||status==='cancelled'?status:'published';
+}
+function eventEditorPublication(event){
+  const state=eventEditorStatus(event?.status);
+  return state==='published'&&eventPublishScheduleInputValue(event)?'scheduled':state;
+}
+function eventSaveStatus(){
+  const status=$('#e_status')?.value||'draft';
+  // Preserve an explicitly archived legacy record unless the user changes publication.
+  if(currentEvent?.status==='archived'&&status==='published'&&!$('#e_status')?.dataset.changed)return 'archived';
+  return status==='scheduled'?'published':status;
+}
+function eventPublishAt(){
+  return eventPublishScheduleEnabled()?($('#e_publish_at')?.value||'').replace('T',' '):null;
+}
+function eventSlug(){
+  const raw=$('#e_slug')?.value.trim()||'';
+  const title=$('#e_title')?.value.trim()||'';
+  return raw||title.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+}
+function eventSalesState(){
+  const rows=$$('#tickets .ticket-row');
+  if(!rows.length)return $('#e_ticket_url')?.value.trim()?'Enlace general de compra':'Sin boletas configuradas';
+  const active=rows.filter(row=>row.querySelector('[data-k="status"]')?.value==='active').length;
+  const sold=rows.filter(row=>row.querySelector('[data-k="status"]')?.value==='sold_out').length;
+  if(!active&&sold)return 'Agotado';
+  return active?active+' disponible(s)'+(sold?' · '+sold+' agotada(s)':''):'Sin boletas activas';
+}
+function eventSalesRefresh(){
+  const out=$('#e_sales_state');if(out)out.textContent=eventSalesState();
+  const date=$('#e_event_date')?.value||'';
+  const dateOut=$('#e_date_state');
+  if(dateOut)dateOut.textContent=!date?'Por definir':Date.parse(date)<Date.now()?'Finalizado':'Próximo';
+  const checklist=$('#e_publish_checklist');
+  if(checklist){
+    const tickets=$$('#tickets .ticket-row');
+    const warnings=[
+      ['Fecha',!!date,true],['Ciudad',!!$('#e_city')?.value.trim(),true],
+      ['Imagen principal',!!$('#e_cover_image')?.value.trim(),false],
+      ['Boleta con precio',tickets.some(row=>Number.isFinite(Number(row.querySelector('[data-k="price"]')?.value))&&row.querySelector('[data-k="price"]')?.value!==''&&Number(row.querySelector('[data-k="price"]')?.value)>=0)||!!$('#e_ticket_url')?.value.trim(),false],
+      ['Descripción',!!$('#e_description')?.value.trim(),false]
+    ];
+    checklist.replaceChildren();
+    for(const [name,ready,required] of warnings){
+      const p=document.createElement('p');
+      p.textContent=(ready?'✓ ':'○ ')+name+(required?' · necesario':' · recomendado');
+      p.dataset.state=ready?'ok':required?'required':'warning';
+      checklist.appendChild(p);
+    }
   }
 }
+function eventShareRefresh(){
+  const title=$('#e_title')?.value.trim()||'Tu evento';
+  const text=$('#e_description')?.value.trim()||'La descripción aparecerá aquí.';
+  const slug=eventSlug(),publicUrl=slug?location.origin+'/events/'+encodeURIComponent(slug):'';
+  const set=(id,value)=>{const el=$('#'+id);if(el)el.textContent=value;};
+  set('e_share_preview_title',title);
+  set('e_share_preview_description',text.slice(0,220));
+  set('e_share_preview_url',publicUrl);
+  set('e_description_count',String(($('#e_description')?.value||'').length)+' caracteres');
+  const image=$('#e_share_preview_image');
+  if(image){
+    const uri=$('#e_share_image')?.value.trim()||$('#e_cover_image')?.value.trim()||'';
+    if(uri.startsWith('/')&&!uri.startsWith('//')||/^https:\/\//i.test(uri)){image.src=uri;image.hidden=false;}else{image.removeAttribute('src');image.hidden=true;}
+  }
+  const links={e_share_whatsapp:'whatsapp',e_share_instagram:'instagram',e_share_qr:'qr'};
+  for(const [id,source] of Object.entries(links)){
+    const el=$('#'+id);if(!el)continue;
+    const link=publicUrl?publicUrl+'?utm_source='+source:'';
+    if(link)el.href=link;else el.removeAttribute('href');
+    el.setAttribute('aria-disabled',link?'false':'true');
+  }
+}
+function eventEditorRefresh(){eventSalesRefresh();eventShareRefresh();}
+function initEventSalesEditor(){
+  const modal=$('#eventModal');if(!modal||modal.dataset.salesReady==='1')return;
+  modal.dataset.salesReady='1';
+  modal.addEventListener('input',event=>{
+    if(event.target?.closest('#eventForm')){eventEditorRefresh();}
+  });
+  modal.addEventListener('change',event=>{
+    if(event.target?.id==='e_status'){
+      event.target.dataset.changed='1';syncEventPublishScheduleControl();
+    }
+    if(event.target?.closest('#eventForm'))eventEditorRefresh();
+  });
+  $('#e_share_copy')?.addEventListener('click',async()=>{
+    const url=$('#e_share_preview_url')?.textContent||'';
+    const feedback=$('#e_share_feedback');if(!url){if(feedback)feedback.textContent='Completa el nombre.';return;}
+    try{await navigator.clipboard.writeText(url);if(feedback)feedback.textContent='Enlace copiado';}
+    catch(_){if(feedback)feedback.textContent='Copia la URL visible.';}
+  });
+  if(typeof MutationObserver==='function'){
+    const slot=$('#e_seo_slot');
+    const observer=new MutationObserver(()=>{
+      const node=modal.querySelector('.step-content[data-content="1"] [data-seo-editor="content-core"]');
+      if(node&&slot&&!slot.contains(node))slot.appendChild(node);
+    });
+    observer.observe(modal,{subtree:true,childList:true});
+  }
+}
+function jumpStep(n){if(!Number.isInteger(Number(n))||Number(n)<1||Number(n)>eventWizardLastStep())return;currentStep=Number(n);setStep();}
 function syncEventMapPreview(){const address=$('#e_venue_address')?.value.trim()||'';const link=$('#e_venue_map_preview');if(!link)return;link.hidden=!address;if(address)link.href='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(address);else link.removeAttribute('href')}
 if(typeof document!=='undefined')document.addEventListener('input',event=>{if(event.target?.id==='e_venue_address')syncEventMapPreview()});
-function openEvent(id=null){currentEvent=events.find(x=>Number(x.id)===Number(id))||null;$('#eventHeading').textContent=currentEvent?'EDIT EVENT':'NEW EVENT';fill('e_title',currentEvent?.title);fill('e_slug',currentEvent?.slug);fill('e_description',currentEvent?.description);fill('e_cover_image',currentEvent?.cover_image);fill('e_accent',currentEvent?.accent);window.BRVTALAdminColorField?.sync($('#e_accent'));fill('e_featured',currentEvent?.featured?'1':'0');fill('e_event_date',currentEvent?.event_date?String(currentEvent.event_date).replace(' ','T').slice(0,16):'');fill('e_city',currentEvent?.city);fill('e_venue',currentEvent?.venue);fill('e_venue_address',currentEvent?.venue_address);syncEventMapPreview();fill('e_archive_year',currentEvent?.archive_year);fill('e_status',currentEvent?.status||'draft');fill('e_publish_at',eventPublishScheduleInputValue(currentEvent));syncEventPublishScheduleControl();fill('e_ticket_instructions',currentEvent?.ticket_instructions);fill('e_ticket_qr',currentEvent?.ticket_qr);fill('e_ticket_url',currentEvent?.ticket_url);$('#tickets').innerHTML='';(currentEvent?.ticket_types||[]).forEach(addTicket);renderEventArtists();currentStep=1;setStep();syncEventHistoryControl();$('#eventModal').classList.add('open')}
+function openEvent(id=null){currentEvent=events.find(x=>Number(x.id)===Number(id))||null;$('#eventHeading').textContent=currentEvent?'EDIT EVENT':'NEW EVENT';fill('e_title',currentEvent?.title);fill('e_slug',currentEvent?.slug);fill('e_description',currentEvent?.description);fill('e_cover_image',currentEvent?.cover_image);fill('e_accent',currentEvent?.accent);window.BRVTALAdminColorField?.sync($('#e_accent'));fill('e_featured',currentEvent?.featured?'1':'0');fill('e_event_date',currentEvent?.event_date?String(currentEvent.event_date).replace(' ','T').slice(0,16):'');fill('e_city',currentEvent?.city);fill('e_venue',currentEvent?.venue);fill('e_venue_address',currentEvent?.venue_address);syncEventMapPreview();fill('e_archive_year',currentEvent?.archive_year);fill('e_status',eventEditorPublication(currentEvent));if($('#e_status'))delete $('#e_status').dataset.changed;fill('e_publish_at',eventPublishScheduleInputValue(currentEvent));syncEventPublishScheduleControl();fill('e_ticket_instructions',currentEvent?.ticket_instructions);fill('e_ticket_qr',currentEvent?.ticket_qr);fill('e_ticket_url',currentEvent?.ticket_url);$('#tickets').innerHTML='';(currentEvent?.ticket_types||[]).forEach(addTicket);renderEventArtists();currentStep=1;setStep();syncEventHistoryControl();$('#eventModal').classList.add('open');initEventSalesEditor();eventEditorRefresh()}
 function closeEvent(force=false){
   const modal=$('#eventModal');
   const close=()=>modal.classList.remove('open');
@@ -415,6 +514,7 @@ function addTicket(t={}){
     <div class="ticket-field ticket-wide"><label for="${rowId}_qr">QR image</label><input id="${rowId}_qr" data-k="qr_image" data-media-picker="image" aria-label="Ticket QR image" maxlength="500" placeholder="/uploads/…" value="${esc(t.qr_image||'')}"></div>
   </div>`;
   $('#tickets').appendChild(d);
+  eventSalesRefresh();
 }
 function validateEventPayload(payload){
   if(!payload.title){
@@ -429,7 +529,7 @@ function validateEventPayload(payload){
   return '';
 }
 function ticketFieldError(index,field,message){
-  currentStep=4;
+  currentStep=2;
   setStep();
   msg(`Ticket ${index+1} ${message}`,false,'eventNotice');
   field?.focus();
@@ -498,8 +598,8 @@ async function saveEvent(){
   const rawAccent=$('#e_accent').value.trim();
   const rawPublishAt=$('#e_publish_at')?.value||'';
   const accent=rawAccent?(window.BRVTALAdminColorField?.normalize(rawAccent)||rawAccent):'';
-  const publishAt=eventPublishScheduleEnabled()&&rawPublishAt?rawPublishAt.replace('T',' '):null;
-  const payload={title:$('#e_title').value.trim(),slug:$('#e_slug').value.trim(),description:$('#e_description').value,cover_image:$('#e_cover_image').value,accent,featured:Number($('#e_featured').value),event_date:rawDate?rawDate.replace('T',' '):null,city:$('#e_city').value.trim(),venue:$('#e_venue').value.trim(),venue_address:$('#e_venue_address')?.value.trim()||'',archive_year:Number($('#e_archive_year').value)||null,status:$('#e_status').value,publish_at:publishAt,ticket_instructions:$('#e_ticket_instructions').value,ticket_qr:$('#e_ticket_qr').value,ticket_url:$('#e_ticket_url').value};
+  const publishAt=eventPublishAt();
+  const payload={title:$('#e_title').value.trim(),slug:eventSlug(),description:$('#e_description').value,cover_image:$('#e_cover_image').value,accent,featured:Number($('#e_featured').value),event_date:rawDate?rawDate.replace('T',' '):null,city:$('#e_city').value.trim(),venue:$('#e_venue').value.trim(),venue_address:$('#e_venue_address')?.value.trim()||'',archive_year:Number($('#e_archive_year').value)||null,status:eventSaveStatus(),publish_at:publishAt,ticket_instructions:$('#e_ticket_instructions').value,ticket_qr:$('#e_ticket_qr').value,ticket_url:$('#e_ticket_url').value};
   const validationError=validateEventPayload(payload);
   if(validationError){msg(validationError,false,'eventNotice');return false}
   if(!validateTicketRows())return false;
@@ -554,11 +654,11 @@ function eventPreviewPayload(){
   return {
     id:Number(currentEvent?.id||0),
     title:$('#e_title').value.trim(),
-    slug:$('#e_slug').value.trim(),
+    slug:eventSlug(),
     description:$('#e_description').value,
     cover_image:$('#e_cover_image').value,
     accent:$('#e_accent').value.trim(),
-    status:$('#e_status').value||'draft',
+    status:eventSaveStatus(),
     event_date:rawDate?rawDate.replace('T',' '):'',
     city:$('#e_city').value.trim(),
     venue:$('#e_venue').value.trim(),
@@ -791,6 +891,6 @@ let eventEditorReady=Promise.resolve(null);
 })();
 
 $('#e_status')?.addEventListener('change',syncEventPublishScheduleControl);
-Object.assign(window.BRVTALContentCore, {openEvent,closeEvent,openEventHistory,syncEventPublishScheduleControl,loadEvents,loadArtists,addTicket,addTimetableRow,step,saveEvent,previewEvent,getCurrentEvent:()=>currentEvent,whenEventReady:()=>eventEditorReady,stageEventVersionRestore});
+Object.assign(window.BRVTALContentCore, {openEvent,closeEvent,openEventHistory,syncEventPublishScheduleControl,loadEvents,loadArtists,addTicket,addTimetableRow,step,jumpStep,eventEditorRefresh,saveEvent,previewEvent,getCurrentEvent:()=>currentEvent,whenEventReady:()=>eventEditorReady,stageEventVersionRestore});
 return ready;
 }};

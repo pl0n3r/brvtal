@@ -56,34 +56,29 @@ brvtal_admin_require();
       </div>
     </div>
     <div id="eventNotice" class="notice"></div>
-    <div class="wizard">
-      <div class="steps">
-        <div class="step active" data-step="1">01 · IDENTITY</div>
-        <div class="step" data-step="2">02 · DATE & PLACE</div>
-        <div class="step" data-step="3">03 · LIFECYCLE</div>
-        <div class="step" data-step="4">04 · TICKETS</div>
-        <div class="step" data-step="5">05 · ROSTER</div>
-        <div class="step" data-step="6">06 · TIMETABLE</div>
+    <div class="wizard event-sales-wizard">
+      <div class="steps" aria-label="Pasos del editor">
+        <button type="button" class="step active" data-step="1" onclick="BRVTALContentCore.jumpStep(1)">01 · Evento</button>
+        <button type="button" class="step" data-step="2" onclick="BRVTALContentCore.jumpStep(2)">02 · Boletas</button>
+        <button type="button" class="step" data-step="3" onclick="BRVTALContentCore.jumpStep(3)">03 · Lineup y horarios</button>
+        <button type="button" class="step" data-step="4" onclick="BRVTALContentCore.jumpStep(4)">04 · Promoción</button>
+        <button type="button" class="step" data-step="5" onclick="BRVTALContentCore.jumpStep(5)">05 · Publicar</button>
       </div>
       <div class="wizard-main">
 <form id="eventForm" onsubmit="return false">
 <div class="step-content active" data-content="1">
   <div class="section">
-    <div class="sectionhead">
-      <strong>EVENT IDENTITY</strong>
-      <span class="helper">Save incomplete content at any time.</span>
-    </div>
+    <div class="sectionhead"><strong>Tu evento</strong><span class="helper">Primero lo esencial para que la gente llegue.</span></div>
     <div class="form">
-      <div class="field"><label for="e_title">Name *</label><input id="e_title"></div>
-      <div class="field"><label for="e_slug">Slug</label><input id="e_slug" placeholder="Generated automatically"></div>
-      <div class="field full">
-        <label for="e_description">Description</label>
-        <textarea id="e_description"></textarea>
-      </div>
-      <div class="field">
-        <label for="e_cover_image">Cover image</label>
-        <input id="e_cover_image" placeholder="Media path / URL">
-      </div>
+      <div class="field"><label for="e_title">Nombre *</label><input id="e_title" maxlength="180"></div>
+      <div class="field"><label for="e_event_date">Fecha y hora *</label><input id="e_event_date" type="datetime-local"></div>
+      <div class="field"><label for="e_city">Ciudad *</label><input id="e_city"></div>
+      <div class="field"><label for="e_venue">Lugar</label><input id="e_venue"></div>
+      <div class="field"><label for="e_venue_address">Dirección para el mapa (opcional)</label><input id="e_venue_address" maxlength="300" placeholder="Calle, número, ciudad" aria-describedby="e_venue_address_help"><small id="e_venue_address_help">El mapa solo se carga si la persona pulsa Ver mapa.</small><a id="e_venue_map_preview" href="#" target="_blank" rel="noopener noreferrer" hidden>Ver en Google Maps ↗</a></div>
+      <div class="field"><label for="e_cover_image">Afiche principal</label><input id="e_cover_image" placeholder="/uploads/…"></div>
+    </div>
+    <details class="event-advanced"><summary>Opciones avanzadas</summary><div class="form">
+      <div class="field"><label for="e_slug">Slug (URL)</label><input id="e_slug" placeholder="Se genera automáticamente"></div>
       <div class="field" data-admin-color-field data-color-default="#ff2038">
         <label for="e_accent">Accent</label>
         <div class="admin-color-field__controls">
@@ -120,105 +115,58 @@ brvtal_admin_require();
           hidden
         >Use a 6-digit HEX value such as #ff2038.</div>
       </div>
-      <div class="field">
-        <label for="e_featured">Featured</label>
-        <select id="e_featured"><option value="0">No</option><option value="1">Yes</option></select>
-      </div>
-    </div>
+
+      <div class="field"><label for="e_archive_year">Año de archivo</label><input id="e_archive_year" type="number" min="2000" max="2200"></div>
+    </div></details>
   </div>
 </div>
 <div class="step-content" data-content="2">
   <div class="section">
-    <div class="sectionhead"><strong>DATE & PLACE</strong></div>
-    <div class="form">
-      <div class="field">
-        <label for="e_event_date">Date & time *</label>
-        <input id="e_event_date" type="datetime-local">
-      </div>
-      <div class="field"><label for="e_city">City *</label><input id="e_city"></div>
-      <div class="field"><label for="e_venue">Venue</label><input id="e_venue"></div>
-      <div class="field"><label for="e_venue_address">Dirección para el mapa (opcional)</label><input id="e_venue_address" maxlength="300" placeholder="Calle, número, ciudad" aria-describedby="e_venue_address_help"><small id="e_venue_address_help">El mapa solo se carga cuando el visitante pulsa Ver mapa.</small><a id="e_venue_map_preview" href="#" target="_blank" rel="noopener noreferrer" hidden>Ver en Google Maps ↗</a></div>
-      <div class="field">
-        <label for="e_archive_year">Archive year</label>
-        <input id="e_archive_year" type="number" min="2000" max="2200">
-      </div>
-    </div>
+    <div class="sectionhead"><strong>Boletas</strong><button type="button" class="btn" onclick="BRVTALContentCore.addTicket()">+ AÑADIR BOLETA</button></div>
+    <p class="helper">Precio, estado, compra, QR y ventanas de venta para cada boleta. No almacenamos información de compradores aquí.</p>
+    <div id="tickets"></div>
+    <details class="event-legacy-tickets"><summary>Compra general y datos heredados (si no hay tipos)</summary><div class="form">
+      <div class="field"><label for="e_ticket_url">Enlace general de compra</label><input id="e_ticket_url" placeholder="https://…"></div>
+      <div class="field"><label for="e_ticket_instructions">Instrucciones de compra</label><textarea id="e_ticket_instructions"></textarea></div>
+      <div class="field"><label for="e_ticket_qr">Código QR de compra</label><input id="e_ticket_qr"></div>
+    </div></details>
+    <div class="event-derived"><span>Venta (calculada)</span><output id="e_sales_state" aria-live="polite">Sin boletas configuradas</output></div>
   </div>
 </div>
 <div class="step-content" data-content="3">
   <div class="section">
-    <div class="sectionhead"><strong>LIFECYCLE</strong></div>
-    <div class="form">
-      <div class="field">
-        <label for="e_status">Status</label>
-        <select id="e_status" aria-describedby="e_publish_at_help">
-          <option>draft</option><option>published</option><option>upcoming</option>
-          <option>tickets_available</option><option>last_tickets</option><option>sold_out</option>
-          <option>cancelled</option><option>finished</option><option>archived</option>
-        </select>
-      </div>
-      <div class="field" id="e_publish_schedule_field">
-        <label for="e_publish_at">Publish not before</label>
-        <input
-          id="e_publish_at"
-          type="datetime-local"
-          aria-describedby="e_publish_at_help"
-          disabled
-        >
-        <div id="e_publish_at_help" class="helper" role="status" aria-live="polite">
-          Choose a public lifecycle status to schedule publication.
-        </div>
-      </div>
-      <div class="field">
-        <label for="e_ticket_instructions">Ticket instructions</label>
-        <textarea id="e_ticket_instructions"></textarea>
-      </div>
-      <div class="field"><label for="e_ticket_qr">Ticket QR</label><input id="e_ticket_qr"></div>
-      <div class="field">
-        <label for="e_ticket_url">External ticket URL</label>
-        <input id="e_ticket_url">
-      </div>
-    </div>
+    <div class="sectionhead"><strong>Lineup</strong></div>
+    <p class="helper">Artistas del catálogo, invitados y participación existente.</p>
+    <div id="eventArtists" class="artist-list"></div>
+  </div>
+  <div class="section">
+    <div class="sectionhead"><strong>Horarios de la noche</strong><button type="button" class="btn" onclick="BRVTALContentCore.addTimetableRow()">+ AÑADIR FRANJA</button></div>
+    <p class="helper">Solo horas (por ejemplo, 9:00 pm). La fecha sale del evento; cruzar medianoche se calcula automáticamente en Bogotá.</p>
+    <div id="eventTimetable"></div>
   </div>
 </div>
 <div class="step-content" data-content="4">
   <div class="section">
-    <div class="sectionhead">
-      <strong>TICKET TYPES</strong>
-      <button type="button" class="btn" onclick="BRVTALContentCore.addTicket()">+ ADD TICKET</button>
+    <div class="sectionhead"><strong>Promoción y compartir</strong></div>
+    <div class="form">
+      <div class="field full"><label for="e_description">Descripción para vender el evento</label><textarea id="e_description" maxlength="65535" aria-describedby="e_description_count e_description_help"></textarea><small id="e_description_help">Cuenta por qué vale la pena asistir, sin inventar precios ni disponibilidad.</small><output id="e_description_count" aria-live="polite">0 caracteres</output></div>
+      <div class="field"><label for="e_share_image">Imagen para compartir (opcional)</label><input id="e_share_image" maxlength="500" placeholder="Se usa el afiche si no defines otra"></div>
+      <div class="field"><label for="e_featured">Destacar en el inicio</label><select id="e_featured"><option value="0">No</option><option value="1">Sí</option></select></div>
     </div>
-    <div class="helper" style="margin-bottom:12px">
-      No purchaser or attendee data is stored. Manage price/currency, lifecycle, availability,
-      payment details, QR and external destination for each type.
+    <div id="e_seo_slot" aria-label="SEO y vista previa de buscadores"></div>
+    <div class="event-share-preview" aria-live="polite">
+      <strong>Vista previa para compartir</strong>
+      <div class="event-share-card"><img id="e_share_preview_image" alt="" hidden><div><b id="e_share_preview_title">Tu evento</b><p id="e_share_preview_description">La descripción aparecerá aquí.</p><small id="e_share_preview_url"></small></div></div>
+      <div class="event-share-links">
+        <button type="button" id="e_share_copy">Copiar enlace público</button>
+        <a id="e_share_whatsapp" target="_blank" rel="noopener noreferrer">WhatsApp</a>
+        <a id="e_share_instagram" target="_blank" rel="noopener noreferrer">Instagram (enlace)</a>
+        <a id="e_share_qr" target="_blank" rel="noopener noreferrer">QR (enlace)</a>
+      </div>
+      <output id="e_share_feedback" role="status" aria-live="polite"></output>
     </div>
-    <div id="tickets"></div>
   </div>
-</div>
-<div class="step-content" data-content="5">
-  <div class="section">
-    <div class="sectionhead"><strong>ARTISTS / EVENT PARTICIPATION</strong></div>
-    <div class="helper" style="margin-bottom:12px">
-      All artists created in DISCADMIN, including first-time external guests, are available.
-      BRVTAL members appear first; existing event participation and history are preserved.
-    </div>
-    <div id="eventArtists" class="artist-list"></div>
-  </div>
-</div>
-<div class="step-content" data-content="6">
-  <div class="section">
-    <div class="sectionhead">
-      <strong>TIMETABLE / RUN OF SHOW</strong>
-      <button type="button" class="btn" onclick="BRVTALContentCore.addTimetableRow()">+ ADD SLOT</button>
-    </div>
-    <div class="helper" style="margin-bottom:12px">
-      Times are stored in UTC with an explicit IANA timezone. Linked artists use Artist identity;
-      use a label only for external or unlinked slots. Draft rows are never public by themselves.
-    </div>
-    <div id="eventTimetable"></div>
-  </div>
-</div>
-</form>
-<div class="section" data-event-insights-panel data-state="idle">
+  <details class="event-insights-details"><summary>Métricas del evento (solo lectura)</summary><div class="section" data-event-insights-panel data-state="idle">
     <div class="sectionhead">
       <strong>EVENT INSIGHTS</strong>
       <span class="pill">READ ONLY</span>
@@ -259,6 +207,20 @@ brvtal_admin_require();
       </div>
     </div>
   </div>
+</details>
+</div>
+<div class="step-content" data-content="5">
+  <div class="section">
+    <div class="sectionhead"><strong>Publicar el evento</strong></div>
+    <div class="event-publish-checklist" id="e_publish_checklist" role="status" aria-live="polite"></div>
+    <div class="form">
+      <div class="field"><label for="e_status">Publicación</label><select id="e_status" aria-describedby="e_status_help"><option value="draft">Borrador</option><option value="published">Publicado</option><option value="scheduled">Programado</option><option value="cancelled">Cancelado</option></select><small id="e_status_help">El estado de venta y la finalización se calculan por fecha y boletas.</small></div>
+      <div class="field" id="e_publish_schedule_field"><label for="e_publish_at">Publicar a partir de</label><input id="e_publish_at" type="datetime-local" aria-describedby="e_publish_at_help" disabled><small id="e_publish_at_help" role="status" aria-live="polite">Elige Programado para configurar la fecha.</small></div>
+      <div class="event-derived"><span>Fecha (calculada)</span><output id="e_date_state" aria-live="polite">Por definir</output></div>
+    </div>
+  </div>
+</div>
+</form>
 <div class="foot">
   <button class="btn" onclick="BRVTALContentCore.closeEvent()">CANCEL</button>
   <div class="foot-right">

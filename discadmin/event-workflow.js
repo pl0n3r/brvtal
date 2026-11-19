@@ -82,7 +82,7 @@
     const event = {
       id:eventId || null,
       title:value(root, 'e_title').trim(),
-      slug:value(root, 'e_slug').trim(),
+      slug:value(root, 'e_slug').trim() || value(root, 'e_title').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,''),
       description:value(root, 'e_description'),
       cover_image:value(root, 'e_cover_image'),
       accent:normalizedAccent(root),
@@ -92,7 +92,10 @@
       venue:value(root, 'e_venue').trim(),
       venue_address:value(root, 'e_venue_address').trim(),
       archive_year:value(root, 'e_archive_year') ? Number(value(root, 'e_archive_year')) : null,
-      status:value(root, 'e_status') || 'draft',
+      status:(root.querySelector('#e_status')?.value==='scheduled'?'published':
+        root.querySelector('#e_status')?.value==='published'&&root.querySelector('#e_status')?.dataset.changed!=='1'&&core.getCurrentEvent?.()?.status==='archived'?'archived':
+        value(root, 'e_status')||'draft'),
+      publish_at:value(root, 'e_status')==='scheduled'?value(root,'e_publish_at').replace('T',' '):null,
       ticket_instructions:value(root, 'e_ticket_instructions'),
       ticket_qr:value(root, 'e_ticket_qr'),
       ticket_url:value(root, 'e_ticket_url')
