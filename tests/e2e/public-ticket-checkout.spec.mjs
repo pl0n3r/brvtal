@@ -64,7 +64,8 @@ test('T13 huésped, timeout, retry y redirect nunca confirman pago', async ({ pa
     contentType:'application/json',
     body: JSON.stringify({ ok:true, csrf:'fixture', authenticated:allowed }),
   }));
-  await page.route(path, async route => {
+  // The status URL adds ?order_id; intercept both the base path and query variant.
+  await page.route('**/events/t13-fixture**', async route => {
     if (route.request().method()!=='POST') {
       if (route.request().headers()['x-brvtal-ticket-checkout']==='status') return route.fulfill({
         status:200, contentType:'application/json', body:JSON.stringify({ok:true,state:'pending'}),
