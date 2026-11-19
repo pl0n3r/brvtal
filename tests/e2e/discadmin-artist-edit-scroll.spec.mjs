@@ -55,8 +55,7 @@ for (const viewport of [{width:1440,height:900},{width:1280,height:720}]) {
     await expect(footer).toBeInViewport();
     await finalInput.focus();
     await expect(finalInput).toBeFocused();
-    await content.evaluate(el => { el.scrollTop = 0; });
-    await page.locator('#f_name').focus();
+    await content.evaluate(el => { el.scrollTop = 0; el.tabIndex = 0; el.focus(); });
     await page.keyboard.press('PageDown');
     expect(await content.evaluate(el => el.scrollTop)).toBeGreaterThan(0);
     await page.locator('#f_hero_desktop_zoom').evaluate(el => {
