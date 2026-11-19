@@ -12,7 +12,7 @@ body.cromo-page{
   --cromo-plate:rgba(3,3,3,.92);
   --red:var(--cromo-red);
   --white:var(--cromo-bone);
-  --event-signal:var(--cromo-red) !important;
+  --event-signal:var(--cromo-red);
   --display:"Broken Glass","Barlow Condensed",sans-serif;
   --steel:#9fb2c2;
   background:#050505;
@@ -226,3 +226,24 @@ body.cromo-page .entity-section-label[data-text]::after{color:var(--cromo-bone);
   body.cromo-page .entity-image img,body.cromo-page .entity-image::after,body.cromo-page .entity-card,body.cromo-page .entity-card img,
   body.cromo-page .entity-actions a,body.cromo-page .cp-nav a,body.cromo-page .cp-back{transition:none}
 }
+
+
+/* Event-only accents: other public entities retain the fixed Cromo red. */
+body.cromo-page.entity-page--event .entity-hero{border-bottom-color:var(--event-signal)}
+body.cromo-page.entity-page--event .entity-image::after{background:var(--event-signal)}
+body.cromo-page.entity-page--event .entity-kicker{background:var(--event-signal);color:var(--event-ink,#030303)}
+body.cromo-page.entity-page--event .entity-actions a:first-child{background:var(--event-signal);border-color:var(--event-signal);color:var(--event-ink,#030303)}
+body.cromo-page.entity-page--event .entity-actions a:first-child:hover,
+body.cromo-page.entity-page--event .entity-actions a:first-child:focus-visible{background:var(--cromo-bone);color:#030303}
+body.cromo-page.entity-page--event .event-record-band{border-left:4px solid var(--event-signal)}
+body.cromo-page.entity-page--event .event-record-band p{color:var(--event-signal)}
+body.cromo-page.entity-page--event .entity-section-label{text-shadow:0 .05em 0 var(--event-signal)}
+body.cromo-page .entity-rich-body p{margin:0 0 .75em}
+body.cromo-page .entity-rich-body p:last-child{margin-bottom:0}
+body.cromo-page .entity-rich-body strong{font-weight:800;color:var(--cromo-bone)}
+body.cromo-page .entity-rich-body em{font-style:italic}
+body.cromo-page .entity-rich-body h2,
+body.cromo-page .entity-rich-body h3{margin:1em 0 .35em;font:700 clamp(27px,3.1vw,42px)/1.13 "Barlow Condensed",sans-serif;color:var(--cromo-bone);overflow-wrap:anywhere}
+body.cromo-page .entity-rich-body ul{padding-left:1.2em;margin:.3em 0 .8em;list-style:disc}
+body.cromo-page .entity-rich-body li{margin:.18em 0}
+body.cromo-page.entity-page--event .entity-rich-body a{text-decoration-color:var(--event-signal)}

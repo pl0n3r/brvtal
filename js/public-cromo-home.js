@@ -450,6 +450,11 @@
     return { end, loadChallenge };
   };
 
+  const nextEventHref = (next) => {
+    const slug = typeof next?.slug === 'string' ? next.slug.trim() : '';
+    return slug ? '/events/' + encodeURIComponent(slug) : '';
+  };
+
   const buildNextCard = (next, artists) => {
     const when = parseDate(next.event_date);
     const today = new Date();
@@ -459,8 +464,7 @@
     const k = days <= 0 ? 'Es hoy' : days === 1 ? 'Falta 1 día' : 'Faltan ' + days + ' días';
     const lineup = lineupText(artists);
     const place = [text(next.city), text(next.venue)].filter(Boolean).join(', ');
-    const slug = typeof next.slug === 'string' ? next.slug.trim() : '';
-    const href = slug ? '/events/' + encodeURIComponent(slug) : '';
+    const href = nextEventHref(next);
     const details = [lineup, place].filter(Boolean).join(' · ');
     const attrs = {
       class: href ? 'next next-link' : 'next',
@@ -483,7 +487,7 @@
     const word = el('h1', { class: 'u', id: 'word', 'aria-label': 'BRVTAL' }, Array.from('BRVTAL').map((c) => el('span', { 'aria-hidden': 'true', text: c })));
     const nextCard = next ? buildNextCard(next, artists) : null;
     const heroActions = [
-      next ? el('a', { class: 'btn r', href: '#noches', text: 'Ver la próxima noche' }) : null,
+      next ? el('a', { class: 'btn r', href: nextEventHref(next) || '#noches', text: 'Ver la próxima noche' }) : null,
       hasSets ? el('a', { class: 'btn', href: '#discos', text: 'Escuchar sets' }) : null,
     ].filter(Boolean);
     const hero = el('section', { class: 'hero' },
