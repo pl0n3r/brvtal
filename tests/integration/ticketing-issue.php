@@ -119,6 +119,28 @@ foreach ([[101,'ISSUE_NOT_PAID'],[102,'ISSUE_NOT_PAID'],[103,'ISSUE_UNVERIFIED_P
 }
 t09((int)$db->query('SELECT COUNT(*) FROM ticket_entries')->fetchColumn()===3,
     'unpaid, refunded and unverified attempts never emit');
+// Simulate an interrupted legacy issuance in a synthetic order. The T09
+// consumer must refuse to mint any further secrets or mark the outbox done;
+// ten retries cannot hide or multiply a partial persisted entry.
+$db->exec("INSERT INTO ticket_orders(id,event_id,buyer_id,status) VALUES (104,1,8,'paid')");
+$db->exec("INSERT INTO ticket_order_items(id,order_id,event_id,ticket_type_id,quantity)
+    VALUES (205,104,1,11,2)");
+$db->exec("INSERT INTO ticket_payment_attempts(id,order_id,provider,provider_transaction_id,status)
+    VALUES (5,104,'wompi','t09-partial','approved')");
+$journal->execute([5,'t09-partial',hash('sha256','synthetic-5'),'APPROVED',time()]);
+$append->execute([104,5]);
+$db->prepare("INSERT INTO ticket_entries
+    (public_id,order_item_id,event_id,ticket_type_id,unit_number,issued_at_utc)
+    VALUES (UNHEX(REPEAT('a',32)),205,1,11,1,UTC_TIMESTAMP(6))")->execute();
+$partialJob=(int)$db->query("SELECT id FROM ticket_issue_outbox WHERE order_id=104")->fetchColumn();
+for ($n=0;$n<10;$n++) {
+    t09Reject(fn()=>brvtal_ticket_issue_consume($db,$partialJob),'ISSUE_PARTIAL');
+}
+t09((int)$db->query('SELECT COUNT(*) FROM ticket_entries')->fetchColumn()===4
+    && (int)$db->query('SELECT COUNT(*) FROM ticket_entry_credentials')->fetchColumn()===3,
+    'partial order never creates a second entry or orphan credential');
+t09($db->query("SELECT state FROM ticket_issue_outbox WHERE order_id=104")->fetchColumn()==='pending',
+    'partial outbox remains unreconciled and fail closed');
 $future=new DateTimeImmutable('+1 day',new DateTimeZone('UTC'));
 $past=new DateTimeImmutable('-1 day',new DateTimeZone('UTC'));
 $token=$raws[0];$public=$ids[0];
