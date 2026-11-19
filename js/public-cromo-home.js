@@ -32,7 +32,7 @@
   const plainArtistBio = (value) => {
     const source = String(value ?? '').slice(0, 2000);
     const clean = source
-      .replace(/!?\[([^\]\n]{1,120})\]\([^\)\n]{1,400}\)/g, '$1')
+      .replace(/!?\[([^\]\n]{1,120})\]\([^)\n]{1,400}\)/g, '$1')
       .replace(/(^|\n)[ \t]{0,3}#{1,6}[ \t]+/g, '$1')
       .replace(/(^|\n)[ \t]{0,3}>[ \t]?/g, '$1')
       .replaceAll('**', '').replaceAll('__', '').replaceAll('~~', '')
