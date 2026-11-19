@@ -499,7 +499,7 @@ async function saveEvent(){
   const rawPublishAt=$('#e_publish_at')?.value||'';
   const accent=rawAccent?(window.BRVTALAdminColorField?.normalize(rawAccent)||rawAccent):'';
   const publishAt=eventPublishScheduleEnabled()&&rawPublishAt?rawPublishAt.replace('T',' '):null;
-  const payload={title:$('#e_title').value.trim(),slug:$('#e_slug').value.trim(),description:$('#e_description').value,cover_image:$('#e_cover_image').value,accent,featured:Number($('#e_featured').value),event_date:rawDate?rawDate.replace('T',' '):null,city:$('#e_city').value.trim(),venue:$('#e_venue').value.trim(),venue_address:$('#e_venue_address').value.trim(),archive_year:Number($('#e_archive_year').value)||null,status:$('#e_status').value,publish_at:publishAt,ticket_instructions:$('#e_ticket_instructions').value,ticket_qr:$('#e_ticket_qr').value,ticket_url:$('#e_ticket_url').value};
+  const payload={title:$('#e_title').value.trim(),slug:$('#e_slug').value.trim(),description:$('#e_description').value,cover_image:$('#e_cover_image').value,accent,featured:Number($('#e_featured').value),event_date:rawDate?rawDate.replace('T',' '):null,city:$('#e_city').value.trim(),venue:$('#e_venue').value.trim(),venue_address:$('#e_venue_address')?.value.trim()||'',archive_year:Number($('#e_archive_year').value)||null,status:$('#e_status').value,publish_at:publishAt,ticket_instructions:$('#e_ticket_instructions').value,ticket_qr:$('#e_ticket_qr').value,ticket_url:$('#e_ticket_url').value};
   const validationError=validateEventPayload(payload);
   if(validationError){msg(validationError,false,'eventNotice');return false}
   if(!validateTicketRows())return false;
@@ -562,7 +562,7 @@ function eventPreviewPayload(){
     event_date:rawDate?rawDate.replace('T',' '):'',
     city:$('#e_city').value.trim(),
     venue:$('#e_venue').value.trim(),
-    venue_address:$('#e_venue_address').value.trim(),
+    venue_address:$('#e_venue_address')?.value.trim()||'',
     ticket_instructions:$('#e_ticket_instructions').value,
     ticket_url:$('#e_ticket_url').value,
     ticket_types:$$('#tickets .ticket-row').map((row,index)=>
