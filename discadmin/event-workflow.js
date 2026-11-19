@@ -201,8 +201,16 @@
       const stamp=(minutes,offset)=>localDay(eventDate,offset)+'T'+String(Math.floor(minutes/60)).padStart(2,'0')+':'+String(minutes%60).padStart(2,'0');
       const timezone=row.dataset.timezone||'America/Bogota';
       const status=row.dataset.status||'approved';
-      const startUnchanged=!!row.dataset.originalStarts&&read('starts_at')===row.dataset.originalStartHour;
-      const endUnchanged=!!row.dataset.originalEnds&&read('ends_at')===row.dataset.originalEndHour;
+      // Keep historical timestamp precision only while its event date and
+      // rollover context match the new dates reconstructed from this snapshot.
+      const startDay=localDay(eventDate,startOffset);
+      const endDay=localDay(eventDate,endOffset);
+      const startUnchanged=!!row.dataset.originalStarts
+        && read('starts_at')===row.dataset.originalStartHour
+        && row.dataset.originalStarts.slice(0,10)===startDay;
+      const endUnchanged=!!row.dataset.originalEnds
+        && read('ends_at')===row.dataset.originalEndHour
+        && row.dataset.originalEnds.slice(0,10)===endDay;
       const item={
         artist_id:artistId>0?artistId:null,
         label:artistId>0?null:label,
@@ -340,9 +348,10 @@
         requireLoadedEventRelations();
         const eventData = eventPayload(root,activeEventId);
         const tickets = ticketPayloads(root);
+        // Capture date-dependent timetable before asynchronous lineup I/O.
+        const timetable = timetablePayloads(root);
         const beforeLineup = await existingLineup(activeEventId);
         const lineup = lineupPayload(root,beforeLineup);
-        const timetable = timetablePayloads(root);
         const {eventId,result} = await submitEventWorkflow(eventData,tickets,lineup,timetable);
         await finishEventSave(eventId,submittedDraft,eventData,tickets,lineup,timetable,result);
         return true;
