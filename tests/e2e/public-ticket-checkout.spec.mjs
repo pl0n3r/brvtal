@@ -179,11 +179,13 @@ test('T13 evita doble envío mientras la primera solicitud sigue pendiente', asy
   const button=page.getByRole('button',{name:'Continuar al pago'});
   await button.click();
   await expect(button).toBeDisabled();
+  // Wait until the synthetic POST is actually held before testing concurrent input.
+  // Otherwise a transient auth/checkout failure can restore the button first.
+  await expect.poll(()=>requests.length).toBe(1);
   await expect(page.getByLabel('Cantidad')).toBeDisabled();
   await page.evaluate(()=>document.querySelector('[name=quantity]')
     .dispatchEvent(new Event('input',{bubbles:true})));
   await expect(button).toBeDisabled();
-  await expect.poll(()=>requests.length).toBe(1);
   release();
   await expect(page.locator('#ticket-checkout-status')).toContainText('pendiente');
   expect(requests).toHaveLength(1);
