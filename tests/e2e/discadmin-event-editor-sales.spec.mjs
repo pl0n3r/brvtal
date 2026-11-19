@@ -100,3 +100,69 @@ test('promotion builds own public UTM URLs, without external social API calls',a
   await expect(page.locator('#e_share_instagram')).toHaveAttribute('href',/utm_source=instagram/);
   await expect(page.locator('#e_share_qr')).toHaveAttribute('href',/utm_source=qr/);
 });
+
+function existingNight() {
+  return {
+    events:[{id:42,title:'Noche','slug':'noche',status:'draft',event_date:'2026-11-28 21:00:00',city:'Pereira'}],
+    timetable:[{id:10,label:'Guest',artist_id:null,starts_at:'2026-11-28T23:00',
+      ends_at:'2026-11-29T01:00',timezone:'America/Bogota',status:'approved'}]
+  };
+}
+
+test('moving event date regenerates both persisted timetable dates despite unchanged hours',async({page})=>{
+  await openEditor(page,existingNight());
+  await page.evaluate(()=>window.BRVTALContentCore.openEvent(42));
+  await expect(page.locator('#eventTimetable .timetable-row')).toHaveCount(1);
+  await page.locator('#e_event_date').fill('2026-12-05T21:00');
+  expect(await page.evaluate(()=>window.BRVTALContentCore.saveEvent())).toBe(true);
+  const [{event,timetable}]=await page.evaluate(()=>window.__salesFixture.writes);
+  expect(event.event_date).toBe('2026-12-05 21:00');
+  expect(timetable[0]).toMatchObject({
+    starts_at:'2026-12-05T23:00',
+    ends_at:'2026-12-06T01:00'
+  });
+});
+
+test('changing night start across midnight regenerates end date and preserves chronological order',async({page})=>{
+  await openEditor(page,existingNight());
+  await page.evaluate(()=>window.BRVTALContentCore.openEvent(42));
+  const row=page.locator('#eventTimetable .timetable-row');
+  await expect(row).toHaveCount(1);
+  await row.locator('[data-k="starts_at"]').fill('1:30 am');
+  expect(await page.evaluate(()=>window.BRVTALContentCore.saveEvent())).toBe(true);
+  const [record]=await page.evaluate(()=>window.__salesFixture.writes);
+  expect(record.timetable[0]).toMatchObject({
+    starts_at:'2026-11-29T01:30',
+    ends_at:'2026-11-30T01:00'
+  });
+  expect(record.timetable[0].starts_at < record.timetable[0].ends_at).toBe(true);
+});
+
+test('pending lineup request cannot mix a newer event date into the submitted timetable snapshot',async({page})=>{
+  await openEditor(page,existingNight());
+  await page.evaluate(()=>window.BRVTALContentCore.openEvent(42));
+  await expect(page.locator('#eventTimetable .timetable-row')).toHaveCount(1);
+  await page.evaluate(()=>{
+    const originalFetch=window.fetch;
+    window.__lineupHeld=false;
+    window.__releaseLineup=null;
+    window.fetch=async function(input,options){
+      if(String(input).includes('/lineup')){
+        window.__lineupHeld=true;
+        await new Promise(resolve=>{window.__releaseLineup=resolve});
+      }
+      return originalFetch.call(this,input,options);
+    };
+    window.__saveInFlight=window.BRVTALContentCore.saveEvent();
+  });
+  await page.waitForFunction(()=>window.__lineupHeld===true);
+  await page.locator('#e_event_date').fill('2026-12-05T21:00');
+  await page.evaluate(()=>window.__releaseLineup());
+  expect(await page.evaluate(()=>window.__saveInFlight)).toBe(true);
+  const [record]=await page.evaluate(()=>window.__salesFixture.writes);
+  expect(record.event.event_date).toBe('2026-11-28 21:00');
+  expect(record.timetable[0]).toMatchObject({
+    starts_at:'2026-11-28T23:00',
+    ends_at:'2026-11-29T01:00'
+  });
+});
