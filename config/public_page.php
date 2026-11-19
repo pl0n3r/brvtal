@@ -563,7 +563,7 @@ JS;
                 $soldOut = strtolower((string)($ticket['status'] ?? '')) === 'sold_out';
                 $name = $escape($ticket['title'] ?? '');
                 $price = isset($ticket['price']) && is_numeric($ticket['price'])
-                    ? $escape(strtoupper((string)($ticket['currency'] ?? ''))) . ' ' . number_format((float)$ticket['price'], 0, ',', '.')
+                    ? number_format((float)$ticket['price'], 0, '.', ',') . ' ' . $escape(strtoupper((string)($ticket['currency'] ?? '')))
                     : '';
                 $typeUrl = $soldOut ? '' : $safeUrl($ticket['url'] ?? '');
                 $instructions = $soldOut ? '' : trim((string)($ticket['payment_instructions'] ?? ''));
