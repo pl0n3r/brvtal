@@ -1,6 +1,10 @@
 /* T18: private read-only views; authentication and permission remain server-side. */
 export async function mount(panel, initialKind = 'orders') {
-  const active = () => panel.isConnected && !!panel.closest('[data-admin-module="ticketing"]');
+  const active = () => {
+    const module = panel.closest('[data-admin-module="ticketing"]');
+    const tab = module?.querySelector('[data-ticketing-tab="' + initialKind + '"]');
+    return panel.isConnected && !!module && !!tab && tab.getAttribute('aria-selected') === 'true';
+  };
   const error = message => { if (active()) panel.replaceChildren(document.createTextNode(message)); };
   try {
     const response = await fetch('/discadmin/ticketing-orders.php', {
