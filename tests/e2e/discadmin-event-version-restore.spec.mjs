@@ -233,7 +233,7 @@ test('staged restore saves through the canonical Event workflow and creates new 
 
     await expect(page.locator('#e_title')).toHaveValue(fixture.historicalTitle);
     await expect(page.locator('#e_description')).toHaveValue('Historical copy');
-    await expect(page.locator('#e_status')).toHaveValue('sold_out');
+    await expect(page.locator('#e_status')).toHaveValue('published');
     await expect(page.locator('#tickets [data-k="name"]').first()).toHaveValue('VIP RESTORE');
     await expect(page.locator('#eventArtists [data-artist]:checked')).toHaveCount(1);
     await expect(page.locator('#eventTimetable .timetable-row')).toHaveCount(1);
@@ -406,7 +406,7 @@ test('cancel discards a staged restore while lifecycle and relations remain curr
     await openEventEditor(page,fixture.eventId);
     await stageHistoricalVersion(page,fixture.historicalItem,fixture.eventId);
     await expect(page.locator('#e_title')).toHaveValue(fixture.historicalTitle);
-    await expect(page.locator('#e_status')).toHaveValue('sold_out');
+    await expect(page.locator('#e_status')).toHaveValue('published');
 
     page.once('dialog', prompt => prompt.accept());
     await page.locator('#eventModal').getByRole('button', {name:'CANCEL',exact:true}).click();
@@ -427,7 +427,7 @@ test('cancel discards a staged restore while lifecycle and relations remain curr
     }, fixture.eventId);
     await expect(page.locator('#e_title')).toHaveValue(fixture.currentTitle);
     await expect(page.locator('#e_description')).toHaveValue('Current copy');
-    await expect(page.locator('#e_status')).toHaveValue('sold_out');
+    await expect(page.locator('#e_status')).toHaveValue('published');
 
     const afterTickets = await fetchTickets(page,fixture.eventId);
     const afterLineup = await fetchLineup(page,fixture.eventId);

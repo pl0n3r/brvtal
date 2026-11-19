@@ -99,8 +99,13 @@ class ProductionMigrationReconcileWorkflowTests(unittest.TestCase):
             82: "unclassified reconcile failure",
             83: "post-apply schema proof mismatch",
         }
-        for code in expected:
+        # Legacy stage guards use ||; reconcile failures are translated by
+        # a fail-closed case statement, with 75 reserved for unknown codes.
+        for code in (70, 71, 72, 73, 74, 76):
             self.assertIn(f"|| exit {code}", script)
+        self.assertIn("*) exit 75 ;;", script)
+        for source_code, remote_stage in zip(range(120, 127), range(77, 84)):
+            self.assertIn(f"{source_code}) exit {remote_stage} ;;", script)
         self.assertLess(script.index("reconcile-plan --json"), script.index("brvtal_backup_create"))
         self.assertLess(script.index("brvtal_backup_create"), script.index("BRVTAL_MIGRATIONS_ALLOW_WRITE=1"))
         self.assertLess(script.index("BRVTAL_MIGRATIONS_ALLOW_WRITE=1"), script.index("verify-plan __NONE__"))

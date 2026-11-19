@@ -27,12 +27,12 @@ function harnessHtml(withSeo = false) {
           <input id="e_title"><input id="e_slug"><textarea id="e_description"></textarea>
           <input id="e_cover_image"><input id="e_accent"><select id="e_featured"><option value="0">0</option><option value="1">1</option></select>
         </div>
-        <div class="step-content" data-content="2"><input id="e_event_date" type="datetime-local"><input id="e_city"><input id="e_venue"><input id="e_archive_year"></div>
+        <div class="step-content" data-content="2"><input id="e_event_date" type="datetime-local"><input id="e_city"><input id="e_venue"><input id="e_archive_year"><div id="tickets"></div></div>
         <div class="step-content" data-content="3">
           <select id="e_status"><option value="draft">draft</option><option value="published">published</option><option value="upcoming">upcoming</option></select>
           <textarea id="e_ticket_instructions"></textarea><input id="e_ticket_qr"><input id="e_ticket_url">
         </div>
-        <div class="step-content" data-content="4"><div id="tickets"></div></div>
+        <div class="step-content" data-content="4"></div>
         <div class="step-content" data-content="5"></div>
         <button id="prevBtn">BACK</button><button id="nextBtn">NEXT</button><button id="cc-saveBtn">SAVE DRAFT</button>
       </div>
@@ -173,7 +173,7 @@ test('Content Core catches an unnamed ticket before creating its event', async (
   expect(eventPosts).toHaveLength(0);
   expect(ticketPosts).toHaveLength(0);
   await expect(page.locator('#eventNotice')).toContainText('Ticket 1 needs a name before saving.');
-  await expect(page.locator('.step-content[data-content="4"]')).toHaveClass(/active/);
+  await expect(page.locator('.step-content[data-content="2"]')).toHaveClass(/active/);
   await expect(page.locator('#tickets [data-k="name"]')).toBeFocused();
   await expect(page.locator('#e_title')).toHaveValue('NIGHT WITH TICKETS');
 

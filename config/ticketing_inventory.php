@@ -19,6 +19,8 @@ function brvtal_ticket_inventory_saleable(array $event, array $type, ?DateTimeIm
 {
     $clock = brvtal_ticket_inventory_now($now)->setTimezone(new DateTimeZone('America/Bogota'));
     if (!brvtal_public_event_allows_ticketing($event, $clock)) return false;
+    // A sold-out Event remains publicly visible but must never reserve inventory.
+    if (strtolower(trim((string)($event['status'] ?? ''))) === 'sold_out') return false;
     // Legacy editorial timestamps are Bogota wall-clock dates, not UTC.
     // Never allow a future publication boundary merely because the web
     // server happens to run in UTC.

@@ -12,3 +12,13 @@
 .ticketing button:disabled{opacity:.55;cursor:not-allowed}
 .ticketing-error,.ticketing-denied{color:#ffb0b8}
 @media(max-width:600px){.ticketing-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.ticketing-tabs button{min-width:0}.ticketing [role="tabpanel"]{padding:16px}}
+
+/* T18: one responsive records workspace; tables scroll inside the module, never the page. */
+.ticketing-records-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(180px,100%),1fr));gap:12px;margin:16px 0}
+.ticketing-records-form label{display:grid;gap:5px;min-width:0}
+.ticketing-records-form :is(input,select,button){min-width:0;max-width:100%;box-sizing:border-box;padding:10px}
+[data-ticketing-records-results]{max-width:100%;overflow-x:auto}
+.ticketing-records-table{border-collapse:collapse;min-width:780px;width:100%}
+.ticketing-records-table :is(th,td){padding:10px;border-bottom:1px solid #34393e;text-align:left}
+.ticketing-records-table tr[data-ticketing-anomaly]{outline:2px dashed #d29c37}
+[data-ticketing-records-detail]{margin-top:18px}
