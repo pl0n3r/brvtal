@@ -63,9 +63,10 @@ test('Content Core saves Event, Tickets, roster and SEO through one atomic workf
     await expect(page.locator('#e_accent_picker')).toHaveValue('#b6ff00');
 
     await step(4).click();
-    await expect(page.locator('#e_seo_title')).toBeVisible({timeout:5_000});
-    await page.locator('#e_seo_title').fill('CI Atomic Event | BRVTAL');
-    await page.locator('#e_seo_description').fill('Atomic Event, Ticket, roster and SEO real-stack regression.');
+    const eventSeo = core.locator('#e_seo_slot');
+    await expect(eventSeo.locator('#e_seo_title')).toBeVisible({timeout:5_000});
+    await eventSeo.locator('#e_seo_title').fill('CI Atomic Event | BRVTAL');
+    await eventSeo.locator('#e_seo_description').fill('Atomic Event, Ticket, roster and SEO real-stack regression.');
 
     await step(1).click();
     await page.locator('#e_event_date').fill('2026-10-31T21:00');
