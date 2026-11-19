@@ -110,7 +110,7 @@ html.cromo-home body>*:not(#cromo-home):not(#cromoGL):not(script):not(style):not
 #cromo-home .cr-ac:nth-child(3n+2) .cr-orb{animation-delay:-2.3s;background:radial-gradient(circle at 60% 30%,#fff 0 5%,#ffd2c8 12%,#ff3b1f 44%,#120303 72%)}
 #cromo-home .cr-ac:nth-child(3n) .cr-orb{animation-delay:-4.6s;border-radius:42% 58% 55% 45%/52% 40% 60% 48%}
 #cromo-home .cr-ac .cr-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 35%;z-index:0}
-#cromo-home .cr-ac.cr-has-photo::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.08),rgba(0,0,0,.16) 38%,rgba(0,0,0,.86) 100%);z-index:1;pointer-events:none}
+
 #cromo-home .cr-ac .cr-nm,#cromo-home .cr-ac .cr-rl{z-index:2}
 #cromo-home .cr-ac .cr-nm{position:relative;font:400 clamp(38px,3.8vw,60px)/.95 var(--disp);text-transform:uppercase;color:#fff;-webkit-text-stroke:.05em #030303;paint-order:stroke fill}
 #cromo-home .cr-ac .cr-rl{position:relative;font:600 21px/1.35 var(--body);margin-top:8px;color:#d7dbe4}
@@ -762,20 +762,16 @@ html.cromo-home body>*:not(#cromo-home):not(#cromoGL):not(script):not(style):not
 }
 @media(prefers-reduced-motion:reduce){#cromo-home .cr-cn2-links a{transition:none}}
 
-/* Match Edit Artists framing while making the photograph fill the home card. */
-#cromo-home .cr-ac.cr-has-photo .cr-photo{
-  object-fit:cover;
-  object-position:var(--cr-artist-desktop-x,50%) var(--cr-artist-desktop-y,50%);
-  transform:scale(var(--cr-artist-desktop-zoom,1));
-  transform-origin:center;
-  background:rgba(0,0,0,.76);
-}
-@media(max-width:700px){
-  #cromo-home .cr-ac.cr-has-photo .cr-photo{
-    object-position:var(--cr-artist-mobile-x,50%) var(--cr-artist-mobile-y,50%);
-    transform:scale(var(--cr-artist-mobile-zoom,1));
-  }
-}
+/* Same card as DISCADMIN › Edit Artists › «Vista de tarjeta / foto completa»:
+   whole photo in a 4:5 frame (object-fit:contain, no zoom, no crop), name and
+   membership underneath. hero_framing only applies to the artist page header. */
+#cromo-home .cr-ac.cr-has-photo{padding:0;min-height:0;justify-content:flex-start;background:#050505}
+#cromo-home .cr-ac.cr-has-photo::before{content:none}
+#cromo-home .cr-ac-frame{position:relative;display:grid;place-items:center;aspect-ratio:4/5;overflow:hidden;background:#080808}
+#cromo-home .cr-ac.cr-has-photo .cr-photo{position:static;display:block;width:100%;height:100%;object-fit:contain;object-position:center;transform:none}
+#cromo-home .cr-ac-cap{position:relative;z-index:2;display:grid;justify-items:start;gap:8px}
+#cromo-home .cr-ac.cr-has-photo .cr-ac-cap{padding:18px 22px 22px}
+#cromo-home .cr-ac-cap .cr-artist-membership{margin-top:0}
 #cromo-home .cr-artist-membership{position:relative;z-index:3;display:block;max-width:100%;width:fit-content;padding:7px 9px;margin-top:8px;background:#080808;color:#f6f1e7;border:1px solid rgba(255,255,255,.58);font:800 clamp(10px,1vw,12px)/1.35 var(--body);letter-spacing:.06em;text-transform:uppercase;text-wrap:pretty}
 #cromo-home .cr-ac:focus-visible .cr-artist-membership{outline:2px solid var(--acid,#b8ff00);outline-offset:3px}
 @media(prefers-reduced-motion:reduce){#cromo-home .cr-ac .cr-photo{transition:none}}
