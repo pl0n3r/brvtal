@@ -33,6 +33,25 @@ window.BRVTALTicketing = (() => {
     if (!panel) return false;
     panel.setAttribute('aria-labelledby', active.id);
     panel.replaceChildren(element('h2', titles[key]), element('p', descriptions[key], 'ticketing-empty'));
+    if (key === 'orders' || key === 'buyers') {
+      import('/discadmin/ticketing-orders.js').then(mod => {
+        if (panel.isConnected && panel.getAttribute('aria-labelledby') === active.id) {
+          return mod.mount(panel, key);
+        }
+      }).catch(() => {
+        if (panel.isConnected && panel.getAttribute('aria-labelledby') === active.id) {
+          panel.replaceChildren(element('p', 'No se pudo cargar Pedidos y Compradores.', 'ticketing-error'));
+        }
+      });
+    }
+    if (key === 'finance') {
+      import('/discadmin/ticketing-finance.js').then(mod => {
+        if (panel.isConnected && panel.getAttribute('aria-labelledby') === active.id) mod.mount(panel);
+      }).catch(() => {
+        if (panel.isConnected && panel.getAttribute('aria-labelledby') === active.id)
+          panel.replaceChildren(element('p', 'Finanzas no disponibles.', 'ticketing-error'));
+      });
+    }
     if (key === 'settings') {
       const group = element('fieldset', undefined, 'ticketing-settings');
       group.appendChild(element('legend', 'Integraciones (solo consulta)'));
