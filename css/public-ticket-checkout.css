@@ -11,3 +11,6 @@
 .event-ticket-checkout button:disabled{opacity:.5;cursor:not-allowed}
 .event-ticket-checkout [role=status]{min-height:2rem}
 @media(max-width:680px){.event-ticket-checkout form{grid-template-columns:minmax(0,1fr)}}
+
+/* A recovered order can be queried without offering another purchase. */
+.event-ticket-checkout[hidden] { display: none; }

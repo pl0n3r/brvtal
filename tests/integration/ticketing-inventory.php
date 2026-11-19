@@ -18,6 +18,8 @@ inventoryAssert(!brvtal_ticket_inventory_saleable(
 inventoryAssert(!brvtal_ticket_inventory_saleable(
     array_replace($event,['status'=>'cancelled']),$type,$clock),'cancelled event blocked');
 inventoryAssert(!brvtal_ticket_inventory_saleable(
+    array_replace($event,['status'=>'sold_out']),$type,$clock),'sold-out event with free capacity blocked');
+inventoryAssert(!brvtal_ticket_inventory_saleable(
     array_replace($event,['published_at'=>'2026-12-05 00:00:00']),$type,$clock),'scheduled event blocked');
 inventoryAssert(!brvtal_ticket_inventory_saleable(
     $event,array_replace($type,['available_from'=>'2026-12-04 20:01:00']),$clock),'pre-window blocked');
@@ -100,6 +102,18 @@ $db->exec("INSERT INTO ticket_inventory_events VALUES(1,1)");
 $db->exec("INSERT INTO ticket_inventory_types(ticket_type_id,event_id,capacity,courtesy_capacity) VALUES(10,1,1,0)");
 $db->exec("INSERT INTO ticket_orders VALUES(100,1,'pending'),(101,1,'pending')");
 $db->exec("INSERT INTO ticket_order_items(order_id,ticket_type_id,quantity) VALUES(100,10,1),(101,10,1)");
+// Even a future sold-out Event with unconsumed stock cannot create a hold.
+$db->exec("UPDATE events SET status='sold_out' WHERE id=1");
+$db->beginTransaction();
+try {
+    brvtal_ticket_inventory_hold($db,100,10,1,'paid',600,$clock);
+    throw new RuntimeException('Sold-out Event allowed a checkout hold');
+} catch (DomainException $error) {
+    inventoryAssert($error->getMessage()==='INVENTORY_NOT_SALEABLE',
+        'sold-out Event cannot reserve an otherwise free unit');
+}
+$db->rollBack();
+$db->exec("UPDATE events SET status='published' WHERE id=1");
 $db->beginTransaction();
 $hold=brvtal_ticket_inventory_hold($db,100,10,1,'paid',600,$clock);
 $retry=brvtal_ticket_inventory_hold($db,100,10,1,'paid',600,$clock);

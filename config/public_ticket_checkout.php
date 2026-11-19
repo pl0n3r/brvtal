@@ -79,7 +79,7 @@ function brvtal_public_ticket_checkout_prepare(PDO $db, int $eventId, int $buyer
     if ($db->inTransaction()) throw new LogicException('CHECKOUT_TRANSACTION_ALREADY_ACTIVE');
     $db->beginTransaction();
     try {
-        $q = $db->prepare('SELECT id,status,event_id,buyer_id FROM ticket_orders
+        $q = $db->prepare('SELECT id,status,event_id,buyer_id,expires_at_utc FROM ticket_orders
             WHERE checkout_key_hash=? FOR UPDATE');
         $q->execute([$digest]);
         $prior = $q->fetch(PDO::FETCH_ASSOC);
@@ -87,6 +87,10 @@ function brvtal_public_ticket_checkout_prepare(PDO $db, int $eventId, int $buyer
             || (int)$prior['event_id'] !== $eventId
             || !in_array($prior['status'],['draft','pending'],true))) {
             throw new DomainException('CHECKOUT_RETRY_CONFLICT');
+        }
+        if ($prior && (string)($prior['expires_at_utc'] ?? '') !== ''
+            && (string)$prior['expires_at_utc'] <= gmdate('Y-m-d H:i:s')) {
+            throw new DomainException('CHECKOUT_EXPIRED');
         }
         $q = $db->prepare('SELECT id,name,price,currency,status,available_from,available_until
             FROM event_ticket_types WHERE id=? AND event_id=?');
@@ -119,10 +123,26 @@ function brvtal_public_ticket_checkout_prepare(PDO $db, int $eventId, int $buyer
             $q->execute([$orderId,$eventId,$typeId,mb_substr((string)$type['name'],0,120),
                 $quantity,(int)$type['price'],$total]);
         }
-        brvtal_ticket_inventory_hold($db,$orderId,$typeId,$quantity);
+        try {
+            brvtal_ticket_inventory_hold($db,$orderId,$typeId,$quantity);
+        } catch (DomainException $error) {
+            if ($prior && $error->getMessage() === 'INVENTORY_HOLD_CONFLICT') {
+                throw new DomainException('CHECKOUT_EXPIRED', 0, $error);
+            }
+            throw $error;
+        }
         $checkout = brvtal_ticket_wompi_prepare($db,$buyerId,$orderId,$key,$method,$settings);
         $db->commit();
         return ['order_id'=>$orderId,'checkout'=>$checkout];
+    } catch (PDOException $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        // A concurrent request can win the same idempotency key. The client
+        // retries the persisted key after a deadlock or unique-index race.
+        if (in_array((int)($e->errorInfo[1] ?? 0), [1062, 1213, 1205], true)
+            || (string)$e->getCode() === '40001') {
+            throw new DomainException('CHECKOUT_RETRYABLE', 0, $e);
+        }
+        throw $e;
     } catch (Throwable $e) {
         if ($db->inTransaction()) $db->rollBack();
         throw $e;
@@ -173,7 +193,11 @@ function brvtal_public_ticket_checkout_http(PDO $db, int $eventId): void
         json_response(['ok'=>true]+$result,200);
     } catch (InvalidArgumentException) {
         json_response(['ok'=>false,'error'=>'INVALID_REQUEST'],422);
-    } catch (DomainException) {
+    } catch (DomainException $error) {
+        $reason = $error->getMessage();
+        if (in_array($reason, ['CHECKOUT_RETRYABLE','CHECKOUT_EXPIRED'], true)) {
+            json_response(['ok'=>false,'error'=>$reason],409);
+        }
         json_response(['ok'=>false,'error'=>'CHECKOUT_UNAVAILABLE'],409);
     } catch (Throwable) {
         json_response(['ok'=>false,'error'=>'CHECKOUT_UNAVAILABLE'],503);

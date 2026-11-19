@@ -62,6 +62,7 @@ test('T13 huésped, timeout, retry y redirect nunca confirman pago', async ({ pa
   await open(page);
   let allowed = false;
   let requests = [];
+  let statusOrders = [];
   await page.route('**/api/buyer/auth.php', route => route.fulfill({
     contentType:'application/json',
     body: JSON.stringify({ ok:true, csrf:'fixture', authenticated:allowed }),
@@ -69,9 +70,11 @@ test('T13 huésped, timeout, retry y redirect nunca confirman pago', async ({ pa
   // The status URL adds ?order_id; intercept both the base path and query variant.
   await page.route('**/events/t13-fixture**', async route => {
     if (route.request().method()!=='POST') {
-      if (route.request().headers()['x-brvtal-ticket-checkout']==='status') return route.fulfill({
-        status:200, contentType:'application/json', body:JSON.stringify({ok:true,state:'pending'}),
-      });
+      if (route.request().headers()['x-brvtal-ticket-checkout']==='status') {
+        statusOrders.push(new URL(route.request().url()).searchParams.get('order_id'));
+        return route.fulfill({status:200,contentType:'application/json',
+          body:JSON.stringify({ok:true,state:'failed'})});
+      }
       return route.fallback();
     }
     requests.push(route.request().postDataJSON());
@@ -93,8 +96,95 @@ test('T13 huésped, timeout, retry y redirect nunca confirman pago', async ({ pa
   expect(requests[0].idempotency_key).toBe(requests[1].idempotency_key);
   expect(requests[1]).not.toHaveProperty('price');
   expect(requests[1]).not.toHaveProperty('status');
+  const statusRequest = page.waitForRequest(request =>
+    request.headers()['x-brvtal-ticket-checkout'] === 'status'
+    && new URL(request.url()).searchParams.get('order_id') === '42');
   await page.reload();
   await page.addScriptTag({content:script});
-  await expect(page.locator('#ticket-checkout-status')).toContainText('pendiente');
+  await statusRequest;
+  await expect(page.locator('#ticket-checkout-status'))
+    .toHaveText('El pago no fue aprobado. Puedes volver a intentarlo.');
+  expect(statusOrders).toEqual(['42']);
   await expect(page.getByText('Pago confirmado por el servidor.')).toHaveCount(0);
+});
+
+test('T13 recupera pago cuando la última boleta agotó el inventario', async ({page}) => {
+  await open(page,{internal:false,external:false});
+  await expect(page.locator('#brvtal-ticket-checkout')).toHaveCount(0);
+  await expect(page.locator('#checkout-boletas')).toBeHidden();
+  await page.evaluate(() => sessionStorage.setItem('brvtal-checkout:'+location.pathname,
+    JSON.stringify({order_id:'51'})));
+  const orderIds=[];
+  await page.route('**/events/t13-fixture**',route=>{
+    if (route.request().headers()['x-brvtal-ticket-checkout']==='status') {
+      orderIds.push(new URL(route.request().url()).searchParams.get('order_id'));
+      return route.fulfill({status:200,contentType:'application/json',
+        body:JSON.stringify({ok:true,state:'approved'})});
+    }
+    return route.fallback();
+  });
+  const request=page.waitForRequest(r=>r.headers()['x-brvtal-ticket-checkout']==='status'
+    && new URL(r.url()).searchParams.get('order_id')==='51');
+  await page.reload();
+  await page.addScriptTag({content:script});
+  await request;
+  await expect(page.locator('#checkout-boletas')).toBeVisible();
+  await expect(page.locator('#ticket-checkout-status'))
+    .toHaveText('Pago confirmado por el servidor. Consulta tus entradas en tu cuenta.');
+  expect(orderIds).toEqual(['51']);
+  await expect(page.locator('#brvtal-ticket-checkout')).toHaveCount(0);
+});
+test('T13 reusa la misma intención tras timeout y recarga', async ({page}) => {
+  await open(page);
+  await page.route('**/api/buyer/auth.php',route=>route.fulfill({
+    contentType:'application/json',body:JSON.stringify({ok:true,authenticated:true,csrf:'fixture'}),
+  }));
+  const requests=[];
+  await page.route('**/events/t13-fixture**',route=>{
+    if (route.request().method()!=='POST') return route.fallback();
+    requests.push(route.request().postDataJSON());
+    if (requests.length===1) return route.abort('failed');
+    return route.fulfill({contentType:'application/json',
+      body:JSON.stringify({ok:true,order_id:71,checkout:{environment:'mock'}})});
+  });
+  await page.getByLabel('Cantidad').fill('2');
+  await page.getByRole('button',{name:'Continuar al pago'}).click();
+  await expect(page.locator('#ticket-checkout-status')).toContainText('No fue posible');
+  const saved=await page.evaluate(()=>JSON.parse(sessionStorage.getItem('brvtal-checkout:'+location.pathname)));
+  expect(saved.intent).toBe(requests[0].idempotency_key);
+  expect(saved.input.quantity).toBe(2);
+  await page.reload();
+  await page.addScriptTag({content:script});
+  await expect(page.getByLabel('Cantidad')).toHaveValue('2');
+  await page.getByRole('button',{name:'Continuar al pago'}).click();
+  await expect(page.locator('#ticket-checkout-status')).toContainText('pendiente');
+  expect(requests).toHaveLength(2);
+  expect(requests[1].idempotency_key).toBe(requests[0].idempotency_key);
+});
+test('T13 evita doble envío mientras la primera solicitud sigue pendiente', async ({page}) => {
+  await open(page);
+  await page.route('**/api/buyer/auth.php',route=>route.fulfill({
+    contentType:'application/json',body:JSON.stringify({ok:true,authenticated:true,csrf:'fixture'}),
+  }));
+  const requests=[];
+  let release;
+  const hold=new Promise(resolve=>{release=resolve;});
+  await page.route('**/events/t13-fixture**',async route=>{
+    if (route.request().method()!=='POST') return route.fallback();
+    requests.push(route.request().postDataJSON());
+    await hold;
+    return route.fulfill({contentType:'application/json',
+      body:JSON.stringify({ok:true,order_id:72,checkout:{environment:'mock'}})});
+  });
+  const button=page.getByRole('button',{name:'Continuar al pago'});
+  await button.click();
+  await expect(button).toBeDisabled();
+  await expect(page.getByLabel('Cantidad')).toBeDisabled();
+  await page.evaluate(()=>document.querySelector('[name=quantity]')
+    .dispatchEvent(new Event('input',{bubbles:true})));
+  await expect(button).toBeDisabled();
+  await expect.poll(()=>requests.length).toBe(1);
+  release();
+  await expect(page.locator('#ticket-checkout-status')).toContainText('pendiente');
+  expect(requests).toHaveLength(1);
 });

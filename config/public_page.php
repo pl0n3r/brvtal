@@ -534,6 +534,12 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
                 . ' Compradores invitados: el checkout está pendiente de habilitación segura.</p></section>';
         }
     }
+    // A prior order remains inspectable after the last unit is reserved or sold.
+    if ($isEvent && $checkoutPanel === '') {
+        $checkoutPanel = '<section class="event-ticket-checkout" id="checkout-boletas" aria-label="Estado de compra" hidden>'
+            . '<h2>Estado de tu compra</h2>'
+            . '<p id="ticket-checkout-status" role="status" aria-live="polite"></p></section>';
+    }
     $fallbackTicketUrl = $isEvent ? $safeUrl($page['links']['TICKETS'] ?? '') : '';
     $fallbackOffer = $offers === [] && $fallbackTicketUrl !== ''
         && !in_array(strtoupper($recordStatus), ['SOLD OUT', 'CANCELLED', 'CANCELED'], true);
@@ -705,10 +711,10 @@ JS;
         : '';
 
     $eventStylesheet = $isEvent ? '<link rel="stylesheet" href="/css/public-event-record.css">' : '';
-    if ($internalEnabled) {
+    if ($isEvent) {
         $eventStylesheet .= '<link rel="stylesheet" href="/css/public-ticket-checkout.css">';
     }
-    $checkoutScript = $internalEnabled ? '<script src="/js/public-ticket-checkout.js" defer></script>' : '';
+    $checkoutScript = $isEvent ? '<script src="/js/public-ticket-checkout.js" defer></script>' : '';
     $eventPalette = brvtalPublicEventPalette((string)($entity['accent'] ?? ''));
     $bodyClass = $isEvent ? 'entity-page entity-page--event entity-page--event-' . $recordState . ' cromo-page' : 'entity-page cromo-page';
     $bodyAttributes = 'class="' . $escape($bodyClass) . '"';
