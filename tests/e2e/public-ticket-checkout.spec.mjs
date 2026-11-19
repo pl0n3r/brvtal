@@ -23,7 +23,10 @@ function render({ active = true, internal = true, external = true } = {}) {
     'echo brvtal_public_entity_page($page,$seo);',
   ].join(' ');
   return execFileSync('php', ['-r', php, fixture], { encoding: 'utf8' })
-    .replace('</head>', '<style>' + css + '</style></head>');
+    .replace('</head>', '<style>' + css + '</style></head>')
+    // The real renderer already includes this defer script. Playwright injects
+    // the same local source below; leaving both creates competing form listeners.
+    .replace('<script src="/js/public-ticket-checkout.js" defer></script>', '');
 }
 async function open(page, fixture) {
   await page.route(path, route => route.fulfill({ contentType: 'text/html', body: render(fixture) }));
