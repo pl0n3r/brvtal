@@ -223,7 +223,7 @@ $closedExit=proc_close($proc);
 inventoryAssert($closedExit===0 && $closedErr==='' && $closedOut==='INVENTORY_NOT_SALEABLE',
     'Event lock wait crossing available_until denies the hold');
 
-$futureWindow = (new DateTimeImmutable('now',new DateTimeZone('America/Bogota')))
+$futureWindow = new DateTimeImmutable('now',new DateTimeZone('America/Bogota'))
     ->modify('+1 hour')->format('Y-m-d H:i:s');
 $windowUpdate->execute([$fromDate,$futureWindow]);
 $db->beginTransaction();
