@@ -537,9 +537,16 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
     $fallbackTicketUrl = $isEvent ? $safeUrl($page['links']['TICKETS'] ?? '') : '';
     $fallbackOffer = $offers === [] && $fallbackTicketUrl !== ''
         && !in_array(strtoupper($recordStatus), ['SOLD OUT', 'CANCELLED', 'CANCELED'], true);
-    $canBuy = $isEvent && $recordState === 'active' && ($hasPurchasableTicket || $fallbackOffer || $internalEnabled);
+    $saleableRecord = !in_array(strtoupper($recordStatus), ['SOLD OUT','CANCELLED','CANCELED','FINISHED'], true);
+    $canBuy = $isEvent && $recordState === 'active' && $saleableRecord
+        && ($hasPurchasableTicket || $fallbackOffer || $internalEnabled);
     $buyHref = $internalEnabled ? '#checkout-boletas' : ($ticketUrl !== '' ? $ticketUrl : ($fallbackTicketUrl !== '' && $canBuy ? $fallbackTicketUrl : '#boletas'));
     $buyTarget = preg_match('#^https?://#i', $buyHref) ? ' target="_blank" rel="noopener noreferrer"' : '';
+    if ($internalEnabled) {
+        $internalPrices = array_map(static fn(array $item): int => (int)$item['price_cop'], $internal);
+        $minimumPrice = min($internalPrices);
+        $minimumCurrency = 'COP';
+    }
     $buyPrice = $minimumPrice === null ? '' : ' · desde '
         . ($minimumCurrency === 'COP' ? '$' : ($minimumCurrency !== '' ? $minimumCurrency . ' ' : ''))
         . number_format($minimumPrice, 0, ',', '.');
