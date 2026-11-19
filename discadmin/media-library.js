@@ -536,10 +536,19 @@ window.BRVTALMediaLibrary = (() => {
     overlay.setAttribute('role', 'dialog');
     overlay.setAttribute('aria-modal', 'true');
     overlay.setAttribute('aria-label', 'SELECT MEDIA');
-    const accept = videoOnly ? 'video/mp4' : imagesOnly
-      ? 'image/jpeg,image/png,image/webp,image/gif'
-      : 'image/jpeg,image/png,image/webp,image/gif,video/mp4,audio/mpeg,audio/wav,application/pdf';
-    const formatLabel = videoOnly ? 'MP4' : imagesOnly ? 'JPG, PNG, WEBP, GIF' : 'IMAGEN, VIDEO, AUDIO, PDF';
+    let supportedTypes;
+    let formatLabel;
+    if (videoOnly) {
+      supportedTypes = ['video/mp4'];
+      formatLabel = 'MP4';
+    } else if (imagesOnly) {
+      supportedTypes = ['image/jpeg','image/png','image/webp','image/gif'];
+      formatLabel = 'JPG, PNG, WEBP, GIF';
+    } else {
+      supportedTypes = ['image/jpeg','image/png','image/webp','image/gif','video/mp4','audio/mpeg','audio/wav','application/pdf'];
+      formatLabel = 'IMAGEN, VIDEO, AUDIO, PDF';
+    }
+    const accept = supportedTypes.join(',');
     overlay.innerHTML = `
       <div class="brvtal-media-picker-box">
         <div class="brvtal-media-picker-head">
@@ -609,9 +618,6 @@ window.BRVTALMediaLibrary = (() => {
       const file = uploadInput.files?.[0];
       uploadInput.value = '';
       if (!file || uploading) return;
-      const supportedTypes = videoOnly ? ['video/mp4'] : imagesOnly
-        ? ['image/jpeg','image/png','image/webp','image/gif']
-        : ['image/jpeg','image/png','image/webp','image/gif','video/mp4','audio/mpeg','audio/wav','application/pdf'];
       if (!supportedTypes.includes(file.type)) {
         setUploadState('Formato no admitido. Selecciona un archivo compatible.', 'error');
         return;
