@@ -89,7 +89,6 @@ function brvtal_wompi_hook_lookup(array $settings, string $id, ?callable $transp
             CURLOPT_SSL_VERIFYPEER=>true, CURLOPT_HTTPHEADER=>['Authorization: Bearer ' . $settings['private']]]);
         $body = curl_exec($handle);
         $response = ['status'=>curl_getinfo($handle,CURLINFO_HTTP_CODE), 'body'=>$body];
-        curl_close($handle);
     }
     if (!is_array($response) || (int)($response['status'] ?? 0) !== 200
         || !is_string($response['body'] ?? null) || strlen($response['body']) > 65536) {
