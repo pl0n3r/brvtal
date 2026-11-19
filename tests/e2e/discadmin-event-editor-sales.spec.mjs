@@ -126,6 +126,7 @@ test('moving event date regenerates both persisted timetable dates despite uncha
 test('changing night start across midnight regenerates end date and preserves chronological order',async({page})=>{
   await openEditor(page,existingNight());
   await page.evaluate(()=>window.BRVTALContentCore.openEvent(42));
+  await page.locator('[data-step="3"]').click();
   const row=page.locator('#eventTimetable .timetable-row');
   await expect(row).toHaveCount(1);
   await row.locator('[data-k="starts_at"]').fill('1:30 am');
