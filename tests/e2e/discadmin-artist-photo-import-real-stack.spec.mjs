@@ -100,9 +100,9 @@ test('AC-01: authenticated artist editor imports real HTTPS fixture into Media a
     expect(artist.photo).toBe(ownPath);
     expect(artist.status).toBe('published');
 
-    const publicPage = await page.request.get(`${baseUrl}/artists/${slug}`);
+    const publicPage = await page.request.get(`${baseUrl}/index.php?type=artists&slug=${encodeURIComponent(slug)}`);
     expect(publicPage.status()).toBe(200);
-    const html = await publicPage.text();
+    // php -S has no .htaccess rewrite; query form exercises the same canonical public renderer.\n    const html = await publicPage.text();
     expect(html).toContain(name);
     expect(html).toContain('/uploads/media/');
     expect(html).not.toContain(fixture);
