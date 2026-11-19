@@ -102,6 +102,15 @@
       ticket_qr:value(root, 'e_ticket_qr'),
       ticket_url:value(root, 'e_ticket_url')
     };
+    // The atomic endpoint accepts SEO metadata only when the editor includes
+    // it explicitly; otherwise a valid title/description edit would silently
+    // save an empty SEO title. Never overwrite stored SEO when the UI is absent.
+    const seoTitle=field(root,'e_seo_title');
+    const seoDescription=field(root,'e_seo_description');
+    if(seoTitle&&seoDescription){
+      event.seo_title=String(seoTitle.value||'');
+      event.seo_description=String(seoDescription.value||'');
+    }
     if(value(root,'e_status')==='scheduled'){
       const publishAt=value(root,'e_publish_at');
       // Offset-free publish_at is interpreted in America/Bogota by PHP.
