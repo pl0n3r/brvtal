@@ -13,8 +13,7 @@ $seo = ['title'=>'BRVTAL','description'=>$raw,'image'=>'','canonical'=>'https://
 echo brvtal_public_entity_page($page,$seo);
 `;
 function render(route) {
-  return execFileSync('php', ['-r',source,route], {cwd:process.cwd(),encoding:'utf8'})
-    .replace(/<script[^>]*src="[^"]+"[^>]*><\/script>/g,'');
+  return execFileSync('php', ['-r',source,route], {cwd:process.cwd(),encoding:'utf8'});
 }
 test('real public artist bio renders bold and stripped plain SEO', async ({page}) => {
   await page.setContent(render('artists'));

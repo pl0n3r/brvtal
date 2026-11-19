@@ -19,8 +19,6 @@ $seo = ['title'=>'Génesis — BRVTAL','description'=>'# GENESIS — EL REGRESO'
 echo brvtal_public_entity_page($page, $seo);
 `;
 const render = accent => execFileSync('php', ['-r', php, accent], { cwd: root, encoding: 'utf8' })
-  .replace(/<link[^>]*rel="stylesheet"[^>]*>/g, '')
-  .replace(/<script[^>]*src="[^"]+"[^>]*><\/script>/g, '')
   .replace('</head>', '<style>' + css + '</style></head>');
 const rgb = value => (value.match(/\d+(?:\.\d+)?/g) || []).slice(0, 3).map(Number);
 const luminance = channels => channels.reduce((sum, channel, i) => {

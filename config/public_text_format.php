@@ -103,11 +103,12 @@ function brvtalPublicEventPalette(string $value): array
     }
     $rgb = [hexdec(substr($digits, 0, 2)), hexdec(substr($digits, 2, 2)), hexdec(substr($digits, 4, 2))];
     if (strlen($digits) === 8) {
-        // Flatten alpha over the nearly black event hero to ensure deterministic contrast.
+        // Compute effective color over the nearly black event hero for contrast estimation.
         $alpha = hexdec(substr($digits, 6, 2)) / 255;
         $rgb = array_map(static fn(int $channel): int => (int)round($channel * $alpha + 3 * (1 - $alpha)), $rgb);
     }
-    $signal = sprintf('#%02x%02x%02x', ...$rgb);
+    // Preserve the original valid CSS hex spelling; only use expanded/flattened RGB for contrast.
+    $signal = $value;
     $luminance = static function (array $channels): float {
         $linear = array_map(static function (int $c): float {
             $s = $c / 255;
