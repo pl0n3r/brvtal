@@ -107,3 +107,52 @@ test('GENESIS artist lineup keeps portrait 4:5, saved desktop/mobile framing and
     expect(setRatio).toBeCloseTo(3 / 4, 1);
   }
 });
+
+
+/* WebKit has no PHP binary: pair this real-CSS Safari check with the PHP-rendered
+ * contract in public-event-accent.spec.mjs (Chromium). All data are synthetic. */
+test('Safari 390px respects event Accent and WCAG AA text contrast for light and dark choices', async ({ page }) => {
+  const signalCss = ['css/public-entity.css', 'css/public-event-record.css', 'css/public-cromo.css', 'css/public-cromo-pages.css']
+    .map(path => readFileSync(join(process.cwd(), path), 'utf8')).join('\n');
+  const channels = value => (value.match(/\d+(?:\.\d+)?/g) || []).slice(0, 3).map(Number);
+  const luminance = color => channels(color).reduce((sum, value, index) => {
+    const channel = value / 255;
+    const linear = channel <= .04045 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4;
+    return sum + [0.2126, 0.7152, 0.0722][index] * linear;
+  }, 0);
+  await page.setViewportSize({width: 390, height: 844});
+  for (const [signal, ink, expectedRgb] of [
+    ['#96d35f', '#030303', 'rgb(150, 211, 95)'],
+    ['#101020', '#f4f1e8', 'rgb(16, 16, 32)'],
+    ['#e12e34', '#030303', 'rgb(225, 46, 52)']
+  ]) {
+    await page.setContent('<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">'
+      + '<style>html,body{margin:0;padding:0}</style><style>' + signalCss + '</style></head>'
+      + '<body class="entity-page entity-page--event entity-page--event-active cromo-page"'
+      + ' style="--event-signal:' + signal + ';--event-ink:' + ink + '">'
+      + '<main><article class="entity-hero"><div class="entity-image"></div>'
+      + '<div class="entity-copy"><div class="entity-kicker">GENESIS</div><h1>GENESIS</h1>'
+      + '<div class="entity-actions"><a href="https://tickets.example.org">ENTRADAS</a></div></div></article>'
+      + '</main></body></html>');
+    const values = await page.evaluate(() => {
+      const body = document.body;
+      const button = document.querySelector('.entity-actions a');
+      return {
+        signal: getComputedStyle(body).getPropertyValue('--event-signal').trim(),
+        bg: getComputedStyle(button).backgroundColor,
+        fg: getComputedStyle(button).color,
+        tint: getComputedStyle(document.querySelector('.entity-image'), '::after').backgroundColor,
+        ink: getComputedStyle(document.querySelector('.entity-kicker')).color,
+        overflow: document.documentElement.scrollWidth > window.innerWidth + 1
+      };
+    });
+    expect(values.signal).toBe(signal);
+    expect(values.bg).toBe(expectedRgb);
+    expect(values.tint).toBe(expectedRgb);
+    const l1 = luminance(values.bg);
+    const l2 = luminance(values.fg);
+    const contrast = (Math.max(l1, l2) + .05) / (Math.min(l1, l2) + .05);
+    expect(contrast).toBeGreaterThanOrEqual(4.5);
+    expect(values.overflow).toBe(false);
+  }
+});
