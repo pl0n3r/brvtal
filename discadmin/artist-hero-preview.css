@@ -68,3 +68,11 @@
 .artist-ig-try:hover{border-color:#fff}
 @media(max-width:680px){.artist-card-preview-layout{grid-template-columns:1fr}.artist-card-preview{max-width:270px}}
 @media(prefers-reduced-motion:reduce){.artist-ig-try,.artist-card-preview *{transition:none!important;animation:none!important}}
+
+/* URL import is a separate, non-destructive step from saving the artist. */
+.artist-photo-import-row{display:flex;flex-wrap:wrap;gap:9px;align-items:center}
+.artist-photo-import-row input{flex:1 1 240px;min-width:0}
+.artist-photo-import-row button{min-height:44px;white-space:nowrap}
+.artist-photo-import-row button:disabled{opacity:.65;cursor:wait}
+#artistPhotoImportStatus{margin:7px 0 0;color:#c5cbd0;font:12px/1.4 Arial,Helvetica,sans-serif}
+#artistPhotoImportStatus[data-error="true"]{color:#ff7777}

@@ -698,7 +698,7 @@ jobs:
           JS
 
       - name: Run targeted WebKit TOTP and datetime-picker regressions
-        run: npx playwright test tests/e2e/discadmin-totp-login.spec.mjs tests/e2e/discadmin-datetime-picker.spec.mjs tests/e2e/public-entity-card-framing.spec.mjs --project=webkit-totp
+        run: npx playwright test tests/e2e/discadmin-totp-login.spec.mjs tests/e2e/discadmin-datetime-picker.spec.mjs tests/e2e/public-entity-card-framing.spec.mjs tests/e2e/discadmin-artist-edit-scroll.spec.mjs --project=webkit-totp
 
   recovery:
     name: recovery-rehearsal
