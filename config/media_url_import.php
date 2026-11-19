@@ -288,8 +288,48 @@ function brvtal_media_url_import_curl(string $url, string $host, string $ip, int
  *
  * @return array{mime:string, bytes:string, extension:string}
  */
+
+/**
+ * Deterministic in-memory HTTPS response for the disposable E2E PHP server only.
+ * URL shape, public IP and image bytes still pass the actual SSRF-safe importer.
+ * FPM/production, normal CLI and hosts without the explicit test markers cannot use it.
+ */
+function brvtal_media_url_import_e2e_fixture(string $url): ?array
+{
+    if (PHP_SAPI !== 'cli-server'
+        || getenv('BRVTAL_MEDIA_URL_IMPORT_E2E_FIXTURE') !== '1'
+        || preg_match('/^brvtal_test[a-zA-Z0-9_]*$/D', (string)getenv('BRVTAL_TEST_DB_NAME')) !== 1
+        || (string)($_SERVER['SERVER_ADDR'] ?? '') !== '127.0.0.1') {
+        return null;
+    }
+    $success = 'https://fixture.brvtal.test/artist.png';
+    $failure = 'https://fixture.brvtal.test/unavailable.png';
+    if ($url !== $success && $url !== $failure) {
+        return null;
+    }
+    $bytes = base64_decode('iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAL0lEQVR42u3OIQEAAAgDMEpSkix0ghg3E/Ornr2kEhAQEBAQEBAQEBAQEBAQSAcelV0oplopjnwAAAAASUVORK5CYII=', true);
+    if (!is_string($bytes)) {
+        throw new BrvtalMediaUrlImportError('NOT_AN_IMAGE');
+    }
+    return brvtal_media_url_import_fetch(
+        $url,
+        static fn(string $host): array => ['93.184.216.34'],
+        static fn(string $requestUrl, string $host, string $ip, int $timeoutMs): array => [
+            'status' => $requestUrl === $success ? 200 : 503,
+            'location' => null,
+            'body' => $requestUrl === $success ? $bytes : '',
+        ]
+    );
+}
+
 function brvtal_media_url_import_fetch(string $url, ?callable $resolver = null, ?callable $transport = null): array
 {
+    if ($resolver === null && $transport === null) {
+        $fixture = brvtal_media_url_import_e2e_fixture($url);
+        if ($fixture !== null) {
+            return $fixture;
+        }
+    }
     $transport ??= 'brvtal_media_url_import_curl';
     $deadline = hrtime(true) + BRVTAL_MEDIA_URL_IMPORT_TIMEOUT_S * 1_000_000_000;
     for ($hop = 0; $hop <= BRVTAL_MEDIA_URL_IMPORT_MAX_REDIRECTS; $hop++) {
