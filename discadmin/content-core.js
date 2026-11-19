@@ -40,6 +40,7 @@ function brvtalEventRestoreInputValue(field,value){
   if(value===null||value===undefined)return '';
   if(field==='featured')return Number(value)?'1':'0';
   if(field==='event_date')return String(value).replace(' ','T').slice(0,16);
+  if(field==='status')return ['draft','cancelled'].includes(String(value||'').toLowerCase())?String(value).toLowerCase():'published';
   return String(value);
 }
 function brvtalTicketDateInputValue(value){return value?String(value).replace(' ','T').slice(0,16):''}
@@ -296,6 +297,10 @@ function applyEventRestorePlan(plan,eventId){
     const control=eventRestoreControl(change.field);
     if(!control)return false;
     control.value=brvtalEventRestoreInputValue(change.field,change.to);
+    if(change.field==='status'){
+      control.dataset.originalStatus=String(change.to||'draft');
+      delete control.dataset.changed;
+    }
     control.dispatchEvent(new Event('input',{bubbles:true}));
     control.dispatchEvent(new Event('change',{bubbles:true}));
   }
@@ -355,35 +360,174 @@ async function initAuth(){const j=window.BRVTALAdminAuthBoundary?.auth?await win
 async function loadEvents({required=false}={}){try{const j=await api('/events');events=j.data||j.events||[];renderEvents();return true}catch(e){msg('Could not load events: '+e.message,false);if(required)throw e;return false}}
 function renderEvents(){const q=($('#eventSearch').value||'').toLowerCase();const a=events.filter(x=>JSON.stringify(x).toLowerCase().includes(q));$('#eventsTable').innerHTML='<div class="th"><div>EVENT</div><div>DATE</div><div>STATUS</div><div></div></div>'+(a.length?a.map(x=>`<div class="tr"><div><div class="title">${esc(x.title||x.name)}</div><div class="meta">${esc(x.city||'')} ${x.venue?'· '+esc(x.venue):''}</div></div><div>${esc(x.event_date||'—')}</div><div><span class="pill">${esc(x.status||'draft')}</span></div><div class="actions"><button class="icon" onclick="BRVTALContentCore.openEvent(${Number(x.id)})">EDIT</button></div></div>`).join(''):'<div class="empty">No events found.</div>')}
 function fill(id,v){const el=$('#'+id);if(el)el.value=v??''}
-const EVENT_PUBLIC_SCHEDULE_STATUSES=new Set(['published','upcoming','tickets_available','last_tickets','sold_out']);
+// Event publication DATETIMEs are in the server's America/Bogota timezone
+// (UTC-05 year-round), not in the browser's local timezone.
+const EVENT_PUBLIC_SCHEDULE_STATUSES=new Set(['scheduled']);
+function eventBogotaMs(value){
+  const normalized=String(value||'').trim().replace(' ','T');
+  if(!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(normalized))return NaN;
+  const stamp=normalized.length===16?normalized+':00':normalized;
+  return Date.parse(stamp+'-05:00');
+}
 function eventPublishScheduleEnabled(status=$('#e_status')?.value){
   return EVENT_PUBLIC_SCHEDULE_STATUSES.has(String(status||'').trim());
 }
 function eventPublishScheduleInputValue(event,nowMs=Date.now()){
   const raw=String(event?.published_at||'').trim();
   if(!raw)return '';
-  const ms=Date.parse(raw.includes('T')?raw:raw.replace(' ','T'));
+  const ms=eventBogotaMs(raw);
   if(!Number.isFinite(ms)||ms<=nowMs)return '';
   return raw.replace(' ','T').slice(0,16);
 }
 function syncEventPublishScheduleControl(){
-  const input=$('#e_publish_at');
-  const helper=$('#e_publish_at_help');
-  const field=$('#e_publish_schedule_field');
+  const input=$('#e_publish_at'), field=$('#e_publish_schedule_field');
   if(!input)return;
   const enabled=eventPublishScheduleEnabled();
   input.disabled=!enabled;
   input.setAttribute('aria-disabled',enabled?'false':'true');
   if(field)field.dataset.state=enabled?'available':'disabled';
-  if(helper){
-    helper.textContent=enabled
-      ? 'The Event remains private until this date/time boundary. Visibility is evaluated on request; no cron is required.'
-      : 'Choose published, upcoming or an active ticket lifecycle to schedule publication. Draft and historical states cannot be scheduled.';
+  const help=$('#e_publish_at_help');
+  if(help)help.textContent=enabled?'El evento se hará visible al llegar esta fecha.':'Selecciona Programado para elegir cuándo publicar.';
+}
+function eventEditorStatus(raw){
+  const status=String(raw||'draft').toLowerCase().trim();
+  return status==='draft'||status==='cancelled'?status:'published';
+}
+function eventEditorPublication(event){
+  const state=eventEditorStatus(event?.status);
+  return state==='published'&&eventPublishScheduleInputValue(event)?'scheduled':state;
+}
+function eventSaveStatus(){
+  const status=$('#e_status')?.value||'draft';
+  // Preserve legacy publication status when the user edits other details only.
+  const select=$('#e_status'),original=select?.dataset.originalStatus||currentEvent?.status||'';
+  if(status==='published'&&!select?.dataset.changed
+      && eventEditorStatus(original)==='published'
+      && original!=='published')return original;
+  return status==='scheduled'?'published':status;
+}
+function eventPublishAt(){
+  return eventPublishScheduleEnabled()?($('#e_publish_at')?.value||'').replace('T',' '):null;
+}
+function eventScheduleError(){
+  if(!eventPublishScheduleEnabled())return '';
+  const raw=$('#e_publish_at')?.value||'';
+  const instant=eventBogotaMs(raw);
+  return !Number.isFinite(instant)||instant<=Date.now()
+    ? 'La fecha de publicación debe ser futura.'
+    : '';
+}
+function eventSlug(){
+  const raw=$('#e_slug')?.value.trim()||'';
+  const title=$('#e_title')?.value.trim()||'';
+  return raw||title.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+}
+function eventSalesState(){
+  const rows=$$('#tickets .ticket-row');
+  if(!rows.length)return $('#e_ticket_url')?.value.trim()?'Enlace general de compra':'Sin boletas configuradas';
+  const active=rows.filter(row=>row.querySelector('[data-k="status"]')?.value==='active').length;
+  const sold=rows.filter(row=>row.querySelector('[data-k="status"]')?.value==='sold_out').length;
+  if(!active&&sold)return 'Agotado';
+  return active?active+' disponible(s)'+(sold?' · '+sold+' agotada(s)':''):'Sin boletas activas';
+}
+function eventSalesRefresh(){
+  const out=$('#e_sales_state');if(out)out.textContent=eventSalesState();
+  const date=$('#e_event_date')?.value||'';
+  const dateOut=$('#e_date_state');
+  if(dateOut)dateOut.textContent=!date?'Por definir':eventBogotaMs(date)<Date.now()?'Finalizado':'Próximo';
+  const checklist=$('#e_publish_checklist');
+  if(checklist){
+    const tickets=$$('#tickets .ticket-row');
+    const warnings=[
+      ['Fecha',!!date,true],['Ciudad',!!$('#e_city')?.value.trim(),true],
+      ['Imagen principal',!!$('#e_cover_image')?.value.trim(),false],
+      ['Boleta con precio',tickets.some(row=>Number.isFinite(Number(row.querySelector('[data-k="price"]')?.value))&&row.querySelector('[data-k="price"]')?.value!==''&&Number(row.querySelector('[data-k="price"]')?.value)>=0)||!!$('#e_ticket_url')?.value.trim(),false],
+      ['Descripción',!!$('#e_description')?.value.trim(),false]
+    ];
+    checklist.replaceChildren();
+    for(const [name,ready,required] of warnings){
+      const p=document.createElement('p');
+      p.textContent=(ready?'✓ ':'○ ')+name+(required?' · necesario':' · recomendado');
+      p.dataset.state=ready?'ok':required?'required':'warning';
+      checklist.appendChild(p);
+    }
   }
 }
+function eventShareSafeImageUrl(value){
+  const raw=String(value??'').trim();
+  if(!raw)return '';
+  try{
+    const url=new URL(raw,location.origin);
+    const local=raw.startsWith('/')&&!raw.startsWith('//')&&url.origin===location.origin;
+    const https=/^https:\/\//i.test(raw)&&url.protocol==='https:'&&!url.username&&!url.password;
+    return local||https?url.href:'';
+  }catch(_){return '';}
+}
+function eventShareRefresh(){
+  const title=$('#e_title')?.value.trim()||'Tu evento';
+  const text=$('#e_description')?.value.trim()||'La descripción aparecerá aquí.';
+  const slug=eventSlug(),publicUrl=slug?location.origin+'/events/'+encodeURIComponent(slug):'';
+  const set=(id,value)=>{const el=$('#'+id);if(el)el.textContent=value;};
+  set('e_share_preview_title',title);
+  set('e_share_preview_description',text.slice(0,220));
+  set('e_share_preview_url',publicUrl);
+  set('e_description_count',String(($('#e_description')?.value||'').length)+' caracteres');
+  const image=$('#e_share_preview_image');
+  if(image){
+    const url=eventShareSafeImageUrl($('#e_share_image')?.value||$('#e_cover_image')?.value||'');
+    if(url){image.src=url;image.hidden=false;}else{image.removeAttribute('src');image.hidden=true;}
+  }
+  const links={e_share_whatsapp:'whatsapp',e_share_instagram:'instagram',e_share_qr:'qr'};
+  for(const [id,source] of Object.entries(links)){
+    const el=$('#'+id);if(!el)continue;
+    const link=publicUrl?publicUrl+'?utm_source='+source:'';
+    if(link)el.href=link;else el.removeAttribute('href');
+    el.setAttribute('aria-disabled',link?'false':'true');
+  }
+}
+function eventEditorRefresh(){eventSalesRefresh();eventShareRefresh();}
+function initEventSalesEditor(){
+  const modal=$('#eventModal');if(!modal||modal.dataset.salesReady==='1')return;
+  modal.dataset.salesReady='1';
+  modal.addEventListener('input',event=>{
+    if(event.target?.id==='e_share_image'&&$('#e_cover_image')){
+      $('#e_cover_image').value=event.target.value;
+    }else if(event.target?.id==='e_cover_image'&&$('#e_share_image')){
+      $('#e_share_image').value=event.target.value;
+    }
+    if(event.target?.closest('#eventForm'))eventEditorRefresh();
+  });
+  modal.addEventListener('change',event=>{
+    if(event.target?.id==='e_status'){
+      event.target.dataset.changed='1';syncEventPublishScheduleControl();
+    }
+    if(event.target?.closest('#eventForm'))eventEditorRefresh();
+  });
+  $('#e_share_copy')?.addEventListener('click',async()=>{
+    const url=$('#e_share_preview_url')?.textContent||'';
+    const feedback=$('#e_share_feedback');if(!url){if(feedback)feedback.textContent='Completa el nombre.';return;}
+    try{await navigator.clipboard.writeText(url);if(feedback)feedback.textContent='Enlace copiado';}
+    catch(_){if(feedback)feedback.textContent='Copia la URL visible.';}
+  });
+  if(typeof MutationObserver==='function'){
+    const slot=$('#e_seo_slot');
+    const observer=new MutationObserver(()=>{
+      const node=modal.querySelector('.step-content[data-content="1"] [data-seo-editor="content-core"]');
+      if(node&&slot){
+        // Keep the current SEO form (including unsaved user edits) when the
+        // legacy decorator re-injects another copy asynchronously.
+        const current=slot.querySelector('[data-seo-editor="content-core"]');
+        if(current&&current!==node)node.remove();
+        else if(!current)slot.appendChild(node);
+      }
+    });
+    observer.observe(modal,{subtree:true,childList:true});
+  }
+}
+function jumpStep(n){if(!Number.isInteger(Number(n))||Number(n)<1||Number(n)>eventWizardLastStep())return;currentStep=Number(n);setStep();}
 function syncEventMapPreview(){const address=$('#e_venue_address')?.value.trim()||'';const link=$('#e_venue_map_preview');if(!link)return;link.hidden=!address;if(address)link.href='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(address);else link.removeAttribute('href')}
 if(typeof document!=='undefined')document.addEventListener('input',event=>{if(event.target?.id==='e_venue_address')syncEventMapPreview()});
-function openEvent(id=null){currentEvent=events.find(x=>Number(x.id)===Number(id))||null;$('#eventHeading').textContent=currentEvent?'EDIT EVENT':'NEW EVENT';fill('e_title',currentEvent?.title);fill('e_slug',currentEvent?.slug);fill('e_description',currentEvent?.description);fill('e_cover_image',currentEvent?.cover_image);fill('e_accent',currentEvent?.accent);window.BRVTALAdminColorField?.sync($('#e_accent'));fill('e_featured',currentEvent?.featured?'1':'0');fill('e_event_date',currentEvent?.event_date?String(currentEvent.event_date).replace(' ','T').slice(0,16):'');fill('e_city',currentEvent?.city);fill('e_venue',currentEvent?.venue);fill('e_venue_address',currentEvent?.venue_address);syncEventMapPreview();fill('e_archive_year',currentEvent?.archive_year);fill('e_status',currentEvent?.status||'draft');fill('e_publish_at',eventPublishScheduleInputValue(currentEvent));syncEventPublishScheduleControl();fill('e_ticket_instructions',currentEvent?.ticket_instructions);fill('e_ticket_qr',currentEvent?.ticket_qr);fill('e_ticket_url',currentEvent?.ticket_url);$('#tickets').innerHTML='';(currentEvent?.ticket_types||[]).forEach(addTicket);renderEventArtists();currentStep=1;setStep();syncEventHistoryControl();$('#eventModal').classList.add('open')}
+function openEvent(id=null){currentEvent=events.find(x=>Number(x.id)===Number(id))||null;$('#eventHeading').textContent=currentEvent?'EDIT EVENT':'NEW EVENT';fill('e_title',currentEvent?.title);fill('e_slug',currentEvent?.slug);fill('e_description',currentEvent?.description);fill('e_cover_image',currentEvent?.cover_image);fill('e_share_image',currentEvent?.cover_image);fill('e_accent',currentEvent?.accent);window.BRVTALAdminColorField?.sync($('#e_accent'));fill('e_featured',currentEvent?.featured?'1':'0');fill('e_event_date',currentEvent?.event_date?String(currentEvent.event_date).replace(' ','T').slice(0,16):'');fill('e_city',currentEvent?.city);fill('e_venue',currentEvent?.venue);fill('e_venue_address',currentEvent?.venue_address);syncEventMapPreview();fill('e_archive_year',currentEvent?.archive_year);fill('e_status',eventEditorPublication(currentEvent));if($('#e_status')){$('#e_status').dataset.originalStatus=String(currentEvent?.status||'draft');delete $('#e_status').dataset.changed;}fill('e_publish_at',eventPublishScheduleInputValue(currentEvent));syncEventPublishScheduleControl();fill('e_ticket_instructions',currentEvent?.ticket_instructions);fill('e_ticket_qr',currentEvent?.ticket_qr);fill('e_ticket_url',currentEvent?.ticket_url);$('#tickets').innerHTML='';(currentEvent?.ticket_types||[]).forEach(addTicket);renderEventArtists();currentStep=1;setStep();syncEventHistoryControl();$('#eventModal').classList.add('open');initEventSalesEditor();eventEditorRefresh()}
 function closeEvent(force=false){
   const modal=$('#eventModal');
   const close=()=>modal.classList.remove('open');
@@ -401,7 +545,7 @@ function addTicket(t={}){
   const rowId='ticket_'+(++ticketRowSeq);
   d.className='ticket-row';
   if(t.id){d.dataset.id=String(t.id);}
-  d.innerHTML=`<div class="ticket-row-head"><strong>TICKET TYPE</strong><button type="button" class="icon" aria-label="Remove ticket type" onclick="this.closest('.ticket-row').remove()">REMOVE</button></div>
+  d.innerHTML=`<div class="ticket-row-head"><strong>TICKET TYPE</strong><button type="button" class="icon" aria-label="Remove ticket type" data-remove-ticket>REMOVE</button></div>
   <div class="ticket-grid">
     <label class="ticket-field"><span>Name *</span><input data-k="name" aria-label="Ticket name" maxlength="120" placeholder="Preventa" value="${esc(t.name||'')}"></label>
     <label class="ticket-field"><span>Price</span><input data-k="price" aria-label="Ticket price" type="number" min="0" step="0.01" placeholder="20000" value="${esc(t.price??'')}"></label>
@@ -414,7 +558,12 @@ function addTicket(t={}){
     <label class="ticket-field ticket-wide"><span>Payment instructions</span><textarea data-k="payment_instructions" aria-label="Ticket payment instructions" maxlength="4000" placeholder="Nequi, transfer or pickup instructions">${esc(t.payment_instructions||'')}</textarea></label>
     <div class="ticket-field ticket-wide"><label for="${rowId}_qr">QR image</label><input id="${rowId}_qr" data-k="qr_image" data-media-picker="image" aria-label="Ticket QR image" maxlength="500" placeholder="/uploads/…" value="${esc(t.qr_image||'')}"></div>
   </div>`;
+  d.querySelector('[data-remove-ticket]')?.addEventListener('click',()=>{
+    d.remove();
+    eventEditorRefresh();
+  });
   $('#tickets').appendChild(d);
+  eventSalesRefresh();
 }
 function validateEventPayload(payload){
   if(!payload.title){
@@ -429,7 +578,7 @@ function validateEventPayload(payload){
   return '';
 }
 function ticketFieldError(index,field,message){
-  currentStep=4;
+  currentStep=2;
   setStep();
   msg(`Ticket ${index+1} ${message}`,false,'eventNotice');
   field?.focus();
@@ -454,38 +603,47 @@ function timetableArtistOptions(selectedId){
   });
   return options.join('');
 }
+function eventFormatHour(raw){
+  const match=String(raw||'').match(/(?:T|\s)?(\d{2}):(\d{2})(?::\d{2})?$/);
+  if(!match)return '';
+  const hour=Number(match[1]),minute=match[2];
+  return String(hour%12||12)+':'+minute+(hour>=12?' pm':' am');
+}
 function addTimetableRow(item={}){
+  const holder=$('#eventTimetable');if(!holder)return null;
   const row=document.createElement('div');
   const artistId=Number(item.artist_id||0);
-  const starts=String(item.starts_at||'').replace(' ','T').slice(0,16);
-  const ends=String(item.ends_at||'').replace(' ','T').slice(0,16);
-  const timezone=String(item.timezone||Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC');
+  const timezone=String(item.timezone||'America/Bogota');
+  const status=String(item.status||'approved');
   row.className='ticket-row timetable-row';
   if(item.id)row.dataset.id=String(item.id);
-  row.innerHTML='<div class="ticket-row-head"><strong>TIMETABLE SLOT</strong><button type="button" class="icon" aria-label="Remove timetable slot" onclick="this.closest(\'.timetable-row\').remove()">REMOVE</button></div>'
+  row.dataset.timezone=timezone;
+  row.dataset.status=status;
+  row.dataset.originalStarts=String(item.starts_at||'');
+  row.dataset.originalEnds=String(item.ends_at||'');
+  row.dataset.originalStartHour=eventFormatHour(item.starts_at);
+  row.dataset.originalEndHour=eventFormatHour(item.ends_at);
+  row.innerHTML='<div class="ticket-row-head"><strong>FRANJA HORARIA</strong><button type="button" class="icon" data-remove-timetable aria-label="Remove timetable slot">QUITAR</button></div>'
     +'<div class="ticket-grid">'
-    +'<label class="ticket-field"><span>Artist</span><select data-k="artist_id" aria-label="Timetable artist">'+timetableArtistOptions(artistId)+'</select></label>'
-    +'<label class="ticket-field"><span>External label</span><input data-k="label" aria-label="Timetable external label" maxlength="180" value="'+esc(artistId?'':(item.label||''))+'" placeholder="Opening / Guest"></label>'
-    +'<label class="ticket-field"><span>Starts</span><input data-k="starts_at" aria-label="Timetable starts" type="datetime-local" value="'+esc(starts)+'"></label>'
-    +'<label class="ticket-field"><span>Ends</span><input data-k="ends_at" aria-label="Timetable ends" type="datetime-local" value="'+esc(ends)+'"></label>'
-    +'<label class="ticket-field"><span>Timezone</span><input data-k="timezone" aria-label="Timetable timezone" maxlength="64" value="'+esc(timezone)+'" placeholder="America/Bogota"></label>'
-    +'<label class="ticket-field"><span>Status</span><select data-k="status" aria-label="Timetable status"><option value="draft" '+(item.status!=='approved'?'selected':'')+'>draft</option><option value="approved" '+(item.status==='approved'?'selected':'')+'>approved</option></select></label>'
+    +'<label class="ticket-field"><span>Artista</span><select data-k="artist_id" aria-label="Timetable artist">'+timetableArtistOptions(artistId)+'</select></label>'
+    +'<label class="ticket-field"><span>Nombre externo</span><input data-k="label" aria-label="Timetable external label" maxlength="180" value="'+esc(artistId?'':(item.label||''))+'"></label>'
+    +'<label class="ticket-field"><span>Comienza</span><input data-k="starts_at" aria-label="Timetable starts" type="text" inputmode="text" placeholder="9:00 pm" value="'+esc(eventFormatHour(item.starts_at))+'"></label>'
+    +'<label class="ticket-field"><span>Termina</span><input data-k="ends_at" aria-label="Timetable ends" type="text" inputmode="text" placeholder="1:00 am" value="'+esc(eventFormatHour(item.ends_at))+'"></label>'
     +'</div>';
-  const artist=row.querySelector('[data-k="artist_id"]');
-  const label=row.querySelector('[data-k="label"]');
-  const syncIdentity=()=>{
-    const linked=Number(artist?.value||0)>0;
-    if(label){
-      label.disabled=linked;
-      if(linked)label.value='';
-    }
-  };
-  artist?.addEventListener('change',syncIdentity);
-  syncIdentity();
-  const holder=$('#eventTimetable');
-  if(!holder)return null;
-  holder.appendChild(row);
-  return row;
+  if(status==='draft'){
+    const note=document.createElement('div');
+    note.className='event-timetable-note';
+    note.textContent='Franja antigua en borrador. No aparece en público. ';
+    const button=document.createElement('button');
+    button.type='button';button.textContent='Mostrar en público';
+    button.addEventListener('click',()=>{row.dataset.status='approved';note.remove();});
+    note.appendChild(button);row.appendChild(note);
+  }
+  row.querySelector('[data-remove-timetable]')?.addEventListener('click',()=>{row.remove();eventEditorRefresh();});
+  const artist=row.querySelector('[data-k="artist_id"]'),label=row.querySelector('[data-k="label"]');
+  const sync=()=>{const linked=Number(artist?.value||0)>0;if(label){label.disabled=linked;if(linked)label.value='';}};
+  artist?.addEventListener('change',sync);sync();
+  holder.appendChild(row);return row;
 }
 function renderTimetable(rows=[]){
   const holder=$('#eventTimetable');
@@ -496,10 +654,11 @@ function renderTimetable(rows=[]){
 async function saveEvent(){
   const rawDate=$('#e_event_date').value;
   const rawAccent=$('#e_accent').value.trim();
-  const rawPublishAt=$('#e_publish_at')?.value||'';
   const accent=rawAccent?(window.BRVTALAdminColorField?.normalize(rawAccent)||rawAccent):'';
-  const publishAt=eventPublishScheduleEnabled()&&rawPublishAt?rawPublishAt.replace('T',' '):null;
-  const payload={title:$('#e_title').value.trim(),slug:$('#e_slug').value.trim(),description:$('#e_description').value,cover_image:$('#e_cover_image').value,accent,featured:Number($('#e_featured').value),event_date:rawDate?rawDate.replace('T',' '):null,city:$('#e_city').value.trim(),venue:$('#e_venue').value.trim(),venue_address:$('#e_venue_address')?.value.trim()||'',archive_year:Number($('#e_archive_year').value)||null,status:$('#e_status').value,publish_at:publishAt,ticket_instructions:$('#e_ticket_instructions').value,ticket_qr:$('#e_ticket_qr').value,ticket_url:$('#e_ticket_url').value};
+  const publishAt=eventPublishAt();
+  const payload={title:$('#e_title').value.trim(),slug:eventSlug(),description:$('#e_description').value,cover_image:$('#e_cover_image').value,accent,featured:Number($('#e_featured').value),event_date:rawDate?rawDate.replace('T',' '):null,city:$('#e_city').value.trim(),venue:$('#e_venue').value.trim(),venue_address:$('#e_venue_address')?.value.trim()||'',archive_year:Number($('#e_archive_year').value)||null,status:eventSaveStatus(),publish_at:publishAt,ticket_instructions:$('#e_ticket_instructions').value,ticket_qr:$('#e_ticket_qr').value,ticket_url:$('#e_ticket_url').value};
+  const scheduleError=eventScheduleError();
+  if(scheduleError){msg(scheduleError,false,'eventNotice');return false;}
   const validationError=validateEventPayload(payload);
   if(validationError){msg(validationError,false,'eventNotice');return false}
   if(!validateTicketRows())return false;
@@ -554,11 +713,11 @@ function eventPreviewPayload(){
   return {
     id:Number(currentEvent?.id||0),
     title:$('#e_title').value.trim(),
-    slug:$('#e_slug').value.trim(),
+    slug:eventSlug(),
     description:$('#e_description').value,
     cover_image:$('#e_cover_image').value,
     accent:$('#e_accent').value.trim(),
-    status:$('#e_status').value||'draft',
+    status:eventSaveStatus(),
     event_date:rawDate?rawDate.replace('T',' '):'',
     city:$('#e_city').value.trim(),
     venue:$('#e_venue').value.trim(),
@@ -791,6 +950,6 @@ let eventEditorReady=Promise.resolve(null);
 })();
 
 $('#e_status')?.addEventListener('change',syncEventPublishScheduleControl);
-Object.assign(window.BRVTALContentCore, {openEvent,closeEvent,openEventHistory,syncEventPublishScheduleControl,loadEvents,loadArtists,addTicket,addTimetableRow,step,saveEvent,previewEvent,getCurrentEvent:()=>currentEvent,whenEventReady:()=>eventEditorReady,stageEventVersionRestore});
+Object.assign(window.BRVTALContentCore, {openEvent,closeEvent,openEventHistory,syncEventPublishScheduleControl,loadEvents,loadArtists,addTicket,addTimetableRow,step,jumpStep,eventEditorRefresh,saveEvent,previewEvent,getCurrentEvent:()=>currentEvent,whenEventReady:()=>eventEditorReady,stageEventVersionRestore});
 return ready;
 }};

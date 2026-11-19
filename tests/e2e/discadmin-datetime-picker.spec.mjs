@@ -136,8 +136,8 @@ test('real-stack saves the same YYYY-MM-DD HH:MM:SS API contract and reloads the
     await page.evaluate(() => window.BRVTALContentCore.openEvent());
     await expect(page.locator('#eventModal')).toHaveClass(/open/);
     await page.locator('#e_title').fill('CI DATE PICKER ' + slug);
+    await page.locator('.event-advanced > summary').click();
     await page.locator('#e_slug').fill(slug);
-    await page.locator('#eventModal [data-step="2"]').click();
     const trigger = page.locator('#e_event_date + .adp-trigger');
     await expect(trigger).toBeVisible();
     await trigger.click();
