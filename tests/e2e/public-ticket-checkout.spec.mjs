@@ -55,6 +55,8 @@ test('T13 preserva venta externa y no vende eventos cancelados', async ({ page }
     'https://tickets.example.invalid/general');
   await open(page, { active: false, internal: true });
   await expect(page.locator('#brvtal-ticket-checkout')).toHaveCount(0);
+  await expect(page.locator('#boletas .event-ticket-card a')).toHaveCount(0);
+  await expect(page.locator('#boletas')).toContainText('Venta cerrada');
 });
 test('T13 huésped, timeout, retry y redirect nunca confirman pago', async ({ page }) => {
   await open(page);

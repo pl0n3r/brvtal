@@ -609,22 +609,25 @@ JS;
             foreach ($items as $ticket) {
                 if (!is_array($ticket) || !brvtal_public_ticket_type_is_available($ticket)) continue;
                 $soldOut = strtolower((string)($ticket['status'] ?? '')) === 'sold_out';
+                $closedSale = !$saleableRecord;
+                $purchaseUnavailable = $soldOut || $closedSale;
                 $name = $escape($ticket['title'] ?? '');
                 $price = isset($ticket['price']) && is_numeric($ticket['price'])
                     ? number_format((float)$ticket['price'], 0, '.', ',') . ' ' . $escape(strtoupper((string)($ticket['currency'] ?? '')))
                     : '';
-                $typeUrl = $soldOut ? '' : $safeUrl($ticket['url'] ?? '');
-                $instructions = $soldOut ? '' : trim((string)($ticket['payment_instructions'] ?? ''));
-                $qr = $soldOut ? '' : trim((string)($ticket['qr_image'] ?? ''));
+                $typeUrl = $purchaseUnavailable ? '' : $safeUrl($ticket['url'] ?? '');
+                $instructions = $purchaseUnavailable ? '' : trim((string)($ticket['payment_instructions'] ?? ''));
+                $qr = $purchaseUnavailable ? '' : trim((string)($ticket['qr_image'] ?? ''));
                 $qrHref = $safeInternalUrl($qr) ?: $safeUrl($qr);
-                $status = $soldOut ? 'Agotado' : (strtoupper($recordStatus) === 'LAST TICKETS' ? 'Últimas boletas' : 'Disponible');
-                $ticketCards .= '<article class="event-ticket-card' . ($soldOut ? ' is-sold-out' : '') . '">'
+                $status = $closedSale ? 'Venta cerrada' : ($soldOut ? 'Agotado'
+                    : (strtoupper($recordStatus) === 'LAST TICKETS' ? 'Últimas boletas' : 'Disponible'));
+                $ticketCards .= '<article class="event-ticket-card' . ($purchaseUnavailable ? ' is-sold-out' : '') . '">'
                     . '<span class="event-ticket-status">' . $status . '</span><h3>' . $name . '</h3>'
                     . ($price !== '' ? '<strong class="event-ticket-price">' . $price . '</strong>' : '')
                     . (!empty($ticket['description']) ? '<p>' . $escape($ticket['description']) . '</p>' : '')
                     . (!empty($ticket['available_until']) && strtotime((string)$ticket['available_until']) !== false
                         ? '<small>Venta hasta ' . $escape(date('d/m/Y', strtotime((string)$ticket['available_until']))) . '</small>' : '')
-                    . ($soldOut ? '<span class="event-ticket-disabled" aria-disabled="true">Agotado</span>'
+                    . ($purchaseUnavailable ? '<span class="event-ticket-disabled" aria-disabled="true">' . $status . '</span>'
                         : ($typeUrl !== '' ? '<a href="' . $typeUrl . '" target="_blank" rel="noopener noreferrer" data-ticket-type="' . $name . '">Comprar boletas →</a>' : ''))
                     . ($instructions !== '' ? '<p class="event-ticket-instructions">' . nl2br($escape($instructions)) . '</p>' : '')
                     . ($qrHref !== '' ? '<img class="event-ticket-qr" src="' . $qrHref . '" alt="Código QR para ' . $name . '" loading="lazy">' : '')
