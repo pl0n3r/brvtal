@@ -514,9 +514,11 @@ function initEventSalesEditor(){
     const observer=new MutationObserver(()=>{
       const node=modal.querySelector('.step-content[data-content="1"] [data-seo-editor="content-core"]');
       if(node&&slot){
-        // The legacy SEO loader can re-inject in step 1 after a save.
-        // Replace its prior instance instead of duplicating input IDs in DISCADMIN.
-        slot.replaceChildren(node);
+        // Keep the current SEO form (including unsaved user edits) when the
+        // legacy decorator re-injects another copy asynchronously.
+        const current=slot.querySelector('[data-seo-editor="content-core"]');
+        if(current&&current!==node)node.remove();
+        else if(!current)slot.appendChild(node);
       }
     });
     observer.observe(modal,{subtree:true,childList:true});
