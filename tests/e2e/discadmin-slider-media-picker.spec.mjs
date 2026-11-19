@@ -99,7 +99,7 @@ test('Blog and Releases continue to use image-only SELECT MEDIA picker', async (
   await openHarness(page,false);
   for (const id of ['f_cover_image','e_cover_image']) {
     const field = page.locator('#'+id);
-    const picker = field.locator('xpath=following-sibling::button');
+    const picker = field.locator('xpath=following-sibling::button').first();
     await expect(picker).toHaveText('SELECT MEDIA');
     await picker.click();
     const dialog = page.getByRole('dialog',{name:'SELECT MEDIA'});
