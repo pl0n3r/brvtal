@@ -51,29 +51,34 @@ test('Content Core saves Event, Tickets, roster and SEO through one atomic workf
     await page.getByRole('button', {name:'+ NEW EVENT', exact:true}).click();
     await expect(page.locator('#eventModal')).toHaveClass(/open/);
     await page.locator('#e_title').fill(title);
+    await page.locator('.event-advanced > summary').click();
     await page.locator('#e_slug').fill(slug);
+    await step(4).click();
     await page.locator('#e_description').fill('Atomic Content Core persistence smoke.');
+    await step(1).click();
     await expect(page.locator('[data-admin-color-field]')).toBeVisible();
     await page.locator('#e_accent').fill('B6FF00');
     await page.locator('#e_accent').blur();
     await expect(page.locator('#e_accent')).toHaveValue('#b6ff00');
     await expect(page.locator('#e_accent_picker')).toHaveValue('#b6ff00');
 
+    await step(4).click();
     await expect(page.locator('#e_seo_title')).toBeVisible({timeout:5_000});
     await page.locator('#e_seo_title').fill('CI Atomic Event | BRVTAL');
     await page.locator('#e_seo_description').fill('Atomic Event, Ticket, roster and SEO real-stack regression.');
 
-    await step(2).click();
+    await step(1).click();
     await page.locator('#e_event_date').fill('2026-10-31T21:00');
     await page.locator('#e_city').fill('Pereira');
     await page.locator('#e_venue').fill('CI Warehouse');
 
-    await step(3).click();
-    await page.locator('#e_status').selectOption('tickets_available');
+    await step(5).click();
+    await page.locator('#e_status').selectOption('published');
+    await step(2).click();
     await page.locator('#e_ticket_url').fill('https://tickets.example/ci-atomic');
 
-    await step(4).click();
-    await page.getByRole('button', {name:'+ ADD TICKET'}).click();
+    await step(2).click();
+    await page.getByRole('button', {name:'+ AÑADIR BOLETA'}).click();
     const ticket = page.locator('#tickets .ticket-row').first();
     await ticket.locator('[data-k="name"]').fill('PREVENTA');
     await ticket.locator('[data-k="description"]').fill('Early-release CI ticket.');
@@ -86,7 +91,7 @@ test('Content Core saves Event, Tickets, roster and SEO through one atomic workf
     await ticket.locator('[data-k="available_from"]').fill('2026-10-01T08:00');
     await ticket.locator('[data-k="available_until"]').fill('2026-10-31T20:00');
 
-    await step(5).click();
+    await step(3).click();
     const artistRow = page.locator('#eventArtists .artist').filter({hasText:'PL0N3R SMOKE'});
     await expect(artistRow).toBeVisible();
     await artistRow.locator('[data-artist]').check();
@@ -109,7 +114,7 @@ test('Content Core saves Event, Tickets, roster and SEO through one atomic workf
     expect(persisted).toMatchObject({
       title,
       slug,
-      status:'tickets_available',
+      status:'published',
       city:'Pereira',
       venue:'CI Warehouse',
       accent:'#b6ff00',
@@ -137,11 +142,10 @@ test('Content Core saves Event, Tickets, roster and SEO through one atomic workf
     expect(lineup.data.map(row => row.name)).toContain('PL0N3R SMOKE');
 
     await expect(page.locator('#tickets')).toHaveAttribute('data-load-state','ready',{timeout:10_000});
-    await step(3).click();
-    await page.locator('#e_status').selectOption('sold_out');
-    await step(4).click();
+    await step(2).click();
+    await page.locator('#tickets [data-k="status"]').selectOption('sold_out');
     await page.locator('#tickets [data-k="price"]').fill('25000');
-    await step(1).click();
+    await step(4).click();
     await page.locator('#e_seo_description').fill('Updated atomically: sold out with a new persisted ticket price.');
 
     const workflowUpdate = page.waitForResponse(response =>
@@ -151,7 +155,8 @@ test('Content Core saves Event, Tickets, roster and SEO through one atomic workf
     const updateResponse = await workflowUpdate;
     expect(updateResponse.status()).toBe(200);
     const updatePayload = await updateResponse.json();
-    expect(updatePayload.data.event.status).toBe('sold_out');
+    expect(updatePayload.data.event.status).toBe('published');
+    expect(updatePayload.data.ticket_types[0].status).toBe('sold_out');
     expect(Number(updatePayload.data.ticket_types[0].price)).toBe(25000);
     expect(updatePayload.data.ticket_types[0]).toMatchObject({
       description:'Early-release CI ticket.',

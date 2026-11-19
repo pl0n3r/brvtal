@@ -63,6 +63,7 @@ test('night timetable uses hours, rolls into next day and keeps UTC input contra
   await page.locator('#e_title').fill('Noche de prueba');
   await page.locator('#e_event_date').fill('2026-11-28T21:00');
   await page.locator('#e_city').fill('Pereira');
+  await page.locator('[data-step="3"]').click();
   await page.evaluate(()=>window.BRVTALContentCore.addTimetableRow());
   const row=page.locator('#eventTimetable .timetable-row');
   await row.locator('[data-k="label"]').fill('Guest');

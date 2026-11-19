@@ -93,7 +93,8 @@
       venue_address:value(root, 'e_venue_address').trim(),
       archive_year:value(root, 'e_archive_year') ? Number(value(root, 'e_archive_year')) : null,
       status:(root.querySelector('#e_status')?.value==='scheduled'?'published':
-        root.querySelector('#e_status')?.value==='published'&&root.querySelector('#e_status')?.dataset.changed!=='1'&&core.getCurrentEvent?.()?.status==='archived'?'archived':
+        root.querySelector('#e_status')?.value==='published'&&root.querySelector('#e_status')?.dataset.changed!=='1'&&
+        !['draft','cancelled','published'].includes(root.querySelector('#e_status')?.dataset.originalStatus||'published')?root.querySelector('#e_status').dataset.originalStatus:
         value(root, 'e_status')||'draft'),
       publish_at:value(root, 'e_status')==='scheduled'?value(root,'e_publish_at').replace('T',' '):null,
       ticket_instructions:value(root, 'e_ticket_instructions'),

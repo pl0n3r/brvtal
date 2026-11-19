@@ -52,7 +52,7 @@ class EventScheduleDiscadminTests(unittest.TestCase):
     def test_editor_serializes_publish_at_never_published_at(self) -> None:
         core = self.core_js()
 
-        self.assertIn("const rawPublishAt=$('#e_publish_at')?.value||'';", core)
+        self.assertIn("function eventPublishAt(){", core)
         self.assertIn(
             "const publishAt=eventPublishAt();",
             core,
