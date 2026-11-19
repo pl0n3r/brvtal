@@ -120,18 +120,25 @@ function brvtal_wompi_hook_apply(PDO $db, array $signed, array $provider): strin
         }
     }
     if (!$db->inTransaction()) throw new LogicException('WEBHOOK_TRANSACTION_REQUIRED');
+    // Same lock order as T07: parent order first, then payment attempt.
+    $find = $db->prepare("SELECT order_id FROM ticket_payment_attempts
+        WHERE provider='wompi' AND provider_reference=?");
+    $find->execute([$signed['reference']]);
+    $orderId = $find->fetchColumn();
+    if ($orderId === false) throw new DomainException('WEBHOOK_ORDER_MISMATCH');
+    $order = $db->prepare('SELECT status,currency,total_cop FROM ticket_orders WHERE id=? FOR UPDATE');
+    $order->execute([(int)$orderId]);
+    $row = $order->fetch(PDO::FETCH_ASSOC);
+    if (!$row || $row['currency'] !== 'COP' || (int)$row['total_cop'] * 100 !== $signed['amount_in_cents']) {
+        throw new DomainException('WEBHOOK_ORDER_MISMATCH');
+    }
     $get = $db->prepare("SELECT id,order_id,provider_transaction_id,gross_amount_cop,status
         FROM ticket_payment_attempts WHERE provider='wompi' AND provider_reference=? FOR UPDATE");
     $get->execute([$signed['reference']]);
     $attempt = $get->fetch(PDO::FETCH_ASSOC);
-    if (!$attempt || (int)$attempt['gross_amount_cop'] * 100 !== $signed['amount_in_cents']
+    if (!$attempt || (int)$attempt['order_id'] !== (int)$orderId
+        || (int)$attempt['gross_amount_cop'] * 100 !== $signed['amount_in_cents']
         || ($attempt['provider_transaction_id'] !== null && $attempt['provider_transaction_id'] !== $signed['id'])) {
-        throw new DomainException('WEBHOOK_ORDER_MISMATCH');
-    }
-    $order = $db->prepare('SELECT status,currency,total_cop FROM ticket_orders WHERE id=? FOR UPDATE');
-    $order->execute([(int)$attempt['order_id']]);
-    $row = $order->fetch(PDO::FETCH_ASSOC);
-    if (!$row || $row['currency'] !== 'COP' || (int)$row['total_cop'] * 100 !== $signed['amount_in_cents']) {
         throw new DomainException('WEBHOOK_ORDER_MISMATCH');
     }
     if (!is_string($signed['_event_checksum'] ?? null)
