@@ -18,11 +18,14 @@ $items=[
     ['order_id'=>4,'ticket_type_id'=>7,'quantity'=>1,'subtotal_cop'=>5000]
 ];
 $payments=[
-    ['id'=>1,'order_id'=>1,'status'=>'approved','fee_amount_cop'=>3000,
+    ['id'=>1,'order_id'=>1,'status'=>'approved','provider'=>'wompi','provider_transaction_id'=>'TX-1',
+     'gross_amount_cop'=>90000,'fee_amount_cop'=>3000,
      'fee_vat_cop'=>570,'withheld_amount_cop'=>0,'net_amount_cop'=>86430],
-    ['id'=>2,'order_id'=>1,'status'=>'approved','fee_amount_cop'=>9999,
+    ['id'=>2,'order_id'=>1,'status'=>'approved','provider'=>'wompi','provider_transaction_id'=>'TX-2',
+     'gross_amount_cop'=>90000,'fee_amount_cop'=>9999,
      'fee_vat_cop'=>0,'withheld_amount_cop'=>0,'net_amount_cop'=>0],
-    ['id'=>3,'order_id'=>2,'status'=>'pending','fee_amount_cop'=>null,
+    ['id'=>3,'order_id'=>2,'status'=>'pending','provider'=>'wompi','provider_transaction_id'=>null,
+     'gross_amount_cop'=>20000,'fee_amount_cop'=>null,
      'fee_vat_cop'=>null,'withheld_amount_cop'=>null,'net_amount_cop'=>null]
 ];
 $r=brvtalFinanceSummarize($orders,$items,$payments);
@@ -34,6 +37,9 @@ t20($s['paid_orders']===1 && $s['pending_orders']===1 && $s['refunded_orders']==
     && $s['unverified_orders']===1,'duplicate webhook and unverified order not double counted');
 t20($s['fee_cop']===3000 && $s['fee_vat_cop']===570 && $s['payout_cop']===86430
     && $s['difference_cop']===0,'actual fee and VAT are read, not guessed');
+t20(count($s['transactions'])===1 && $s['transactions'][0]['transaction_id']==='TX-1',
+    'one payment evidence for repeated approvals');
+t20($s['capacity']===null && $s['checkins']===null,'optional operational fields unknown without database');
 t20($s['expenses_cop']===null && $s['profit_cop']===null
     && $s['settlement_status']==='unverified','no invented profitability or reconciliation');
 $payments[0]['fee_vat_cop']=null;
@@ -43,4 +49,8 @@ t20($missing['fee_vat_cop']===null && $missing['difference_cop']===null,
 t20(brvtalTicketingCan('admin','finance') && brvtalTicketingCan('admin','export')
     && !brvtalTicketingCan('door','finance') && !brvtalTicketingCan('door','export'),
     'financial RBAC');
+$payments[0]['gross_amount_cop']=89999;
+$invalid=brvtalFinanceSummarize($orders,$items,$payments)[0];
+t20($invalid['paid_orders']===0 && $invalid['unverified_orders']===2,
+    'provider gross mismatch cannot certify revenue');
 echo "T20 finance synthetic invariants OK\n";
