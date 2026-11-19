@@ -136,11 +136,19 @@ class CutoverTests(unittest.TestCase):
 
     def test_readiness_probe_requires_exact_contract_and_sanitizes_failures(self):
         marker = cutover.transport._FACTORY_READINESS_MARKER
+        # Public readiness is intentionally coarse. Migration proof remains
+        # private; transport validates status and exact deployment identity.
         good_payload = json.dumps({
+            "ok": True,
             "status": "ok",
             "version": self.version,
             "release_sha": self.sha,
-            "schema_up_to_date": True,
+            "deployment": {
+                "commit": self.sha,
+                "source": "git_checkout",
+                "exact": True,
+                "version": self.version,
+            },
         })
         good = SimpleNamespace(
             returncode=0,
@@ -157,10 +165,16 @@ class CutoverTests(unittest.TestCase):
         self.assertIn("=https", args)
 
         bad_payload = json.dumps({
-            "status": "ok",
+            "ok": False,
+            "status": "degraded",
             "version": self.version,
             "release_sha": self.sha,
-            "schema_up_to_date": False,
+            "deployment": {
+                "commit": self.sha,
+                "source": "git_checkout",
+                "exact": True,
+                "version": self.version,
+            },
             "secret": "DO-NOT-LEAK",
         })
         bad = SimpleNamespace(
