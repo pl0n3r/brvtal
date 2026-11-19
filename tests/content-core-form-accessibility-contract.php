@@ -105,6 +105,7 @@ foreach ($wizardSteps as $wizardStep) {
 $insightsPanel = $xpath->query('//*[@data-event-insights-panel]')->item(0);
 content_core_a11y_assert($insightsPanel instanceof DOMElement, 'Event Insights panel must remain present.');
 $contentParent = $insightsPanel->parentNode;
+$foundPromotionAncestor = false;
 while ($contentParent instanceof DOMElement) {
     $classes = preg_split('/\s+/', trim($contentParent->getAttribute('class'))) ?: [];
     if (in_array('step-content', $classes, true)) {
@@ -112,9 +113,11 @@ while ($contentParent instanceof DOMElement) {
             $contentParent->getAttribute('data-content') === '4',
             'Event Insights must be folded inside Promotion, not shown in other steps.'
         );
+        $foundPromotionAncestor = true;
     }
     $contentParent = $contentParent->parentNode;
 }
+content_core_a11y_assert($foundPromotionAncestor, 'Event Insights must have a Promotion step ancestor.');
 
 $insightsStatus = $document->getElementById('eventInsightsStatus');
 content_core_a11y_assert($insightsStatus instanceof DOMElement, 'Event Insights status must remain present.');
