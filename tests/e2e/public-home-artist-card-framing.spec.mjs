@@ -72,6 +72,16 @@ test('artist biography displays plain text rather than Markdown markers or links
   await expect(bio).toHaveText('FRAMED no cree en etiquetas ni límites.');
   await expect(bio.locator('a')).toHaveCount(0);
 });
+test('HTML-like biography remains inert text, not executable markup', async ({ page }) => {
+  await mount(page, {
+    ...fixture,
+    artists: [{ ...fixture.artists[0], bio: '<img src=x onerror=alert(1)> **FRAMED**' }],
+  });
+  const bio = page.locator('#artistas a[href="/artists/framed"] .cr-rl');
+  await expect(bio).toContainText('<img src=x onerror=alert(1)> FRAMED');
+  await expect(bio.locator('img')).toHaveCount(0);
+});
+
 test('invalid framing values are rejected and mobile viewport can use its own crop', async ({ page }) => {
   await mount(page, {
     ...fixture, artists: [{

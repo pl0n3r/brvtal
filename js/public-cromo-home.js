@@ -27,13 +27,18 @@
     const clean = String(value ?? '').replace(/\s+/g, ' ').trim();
     return max && clean.length > max ? clean.slice(0, max - 1).trimEnd() + '…' : clean;
   };
-  // CMS biography stays textContent while common Markdown decoration is removed.
-  const plainArtistBio = (value) => text(String(value ?? '')
-    .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-    .replace(/\*\*|__|\*|_|~~|`|^\s{0,3}#{1,6}\s+/gm, '')
-    .replace(/^\s{0,3}>\s?/gm, '')
-    .replace(/<[^>]*>/g, ''), 90);
+  // CMS biography is never parsed as HTML: the DOM sink is textContent.
+  // Bound the formatting pass and only remove Markdown presentation tokens.
+  const plainArtistBio = (value) => {
+    const source = String(value ?? '').slice(0, 2000);
+    const clean = source
+      .replace(/!?\[([^\]\n]{1,120})\]\([^\)\n]{1,400}\)/g, '$1')
+      .replace(/(^|\n)[ \t]{0,3}#{1,6}[ \t]+/g, '$1')
+      .replace(/(^|\n)[ \t]{0,3}>[ \t]?/g, '$1')
+      .replaceAll('**', '').replaceAll('__', '').replaceAll('~~', '')
+      .replace(/[*_`]/g, '');
+    return text(clean, 90);
+  };
 
   // Validate public framing numbers again before putting them into CSS values.
   const artistCardCrop = (raw) => {
