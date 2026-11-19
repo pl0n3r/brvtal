@@ -104,7 +104,10 @@
     };
     if(value(root,'e_status')==='scheduled'){
       const publishAt=value(root,'e_publish_at');
-      if(!publishAt||!Number.isFinite(Date.parse(publishAt))||Date.parse(publishAt)<=Date.now())
+      // Offset-free publish_at is interpreted in America/Bogota by PHP.
+      // Browser-local Date.parse can reject valid times in a different zone.
+      // Leave the future-time comparison to the authoritative server.
+      if(!publishAt)
         throw new Error('EVENT_PUBLISH_AT_MUST_BE_FUTURE');
     }
     if (!event.title) throw new Error('TITLE_REQUIRED');
@@ -186,6 +189,21 @@
     d.setUTCDate(d.getUTCDate()+offset);
     return d.toISOString().slice(0,10);
   }
+  function timetableEventAnchor(eventDate, timezone) {
+    const raw=String(eventDate||'');
+    if(!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(raw))
+      throw new Error('EVENT_DATE_REQUIRED');
+    // Event local time is America/Bogota (UTC-05, without DST).
+    // Existing rows may use another IANA zone; compute their day and
+    // midnight rollover against the same instant in the row's timezone.
+    const instant=new Date(raw.slice(0,16)+':00-05:00');
+    if(!Number.isFinite(instant.valueOf()))throw new Error('EVENT_DATE_REQUIRED');
+    const parts=Object.fromEntries(new Intl.DateTimeFormat('en-US',{
+      timeZone:timezone,year:'numeric',month:'2-digit',day:'2-digit',
+      hour:'2-digit',minute:'2-digit',hourCycle:'h23'
+    }).formatToParts(instant).filter(part=>part.type!=='literal').map(part=>[part.type,part.value]));
+    return {day:parts.year+'-'+parts.month+'-'+parts.day,minute:Number(parts.hour)*60+Number(parts.minute)};
+  }
   function timetablePayloads(root) {
     const holder=root.querySelector('#eventTimetable');
     if(!holder)return null;
@@ -195,16 +213,16 @@
       const artistId=Number(read('artist_id')||0),label=read('label');
       if(artistId<1&&!label)throw new Error('TIMETABLE_SLOT_IDENTITY_REQUIRED');
       const startMinutes=parseHour(read('starts_at')),endMinutes=parseHour(read('ends_at'));
-      const startBase=parseHour((eventDate.split('T')[1]||'').slice(0,5)||'00:00');
-      const startOffset=startMinutes<startBase?1:0;
-      const endOffset=startOffset+(endMinutes<=startMinutes?1:0);
-      const stamp=(minutes,offset)=>localDay(eventDate,offset)+'T'+String(Math.floor(minutes/60)).padStart(2,'0')+':'+String(minutes%60).padStart(2,'0');
       const timezone=row.dataset.timezone||'America/Bogota';
+      const anchor=timetableEventAnchor(eventDate,timezone);
+      const startOffset=startMinutes<anchor.minute?1:0;
+      const endOffset=startOffset+(endMinutes<=startMinutes?1:0);
+      const stamp=(minutes,offset)=>localDay(anchor.day,offset)+'T'+String(Math.floor(minutes/60)).padStart(2,'0')+':'+String(minutes%60).padStart(2,'0');
       const status=row.dataset.status||'approved';
       // Keep historical timestamp precision only while its event date and
       // rollover context match the new dates reconstructed from this snapshot.
-      const startDay=localDay(eventDate,startOffset);
-      const endDay=localDay(eventDate,endOffset);
+      const startDay=localDay(anchor.day,startOffset);
+      const endDay=localDay(anchor.day,endOffset);
       const startUnchanged=!!row.dataset.originalStarts
         && read('starts_at')===row.dataset.originalStartHour
         && row.dataset.originalStarts.slice(0,10)===startDay;

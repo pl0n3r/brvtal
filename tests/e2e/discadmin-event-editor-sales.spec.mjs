@@ -73,6 +73,9 @@ test('night timetable uses hours, rolls into next day and keeps UTC input contra
   await expect(row.locator('[data-k="timezone"]')).toHaveCount(0);
   await page.locator('[data-step="5"]').click();
   await page.locator('#e_status').selectOption('published');
+  await page.locator('[data-step="4"]').click();
+  await expect(page.locator('#e_description')).toBeVisible();
+  await page.locator('#e_description').fill('Noche de prueba con invitados y boletas disponibles.');
   const saveResult=await page.evaluate(async()=>({
     ok:await window.BRVTALContentCore.saveEvent(),
     notice:document.querySelector('#eventNotice')?.textContent||'',
@@ -165,5 +168,60 @@ test('pending lineup request cannot mix a newer event date into the submitted ti
   expect(record.timetable[0]).toMatchObject({
     starts_at:'2026-11-28T23:00',
     ends_at:'2026-11-29T01:00'
+  });
+});
+
+test('an unchanged Los Angeles timetable row keeps both local timestamps on an unrelated save',async({page})=>{
+  await openEditor(page,{
+    events:[{id:42,title:'Noche',slug:'noche',status:'draft',event_date:'2026-11-28 21:00:00',city:'Pereira'}],
+    timetable:[{id:11,label:'Guest LA',artist_id:null,
+      starts_at:'2026-11-28T20:00',ends_at:'2026-11-28T21:00',
+      timezone:'America/Los_Angeles',status:'approved'}]
+  });
+  await page.evaluate(()=>window.BRVTALContentCore.openEvent(42));
+  await expect(page.locator('#eventTimetable .timetable-row')).toHaveCount(1);
+  await page.locator('#e_title').fill('Noche actualizada');
+  expect(await page.evaluate(()=>window.BRVTALContentCore.saveEvent())).toBe(true);
+  const [record]=await page.evaluate(()=>window.__salesFixture.writes);
+  expect(record.timetable[0]).toMatchObject({
+    starts_at:'2026-11-28T20:00',ends_at:'2026-11-28T21:00',
+    timezone:'America/Los_Angeles',id:11
+  });
+});
+
+test('an unchanged Tokyo timetable row retains the next local calendar day',async({page})=>{
+  await openEditor(page,{
+    events:[{id:42,title:'Noche',slug:'noche',status:'draft',event_date:'2026-11-28 21:00:00',city:'Pereira'}],
+    timetable:[{id:12,label:'Guest Tokyo',artist_id:null,
+      starts_at:'2026-11-29T12:00',ends_at:'2026-11-29T13:00',
+      timezone:'Asia/Tokyo',status:'approved'}]
+  });
+  await page.evaluate(()=>window.BRVTALContentCore.openEvent(42));
+  await expect(page.locator('#eventTimetable .timetable-row')).toHaveCount(1);
+  expect(await page.evaluate(()=>window.BRVTALContentCore.saveEvent())).toBe(true);
+  const [record]=await page.evaluate(()=>window.__salesFixture.writes);
+  expect(record.timetable[0]).toMatchObject({
+    starts_at:'2026-11-29T12:00',ends_at:'2026-11-29T13:00',
+    timezone:'Asia/Tokyo',id:12
+  });
+});
+
+test.describe('scheduled publishing in browser UTC',()=>{
+  test.use({timezoneId:'UTC'});
+  test('defers the future-time check to the Bogotá server instead of browser local time',async({page})=>{
+    await openEditor(page);
+    await page.clock.install({time:new Date('2030-11-28T18:00:00Z')});
+    await page.evaluate(()=>window.BRVTALContentCore.openEvent());
+    await page.locator('#e_title').fill('Programación Bogotá');
+    await page.locator('#e_event_date').fill('2030-12-05T21:00');
+    await page.locator('#e_city').fill('Pereira');
+    await page.locator('[data-step="4"]').click();
+    await page.locator('#e_description').fill('Prueba de publicación programada por hora del servidor.');
+    await page.locator('[data-step="5"]').click();
+    await page.locator('#e_status').selectOption('scheduled');
+    await page.locator('#e_publish_at').fill('2030-11-28T14:00');
+    expect(await page.evaluate(()=>window.BRVTALContentCore.saveEvent())).toBe(true);
+    const [record]=await page.evaluate(()=>window.__salesFixture.writes);
+    expect(record.event).toMatchObject({status:'published',publish_at:'2030-11-28 14:00'});
   });
 });
