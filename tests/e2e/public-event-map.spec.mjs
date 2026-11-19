@@ -5,7 +5,7 @@ const css = ['css/public-entity.css','css/public-event-record.css','css/public-c
 const php = String.raw`require_once 'config/public_seo.php';
 require_once 'config/public_page.php';
 $page=['entity'=>['id'=>9,'route_type'=>'events','title'=>'Genesis','description'=>'En vivo','venue'=>'Sala X','city'=>'Pereira','venue_address'=>'Calle 8 & 9, Pereira'],'facts'=>['DATE'=>'28.11.2026','LOCATION'=>'Sala X, Pereira'],'links'=>[],'record'=>['state'=>'active','status'=>'UPCOMING'],'related'=>[],'degraded'=>false];
-$seo=['title'=>'Genesis','description'=>'En vivo','image'=>'','canonical'=>'https://www.brvtal.com.co/events/genesis'];
+$seo=['title'=>'Genesis','description'=>'En vivo','image'=>'','canonical'=>'https://www.brvtal.com.co/events/genesis','schema'=>['@context'=>'https://schema.org','@type'=>'MusicEvent']];
 echo brvtal_public_entity_page($page,$seo);`;
 test('Google Maps iframe is created only after an explicit click, with encoded address', async ({ page }) => {
   const html=execFileSync('php',['-r',php],{encoding:'utf8'}).replace('</head>','<style>'+css+'</style></head>');

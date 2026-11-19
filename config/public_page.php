@@ -471,6 +471,7 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
     // Never fabricate ticket prices, availability or scarcity.
     $offers = $isEvent && $recordState === 'active' ? (array)($page['related']['TICKETS'] ?? []) : [];
     $ticketUrl = '';
+    $primaryTicketType = 'evento';
     $minimumPrice = null;
     $minimumCurrency = '';
     $hasPurchasableTicket = false;
@@ -482,7 +483,10 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
             || trim((string)($ticket['qr_image'] ?? '')) !== '';
         if ($url === '' && !$hasInstructions) continue;
         $hasPurchasableTicket = true;
-        if ($ticketUrl === '' && $url !== '') $ticketUrl = $url;
+        if ($ticketUrl === '' && $url !== '') {
+            $ticketUrl = $url;
+            $primaryTicketType = (string)($ticket['title'] ?? 'evento');
+        }
         if (isset($ticket['price']) && is_numeric($ticket['price']) && (float)$ticket['price'] >= 0
             && ($minimumPrice === null || (float)$ticket['price'] < $minimumPrice)) {
             $minimumPrice = (float)$ticket['price'];
@@ -499,7 +503,7 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
         . ($minimumCurrency === 'COP' ? '$' : ($minimumCurrency !== '' ? $minimumCurrency . ' ' : ''))
         . number_format($minimumPrice, 0, ',', '.');
     $buyText = 'Comprar boletas' . $buyPrice;
-    $buyButton = $canBuy ? '<a class="event-buy-button" href="' . $buyHref . '"' . $buyTarget . '>' . $escape($buyText) . ' <span aria-hidden="true">→</span></a>' : '';
+    $buyButton = $canBuy ? '<a class="event-buy-button" href="' . $buyHref . '"' . $buyTarget . ' data-ticket-type="' . $escape($primaryTicketType) . '">' . $escape($buyText) . ' <span aria-hidden="true">→</span></a>' : '';
     $links = '';
     if ($isEvent) {
         $links = $buyButton;
@@ -533,6 +537,12 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
   if (footer) new IntersectionObserver(entries => {
     footerVisible = entries[0]?.isIntersecting ?? false; refresh();
   }, { threshold: 0 }).observe(footer);
+  document.addEventListener('click', function (event) {
+    const link = event.target.closest('a.event-buy-button, a.event-ticket-card a[data-ticket-type]');
+    if (!link || !Array.isArray(window.dataLayer)) return;
+    const type = link.getAttribute('data-ticket-type') || 'evento';
+    window.dataLayer.push({event:'brvtal_ticket_click', ticket_type:type});
+  });
 }());
 </script>
 JS;

@@ -16,7 +16,7 @@ event_map_expect(str_contains($proof, "'migration_events_venue_address_01.sql'")
 event_map_expect(str_contains($api, "'venue_address'=>300") && str_contains($api, "'venue','venue_address','city'"), 'admin API limits and allowlists venue_address');
 event_map_expect(str_contains($htaccess, "frame-src 'self' https://www.google.com"), 'CSP limits Google Maps framing');
 $page = ['entity'=>['id'=>7,'route_type'=>'events','title'=>'Prueba','description'=>'Detalles','venue'=>'Sala','city'=>'Pereira','venue_address'=>'Calle 8 & 9, Pereira'], 'facts'=>[], 'links'=>[], 'related'=>[], 'record'=>['state'=>'active','status'=>'UPCOMING'], 'degraded'=>false];
-$seo = ['title'=>'Prueba','description'=>'Detalles','canonical'=>'https://www.brvtal.com.co/events/prueba','image'=>''];
+$seo = ['title'=>'Prueba','description'=>'Detalles','canonical'=>'https://www.brvtal.com.co/events/prueba','image'=>'','schema'=>['@context'=>'https://schema.org','@type'=>'MusicEvent']];
 $html = brvtal_public_entity_page($page, $seo);
 event_map_expect(str_contains($html,'Cómo llegar'), 'map section renders');
 event_map_expect(str_contains($html,'Calle 8 &amp; 9, Pereira'), 'address escaped');
