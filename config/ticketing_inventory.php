@@ -69,14 +69,16 @@ function brvtal_ticket_inventory_usage(PDO $db, int $eventId, int $typeId, strin
         JOIN ticket_orders o ON o.id=i.order_id
         WHERE o.event_id=? AND o.status=\'paid\'
           AND NOT EXISTS (SELECT 1 FROM ticket_inventory_holds x
-              WHERE x.order_id=o.id AND x.ticket_type_id=i.ticket_type_id AND x.kind=\'courtesy\')';
+              WHERE x.order_id=o.id AND x.ticket_type_id=i.ticket_type_id
+                AND (x.kind=\'courtesy\'
+                  OR (x.kind=\'paid\' AND x.status=\'active\' AND x.expires_at_utc>?)))';
     $held = 'SELECT COALESCE(SUM(quantity),0) FROM ticket_inventory_holds
         WHERE event_id=? AND status=\'active\' AND expires_at_utc>?';
     $courtesy = 'SELECT COALESCE(SUM(quantity),0) FROM ticket_inventory_holds
         WHERE event_id=? AND kind=\'courtesy\' AND status=\'consumed\'';
     $typeSuffix = $typeId > 0 ? ' AND ticket_type_id=?' : '';
     $soldType = $typeId > 0 ? ' AND i.ticket_type_id=?' : '';
-    $salesArgs = $typeId > 0 ? [$eventId,$typeId] : [$eventId];
+    $salesArgs = $typeId > 0 ? [$eventId,$utc,$typeId] : [$eventId,$utc];
     $heldArgs = $typeId > 0 ? [$eventId,$utc,$typeId] : [$eventId,$utc];
     $courtesyArgs = $typeId > 0 ? [$eventId,$typeId] : [$eventId];
     return [
@@ -101,8 +103,6 @@ function brvtal_ticket_inventory_hold(
         || $ttlSeconds < 60 || $ttlSeconds > 900) {
         throw new InvalidArgumentException('INVENTORY_INVALID_INPUT');
     }
-    $clock = brvtal_ticket_inventory_now($now);
-    $utc = $clock->format('Y-m-d H:i:s.u');
     // The event row is the global inventory mutex. Read the immutable
     // order->event mapping without a lock, then acquire the Event FIRST.
     // A subsequent locking read revalidates current order status and quantity.
@@ -133,6 +133,14 @@ function brvtal_ticket_inventory_hold(
         WHERE t.id=? AND t.event_id=? FOR UPDATE');
     $typeQuery->execute([$typeId,$eventId]);
     $type = $typeQuery->fetch(PDO::FETCH_ASSOC);
+    $existing = $db->prepare('SELECT id,quantity,kind,status,expires_at_utc
+        FROM ticket_inventory_holds WHERE order_id=? AND ticket_type_id=? FOR UPDATE');
+    $existing->execute([$orderId,$typeId]);
+    $old = $existing->fetch(PDO::FETCH_ASSOC);
+    // Capture the time AFTER the final potentially blocking read. In production
+    // use the live UTC clock; explicit injection keeps synthetic tests reproducible.
+    $clock = brvtal_ticket_inventory_now($now);
+    $utc = $clock->format('Y-m-d H:i:s.u');
     if (!$event || !$type || !brvtal_ticket_inventory_saleable($event,$type,$clock)) {
         throw new DomainException('INVENTORY_NOT_SALEABLE');
     }
@@ -142,10 +150,6 @@ function brvtal_ticket_inventory_hold(
     $expire = $db->prepare('UPDATE ticket_inventory_holds SET status=\'expired\'
         WHERE event_id=? AND status=\'active\' AND expires_at_utc<=?');
     $expire->execute([$eventId,$utc]);
-    $existing = $db->prepare('SELECT id,quantity,kind,status,expires_at_utc
-        FROM ticket_inventory_holds WHERE order_id=? AND ticket_type_id=? FOR UPDATE');
-    $existing->execute([$orderId,$typeId]);
-    $old = $existing->fetch(PDO::FETCH_ASSOC);
     if ($old) {
         if ($old['status'] === 'active' && (int)$old['quantity'] === $qty && $old['kind'] === $kind
             && (string)$old['expires_at_utc'] > $utc) {

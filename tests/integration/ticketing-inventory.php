@@ -41,7 +41,8 @@ $host = (string)(getenv('BRVTAL_TEST_DB_HOST') ?: '127.0.0.1');
 $port = (int)(getenv('BRVTAL_TEST_DB_PORT') ?: 3306);
 $user = (string)(getenv('BRVTAL_TEST_DB_USER') ?: 'root');
 $password = (string)(getenv('BRVTAL_TEST_DB_PASS') ?: '');
-if (($argv[1] ?? '') === '--race') {
+$workerMode = (string)($argv[1] ?? '');
+if (in_array($workerMode, ['--race', '--wall'], true)) {
     $raceDb = (string)($argv[2] ?? '');
     $orderId = (int)($argv[3] ?? 0);
     $startAt = (float)($argv[4] ?? 0);
@@ -50,10 +51,16 @@ if (($argv[1] ?? '') === '--race') {
         PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,
         PDO::ATTR_EMULATE_PREPARES=>false,
     ]);
-    while (microtime(true) < $startAt) usleep(1000);
+    if ($workerMode === '--race') {
+        while (microtime(true) < $startAt) usleep(1000);
+    } else {
+        echo "READY\n";
+        flush();
+    }
     $contender->beginTransaction();
     try {
-        brvtal_ticket_inventory_hold($contender,$orderId,10,1,'paid',600,$clock);
+        brvtal_ticket_inventory_hold($contender,$orderId,10,1,'paid',600,
+            $workerMode === '--race' ? $clock : null);
         $contender->commit();
         echo "HELD\n";
     } catch (DomainException $error) {
@@ -151,4 +158,77 @@ inventoryAssert((int)$db->query("SELECT COUNT(*) FROM ticket_inventory_holds WHE
     'raced winner expires');
 inventoryAssert((int)$db->query("SELECT COUNT(*) FROM ticket_inventory_holds WHERE status='active'")->fetchColumn()===1,
     'exactly one subsequent reservation remains');
-echo "BRVTAL T05 MariaDB contention, TTL and retry passed.\n";
+// A paid order can temporarily retain an active paid hold while payment
+// confirmation and consumption are separate transactions. Never double count.
+$db->exec("DELETE FROM ticket_inventory_holds");
+$db->exec("UPDATE ticket_inventory_events SET capacity=2 WHERE event_id=1");
+$db->exec("UPDATE ticket_inventory_types SET capacity=2 WHERE ticket_type_id=10");
+$db->exec("INSERT INTO ticket_orders VALUES(200,1,'pending'),(201,1,'pending')");
+$db->exec("INSERT INTO ticket_order_items(order_id,ticket_type_id,quantity) VALUES(200,10,1),(201,10,1)");
+$db->beginTransaction();
+brvtal_ticket_inventory_hold($db,200,10,1,'paid',600,$clock);
+$db->commit();
+$db->exec("UPDATE ticket_orders SET status='paid' WHERE id=200");
+$db->beginTransaction();
+$paidUsage = brvtal_ticket_inventory_usage($db,1,10,
+    $clock->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s.u'));
+inventoryAssert($paidUsage['sold']+$paidUsage['held']===1,
+    'paid order with active hold occupies exactly one seat');
+brvtal_ticket_inventory_hold($db,201,10,1,'paid',600,$clock);
+$db->commit();
+
+// A real waiting transaction must use the wall clock AFTER the Event lock.
+$db->exec("DELETE FROM ticket_inventory_holds");
+$db->exec("UPDATE ticket_inventory_events SET capacity=1 WHERE event_id=1");
+$db->exec("UPDATE ticket_inventory_types SET capacity=1 WHERE ticket_type_id=10");
+$db->exec("INSERT INTO ticket_orders VALUES(202,1,'pending'),(203,1,'pending')");
+$db->exec("INSERT INTO ticket_order_items(order_id,ticket_type_id,quantity) VALUES(202,10,1),(203,10,1)");
+$wall = new DateTimeImmutable('now',new DateTimeZone('America/Bogota'));
+$eventDate = $wall->modify('+3 days')->format('Y-m-d H:i:s');
+$fromDate = $wall->modify('-1 hour')->format('Y-m-d H:i:s');
+$untilDate = $wall->modify('+2 seconds')->format('Y-m-d H:i:s');
+$eventUpdate=$db->prepare("UPDATE events SET event_date=?,published_at=? WHERE id=1");
+$eventUpdate->execute([$eventDate,$fromDate]);
+$windowUpdate=$db->prepare("UPDATE event_ticket_types SET available_from=?,available_until=? WHERE id=10");
+$windowUpdate->execute([$fromDate,$untilDate]);
+$db->beginTransaction();
+$db->query("SELECT id FROM events WHERE id=1 FOR UPDATE")->fetchColumn();
+$proc=proc_open([PHP_BINARY,__FILE__,'--wall',$name,'202','0'],
+    [0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes,__DIR__);
+inventoryAssert(is_resource($proc),'closed-window worker launched');
+fclose($pipes[0]);
+inventoryAssert(trim((string)fgets($pipes[1]))==='READY','closed-window worker ready');
+usleep(3100000);
+$db->commit();
+$closedOut=trim((string)stream_get_contents($pipes[1]));
+$closedErr=trim((string)stream_get_contents($pipes[2]));
+fclose($pipes[1]); fclose($pipes[2]);
+$closedExit=proc_close($proc);
+inventoryAssert($closedExit===0 && $closedErr==='' && $closedOut==='INVENTORY_NOT_SALEABLE',
+    'Event lock wait crossing available_until denies the hold');
+
+$futureWindow = (new DateTimeImmutable('now',new DateTimeZone('America/Bogota')))
+    ->modify('+1 hour')->format('Y-m-d H:i:s');
+$windowUpdate->execute([$fromDate,$futureWindow]);
+$db->beginTransaction();
+$db->query("SELECT id FROM events WHERE id=1 FOR UPDATE")->fetchColumn();
+$proc=proc_open([PHP_BINARY,__FILE__,'--wall',$name,'203','0'],
+    [0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes,__DIR__);
+inventoryAssert(is_resource($proc),'TTL worker launched');
+fclose($pipes[0]);
+inventoryAssert(trim((string)fgets($pipes[1]))==='READY','TTL worker ready');
+usleep(2300000);
+$releasedAt=microtime(true);
+$db->commit();
+$heldOut=trim((string)stream_get_contents($pipes[1]));
+$heldErr=trim((string)stream_get_contents($pipes[2]));
+fclose($pipes[1]); fclose($pipes[2]);
+$heldExit=proc_close($proc);
+inventoryAssert($heldExit===0 && $heldErr==='' && $heldOut==='HELD',
+    'post-wait reservation holds an available unit');
+$storedExpiry=(string)$db->query("SELECT expires_at_utc FROM ticket_inventory_holds WHERE order_id=203")->fetchColumn();
+$expiryUtc=new DateTimeImmutable($storedExpiry,new DateTimeZone('UTC'));
+$expirySeconds=(float)$expiryUtc->format('U.u');
+inventoryAssert($expirySeconds >= $releasedAt+599.4 && $expirySeconds <= $releasedAt+603,
+    'hold TTL begins after the Event lock wait, not before');
+echo "BRVTAL T05 paid-state, cutoff contention and post-lock TTL passed.\n";
