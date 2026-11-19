@@ -299,7 +299,7 @@ function brvtal_media_url_import_e2e_fixture(string $url): ?array
     if (PHP_SAPI !== 'cli-server'
         || getenv('BRVTAL_MEDIA_URL_IMPORT_E2E_FIXTURE') !== '1'
         || preg_match('/^brvtal_test[a-zA-Z0-9_]*$/D', (string)getenv('BRVTAL_TEST_DB_NAME')) !== 1
-        || (string)($_SERVER['SERVER_ADDR'] ?? '') !== '127.0.0.1') {
+        || (string)($_SERVER['SERVER_NAME'] ?? '') !== '127.0.0.1') {
         return null;
     }
     $success = 'https://fixture.brvtal.test/artist.png';
