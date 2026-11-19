@@ -35,7 +35,7 @@ $sign = static function(array $tx,int $timestamp,?array $fields=null) use($setti
 };
 [$body,$hash] = $sign($tx,$now);
 $signed = brvtal_wompi_hook_verify($body,$hash,$settings,$now);
-t08($signed===$tx,'signed Wompi event verified');
+t08(array_intersect_key($signed,$tx)===$tx && isset($signed['_event_checksum']), 'signed Wompi event verified');
 t08Reject(fn()=>brvtal_wompi_hook_verify($body,str_repeat('0',64),$settings,$now),'WEBHOOK_SIGNATURE');
 t08Reject(fn()=>brvtal_wompi_hook_verify(str_replace('5000000','5000001',$body),$hash,$settings,$now),
     'WEBHOOK_SIGNATURE');
@@ -80,6 +80,13 @@ $db->exec("CREATE TABLE ticket_payment_attempts(id INT PRIMARY KEY,order_id INT 
  provider_transaction_id VARCHAR(190) NULL,gross_amount_cop BIGINT NOT NULL,
  status VARCHAR(16) NOT NULL,updated_at_utc DATETIME(6) NULL,
  UNIQUE KEY uq_tx (provider,provider_transaction_id),UNIQUE KEY uq_ref (provider,provider_reference)) ENGINE=InnoDB");
+$db->exec("CREATE TABLE ticket_payment_webhook_events(id INT AUTO_INCREMENT PRIMARY KEY,
+ attempt_id INT NOT NULL,provider_transaction_id VARCHAR(190) NOT NULL,
+ event_checksum CHAR(64) NOT NULL,signed_status VARCHAR(16) NOT NULL,
+ event_timestamp BIGINT UNSIGNED NOT NULL,
+ UNIQUE KEY uq_event(attempt_id,event_checksum)) ENGINE=InnoDB");
+$db->exec("CREATE TABLE ticket_issue_outbox(id INT AUTO_INCREMENT PRIMARY KEY,
+ order_id INT NOT NULL UNIQUE,payment_attempt_id INT NOT NULL) ENGINE=InnoDB");
 $db->exec("INSERT INTO ticket_orders VALUES (42,'pending','COP',50000,NULL)");
 $insert=$db->prepare("INSERT INTO ticket_payment_attempts VALUES
  (1,42,'wompi',?,NULL,50000,'created',NULL)");
@@ -91,9 +98,19 @@ $process=static function(array $s,array $p) use($db):string {
 };
 t08($process($signed,$provider)==='approved','approved on Wompi verification');
 t08($process($signed,$provider)==='duplicate','duplicate event no-op');
+t08((int)$db->query('SELECT COUNT(*) FROM ticket_payment_webhook_events')->fetchColumn()===1,
+    'identical signed event persisted once');
+t08((int)$db->query('SELECT COUNT(*) FROM ticket_issue_outbox')->fetchColumn()===1,
+    'exactly one durable issuance request');
 t08($db->query("SELECT status FROM ticket_orders WHERE id=42")->fetchColumn()==='paid','order paid once');
 $pending=$tx; $pending['status']='PENDING';
-t08($process($pending,$pending)==='duplicate','late pending no downgrade');
+[$pendingBody,$pendingHash]=$sign($pending,$now);
+$pendingSigned=brvtal_wompi_hook_verify($pendingBody,$pendingHash,$settings,$now);
+t08($process($pendingSigned,$pending)==='duplicate','late pending no downgrade');
+t08((int)$db->query('SELECT COUNT(*) FROM ticket_payment_webhook_events')->fetchColumn()===2,
+    'late different event journaled without status downgrade');
+t08((int)$db->query('SELECT COUNT(*) FROM ticket_issue_outbox')->fetchColumn()===1,
+    'no duplicate issuance on late event');
 t08($db->query("SELECT status FROM ticket_payment_attempts WHERE id=1")->fetchColumn()==='approved',
     'approval monotonic');
 $bad=$provider; $bad['reference']='BW7-900-CARD-'.str_repeat('b',24);
