@@ -53,7 +53,11 @@ function brvtal_wompi_hook_verify(string $raw, string $headerChecksum, array $se
             || !hash_equals(strtolower($checksum), strtolower($headerChecksum))))) {
         throw new DomainException('WEBHOOK_SIGNATURE');
     }
-    $expected = hash('sha256', $text . $stamp . ($settings['eventsSecret'] ?? ''));
+    if (!is_string($settings['eventsSecret'] ?? null)
+        || !str_starts_with($settings['eventsSecret'], 'test_events_')) {
+        throw new DomainException('WEBHOOK_DISABLED');
+    }
+    $expected = hash('sha256', $text . $stamp . $settings['eventsSecret']);
     if (!hash_equals($expected, strtolower($checksum))) throw new DomainException('WEBHOOK_SIGNATURE');
     $tx = $event['data']['transaction'];
     if (!is_string($tx['id'] ?? null) || !preg_match('/^[a-zA-Z0-9-]{1,128}$/D', $tx['id'])
@@ -65,7 +69,7 @@ function brvtal_wompi_hook_verify(string $raw, string $headerChecksum, array $se
         || ($tx['currency'] ?? null) !== 'COP') {
         throw new DomainException('WEBHOOK_INVALID');
     }
-    return $tx;
+    return $tx + ['_event_checksum'=>strtolower($checksum), '_event_timestamp'=>$stamp];
 }
 
 /** The private sandbox GET authenticates reference/currency, which Wompi may NOT sign. */
@@ -96,6 +100,14 @@ function brvtal_wompi_hook_lookup(array $settings, string $id, ?callable $transp
     return is_array($tx) ? $tx : throw new RuntimeException('WEBHOOK_PROVIDER_UNAVAILABLE');
 }
 
+/** The consumer in T09 owns issuance; enqueue one durable request per paid order. */
+function brvtal_wompi_hook_enqueue(PDO $db, int $orderId, int $attemptId): void
+{
+    $db->prepare("INSERT INTO ticket_issue_outbox (order_id,payment_attempt_id)
+        SELECT id,? FROM ticket_orders WHERE id=? AND status='paid'
+        ON DUPLICATE KEY UPDATE id=id")->execute([$attemptId,$orderId]);
+}
+
 /** Single row-locked transaction; repeated/out-of-order notifications are no-ops. */
 function brvtal_wompi_hook_apply(PDO $db, array $signed, array $provider): string
 {
@@ -122,9 +134,22 @@ function brvtal_wompi_hook_apply(PDO $db, array $signed, array $provider): strin
     if (!$row || $row['currency'] !== 'COP' || (int)$row['total_cop'] * 100 !== $signed['amount_in_cents']) {
         throw new DomainException('WEBHOOK_ORDER_MISMATCH');
     }
+    if (!is_string($signed['_event_checksum'] ?? null)
+        || !preg_match('/^[a-f0-9]{64}$/D', $signed['_event_checksum'])
+        || !is_int($signed['_event_timestamp'] ?? null)) {
+        throw new DomainException('WEBHOOK_INVALID');
+    }
+    $journal = $db->prepare("INSERT INTO ticket_payment_webhook_events
+        (attempt_id,provider_transaction_id,event_checksum,signed_status,event_timestamp)
+        VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE id=id");
+    $journal->execute([(int)$attempt['id'],$signed['id'],$signed['_event_checksum'],
+        $signed['status'],$signed['_event_timestamp']]);
     $status = ['APPROVED'=>'approved','PENDING'=>'pending','DECLINED'=>'declined',
         'VOIDED'=>'declined','ERROR'=>'error'][$provider['status']];
     if ($attempt['status'] === 'approved' || $attempt['status'] === 'refunded') {
+        if ($attempt['status'] === 'approved') {
+            brvtal_wompi_hook_enqueue($db,(int)$attempt['order_id'],(int)$attempt['id']);
+        }
         return 'duplicate'; // Approved/settled payment never downgrades.
     }
     if ($status === $attempt['status'] && $attempt['provider_transaction_id'] === $signed['id']) {
@@ -137,6 +162,7 @@ function brvtal_wompi_hook_apply(PDO $db, array $signed, array $provider): strin
         // A paid order is the durable signal for T09 issuance; no ticket emitted here.
         $db->prepare("UPDATE ticket_orders SET status='paid',updated_at_utc=UTC_TIMESTAMP(6)
             WHERE id=? AND status IN ('pending','draft')")->execute([(int)$attempt['order_id']]);
+        brvtal_wompi_hook_enqueue($db,(int)$attempt['order_id'],(int)$attempt['id']);
     }
     return $status === 'approved' ? 'approved' : 'accepted';
 }
