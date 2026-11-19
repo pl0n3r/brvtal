@@ -21,10 +21,20 @@ try {
         || ($filter['email'] !== '' && !brvtalTicketingCan($role, 'buyers'))) {
         json_response(['ok'=>false,'error'=>'FORBIDDEN'], 403);
     }
+    // Email is personal data; a records-only role must neither search it nor receive it.
+    $canBuyers = brvtalTicketingCan($role, 'buyers');
+    if (!$canBuyers && ($filter['email'] !== '' ||
+        ($filter['q'] !== '' && !ctype_digit($filter['q'])))) {
+        json_response(['ok'=>false,'error'=>'BUYER_PERMISSION_REQUIRED'], 403);
+    }
     if ($filter['format'] === 'csv' && !brvtalTicketingCan($role, 'export')) {
         json_response(['ok'=>false,'error'=>'EXPORT_FORBIDDEN'], 403);
     }
     $page = brvtalTicketAdminPage($pdo, $filter);
+    if (!$canBuyers) {
+        foreach ($page['rows'] as &$row) unset($row['email']);
+        unset($row);
+    }
     if ($filter['order_id'] !== null) {
         $page['rows'] = array_values(array_filter($page['rows'], static fn(array $row): bool =>
             (int)$row['id'] === $filter['order_id']));
