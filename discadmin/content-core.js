@@ -444,6 +444,16 @@ function eventSalesRefresh(){
     }
   }
 }
+function eventShareSafeImageUrl(value){
+  const raw=String(value??'').trim();
+  if(!raw)return '';
+  try{
+    const url=new URL(raw,location.origin);
+    const local=raw.startsWith('/')&&!raw.startsWith('//')&&url.origin===location.origin;
+    const https=/^https:\/\//i.test(raw)&&url.protocol==='https:'&&!url.username&&!url.password;
+    return local||https?url.href:'';
+  }catch(_){return '';}
+}
 function eventShareRefresh(){
   const title=$('#e_title')?.value.trim()||'Tu evento';
   const text=$('#e_description')?.value.trim()||'La descripción aparecerá aquí.';
@@ -455,8 +465,8 @@ function eventShareRefresh(){
   set('e_description_count',String(($('#e_description')?.value||'').length)+' caracteres');
   const image=$('#e_share_preview_image');
   if(image){
-    const uri=$('#e_share_image')?.value.trim()||$('#e_cover_image')?.value.trim()||'';
-    if(uri.startsWith('/')&&!uri.startsWith('//')||/^https:\/\//i.test(uri)){image.src=uri;image.hidden=false;}else{image.removeAttribute('src');image.hidden=true;}
+    const url=eventShareSafeImageUrl($('#e_share_image')?.value||$('#e_cover_image')?.value||'');
+    if(url){image.src=url;image.hidden=false;}else{image.removeAttribute('src');image.hidden=true;}
   }
   const links={e_share_whatsapp:'whatsapp',e_share_instagram:'instagram',e_share_qr:'qr'};
   for(const [id,source] of Object.entries(links)){
