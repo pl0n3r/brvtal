@@ -90,7 +90,7 @@ $publicEventFactsMarkup = static function (string $html): string {
 $historicalHtml = brvtal_public_entity_page($historicalPage, $seo);
 event_record_expect(str_contains($historicalHtml, 'data-event-record-state="historical"'), 'historical Event must identify its record state in markup');
 event_record_expect(str_contains($historicalHtml, 'REGISTRO DE EVENTO / BRVTAL'), 'historical Event hero must frame the page as Event Record');
-event_record_expect(str_contains($historicalHtml, 'REGISTRO DE EVENTO / FINALIZADO'), 'historical record band must retain lifecycle status');
+event_record_expect(str_contains($historicalHtml, 'EVENTO PASADO'), 'historical record band must retain lifecycle status');
 $historicalFacts = $publicEventFactsMarkup($historicalHtml);
 event_record_expect(
     str_contains($historicalFacts, '<span>FECHA</span>')
@@ -102,12 +102,12 @@ event_record_expect(
     substr_count($historicalFacts, '<div><span>') === 3 && !str_contains($historicalFacts, '<span>ESTADO</span>'),
     'historical Event facts must omit editorial status card without an empty card'
 );
-event_record_expect(str_contains($historicalHtml, 'CARTEL / REGISTRO / 01'), 'historical lineup must be framed as archived record');
+event_record_expect(str_contains($historicalHtml, 'CARTEL / REGISTRO / 1 artista'), 'historical lineup must be framed as archived record');
 event_record_expect(str_contains($historicalHtml, 'SETS GRABADOS / 01'), 'historical Sets must be framed as recorded material');
 event_record_expect(str_contains($historicalHtml, 'TRANSMISIONES / 01'), 'explicit editorial relation must surface in Event Record');
 event_record_expect(str_contains($historicalHtml, 'MEMORIAS / 01'), 'explicit Memory relation must surface in Event Record');
 event_record_expect(str_contains($historicalHtml, 'href="/#media"'), 'Event Record Memory must link back to the public Memories archive');
-event_record_expect(!str_contains($historicalHtml, '>ENTRADAS ↗<'), 'historical Event must not regain stale commercial CTA');
+event_record_expect(!str_contains($historicalHtml, 'event-buy-button'), 'historical Event must not regain stale commercial CTA');
 
 $activePage = $historicalPage;
 $activePage['entity']['status'] = 'tickets_available';
@@ -118,8 +118,8 @@ $activePage['links'] = ['TICKETS'=>'https://tickets.example.com/genesis'];
 $activePage['related'] = ['LINEUP'=>$historicalPage['related']['LINEUP']];
 $activeHtml = brvtal_public_entity_page($activePage, $seo);
 event_record_expect(str_contains($activeHtml, 'data-event-record-state="active"'), 'active Event must identify active presentation state');
-event_record_expect(str_contains($activeHtml, 'SEÑAL DEL EVENTO / ENTRADAS DISPONIBLES'), 'active Event band must expose real lifecycle status');
-event_record_expect(str_contains($activeHtml, '>ENTRADAS ↗<'), 'active Event keeps valid commercial CTA supplied by lifecycle policy');
+event_record_expect(str_contains($activeHtml, 'Boletas disponibles'), 'active Event band must expose real lifecycle status');
+event_record_expect(str_contains($activeHtml, '>Comprar boletas'), 'active Event keeps valid commercial CTA supplied by lifecycle policy');
 event_record_expect(str_contains($activeHtml, '← VOLVER A EVENTOS'), 'active Event returns to Events while historical Event returns to Archive framing');
 $activeFacts = $publicEventFactsMarkup($activeHtml);
 event_record_expect(
@@ -136,7 +136,7 @@ $limitedTicketsPage['record']['status'] = 'LAST TICKETS';
 $limitedTicketsPage['facts']['STATUS'] = 'LAST TICKETS';
 $limitedTicketsHtml = brvtal_public_entity_page($limitedTicketsPage, $seo);
 event_record_expect(
-    str_contains($limitedTicketsHtml, 'SEÑAL DEL EVENTO / ÚLTIMAS ENTRADAS'),
+    str_contains($limitedTicketsHtml, 'Últimas boletas'),
     'last_tickets must retain the visitor-facing limited availability signal'
 );
 event_record_expect(
@@ -180,6 +180,7 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
         id INT PRIMARY KEY,
         event_date DATETIME NULL,
         venue VARCHAR(180) NULL,
+        venue_address VARCHAR(300) NULL,
         city VARCHAR(120) NULL,
         status VARCHAR(30) NOT NULL,
         skin VARCHAR(60) NULL,
@@ -248,6 +249,8 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
         price DECIMAL(10,2) NULL,
         currency VARCHAR(10) NULL,
         external_url VARCHAR(700) NULL,
+        payment_instructions TEXT NULL,
+        qr_image VARCHAR(500) NULL,
         status VARCHAR(30) NOT NULL,
         available_from DATETIME NULL,
         available_until DATETIME NULL,
@@ -400,7 +403,7 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
     event_record_expect(str_contains($integrationHtml, 'PUBLIC TRANSMISSION 102'), 'MariaDB hydrated Event must render published Transmission');
     event_record_expect(str_contains($integrationHtml, 'HORARIOS / REGISTRO / 01'), 'MariaDB hydrated Event must render approved timetable inside Event Record');
     event_record_expect(!str_contains($integrationHtml, 'PRIVATE TRANSMISSION 102'), 'MariaDB hydrated Event must not render unpublished Transmission');
-    event_record_expect(!str_contains($integrationHtml, '>ENTRADAS ↗<'), 'MariaDB hydrated historical Event must not render ticket CTA');
+    event_record_expect(!str_contains($integrationHtml, 'event-buy-button'), 'MariaDB hydrated historical Event must not render ticket CTA');
 }
 
 echo "BRVTAL Event Record contract tests passed.\n";

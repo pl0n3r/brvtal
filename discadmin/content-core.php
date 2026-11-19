@@ -137,6 +137,7 @@ brvtal_admin_require();
       </div>
       <div class="field"><label for="e_city">City *</label><input id="e_city"></div>
       <div class="field"><label for="e_venue">Venue</label><input id="e_venue"></div>
+      <div class="field"><label for="e_venue_address">Dirección para el mapa (opcional)</label><input id="e_venue_address" maxlength="300" placeholder="Calle, número, ciudad" aria-describedby="e_venue_address_help"><small id="e_venue_address_help">El mapa solo se carga cuando el visitante pulsa Ver mapa.</small><a id="e_venue_map_preview" href="#" target="_blank" rel="noopener noreferrer" hidden>Ver en Google Maps ↗</a></div>
       <div class="field">
         <label for="e_archive_year">Archive year</label>
         <input id="e_archive_year" type="number" min="2000" max="2200">

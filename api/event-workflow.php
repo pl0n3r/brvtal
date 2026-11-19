@@ -10,7 +10,7 @@ function brvtal_event_workflow_reject_composite_fields(array $input): void
     $event = $input['event'] ?? null;
     if (is_array($event)) {
         foreach ([
-            'id','title','slug','event_date','venue','city','description','skin','accent','cover_image',
+            'id','title','slug','event_date','venue','venue_address','city','description','skin','accent','cover_image',
             'ticket_url','ticket_instructions','ticket_qr','featured','archive_year','status','sort_order',
             'seo_title','seo_description',
         ] as $field) {

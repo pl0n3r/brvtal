@@ -55,6 +55,7 @@ CREATE TABLE events (
   slug VARCHAR(190) NOT NULL UNIQUE,
   event_date DATETIME NULL,
   venue VARCHAR(180) NULL,
+  venue_address VARCHAR(300) NULL,
   city VARCHAR(120) NULL,
   description TEXT NULL,
   skin VARCHAR(60) NOT NULL DEFAULT 'CORE',

@@ -109,7 +109,7 @@ function sanitize_payload(string $resource, array $d): array {
             json_response(['ok' => false, 'error' => 'INVALID_SET_DURATION', 'field' => 'duration_seconds'], 422);
         }
     }
-    $limits=['title'=>180,'slug'=>190,'name'=>180,'venue'=>180,'city'=>120,'skin'=>60,'accent'=>30,'cover_image'=>500,'ticket_url'=>700,'photo'=>500,'instagram_url'=>700,'soundcloud_url'=>700,'website_url'=>700,'external_url'=>700,'embed_url'=>700,'file_path'=>500,'mime_type'=>120,'alt_text'=>255,'seo_title'=>190,'seo_description'=>320,'locale'=>2,'platform'=>20,'status'=>20,'type'=>20,'role'=>80,'currency'=>3,'price'=>30,'payment_instructions'=>4000];
+    $limits=['title'=>180,'slug'=>190,'name'=>180,'venue'=>180,'venue_address'=>300,'city'=>120,'skin'=>60,'accent'=>30,'cover_image'=>500,'ticket_url'=>700,'photo'=>500,'instagram_url'=>700,'soundcloud_url'=>700,'website_url'=>700,'external_url'=>700,'embed_url'=>700,'file_path'=>500,'mime_type'=>120,'alt_text'=>255,'seo_title'=>190,'seo_description'=>320,'locale'=>2,'platform'=>20,'status'=>20,'type'=>20,'role'=>80,'currency'=>3,'price'=>30,'payment_instructions'=>4000];
     foreach($limits as $k=>$n) ensure_string($d,$k,$n);
     foreach(['ticket_url','instagram_url','soundcloud_url','website_url','external_url','embed_url'] as $k) if(array_key_exists($k,$d)) { $v=valid_url_or_empty($d[$k]); if($d[$k]!=='' && $v===null) json_response(['ok'=>false,'error'=>'INVALID_URL','field'=>$k],422); $d[$k]=$v; }
     if(isset($d['slug'])) $d['slug']=slugify((string)$d['slug']);
@@ -133,7 +133,7 @@ function allowed_fields(string $resource): array
 {
     return [
         'events' => [
-            'title','slug','event_date','venue','city','description','skin','accent',
+            'title','slug','event_date','venue','venue_address','city','description','skin','accent',
             'cover_image','ticket_url','ticket_instructions','ticket_qr','featured',
             'archive_year','status','sort_order','publish_at',
         ],

@@ -87,6 +87,10 @@ function brvtalMigrationProofSpecifications(): array
     ];
 
     $specifications = [
+        'migration_events_venue_address_01.sql' => [
+            'column:events.venue_address',
+            'column-type:events.venue_address=varchar(300)',
+        ],
         'migration_admin_activity_01.sql' => brvtalMigrationObjectRequirements(
             'admin_activity_log',
             ['id', 'admin_id', 'action', 'resource', 'created_at'],
