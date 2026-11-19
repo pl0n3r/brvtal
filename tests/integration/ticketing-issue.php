@@ -124,6 +124,9 @@ $past=new DateTimeImmutable('-1 day',new DateTimeZone('UTC'));
 $token=$raws[0];$public=$ids[0];
 $payload=brvtal_ticket_issue_qr_payload($db,8,$public,$token,$future);
 t09($payload==='BRVTAL:T1:'.$public.':'.$token,'same credential can render again');
+$db->exec("UPDATE ticket_issue_outbox SET state='pending' WHERE order_id=100");
+t09Reject(fn()=>brvtal_ticket_issue_qr_payload($db,8,$public,$token,$future),'TICKET_UNAVAILABLE');
+$db->exec("UPDATE ticket_issue_outbox SET state='done' WHERE order_id=100");
 t09((bool)preg_match('/^BRVTAL:T1:[a-f0-9]{32}:[A-Za-z0-9_-]{43}$/D',$payload)
     && !str_contains($payload,'@'),'QR is opaque without buyer PII');
 $download=brvtal_ticket_issue_download($db,8,$public,$token,$future);

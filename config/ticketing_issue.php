@@ -145,6 +145,7 @@ function brvtal_ticket_issue_qr_payload(
             FROM ticket_entries e
             JOIN ticket_order_items i ON i.id=e.order_item_id
             JOIN ticket_orders o ON o.id=i.order_id
+            JOIN ticket_issue_outbox b ON b.order_id=o.id AND b.state='done'
             JOIN ticket_entry_credentials c ON c.entry_id=e.id AND c.status='active'
             WHERE e.public_id=UNHEX(?) AND o.buyer_id=? AND o.status='paid'
               AND e.status='issued' AND e.event_id=o.event_id
