@@ -472,31 +472,6 @@
     return host;
   }
 
-  function hydrateMediaPicker(select) {
-    const placeholder = document.createElement('option');
-    placeholder.value = '';
-    if (!mediaReady) {
-      placeholder.textContent = mediaLoadError
-        ? 'Media Library unavailable — reopen Banners to retry'
-        : 'Loading Media Library…';
-      select.replaceChildren(placeholder);
-      select.disabled = true;
-      return;
-    }
-
-    const type = select.dataset.mediaType === 'video' ? 'video' : 'image';
-    const allowed = media.filter(item => type === 'video' ? item.type === 'video' : item.type === 'image');
-    placeholder.textContent = 'Choose from Media Library…';
-    select.replaceChildren(placeholder);
-    select.disabled = false;
-    allowed.forEach(item => {
-      const option = document.createElement('option');
-      option.value = String(item.file_path || '');
-      option.textContent = String(item.title || item.file_path || ('Media #' + item.id));
-      select.appendChild(option);
-    });
-  }
-
   function mediaSaveLabel() {
     if (mediaReady) return 'SAVE';
     return mediaLoadError ? 'MEDIA UNAVAILABLE' : 'MEDIA LOADING…';
@@ -504,7 +479,7 @@
 
   function syncMediaControls(host) {
     if (!host) return;
-    host.querySelectorAll('[data-media-picker],[data-layer-media]').forEach(hydrateMediaPicker);
+    host.querySelectorAll('[data-media-picker],[data-layer-media]').forEach(button => { button.disabled = !mediaReady; });
     const saveButton = host.querySelector('[data-save-slider]');
     if (saveButton) {
       saveButton.disabled = !mediaReady;
@@ -638,9 +613,9 @@
         <label class="hero-switch"><input type="checkbox" data-field="enabled" ${slide.enabled ? 'checked' : ''}><span>Slide enabled</span></label>
         <label><span>Media type</span><select data-field="mediaType"><option value="image" ${slide.mediaType==='image'?'selected':''}>Image</option><option value="video" ${slide.mediaType==='video'?'selected':''}>Video</option></select></label>
         <label><span>Transition</span><select data-field="transition">${['fade','slide','zoom'].map(v => `<option value="${v}" ${slide.transition===v?'selected':''}>${v}</option>`).join('')}</select></label>
-        <label class="full"><span>Desktop media <em>Media Library or external HTTPS</em></span><div class="hero-media-pair"><input data-field="desktopSrc" value="${esc(slide.desktopSrc)}"><select data-media-picker="desktopSrc" data-media-type="${slide.mediaType === 'video' ? 'video' : 'image'}"><option value="">Choose from Media Library…</option></select></div></label>
-        <label class="full"><span>Mobile override <em>optional · Media Library or external HTTPS</em></span><div class="hero-media-pair"><input data-field="mobileSrc" value="${esc(slide.mobileSrc)}"><select data-media-picker="mobileSrc" data-media-type="${slide.mediaType === 'video' ? 'video' : 'image'}"><option value="">Choose from Media Library…</option></select></div></label>
-        ${slide.mediaType==='video'?`<label class="full"><span>Video poster</span><div class="hero-media-pair"><input data-field="poster" value="${esc(slide.poster)}"><select data-media-picker="poster" data-media-type="image"><option value="">Choose from Media Library…</option></select></div></label>`:''}
+        <label class="full"><span>Desktop media <em>Media Library or external HTTPS</em></span><div class="hero-media-pair"><input data-field="desktopSrc" value="${esc(slide.desktopSrc)}"><button type="button" class="media-picker-btn" data-media-picker="desktopSrc" data-media-type="${slide.mediaType === 'video' ? 'video' : 'image'}">SELECT MEDIA</button></div></label>
+        <label class="full"><span>Mobile override <em>optional · Media Library or external HTTPS</em></span><div class="hero-media-pair"><input data-field="mobileSrc" value="${esc(slide.mobileSrc)}"><button type="button" class="media-picker-btn" data-media-picker="mobileSrc" data-media-type="${slide.mediaType === 'video' ? 'video' : 'image'}">SELECT MEDIA</button></div></label>
+        ${slide.mediaType==='video'?`<label class="full"><span>Video poster</span><div class="hero-media-pair"><input data-field="poster" value="${esc(slide.poster)}"><button type="button" class="media-picker-btn" data-media-picker="poster" data-media-type="image">SELECT MEDIA</button></div></label>`:''}
         <label class="full"><span>Legacy kicker</span><input data-field="kicker" value="${esc(slide.kicker)}"></label>
         <label class="full"><span>Legacy title</span><input data-field="title" value="${esc(slide.title)}"></label>
         <label class="full"><span>Legacy body</span><textarea data-field="body">${esc(slide.body)}</textarea></label>
@@ -656,7 +631,7 @@
     return `<div class="hero-layer-editor"><div class="hero-editor-head"><div><span class="hero-kicker">SELECTED LAYER</span><strong>${esc(layer.name)}</strong></div><button type="button" class="btn ghost" data-delete-layer>DELETE LAYER</button></div><div class="hero-form-grid">
       <label><span>Name</span><input data-layer-field="name" value="${esc(layer.name)}"></label>
       <label><span>Type</span><input value="${esc(layer.type)}" disabled></label>
-      ${imageFields?`<label class="full"><span>Desktop asset</span><div class="hero-media-pair"><input data-layer-field="src" value="${esc(layer.src)}"><select data-layer-media="src" data-media-type="image"><option value="">Choose from Media Library…</option></select></div></label><label class="full"><span>Mobile asset override</span><div class="hero-media-pair"><input data-layer-field="mobileSrc" value="${esc(layer.mobileSrc)}"><select data-layer-media="mobileSrc" data-media-type="image"><option value="">Choose from Media Library…</option></select></div></label>`:`<label class="full"><span>Text</span><textarea data-layer-field="text">${esc(layer.text)}</textarea></label>`}
+      ${imageFields?`<label class="full"><span>Desktop asset</span><div class="hero-media-pair"><input data-layer-field="src" value="${esc(layer.src)}"><button type="button" class="media-picker-btn" data-layer-media="src" data-media-type="image">SELECT MEDIA</button></div></label><label class="full"><span>Mobile asset override</span><div class="hero-media-pair"><input data-layer-field="mobileSrc" value="${esc(layer.mobileSrc)}"><button type="button" class="media-picker-btn" data-layer-media="mobileSrc" data-media-type="image">SELECT MEDIA</button></div></label>`:`<label class="full"><span>Text</span><textarea data-layer-field="text">${esc(layer.text)}</textarea></label>`}
       ${layer.type==='cta'?`<label class="full"><span>Link URL</span><input data-layer-field="url" value="${esc(layer.url)}"></label>`:''}
       <label><span>X %</span><input type="number" min="0" max="100" data-layer-field="x" value="${layer.x}"></label><label><span>Y %</span><input type="number" min="0" max="100" data-layer-field="y" value="${layer.y}"></label>
       <label><span>Width %</span><input type="number" min="5" max="100" data-layer-field="width" value="${layer.width}"></label><label><span>Align</span><select data-layer-field="align">${['left','center','right'].map(v=>`<option value="${v}" ${layer.align===v?'selected':''}>${v}</option>`).join('')}</select></label>
@@ -972,14 +947,11 @@
     renderManager();
   }
 
-  function applyPicker(host, select, selector) {
-    if (!select.value) return;
+  function openMediaPicker(host, button, selector) {
     const input = host.querySelector(selector);
-    if (input) {
-      input.value = select.value;
-      input.dispatchEvent(new Event('input', { bubbles:true }));
-    }
-    select.value = '';
+    if (!input || typeof window.BRVTALMediaLibrary?.openPicker !== 'function') return;
+    const options = button.dataset.mediaType === 'video' ? {videoOnly:true} : {imagesOnly:true};
+    void window.BRVTALMediaLibrary.openPicker(input, options);
   }
 
   function updateConfig(input) {
@@ -1030,14 +1002,14 @@
       input.addEventListener('input', event => updateLayer(event.target));
       input.addEventListener('change', event => updateLayer(event.target));
     });
-    host.querySelectorAll('[data-media-picker]').forEach(select =>
-      select.addEventListener('change', () =>
-        applyPicker(host, select, `[data-field="${select.dataset.mediaPicker}"]`)
+    host.querySelectorAll('[data-media-picker]').forEach(button =>
+      button.addEventListener('click', () =>
+        openMediaPicker(host, button, `[data-field="${button.dataset.mediaPicker}"]`)
       )
     );
-    host.querySelectorAll('[data-layer-media]').forEach(select =>
-      select.addEventListener('change', () =>
-        applyPicker(host, select, `[data-layer-field="${select.dataset.layerMedia}"]`)
+    host.querySelectorAll('[data-layer-media]').forEach(button =>
+      button.addEventListener('click', () =>
+        openMediaPicker(host, button, `[data-layer-field="${button.dataset.layerMedia}"]`)
       )
     );
   }
