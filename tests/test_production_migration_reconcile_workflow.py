@@ -1,6 +1,10 @@
 import json
+import os
 import pathlib
 import runpy
+import subprocess
+import tempfile
+import textwrap
 import unittest
 from types import SimpleNamespace
 from unittest import mock
@@ -125,6 +129,104 @@ class ProductionMigrationReconcileWorkflowTests(unittest.TestCase):
                 }):
                     with self.assertRaisesRegex(failure_type, f"SSH command failed with exit code {code}"):
                         reconcile(None, sha, "0.1.261", "https://www.brvtal.com.co")
+
+    def test_remote_shell_emits_each_stage_exit_code_without_running_later_stages(self):
+        """Execute the fixed remote Bash script with disposable fake git/php only."""
+        script = runpy.run_path(str(ROOT / "ops/factory/transport.py"))["_RECONCILE_MIGRATIONS"]
+        sha = "a" * 40
+        stages = (
+            ("preflight", 70, []),
+            ("plan", 71, ["plan"]),
+            ("guard", 72, ["plan", "guard"]),
+            ("backup", 73, ["plan", "guard", "backup"]),
+            ("marker", 74, ["plan", "guard", "backup"]),
+            ("reconcile", 75, ["plan", "guard", "backup", "reconcile"]),
+            ("verify", 76, ["plan", "guard", "backup", "reconcile", "verify"]),
+            ("success", 0, ["plan", "guard", "backup", "reconcile", "verify"]),
+        )
+        fake_git = textwrap.dedent("""
+            #!/usr/bin/env python3
+            import os
+            print(os.environ.get("TEST_OBSERVED_SHA", "a" * 40))
+        """).lstrip()
+        fake_php = textwrap.dedent("""
+            #!/usr/bin/env python3
+            import json
+            import os
+            import sys
+            from pathlib import Path
+
+            stage = os.environ["TEST_FAIL_STAGE"]
+            argv = sys.argv[1:]
+            with Path(os.environ["TEST_TRACE_FILE"]).open("a", encoding="utf-8") as log:
+                def step(name):
+                    log.write(name + "\\n")
+
+                if argv == ["scripts/migrations.php", "reconcile-plan", "--json"]:
+                    step("plan")
+                    if stage == "plan":
+                        sys.exit(1)
+                    print(json.dumps({"blocked": ["migration_fake.sql"] if stage == "guard" else []}))
+                    sys.exit(0)
+                if argv and argv[0] == "-r":
+                    step("guard")
+                    data = json.loads(sys.stdin.read())
+                    sys.exit(86 if data["blocked"] else 0)
+                if not argv:
+                    step("backup")
+                    if "brvtal_backup_create" not in sys.stdin.read():
+                        sys.exit(4)
+                    sys.exit(1 if stage == "backup" else 0)
+                if argv == ["scripts/migrations.php", "reconcile", "--confirm", "--json"]:
+                    step("reconcile")
+                    if os.environ.get("BRVTAL_MIGRATIONS_ALLOW_WRITE") != "1":
+                        sys.exit(5)
+                    if os.environ.get("BRVTAL_MIGRATION_RECONCILE_BACKUP_READY") != "1":
+                        sys.exit(6)
+                    sys.exit(1 if stage == "reconcile" else 0)
+                if argv == ["scripts/migrations.php", "verify-plan", "__NONE__"]:
+                    step("verify")
+                    sys.exit(1 if stage == "verify" else 0)
+                sys.exit(90)
+        """).lstrip().replace('\\\\n', '\\n')
+
+        for stage, expected_code, expected_trace in stages:
+            with self.subTest(stage=stage), tempfile.TemporaryDirectory(prefix="br739-") as tmp:
+                root = pathlib.Path(tmp)
+                (root / "public_html").mkdir()
+                bin_dir = root / "bin"
+                bin_dir.mkdir()
+                for name, code in (("git", fake_git), ("php", fake_php)):
+                    binary = bin_dir / name
+                    binary.write_text(code, encoding="utf-8")
+                    binary.chmod(0o700)
+                trace = root / "trace.txt"
+                trace.touch()
+                marker = root / "factory-state" / f"migration-reconcile-backup-{sha}.ok"
+                if stage == "marker":
+                    marker.parent.mkdir()
+                    sentinel = root / "sentinel"
+                    sentinel.write_text("keep", encoding="utf-8")
+                    marker.symlink_to(sentinel)
+                env = {
+                    **os.environ,
+                    "PATH": str(bin_dir) + os.pathsep + os.environ.get("PATH", "/usr/bin:/bin"),
+                    "TEST_FAIL_STAGE": stage,
+                    "TEST_TRACE_FILE": str(trace),
+                    "TEST_OBSERVED_SHA": "b" * 40 if stage == "preflight" else sha,
+                }
+                run = subprocess.run(
+                    ["bash", "-s", "--", str(root), sha],
+                    input=script, capture_output=True, text=True, env=env,
+                    check=False, timeout=12,
+                )
+                self.assertEqual(run.returncode, expected_code,
+                                 f"{stage}: unexpected remote stage exit")
+                self.assertEqual(trace.read_text(encoding="utf-8").splitlines(), expected_trace)
+                if stage in {"preflight", "plan", "guard", "backup"}:
+                    self.assertFalse(marker.exists(), f"{stage}: no backup marker may exist")
+                elif stage in {"reconcile", "verify", "success"}:
+                    self.assertEqual(marker.read_text(encoding="utf-8"), "backup-ready\n")
 
     def test_ssh_failure_never_forwards_raw_remote_stderr(self):
         namespace = runpy.run_path(str(ROOT / "ops/factory/transport.py"))
