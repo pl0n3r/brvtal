@@ -54,7 +54,7 @@ try {
         fwrite($out,"\xEF\xBB\xBF");
         $columns=['event_id','gross_cop','discount_cop','approved_cop','paid_orders',
             'pending_orders','declined_orders','refunded_orders','unverified_orders',
-            'tickets','fee_cop','fee_vat_cop','withheld_cop','payout_cop',
+            'tickets','capacity','checkins','fee_cop','fee_vat_cop','withheld_cop','payout_cop',
             'difference_cop','settlement_status'];
         fputcsv($out,$columns);
         foreach ($rows as $row) {
