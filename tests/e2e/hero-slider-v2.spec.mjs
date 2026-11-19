@@ -361,8 +361,8 @@ test('v2 admin defers Media until Settings resolves and keeps picker asynchronou
     .toEqual(['settings:start','settings:resolved','media:start']);
   await expect(page.locator('.hero-manager')).toBeVisible();
   await page.locator('[data-add-slide]').click();
-  await expect(page.locator('[data-media-picker="desktopSrc"] option[value="/uploads/ci/banner-pressure.jpg"]'))
-    .toHaveCount(1);
+  await expect(page.locator('button[data-media-picker="desktopSrc"]')).toHaveText('SELECT MEDIA');
+  await expect(page.locator('button[data-media-picker="desktopSrc"]')).toBeEnabled();
   await expect(page.locator('[data-save-slider]')).toBeEnabled();
 });
 
