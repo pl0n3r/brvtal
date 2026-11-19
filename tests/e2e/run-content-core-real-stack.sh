@@ -140,7 +140,7 @@ if [[ "$stub_ready" != "1" ]]; then
   exit 1
 fi
 
-BRVTAL_MAIL_TESTING=1 BRVTAL_MAIL_CAPTURE_FILE="$MAIL_CAPTURE" PHP_CLI_SERVER_WORKERS="${PHP_CLI_SERVER_WORKERS:-4}" php -S 127.0.0.1:4174 -t . >"$PHP_LOG" 2>&1 &
+BRVTAL_MEDIA_URL_IMPORT_E2E_FIXTURE=1 BRVTAL_TEST_DB_NAME="$DB_NAME" BRVTAL_MAIL_TESTING=1 BRVTAL_MAIL_CAPTURE_FILE="$MAIL_CAPTURE" PHP_CLI_SERVER_WORKERS="${PHP_CLI_SERVER_WORKERS:-4}" php -S 127.0.0.1:4174 -t . >"$PHP_LOG" 2>&1 &
 PHP_PID=$!
 
 ready=0
@@ -190,6 +190,7 @@ npx playwright test \
   tests/e2e/hero-slider-integrity-real-stack.spec.mjs \
   tests/e2e/indexnow-real-stack.spec.mjs \
   tests/e2e/discadmin-password-recovery-real-stack.spec.mjs \
+  tests/e2e/discadmin-artist-photo-import-real-stack.spec.mjs \
   tests/e2e/discadmin-lineup-draft-artist.spec.mjs \
   tests/e2e/discadmin-datetime-picker.spec.mjs \
   --project=chromium
