@@ -45,13 +45,13 @@ try {
         $out = fopen('php://output', 'wb');
         fputcsv($out, $filter['kind'] === 'orders'
             ? ['id','buyer_id','event_id','status','currency','total_cop','units','approvals','last_payment_state','mail_state']
-            : ['id','status','order_count','paid_total_cop'], escape: '\');
+            : ['id','status','order_count','paid_total_cop'], escape: '\\');
         foreach ($page['rows'] as $row) {
             $cols = $filter['kind'] === 'orders'
                 ? ['id','buyer_id','event_id','status','currency','total_cop','units','approvals','last_payment_state','mail_state']
                 : ['id','status','order_count','paid_total_cop'];
             fputcsv($out, array_map(static fn(string $key): string => (string)($row[$key] ?? ''), $cols),
-                escape: '\');
+                escape: '\\');
         }
         fclose($out);
         exit;
