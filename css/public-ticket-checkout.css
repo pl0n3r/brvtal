@@ -1,0 +1,16 @@
+/* T13: ticketing controls belong to the public event page, not DISCADMIN. */
+.event-ticket-checkout{margin:3rem auto;padding:clamp(1rem,3vw,2rem);max-width:72rem;background:#101014;border:1px solid #48484d;color:#fafafa}
+.event-ticket-checkout h2{font-size:clamp(1.8rem,5vw,3rem);margin:.4rem 0 1rem}
+.event-ticket-checkout p{max-width:65ch}
+.event-ticket-checkout form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1rem;align-items:end}
+.event-ticket-checkout label{display:flex;flex-direction:column;gap:.45rem;font-weight:700}
+.event-ticket-checkout select,.event-ticket-checkout input{width:100%;min-width:0;padding:.85rem;background:#050505;color:#fff;border:1px solid #959595;font:inherit}
+.event-ticket-checkout :is(select,input,button):focus-visible{outline:3px solid #ee3b43;outline-offset:3px}
+.event-ticket-checkout .checkout-total{grid-column:1/-1;font-size:1.4rem;font-weight:800}
+.event-ticket-checkout button{grid-column:1/-1;background:#f3f3f3;color:#070707;border:0;padding:1rem;font:inherit;font-weight:800;cursor:pointer}
+.event-ticket-checkout button:disabled{opacity:.5;cursor:not-allowed}
+.event-ticket-checkout [role=status]{min-height:2rem}
+@media(max-width:680px){.event-ticket-checkout form{grid-template-columns:minmax(0,1fr)}}
+
+/* A recovered order can be queried without offering another purchase. */
+.event-ticket-checkout[hidden] { display: none; }

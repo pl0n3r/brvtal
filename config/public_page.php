@@ -9,6 +9,7 @@ require_once __DIR__ . '/public_time_format.php';
 require_once __DIR__ . '/artist_hero_framing.php';
 require_once __DIR__ . '/blog_html.php';
 require_once __DIR__ . '/public_text_format.php';
+require_once __DIR__ . '/public_ticket_checkout.php';
 
 function brvtal_public_media_variant(string $image, string $context): string
 {
@@ -264,6 +265,8 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
     $eventPlaceholders = brvtal_public_sql_placeholders($eventStatuses);
 
     if ($type === 'events') {
+        brvtal_public_ticket_checkout_http($pdo, $id);
+        $data['checkout'] = brvtal_public_ticket_checkout_offers($pdo, $id);
         $detail = brvtal_page_row($pdo, "SELECT event_date,venue,venue_address,city,status,skin,accent,ticket_url,ticket_instructions,published_at,finished_at,cancelled_at FROM events WHERE id=? LIMIT 1", [$id], true);
         $isHistorical = brvtal_public_event_is_historical($detail);
         $allowsTicketing = brvtal_public_event_allows_ticketing($detail);
@@ -294,7 +297,7 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
         }
         $data['related']['SETS'] = brvtal_page_rows($pdo, "SELECT title,slug,cover_image AS image,platform AS meta,'sets' AS route_type FROM sets_media WHERE event_id=? AND status='published' ORDER BY sort_order,created_at DESC", [$id]);
         if ($allowsTicketing) {
-            $ticketRows = brvtal_page_rows($pdo, "SELECT name AS title,description,price,currency,external_url AS url,payment_instructions,qr_image,status,status AS meta,available_from,available_until FROM event_ticket_types WHERE event_id=? AND status IN ('active','sold_out') ORDER BY sort_order,name", [$id]);
+            $ticketRows = brvtal_page_rows($pdo, "SELECT id AS ticket_type_id,name AS title,description,price,currency,external_url AS url,payment_instructions,qr_image,status,status AS meta,available_from,available_until FROM event_ticket_types WHERE event_id=? AND status IN ('active','sold_out') ORDER BY sort_order,name", [$id]);
             $data['related']['TICKETS'] = array_values(array_filter(
                 $ticketRows,
                 static fn(array $ticket): bool => brvtal_public_ticket_type_is_available($ticket)
@@ -493,12 +496,63 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
             $minimumCurrency = strtoupper(trim((string)($ticket['currency'] ?? '')));
         }
     }
+    // The internal CTA is enabled only with server-backed stock and sandbox/mock configuration.
+    $internal = $isEvent && $recordState === 'active'
+        && !in_array(strtoupper($recordStatus),['SOLD OUT','CANCELLED','CANCELED','FINISHED'],true)
+        ? (array)($page['checkout']['offers'] ?? []) : [];
+    $internalMethods = (array)($page['checkout']['methods'] ?? []);
+    $internalEnabled = $internal !== [] && $internalMethods !== [];
+    $checkoutPanel = '';
+    if ($internalEnabled) {
+        $options = '';
+        foreach ($internal as $option) {
+            $id = (int)($option['id'] ?? 0);
+            $price = (int)($option['price_cop'] ?? 0);
+            $available = (int)($option['available'] ?? 0);
+            if ($id < 1 || $price < 1 || $available < 1) continue;
+            $name = $escape($option['title'] ?? '');
+            $options .= '<option value="' . $id . '" data-price="' . $price
+                . '" data-available="' . min(20,$available) . '">' . $name . ' · '
+                . number_format($price,0,',','.') . ' COP</option>';
+        }
+        $methods = '';
+        foreach ($internalMethods as $method) {
+            if (!in_array($method,['CARD','NEQUI','PSE'],true)) continue;
+            $methods .= '<option value="' . $method . '">' . $escape($method) . '</option>';
+        }
+        $internalEnabled = $options !== '' && $methods !== '';
+        if ($internalEnabled) {
+            $checkoutPanel = '<section class="event-ticket-checkout" id="checkout-boletas" aria-label="Checkout seguro">'
+                . '<h2>Escoge tus boletas</h2><p>El cupo, precio final y reserva se verifican de nuevo en el servidor. Sin recargos BRVTAL.</p>'
+                . '<form id="brvtal-ticket-checkout"><label>Tipo<select name="ticket_type_id">' . $options . '</select></label>'
+                . '<label>Cantidad<input name="quantity" type="number" value="1" min="1" max="20" step="1" inputmode="numeric"></label>'
+                . '<label>Método<select name="method">' . $methods . '</select></label>'
+                . '<output id="ticket-checkout-total" class="checkout-total" aria-live="polite"></output>'
+                . '<button type="submit">Continuar al pago</button></form>'
+                . '<p id="ticket-checkout-status" role="status" aria-live="polite">Pago pendiente hasta verificación del servidor.</p>'
+                . '<p>¿Ya tienes cuenta? <a href="/buyer/login.php">Inicia sesión o recupera el acceso</a>.'
+                . ' Compradores invitados: el checkout está pendiente de habilitación segura.</p></section>';
+        }
+    }
+    // A prior order remains inspectable after the last unit is reserved or sold.
+    if ($isEvent && $checkoutPanel === '') {
+        $checkoutPanel = '<section class="event-ticket-checkout" id="checkout-boletas" aria-label="Estado de compra" hidden>'
+            . '<h2>Estado de tu compra</h2>'
+            . '<p id="ticket-checkout-status" role="status" aria-live="polite"></p></section>';
+    }
     $fallbackTicketUrl = $isEvent ? $safeUrl($page['links']['TICKETS'] ?? '') : '';
     $fallbackOffer = $offers === [] && $fallbackTicketUrl !== ''
         && !in_array(strtoupper($recordStatus), ['SOLD OUT', 'CANCELLED', 'CANCELED'], true);
-    $canBuy = $isEvent && $recordState === 'active' && ($hasPurchasableTicket || $fallbackOffer);
-    $buyHref = $ticketUrl !== '' ? $ticketUrl : ($fallbackTicketUrl !== '' && $canBuy ? $fallbackTicketUrl : '#boletas');
+    $saleableRecord = !in_array(strtoupper($recordStatus), ['SOLD OUT','CANCELLED','CANCELED','FINISHED'], true);
+    $canBuy = $isEvent && $recordState === 'active' && $saleableRecord
+        && ($hasPurchasableTicket || $fallbackOffer || $internalEnabled);
+    $buyHref = $internalEnabled ? '#checkout-boletas' : ($ticketUrl !== '' ? $ticketUrl : ($fallbackTicketUrl !== '' && $canBuy ? $fallbackTicketUrl : '#boletas'));
     $buyTarget = preg_match('#^https?://#i', $buyHref) ? ' target="_blank" rel="noopener noreferrer"' : '';
+    if ($internalEnabled) {
+        $internalPrices = array_map(static fn(array $item): int => (int)$item['price_cop'], $internal);
+        $minimumPrice = min($internalPrices);
+        $minimumCurrency = 'COP';
+    }
     $buyPrice = $minimumPrice === null ? '' : ' · desde '
         . ($minimumCurrency === 'COP' ? '$' : ($minimumCurrency !== '' ? $minimumCurrency . ' ' : ''))
         . number_format($minimumPrice, 0, ',', '.');
@@ -561,22 +615,25 @@ JS;
             foreach ($items as $ticket) {
                 if (!is_array($ticket) || !brvtal_public_ticket_type_is_available($ticket)) continue;
                 $soldOut = strtolower((string)($ticket['status'] ?? '')) === 'sold_out';
+                $closedSale = !$saleableRecord;
+                $purchaseUnavailable = $soldOut || $closedSale;
                 $name = $escape($ticket['title'] ?? '');
                 $price = isset($ticket['price']) && is_numeric($ticket['price'])
                     ? number_format((float)$ticket['price'], 0, '.', ',') . ' ' . $escape(strtoupper((string)($ticket['currency'] ?? '')))
                     : '';
-                $typeUrl = $soldOut ? '' : $safeUrl($ticket['url'] ?? '');
-                $instructions = $soldOut ? '' : trim((string)($ticket['payment_instructions'] ?? ''));
-                $qr = $soldOut ? '' : trim((string)($ticket['qr_image'] ?? ''));
+                $typeUrl = $purchaseUnavailable ? '' : $safeUrl($ticket['url'] ?? '');
+                $instructions = $purchaseUnavailable ? '' : trim((string)($ticket['payment_instructions'] ?? ''));
+                $qr = $purchaseUnavailable ? '' : trim((string)($ticket['qr_image'] ?? ''));
                 $qrHref = $safeInternalUrl($qr) ?: $safeUrl($qr);
-                $status = $soldOut ? 'Agotado' : (strtoupper($recordStatus) === 'LAST TICKETS' ? 'Últimas boletas' : 'Disponible');
-                $ticketCards .= '<article class="event-ticket-card' . ($soldOut ? ' is-sold-out' : '') . '">'
+                $status = $closedSale ? 'Venta cerrada' : ($soldOut ? 'Agotado'
+                    : (strtoupper($recordStatus) === 'LAST TICKETS' ? 'Últimas boletas' : 'Disponible'));
+                $ticketCards .= '<article class="event-ticket-card' . ($purchaseUnavailable ? ' is-sold-out' : '') . '">'
                     . '<span class="event-ticket-status">' . $status . '</span><h3>' . $name . '</h3>'
                     . ($price !== '' ? '<strong class="event-ticket-price">' . $price . '</strong>' : '')
                     . (!empty($ticket['description']) ? '<p>' . $escape($ticket['description']) . '</p>' : '')
                     . (!empty($ticket['available_until']) && strtotime((string)$ticket['available_until']) !== false
                         ? '<small>Venta hasta ' . $escape(date('d/m/Y', strtotime((string)$ticket['available_until']))) . '</small>' : '')
-                    . ($soldOut ? '<span class="event-ticket-disabled" aria-disabled="true">Agotado</span>'
+                    . ($purchaseUnavailable ? '<span class="event-ticket-disabled" aria-disabled="true">' . $status . '</span>'
                         : ($typeUrl !== '' ? '<a href="' . $typeUrl . '" target="_blank" rel="noopener noreferrer" data-ticket-type="' . $name . '">Comprar boletas →</a>' : ''))
                     . ($instructions !== '' ? '<p class="event-ticket-instructions">' . nl2br($escape($instructions)) . '</p>' : '')
                     . ($qrHref !== '' ? '<img class="event-ticket-qr" src="' . $qrHref . '" alt="Código QR para ' . $name . '" loading="lazy">' : '')
@@ -654,6 +711,10 @@ JS;
         : '';
 
     $eventStylesheet = $isEvent ? '<link rel="stylesheet" href="/css/public-event-record.css">' : '';
+    if ($isEvent) {
+        $eventStylesheet .= '<link rel="stylesheet" href="/css/public-ticket-checkout.css">';
+    }
+    $checkoutScript = $isEvent ? '<script src="/js/public-ticket-checkout.js" defer></script>' : '';
     $eventPalette = brvtalPublicEventPalette((string)($entity['accent'] ?? ''));
     $bodyClass = $isEvent ? 'entity-page entity-page--event entity-page--event-' . $recordState . ' cromo-page' : 'entity-page cromo-page';
     $bodyAttributes = 'class="' . $escape($bodyClass) . '"';
@@ -755,6 +816,7 @@ JS;
     {$statementSection}
     {$degradedNotice}
     {$related}
+    {$checkoutPanel}
     {$mapSection}
     {$repeatBuy}
   </main>
@@ -762,6 +824,7 @@ JS;
   <footer><strong>BRVTAL</strong><span>PEREIRA / COLOMBIA</span><span>RAVE TILL GRAVE</span></footer>
   {$mapScript}
   {$purchaseScript}
+  {$checkoutScript}
   <script src="/js/public-cromo.js" defer></script>
   <script src="/js/public-cromo-sound.js" defer></script>
   <script src="/js/public-cromo-pages.js" defer></script>
