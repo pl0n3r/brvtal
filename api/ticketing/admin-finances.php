@@ -56,10 +56,11 @@ try {
             'pending_orders','declined_orders','refunded_orders','unverified_orders',
             'tickets','capacity','checkins','fee_cop','fee_vat_cop','withheld_cop','payout_cop',
             'difference_cop','settlement_status'];
-        fputcsv($out,$columns);
+        fputcsv($out,$columns, escape: '\\');
         foreach ($rows as $row) {
             fputcsv($out,array_map(static fn($key): string =>
-                $row[$key]===null?'':(string)$row[$key],$columns));
+                $row[$key]===null?'':(string)$row[$key],$columns),
+            escape: '\\');
         }
         fclose($out);
         exit;
