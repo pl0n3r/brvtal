@@ -45,7 +45,7 @@ function brvtal_event_workflow_event(array $input): array
     $allowedStatuses = ['draft','published','upcoming','tickets_available','last_tickets','sold_out','cancelled','finished','archived'];
     $payload = [];
     $strings = [
-        'title'=>180,'slug'=>190,'venue'=>180,'city'=>120,'description'=>65535,
+        'title'=>180,'slug'=>190,'venue'=>180,'venue_address'=>300,'city'=>120,'description'=>65535,
         'skin'=>60,'accent'=>30,'cover_image'=>500,'ticket_instructions'=>65535,'ticket_qr'=>500,
     ];
     foreach ($strings as $field => $max) {
