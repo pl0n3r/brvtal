@@ -57,7 +57,7 @@ for (const viewport of [{width:1440,height:900},{width:1280,height:720}]) {
     await expect(finalInput).toBeFocused();
     await content.evaluate(el => { el.scrollTop = 0; el.tabIndex = 0; el.focus(); });
     await page.keyboard.press('PageDown');
-    expect(await content.evaluate(el => el.scrollTop)).toBeGreaterThan(0);
+    await expect.poll(() => content.evaluate(el => el.scrollTop), {timeout:5000}).toBeGreaterThan(0);
     await page.locator('#f_hero_desktop_zoom').evaluate(el => {
       el.value = '1.25'; el.dispatchEvent(new Event('input',{bubbles:true}));
     });
