@@ -33,7 +33,7 @@ test('AC-01: authenticated artist editor imports real HTTPS fixture into Media a
     });
     expect(create.ok(), await create.text()).toBe(true);
     const created = await create.json();
-    artistId = Number(created.data?.id || 0);
+    artistId = Number(created.id || 0);
     expect(artistId).toBeGreaterThan(0);
 
     await page.goto(`${baseUrl}/discadmin/`, {waitUntil:'domcontentloaded'});
