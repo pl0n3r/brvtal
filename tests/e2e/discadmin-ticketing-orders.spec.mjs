@@ -1,6 +1,7 @@
 import {test,expect} from '@playwright/test';
 import {readFileSync} from 'node:fs';
 const js = readFileSync('discadmin/ticketing-orders.js','utf8');
+const css = readFileSync('discadmin/ticketing.css','utf8');
 const php = readFileSync('discadmin/ticketing-orders.php','utf8');
 const api = readFileSync('api/ticketing/admin-orders.php','utf8');
 const fixture = '<section data-ticketing-records><h2>Pedidos y compradores</h2>'
@@ -17,7 +18,7 @@ async function start(page, reply, kind = 'orders') {
   await page.route('**/discadmin/t18-fixture.html', route => route.fulfill({
     contentType:'text/html',
     body:'<!doctype html><html lang="es"><meta name="viewport" content="width=device-width,initial-scale=1">'
-      + '<section data-admin-module="ticketing"><div id="ticketing-panel"></div></section></html>'
+      + '<style>' + css + '</style><section data-admin-module="ticketing"><div id="ticketing-panel"></div></section></html>'
   }));
   await page.route('**/discadmin/ticketing-orders.js', route => route.fulfill({contentType:'text/javascript',body:js}));
   await page.route('**/discadmin/ticketing-orders.php', route => route.fulfill({contentType:'text/html',body:fixture}));
