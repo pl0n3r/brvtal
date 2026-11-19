@@ -178,8 +178,15 @@ brvtal_ticket_inventory_hold($db,201,10,1,'paid',600,$clock);
 $db->commit();
 
 // A real waiting transaction must use the wall clock AFTER the Event lock.
+// The previous paid-state regression leaves a paid order as test data:
+// reset it before measuring the sale-window boundary.
+$db->exec("UPDATE ticket_orders SET status='cancelled' WHERE id=200");
 $db->exec("DELETE FROM ticket_inventory_holds");
 $db->exec("UPDATE ticket_inventory_events SET capacity=1 WHERE event_id=1");
+$cleanUsage=brvtal_ticket_inventory_usage($db,1,10,$clock->setTimezone(
+    new DateTimeZone('UTC'))->format('Y-m-d H:i:s.u'));
+inventoryAssert($cleanUsage['sold']===0 && $cleanUsage['held']===0,
+    'lock-boundary fixture begins with free inventory');
 $db->exec("UPDATE ticket_inventory_types SET capacity=1 WHERE ticket_type_id=10");
 $db->exec("INSERT INTO ticket_orders VALUES(202,1,'pending'),(203,1,'pending')");
 $db->exec("INSERT INTO ticket_order_items(order_id,ticket_type_id,quantity) VALUES(202,10,1),(203,10,1)");
