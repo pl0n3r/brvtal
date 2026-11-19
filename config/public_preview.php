@@ -448,7 +448,7 @@ function brvtalPublicPreviewPage(PDO $pdo, array $snapshot): array
             ])
         );
         $page['facts'] = array_filter([
-            'DATE' => $date !== '' ? date('d.m.Y / H:i', strtotime($date)) : '',
+            'DATE' => $date !== '' ? brvtalPublicDateTimeFormat((int)strtotime($date)) : '',
             'LOCATION' => $location,
             'STATUS' => $status,
         ]);

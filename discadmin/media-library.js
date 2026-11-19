@@ -505,6 +505,9 @@ window.BRVTALMediaLibrary = (() => {
   }
 
   function updateInputPreview(input, item) {
+    // Hero Slider already owns its live media preview. Avoid injecting a full-size
+    // thumbnail into its two-column input/button layout (Blog/Releases unchanged).
+    if (input.closest('.hero-media-pair')) return;
     const holder = input.closest('.thumbcell') || input.parentElement;
     if (!holder) return;
     const url = original(item) || preview(item);
@@ -528,16 +531,27 @@ window.BRVTALMediaLibrary = (() => {
       try { const j = await request('?action=list'); items = Array.isArray(j.data) ? j.data : []; store.items = items; }
       catch (e) { notify('error', 'Could not load Media Library.', {timeout:0}); return; }
     }
-    if (options.imagesOnly !== false) items = items.filter(x => x.type === 'image');
-    const imagesOnly = options.imagesOnly !== false;
+    const videoOnly = options.videoOnly === true;
+    const imagesOnly = !videoOnly && options.imagesOnly !== false;
+    if (videoOnly) items = items.filter(x => x.type === 'video');
+    else if (imagesOnly) items = items.filter(x => x.type === 'image');
     const overlay = document.createElement('div'); overlay.className = 'brvtal-media-picker';
     overlay.setAttribute('role', 'dialog');
     overlay.setAttribute('aria-modal', 'true');
     overlay.setAttribute('aria-label', 'SELECT MEDIA');
-    const accept = imagesOnly
-      ? 'image/jpeg,image/png,image/webp,image/gif'
-      : 'image/jpeg,image/png,image/webp,image/gif,video/mp4,audio/mpeg,audio/wav,application/pdf';
-    const formatLabel = imagesOnly ? 'JPG, PNG, WEBP, GIF' : 'IMAGEN, VIDEO, AUDIO, PDF';
+    let supportedTypes;
+    let formatLabel;
+    if (videoOnly) {
+      supportedTypes = ['video/mp4'];
+      formatLabel = 'MP4';
+    } else if (imagesOnly) {
+      supportedTypes = ['image/jpeg','image/png','image/webp','image/gif'];
+      formatLabel = 'JPG, PNG, WEBP, GIF';
+    } else {
+      supportedTypes = ['image/jpeg','image/png','image/webp','image/gif','video/mp4','audio/mpeg','audio/wav','application/pdf'];
+      formatLabel = 'IMAGEN, VIDEO, AUDIO, PDF';
+    }
+    const accept = supportedTypes.join(',');
     overlay.innerHTML = `
       <div class="brvtal-media-picker-box">
         <div class="brvtal-media-picker-head">
@@ -607,9 +621,6 @@ window.BRVTALMediaLibrary = (() => {
       const file = uploadInput.files?.[0];
       uploadInput.value = '';
       if (!file || uploading) return;
-      const supportedTypes = imagesOnly
-        ? ['image/jpeg','image/png','image/webp','image/gif']
-        : ['image/jpeg','image/png','image/webp','image/gif','video/mp4','audio/mpeg','audio/wav','application/pdf'];
       if (!supportedTypes.includes(file.type)) {
         setUploadState('Formato no admitido. Selecciona un archivo compatible.', 'error');
         return;
@@ -630,7 +641,7 @@ window.BRVTALMediaLibrary = (() => {
         body.append('title', file.name.replace(/\.[^.]+$/, ''));
         const result = await request('?action=upload', {method:'POST', body});
         const item = result.data;
-        if (!item?.file_path || (imagesOnly && item.type !== 'image')) throw new Error('INVALID_UPLOAD_RESPONSE');
+        if (!item?.file_path || (imagesOnly && item.type !== 'image') || (videoOnly && item.type !== 'video')) throw new Error('INVALID_UPLOAD_RESPONSE');
         const index = store.items.findIndex(x => Number(x.id) === Number(item.id));
         if (index >= 0) store.items[index] = {...store.items[index],...item};
         else store.items.unshift(item);

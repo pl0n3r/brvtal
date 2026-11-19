@@ -1,0 +1,40 @@
+-- T11: additive tables, never automatically deployed or populated with real PII.
+CREATE TABLE IF NOT EXISTS ticket_mail_history (
+ id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+ outbox_id BIGINT UNSIGNED NOT NULL,
+ message_key VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ template_key VARCHAR(64) NOT NULL DEFAULT 'ticket',
+ recipient_hint VARCHAR(128) NULL,
+ recipient_digest CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NULL,
+ event_id BIGINT UNSIGNED NULL,
+ buyer_id BIGINT UNSIGNED NULL,
+ order_id BIGINT UNSIGNED NULL,
+ ticket_id BIGINT UNSIGNED NULL,
+ actor_kind VARCHAR(16) NOT NULL DEFAULT 'system',
+ resend_email_id VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin NULL,
+ delivery_state VARCHAR(16) NOT NULL DEFAULT 'queued',
+ state_at DATETIME NULL,
+ retention_until DATETIME NOT NULL,
+ redacted_at DATETIME NULL,
+ created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ UNIQUE KEY uq_mail_history_outbox (outbox_id),
+ UNIQUE KEY uq_mail_history_key (message_key),
+ UNIQUE KEY uq_mail_history_provider (resend_email_id),
+ KEY idx_mail_history_event (event_id,id),
+ KEY idx_mail_history_buyer (buyer_id,id),
+ KEY idx_mail_history_order (order_id,id),
+ KEY idx_mail_history_ticket (ticket_id,id),
+ KEY idx_mail_history_retention (retention_until)
+) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS ticket_mail_provider_events (
+ id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+ webhook_id VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ resend_email_id VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ delivery_state VARCHAR(16) NOT NULL,
+ occurred_at DATETIME NOT NULL,
+ payload_sha256 CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ received_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ UNIQUE KEY uq_mail_provider_webhook (webhook_id),
+ KEY idx_mail_provider_email (resend_email_id,occurred_at)
+) ENGINE=InnoDB;

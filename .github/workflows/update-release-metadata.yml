@@ -317,6 +317,12 @@ jobs:
           set -euo pipefail
           python3 -m unittest -v tests.test_revision_juridica.RevisionJuridicaTests.test_exact_copies_bundle_and_sync_workflow
 
+      - name: Verify Artist card portrait PHP contract (BRVTAL #1704)
+        shell: bash
+        run: |
+          set -euo pipefail
+          php tests/public-entity-card-framing-contract.php
+
       - name: Run S27 coverage gap contracts (PHP + Node)
         shell: bash
         run: |
@@ -692,7 +698,7 @@ jobs:
           JS
 
       - name: Run targeted WebKit TOTP and datetime-picker regressions
-        run: npx playwright test tests/e2e/discadmin-totp-login.spec.mjs tests/e2e/discadmin-datetime-picker.spec.mjs --project=webkit-totp
+        run: npx playwright test tests/e2e/discadmin-totp-login.spec.mjs tests/e2e/discadmin-datetime-picker.spec.mjs tests/e2e/public-entity-card-framing.spec.mjs tests/e2e/discadmin-artist-edit-scroll.spec.mjs --project=webkit-totp
 
   recovery:
     name: recovery-rehearsal

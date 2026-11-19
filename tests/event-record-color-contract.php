@@ -47,8 +47,11 @@ foreach (['#12','#12345','#1234567','#123456789','not-a-color'] as $invalid) {
     $page = $basePage;
     $page['entity']['accent'] = $invalid;
     $html = brvtal_public_entity_page($page, $seo);
-    event_record_color_expect(str_contains($html, '--event-signal:#b6ff00'), 'invalid Event accent must use signal fallback: ' . $invalid);
+    event_record_color_expect(str_contains($html, '--event-signal:#e12e34'), 'invalid Event accent must use signal fallback: ' . $invalid);
     event_record_color_expect(!str_contains($html, '--event-signal:' . $invalid), 'invalid Event accent must never reach inline CSS: ' . $invalid);
 }
 
+$page = $basePage;
+$html = brvtal_public_entity_page($page, $seo);
+event_record_color_expect(str_contains($html, '--event-signal:#e12e34'), 'empty accent must use Cromo red');
 echo "BRVTAL Event Record color contract tests passed.\n";
