@@ -150,6 +150,8 @@ test('Content Core saves Event, Tickets, roster and SEO through one atomic workf
     await page.locator('#tickets [data-k="status"]').selectOption('sold_out');
     await page.locator('#tickets [data-k="price"]').fill('25000');
     await step(4).click();
+    await expect(page.locator('#eventModal [data-seo-editor="content-core"]')).toHaveCount(1);
+    await expect(page.locator('#eventModal #e_seo_description')).toHaveCount(1);
     await page.locator('#e_seo_description').fill('Updated atomically: sold out with a new persisted ticket price.');
 
     const workflowUpdate = page.waitForResponse(response =>
