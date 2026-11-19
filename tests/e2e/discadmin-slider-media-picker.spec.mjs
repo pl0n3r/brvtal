@@ -57,6 +57,7 @@ test('Slider Manager uses Media modal on image, mobile and layer controls and re
   await selectMedia(page, page.locator('[data-media-picker="desktopSrc"]'), image.id);
   await expect(page.locator('input[data-field="desktopSrc"]')).toHaveValue(image.file_path);
   await expect(page.locator('.hero-preview-stage > img')).toHaveAttribute('src', image.file_path);
+  await expect(page.locator('.hero-media-pair').first().locator('img')).toHaveCount(0);
   await expect(page.locator('.hero-manager')).toContainText('Unsaved');
 
   await selectMedia(page, page.locator('[data-media-picker="mobileSrc"]'), image.id);

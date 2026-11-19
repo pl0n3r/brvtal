@@ -505,6 +505,9 @@ window.BRVTALMediaLibrary = (() => {
   }
 
   function updateInputPreview(input, item) {
+    // Hero Slider already owns its live media preview. Avoid injecting a full-size
+    // thumbnail into its two-column input/button layout (Blog/Releases unchanged).
+    if (input.closest('.hero-media-pair')) return;
     const holder = input.closest('.thumbcell') || input.parentElement;
     if (!holder) return;
     const url = original(item) || preview(item);
