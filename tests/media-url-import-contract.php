@@ -189,4 +189,26 @@ brvtal_media_url_import_fetch('https://a.example/1', $publicResolver,
     });
 $assert(count($budgets) === 2 && $budgets[0] <= 10000 && $budgets[1] < $budgets[0], 'redirects share one ten-second budget');
 
+// BRVTAL #1782 AC-02: E2E-only injection cannot bypass SSRF when disabled.
+putenv('BRVTAL_MEDIA_URL_IMPORT_E2E_FIXTURE');
+putenv('BRVTAL_TEST_DB_NAME');
+$expectError(
+    static fn() => brvtal_media_url_import_fetch('https://127.0.0.1/artist.png'),
+    'URL_HOST_BLOCKED',
+    'loopback blocked without fixture variable'
+);
+$expectError(
+    static fn() => brvtal_media_url_import_fetch(
+        'https://fixture.brvtal.test/artist.png',
+        static fn() => ['10.10.0.4'],
+        $serve([])
+    ),
+    'URL_HOST_BLOCKED',
+    'private DNS result blocked without fixture variable'
+);
+$assert(
+    brvtal_media_url_import_e2e_fixture('https://fixture.brvtal.test/artist.png') === null,
+    'fixture is disabled in the normal PHP CLI contract runner'
+);
+
 echo "Media URL import contract passed\n";
