@@ -72,6 +72,14 @@ function migration_cli_reconcile_safe_code(Throwable $exception): int
         if ($class === '42') {
             return 122; // DDL/schema SQL or permissions (ambiguous; no auto-retry).
         }
+        // MySQL/MariaDB reports a failed FK CREATE TABLE as SQLSTATE HY000
+        // with driver code 1005 (errno 150). Inspect only numeric codes: never
+        // parse or expose the driver message, table names, or SQL text.
+        $driverCode = is_array($info) ? ($info[1] ?? null) : null;
+        if ($state === 'HY000' && (is_int($driverCode) || is_string($driverCode))
+            && in_array((string)$driverCode, ['1005', '1215', '1822', '3780'], true)) {
+            return 122; // Allowlisted DDL/FK failure; no automatic retry.
+        }
         if ($class === '23') {
             return 123; // Integrity constraint.
         }

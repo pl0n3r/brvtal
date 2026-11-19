@@ -51,13 +51,14 @@ function brvtalMigrationReconcileHistorical(PDO $pdo, string $dir, ?string $acto
         'connection' => '08006',
         'auth' => '28000',
         'ddl' => '42S01',
+        'fk_ddl' => 'HY000',
         'constraint' => '23000',
         'serial' => '40001',
         'unknown_db' => 'HY000',
     ];
     if (isset($states[$kind])) {
         $error = new PDOException('SECRET_SQL SELECT personal_email FROM clients');
-        $error->errorInfo = [$states[$kind], 1234, 'SECRET_PII'];
+        $error->errorInfo = [$states[$kind], $kind === 'fk_ddl' ? 1005 : 1234, 'SECRET_PII'];
         throw $error;
     }
     if ($kind === 'partial') {
@@ -72,7 +73,7 @@ PHP
 );
 
 $cases = [
-    'connection'=>121, 'auth'=>121, 'ddl'=>122, 'constraint'=>123,
+    'connection'=>121, 'auth'=>121, 'ddl'=>122, 'fk_ddl'=>122, 'constraint'=>123,
     'serial'=>124, 'unknown_db'=>125, 'partial'=>126,
     'policy'=>120, 'unclassified'=>125,
 ];
