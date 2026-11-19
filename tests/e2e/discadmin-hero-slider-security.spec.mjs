@@ -118,7 +118,7 @@ test('Banners media buttons never render untrusted Media Library values as HTML'
   await expect(picker).toHaveText('SELECT MEDIA');
   await expect(page.locator('select[data-media-picker], select[data-layer-media]')).toHaveCount(0);
   await expect(page.locator('.hero-manager')).not.toContainText(mediaTitle);
-  expect(await page.locator('.hero-manager').getAttribute('innerHTML')).toBeNull();
+  await expect(page.locator('.hero-manager')).not.toContainText(mediaPath);
   await expect(page.locator('.hero-manager img[src="x"]')).toHaveCount(0);
   await expect(page.locator('.hero-manager svg')).toHaveCount(0);
   expect(await page.evaluate(() => window.__heroXss)).toBe(0);
