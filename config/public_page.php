@@ -294,7 +294,7 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
         }
         $data['related']['SETS'] = brvtal_page_rows($pdo, "SELECT title,slug,cover_image AS image,platform AS meta,'sets' AS route_type FROM sets_media WHERE event_id=? AND status='published' ORDER BY sort_order,created_at DESC", [$id]);
         if ($allowsTicketing) {
-            $ticketRows = brvtal_page_rows($pdo, "SELECT name AS title,description,price,currency,external_url AS url,status,status AS meta,available_from,available_until FROM event_ticket_types WHERE event_id=? AND status IN ('active','sold_out') ORDER BY sort_order,name", [$id]);
+            $ticketRows = brvtal_page_rows($pdo, "SELECT name AS title,description,price,currency,external_url AS url,payment_instructions,qr_image,status,status AS meta,available_from,available_until FROM event_ticket_types WHERE event_id=? AND status IN ('active','sold_out') ORDER BY sort_order,name", [$id]);
             $data['related']['TICKETS'] = array_values(array_filter(
                 $ticketRows,
                 static fn(array $ticket): bool => brvtal_public_ticket_type_is_available($ticket)
@@ -468,14 +468,74 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
         }
         if (trim((string)$value) !== '') $facts .= '<div><span>' . $escape(brvtalPublicEntityEs((string)$label)) . '</span><b>' . $escape(in_array((string)$label, ['DATE', 'LOCATION', 'TAGS', 'CATALOG', 'RELEASE DATE'], true) ? $value : brvtalPublicEntityEs((string)$value)) . '</b></div>';
     }
-    $links = '';
-    foreach ($page['links'] as $label => $url) {
-        $href = $safeUrl($url);
-        if ($href !== '') $links .= '<a href="' . $href . '" target="_blank" rel="noopener noreferrer">' . $escape(brvtalPublicEntityEs((string)$label)) . ' ↗</a>';
+    // Never fabricate ticket prices, availability or scarcity.
+    $offers = $isEvent && $recordState === 'active' ? (array)($page['related']['TICKETS'] ?? []) : [];
+    $ticketUrl = '';
+    $minimumPrice = null;
+    $minimumCurrency = '';
+    $hasPurchasableTicket = false;
+    foreach ($offers as $ticket) {
+        if (!is_array($ticket) || strtolower((string)($ticket['status'] ?? '')) !== 'active'
+            || !brvtal_public_ticket_type_is_available($ticket)) continue;
+        $url = $safeUrl($ticket['url'] ?? '');
+        $hasInstructions = trim((string)($ticket['payment_instructions'] ?? '')) !== ''
+            || trim((string)($ticket['qr_image'] ?? '')) !== '';
+        if ($url === '' && !$hasInstructions) continue;
+        $hasPurchasableTicket = true;
+        if ($ticketUrl === '' && $url !== '') $ticketUrl = $url;
+        if (isset($ticket['price']) && is_numeric($ticket['price']) && (float)$ticket['price'] >= 0
+            && ($minimumPrice === null || (float)$ticket['price'] < $minimumPrice)) {
+            $minimumPrice = (float)$ticket['price'];
+            $minimumCurrency = strtoupper(trim((string)($ticket['currency'] ?? '')));
+        }
     }
-    $connectedUrl = brvtal_public_connected_url($entity);
-    if ($connectedUrl !== '') {
-        $links .= '<a href="' . $escape($connectedUrl) . '">EXPLORAR CONEXIONES ↗</a>';
+    $fallbackTicketUrl = $isEvent ? $safeUrl($page['links']['TICKETS'] ?? '') : '';
+    $fallbackOffer = $offers === [] && $fallbackTicketUrl !== ''
+        && !in_array(strtoupper($recordStatus), ['SOLD OUT', 'CANCELLED', 'CANCELED'], true);
+    $canBuy = $isEvent && $recordState === 'active' && ($hasPurchasableTicket || $fallbackOffer);
+    $buyHref = $ticketUrl !== '' ? $ticketUrl : ($fallbackTicketUrl !== '' && $canBuy ? $fallbackTicketUrl : '#boletas');
+    $buyTarget = preg_match('#^https?://#i', $buyHref) ? ' target="_blank" rel="noopener noreferrer"' : '';
+    $buyPrice = $minimumPrice === null ? '' : ' · desde '
+        . ($minimumCurrency === 'COP' ? '$' : ($minimumCurrency !== '' ? $minimumCurrency . ' ' : ''))
+        . number_format($minimumPrice, 0, ',', '.');
+    $buyText = 'Comprar boletas' . $buyPrice;
+    $buyButton = $canBuy ? '<a class="event-buy-button" href="' . $buyHref . '"' . $buyTarget . '>' . $escape($buyText) . ' <span aria-hidden="true">→</span></a>' : '';
+    $links = '';
+    if ($isEvent) {
+        $links = $buyButton;
+        if ($recordState === 'active' && !empty($page['related']['LINEUP'])) {
+            $links .= '<a class="event-secondary" href="#lineup">Ver line-up <span aria-hidden="true">→</span></a>';
+        }
+    } else {
+        foreach ($page['links'] as $label => $url) {
+            $href = $safeUrl($url);
+            if ($href !== '') $links .= '<a href="' . $href . '" target="_blank" rel="noopener noreferrer">' . $escape(brvtalPublicEntityEs((string)$label)) . ' ↗</a>';
+        }
+        $connectedUrl = brvtal_public_connected_url($entity);
+        if ($connectedUrl !== '') $links .= '<a href="' . $escape($connectedUrl) . '">EXPLORAR CONEXIONES ↗</a>';
+    }
+    $repeatBuy = $canBuy ? '<div class="event-repeat-buy">' . $buyButton . '</div>' : '';
+    $mobileBuy = $canBuy ? '<div class="event-sticky-buy" id="event-sticky-buy" hidden>' . $buyButton . '</div>' : '';
+    $purchaseScript = '';
+    if ($canBuy) {
+        $purchaseScript = <<<'JS'
+<script>
+(function () {
+  const bar = document.getElementById('event-sticky-buy');
+  const hero = document.querySelector('.entity-hero');
+  const footer = document.querySelector('body > footer');
+  if (!bar || !hero || !('IntersectionObserver' in window)) return;
+  let heroVisible = true, footerVisible = false;
+  const refresh = () => { bar.hidden = heroVisible || footerVisible; };
+  new IntersectionObserver(entries => {
+    heroVisible = entries[0]?.isIntersecting ?? true; refresh();
+  }, { threshold: 0 }).observe(hero);
+  if (footer) new IntersectionObserver(entries => {
+    footerVisible = entries[0]?.isIntersecting ?? false; refresh();
+  }, { threshold: 0 }).observe(footer);
+}());
+</script>
+JS;
     }
     $related = '';
     $historicalHeadings = [
@@ -485,6 +545,36 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
     ];
     foreach ($page['related'] as $heading => $items) {
         if (!$items) continue;
+        if ($isEvent && $heading === 'TICKETS') {
+            if ($recordState === 'historical') continue;
+            $ticketCards = '';
+            foreach ($items as $ticket) {
+                if (!is_array($ticket) || !brvtal_public_ticket_type_is_available($ticket)) continue;
+                $soldOut = strtolower((string)($ticket['status'] ?? '')) === 'sold_out';
+                $name = $escape($ticket['title'] ?? '');
+                $price = isset($ticket['price']) && is_numeric($ticket['price'])
+                    ? $escape(strtoupper((string)($ticket['currency'] ?? ''))) . ' ' . number_format((float)$ticket['price'], 0, ',', '.')
+                    : '';
+                $typeUrl = $soldOut ? '' : $safeUrl($ticket['url'] ?? '');
+                $instructions = $soldOut ? '' : trim((string)($ticket['payment_instructions'] ?? ''));
+                $qr = $soldOut ? '' : trim((string)($ticket['qr_image'] ?? ''));
+                $qrHref = $safeInternalUrl($qr) ?: $safeUrl($qr);
+                $status = $soldOut ? 'Agotado' : (strtoupper($recordStatus) === 'LAST TICKETS' ? 'Últimas boletas' : 'Disponible');
+                $ticketCards .= '<article class="event-ticket-card' . ($soldOut ? ' is-sold-out' : '') . '">'
+                    . '<span class="event-ticket-status">' . $status . '</span><h3>' . $name . '</h3>'
+                    . ($price !== '' ? '<strong class="event-ticket-price">' . $price . '</strong>' : '')
+                    . (!empty($ticket['description']) ? '<p>' . $escape($ticket['description']) . '</p>' : '')
+                    . (!empty($ticket['available_until']) && strtotime((string)$ticket['available_until']) !== false
+                        ? '<small>Venta hasta ' . $escape(date('d/m/Y', strtotime((string)$ticket['available_until']))) . '</small>' : '')
+                    . ($soldOut ? '<span class="event-ticket-disabled" aria-disabled="true">Agotado</span>'
+                        : ($typeUrl !== '' ? '<a href="' . $typeUrl . '" target="_blank" rel="noopener noreferrer" data-ticket-type="' . $name . '">Comprar boletas →</a>' : ''))
+                    . ($instructions !== '' ? '<p class="event-ticket-instructions">' . nl2br($escape($instructions)) . '</p>' : '')
+                    . ($qrHref !== '' ? '<img class="event-ticket-qr" src="' . $qrHref . '" alt="Código QR para ' . $name . '" loading="lazy">' : '')
+                    . '</article>';
+            }
+            if ($ticketCards !== '') $related .= '<section class="event-tickets" id="boletas" aria-label="Opciones de boletas"><div class="entity-section-label">Boletas</div><div class="event-tickets-grid">' . $ticketCards . '</div></section>';
+            continue;
+        }
         $cards = '';
         foreach ($items as $item) {
             $href = !empty($item['route_type']) && !empty($item['slug'])
@@ -517,7 +607,11 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
             $cards .= $href ? '<a ' . $cardAttributes . ' href="' . $href . '">' . $content . '</a>' : '<div ' . $cardAttributes . '>' . $content . '</div>';
         }
         $displayHeading = $isEvent && $recordState === 'historical' ? ($historicalHeadings[$heading] ?? $heading) : $heading;
-        $related .= '<section class="entity-related"><div class="entity-section-label" data-text="' . $escape(brvtalPublicEntityEs((string)$displayHeading)) . '">' . $escape(brvtalPublicEntityEs((string)$displayHeading)) . ' / ' . str_pad((string)count($items), 2, '0', STR_PAD_LEFT) . '</div><div class="entity-grid">' . $cards . '</div></section>';
+        $relatedCount = $isEvent && $heading === 'LINEUP'
+            ? count($items) . (count($items) === 1 ? ' artista' : ' artistas')
+            : str_pad((string)count($items), 2, '0', STR_PAD_LEFT);
+        $related .= '<section class="entity-related"' . ($isEvent && $heading === 'LINEUP' ? ' id="lineup"' : '') . '><div class="entity-section-label" data-text="' . $escape(brvtalPublicEntityEs((string)$displayHeading)) . '">' . $escape(brvtalPublicEntityEs((string)$displayHeading)) . ' / ' . $escape($relatedCount) . '</div><div class="entity-grid">' . $cards . '</div></section>';
+        if ($isEvent && $heading === 'LINEUP') $related .= $repeatBuy;
     }
     $body = brvtalPublicTextFormat((string)($entity['description'] ?? ''));
     $statementBody = '<div class="entity-rich-body">' . ($body !== '' ? $body : '<p>BRVTAL / RAVE TILL GRAVE</p>') . '</div>';
@@ -556,21 +650,23 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
     if ($isEvent) {
         $bodyAttributes .= ' data-event-record-state="' . $escape($recordState) . '" style="--event-signal:' . $eventPalette['signal'] . ';--event-ink:' . $eventPalette['ink'] . '"';
     }
-    $statementLabel = $isEvent ? ($recordState === 'historical' ? 'REGISTRO / INFORMACIÓN' : 'SOBRE / EXPERIENCIA') : 'SOBRE / INFORMACIÓN';
+    $statementLabel = $isEvent ? 'SOBRE / ' . $entityTitle : 'SOBRE / INFORMACIÓN';
+    $statementSection = (!$isEvent || $body !== '')
+        ? '<section class="entity-statement"><div class="entity-section-label" data-text="' . $statementLabel . '">' . $statementLabel . '</div>' . $statementBody . '</section>'
+        : '';
     $recordBand = '';
     if ($isEvent) {
-        $bandLabel = $recordState === 'historical' ? 'REGISTRO DE EVENTO' : 'SEÑAL DEL EVENTO';
-        $bandValue = $recordState === 'historical' ? 'ARCHIVO' : 'EXPERIENCIA ACTIVA';
-        // Display visitor-facing lifecycle labels, not administrative publication states.
-        $visitorFacingStatuses = [
-            'FINISHED', 'CANCELLED', 'CANCELED',
-            'TICKETS AVAILABLE', 'LAST TICKETS', 'SOLD OUT', 'UPCOMING',
-        ];
-        if (in_array(strtoupper($recordStatus), $visitorFacingStatuses, true)) {
-            $bandLabel .= ' / ' . brvtalPublicEntityEs($recordStatus);
-        }
-        if ($recordYear !== '') $bandValue .= ' / ' . $recordYear;
-        $recordBand = '<section class="event-record-band" aria-label="Ciclo de vida del evento"><div><span>' . $escape($bandLabel) . '</span><strong>' . $escape($bandValue) . '</strong></div><p>FICHA OFICIAL DEL EVENTO / BRVTAL</p></section>';
+        $bandLabel = $recordState === 'historical' ? 'EVENTO PASADO' : 'PRÓXIMO EVENTO';
+        $bandValue = $recordState === 'historical'
+            ? ($recordYear !== '' ? 'Archivo · ' . $recordYear : 'Archivo')
+            : match (strtoupper($recordStatus)) {
+                'LAST TICKETS' => 'Últimas boletas',
+                'TICKETS AVAILABLE' => 'Boletas disponibles',
+                'SOLD OUT' => 'Agotado',
+                'CANCELLED', 'CANCELED' => 'Cancelado',
+                default => 'Próxima noche',
+            };
+        $recordBand = '<section class="event-record-band" aria-label="Estado del evento"><div><span>' . $escape($bandLabel) . '</span><strong>' . $escape($bandValue) . '</strong></div><p>BRVTAL / ' . $entityTitle . '</p></section>';
     }
 
     $mapSection = '';
@@ -646,16 +742,16 @@ JS;
       <div class="entity-copy"><div class="entity-kicker">BRVTAL / {$kindLabel} / {$entityId}</div><h1 data-text="{$entityTitle}">{$entityTitle}</h1><div class="entity-facts">{$facts}</div><div class="entity-actions">{$links}</div></div>
     </article>
     {$recordBand}
-    <section class="entity-statement">
-      <div class="entity-section-label" data-text="{$statementLabel}">{$statementLabel}</div>
-      {$statementBody}
-    </section>
+    {$statementSection}
     {$degradedNotice}
     {$related}
     {$mapSection}
+    {$repeatBuy}
   </main>
+  {$mobileBuy}
   <footer><strong>BRVTAL</strong><span>PEREIRA / COLOMBIA</span><span>RAVE TILL GRAVE</span></footer>
   {$mapScript}
+  {$purchaseScript}
   <script src="/js/public-cromo.js" defer></script>
   <script src="/js/public-cromo-sound.js" defer></script>
   <script src="/js/public-cromo-pages.js" defer></script>
