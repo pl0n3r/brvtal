@@ -787,7 +787,7 @@ test('Hero Description de Discadmin usa texto CMS seguro sin cambiar cinta ni na
     await expect(heroText).toHaveText(description);
     expect(await heroText.evaluate(node => node.childElementCount)).toBe(0);
     await expect(page.locator('#cromo-home .cr-band span').first()).toHaveText('Rave till grave');
-    await expect(page.locator('#cromo-home .cr-cta a[href="#noches"]')).toHaveText('Ver la próxima noche');
+    await expect(page.locator('#cromo-home .cr-cta a[href="/events/genesis"]')).toHaveText('Ver la próxima noche');
     await expect(page.locator('#cromo-home .cr-cta a[href="#discos"]')).toHaveText('Escuchar sets');
     await expect(page.locator('#cromo-home .cr-next-link')).toHaveAttribute('href', '/events/genesis');
     await noOverflow(page);

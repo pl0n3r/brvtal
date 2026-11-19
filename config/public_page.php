@@ -8,6 +8,7 @@ require_once __DIR__ . '/public_visibility.php';
 require_once __DIR__ . '/public_time_format.php';
 require_once __DIR__ . '/artist_hero_framing.php';
 require_once __DIR__ . '/blog_html.php';
+require_once __DIR__ . '/public_text_format.php';
 
 function brvtal_public_media_variant(string $image, string $context): string
 {
@@ -518,9 +519,8 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
         $displayHeading = $isEvent && $recordState === 'historical' ? ($historicalHeadings[$heading] ?? $heading) : $heading;
         $related .= '<section class="entity-related"><div class="entity-section-label" data-text="' . $escape(brvtalPublicEntityEs((string)$displayHeading)) . '">' . $escape(brvtalPublicEntityEs((string)$displayHeading)) . ' / ' . str_pad((string)count($items), 2, '0', STR_PAD_LEFT) . '</div><div class="entity-grid">' . $cards . '</div></section>';
     }
-    $body = nl2br($escape(trim((string)($entity['description'] ?? ''))));
-    if ($body === '') $body = 'BRVTAL / RAVE TILL GRAVE';
-    $statementBody = '<p>' . $body . '</p>';
+    $body = brvtalPublicTextFormat((string)($entity['description'] ?? ''));
+    $statementBody = '<div class="entity-rich-body">' . ($body !== '' ? $body : '<p>BRVTAL / RAVE TILL GRAVE</p>') . '</div>';
     if ($routeTypeRaw === 'blog') {
         $richBody = trim((string)($page['record']['body_html'] ?? ''));
         if ($richBody !== '') {
@@ -528,6 +528,10 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
         }
     }
     $title = $escape($seo['title']);
+    $seo['description'] = brvtalPublicTextPlain((string)($seo['description'] ?? ''));
+    if (is_array($seo['schema'] ?? null)) {
+        $seo['schema']['description'] = brvtalPublicTextPlain((string)($seo['schema']['description'] ?? $seo['description']));
+    }
     $description = $escape($seo['description']);
     $entityTitle = $escape($entity['title']);
     $entityId = $escape(str_pad((string)$entity['id'], 3, '0', STR_PAD_LEFT));
@@ -546,12 +550,11 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
         : '';
 
     $eventStylesheet = $isEvent ? '<link rel="stylesheet" href="/css/public-event-record.css">' : '';
-    $eventSignalRaw = trim((string)($entity['accent'] ?? ''));
-    $eventSignal = $isEvent && preg_match('/^#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i', $eventSignalRaw) ? $eventSignalRaw : '#b6ff00';
+    $eventPalette = brvtalPublicEventPalette((string)($entity['accent'] ?? ''));
     $bodyClass = $isEvent ? 'entity-page entity-page--event entity-page--event-' . $recordState . ' cromo-page' : 'entity-page cromo-page';
     $bodyAttributes = 'class="' . $escape($bodyClass) . '"';
     if ($isEvent) {
-        $bodyAttributes .= ' data-event-record-state="' . $escape($recordState) . '" style="--event-signal:' . $escape($eventSignal) . '"';
+        $bodyAttributes .= ' data-event-record-state="' . $escape($recordState) . '" style="--event-signal:' . $eventPalette['signal'] . ';--event-ink:' . $eventPalette['ink'] . '"';
     }
     $statementLabel = $isEvent ? ($recordState === 'historical' ? 'REGISTRO / INFORMACIÓN' : 'SOBRE / EXPERIENCIA') : 'SOBRE / INFORMACIÓN';
     $recordBand = '';
