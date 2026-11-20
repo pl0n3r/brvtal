@@ -23,7 +23,10 @@ function render({ active = true, internal = true, external = true } = {}) {
     'echo brvtal_public_entity_page($page,$seo);',
   ].join(' ');
   return execFileSync('php', ['-r', php, fixture], { encoding: 'utf8' })
-    .replace('</head>', '<style>' + css + '</style></head>');
+    .replace('</head>', '<style>' + css + '</style></head>')
+    // The real renderer already includes this defer script. Playwright injects
+    // the same local source below; leaving both creates competing form listeners.
+    .replace('<script src="/js/public-ticket-checkout.js" defer></script>', '');
 }
 async function open(page, fixture) {
   await page.route(path, route => route.fulfill({ contentType: 'text/html', body: render(fixture) }));
@@ -178,12 +181,13 @@ test('T13 evita doble envío mientras la primera solicitud sigue pendiente', asy
   });
   const button=page.getByRole('button',{name:'Continuar al pago'});
   await button.click();
+  // Synchronize the UI lock with the real held POST, not the earlier auth phase.
+  await expect.poll(()=>requests.length).toBe(1);
   await expect(button).toBeDisabled();
   await expect(page.getByLabel('Cantidad')).toBeDisabled();
   await page.evaluate(()=>document.querySelector('[name=quantity]')
     .dispatchEvent(new Event('input',{bubbles:true})));
   await expect(button).toBeDisabled();
-  await expect.poll(()=>requests.length).toBe(1);
   release();
   await expect(page.locator('#ticket-checkout-status')).toContainText('pendiente');
   expect(requests).toHaveLength(1);

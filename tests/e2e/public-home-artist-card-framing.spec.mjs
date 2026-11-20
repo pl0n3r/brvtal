@@ -16,7 +16,7 @@ const fixture = {
   artists: [
     {
       id: 101, slug: 'framed', name: 'FRAMED', photo: '/uploads/framed.svg',
-      bio: '**FRAMED** hace *música*',
+      bio: '**FRAMED** hace *música*', is_collective_member: 1,
       hero_framing: { desktop: crop(1.5, 30, 20), mobile: crop(1.5, 30, 20) },
     },
     { id: 102, slug: 'default', name: 'DEFAULT', photo: '/uploads/framed.svg', bio: 'Bio' },
@@ -45,17 +45,26 @@ async function mount(page, data = fixture, width = 1440) {
   await page.addScriptTag({ content: runtime });
   await expect(page.locator('#cromo-home')).toBeAttached();
 }
-test('photo fills card, honors stored 150% / 30% / 20% framing, defaults and orb at both widths', async ({ page }) => {
+// Contract (#1795): the home card is the DISCADMIN «Vista de tarjeta / foto completa».
+// The whole photo is shown (4:5 frame, object-fit:contain, no zoom); hero_framing is
+// the artist page header framing and must not crop the card.
+test('card shows the whole photo and ignores header framing at both widths', async ({ page }) => {
   for (const width of [1440, 390]) {
     await mount(page, fixture, width);
-    const framed = page.locator('#artistas a[href="/artists/framed"] img.cr-photo');
-    await expect(framed).toHaveCSS('object-fit', 'cover');
-    await expect(framed).toHaveCSS('object-position', '30% 20%');
-    await expect(framed).toHaveCSS('transform', 'matrix(1.5, 0, 0, 1.5, 0, 0)');
-    const fallback = page.locator('#artistas a[href="/artists/default"] img.cr-photo');
-    await expect(fallback).toHaveCSS('object-fit', 'cover');
-    await expect(fallback).toHaveCSS('object-position', '50% 50%');
-    await expect(fallback).toHaveCSS('transform', 'matrix(1, 0, 0, 1, 0, 0)');
+    for (const slug of ['framed', 'default']) {
+      const card = page.locator('#artistas a[href="/artists/' + slug + '"]');
+      const image = card.locator('.cr-ac-frame img.cr-photo');
+      await expect(image).toHaveCSS('object-fit', 'contain');
+      await expect(image).toHaveCSS('object-position', '50% 50%');
+      await expect(image).toHaveCSS('transform', 'none');
+      const ratio = await card.locator('.cr-ac-frame').evaluate(node => {
+        const box = node.getBoundingClientRect();
+        return box.width / box.height;
+      });
+      expect(ratio).toBeCloseTo(0.8, 2);
+      const gradient = await card.evaluate(node => getComputedStyle(node, '::before').content);
+      expect(gradient).toBe('none');
+    }
     const noPhoto = page.locator('#artistas a[href="/artists/no-photo"]');
     await expect(noPhoto.locator('img')).toHaveCount(0);
     await expect(noPhoto.locator('.cr-orb')).toBeVisible();
@@ -63,38 +72,36 @@ test('photo fills card, honors stored 150% / 30% / 20% framing, defaults and orb
     expect(scrollWidth).toBeLessThanOrEqual(width + 1);
   }
 });
-test('artist biography displays plain text rather than Markdown markers or links', async ({ page }) => {
-  await mount(page, {
-    ...fixture,
-    artists: [{ ...fixture.artists[0], bio: '**FRAMED** no cree en [etiquetas](https://example.org) ni _límites_.' }],
-  });
-  const bio = page.locator('#artistas a[href="/artists/framed"] .cr-rl');
-  await expect(bio).toHaveText('FRAMED no cree en etiquetas ni límites.');
-  await expect(bio.locator('a')).toHaveCount(0);
-});
-test('HTML-like biography remains inert text, not executable markup', async ({ page }) => {
-  await mount(page, {
-    ...fixture,
-    artists: [{ ...fixture.artists[0], bio: '<img src=x onerror=alert(1)> **FRAMED**' }],
-  });
-  const bio = page.locator('#artistas a[href="/artists/framed"] .cr-rl');
-  await expect(bio).toContainText('<img src=x onerror=alert(1)> FRAMED');
-  await expect(bio.locator('img')).toHaveCount(0);
+
+test('name and membership sit under the photo and the card shows no biography', async ({ page }) => {
+  for (const width of [1440, 390]) {
+    await mount(page, fixture, width);
+    const expected = { framed: 'MIEMBRO DEL COLECTIVO BRVTAL', default: 'ARTISTA INVITADO', 'no-photo': 'ARTISTA INVITADO' };
+    for (const [slug, label] of Object.entries(expected)) {
+      const card = page.locator('#artistas a[href="/artists/' + slug + '"]');
+      await card.scrollIntoViewIfNeeded();
+      const membership = card.locator('.cr-ac-cap .cr-artist-membership');
+      await expect(membership).toHaveText(label);
+      await expect(membership).toBeVisible();
+      await expect(card.locator('.cr-rl')).toHaveCount(0);
+      if (slug === 'no-photo') continue;
+      const frame = await card.locator('.cr-ac-frame').boundingBox();
+      const name = await card.locator('.cr-ac-cap .cr-nm').boundingBox();
+      const tag = await membership.boundingBox();
+      expect(name.y).toBeGreaterThanOrEqual(frame.y + frame.height - 1);
+      expect(tag.y).toBeGreaterThanOrEqual(name.y + name.height - 1);
+    }
+    await expect(page.locator('#artistas')).not.toContainText('hace música');
+  }
 });
 
-test('invalid framing values are rejected and mobile viewport can use its own crop', async ({ page }) => {
+test('HTML-like names and biographies stay inert text', async ({ page }) => {
   await mount(page, {
-    ...fixture, artists: [{
-      ...fixture.artists[0], hero_framing: {
-        desktop: { zoom: 'invalid', x: 200, y: 20 },
-        mobile: crop(2, 70, 60),
-      },
-    }],
+    ...fixture,
+    artists: [{ ...fixture.artists[0], name: '<img src=x onerror=alert(1)>', bio: '<img src=x onerror=alert(1)> **FRAMED**' }],
   });
-  const image = page.locator('#artistas a[href="/artists/framed"] img.cr-photo');
-  await expect(image).toHaveCSS('object-position', '50% 50%');
-  await expect(image).toHaveCSS('transform', 'matrix(1, 0, 0, 1, 0, 0)');
-  await page.setViewportSize({ width: 390, height: 900 });
-  await expect(image).toHaveCSS('object-position', '70% 60%');
-  await expect(image).toHaveCSS('transform', 'matrix(2, 0, 0, 2, 0, 0)');
+  const card = page.locator('#artistas a[href="/artists/framed"]');
+  await expect(card.locator('.cr-nm')).toContainText('<img src=x onerror=alert(1)>');
+  await expect(card.locator('img')).toHaveCount(1);
+  await expect(card.locator('.cr-rl')).toHaveCount(0);
 });

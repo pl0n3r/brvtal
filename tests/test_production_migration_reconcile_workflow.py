@@ -91,9 +91,21 @@ class ProductionMigrationReconcileWorkflowTests(unittest.TestCase):
             74: "backup marker",
             75: "reconciliation",
             76: "post-reconcile verification",
+            77: "policy or schema proof",
+            78: "database availability or permission",
+            79: "schema SQL or DDL conflict",
+            80: "database integrity constraint",
+            81: "transaction serialization",
+            82: "unclassified reconcile failure",
+            83: "post-apply schema proof mismatch",
         }
-        for code in expected:
+        # Legacy stage guards use ||; reconcile failures are translated by
+        # a fail-closed case statement, with 75 reserved for unknown codes.
+        for code in (70, 71, 72, 73, 74, 76):
             self.assertIn(f"|| exit {code}", script)
+        self.assertIn("*) exit 75 ;;", script)
+        for source_code, remote_stage in zip(range(120, 127), range(77, 84)):
+            self.assertIn(f"{source_code}) exit {remote_stage} ;;", script)
         self.assertLess(script.index("reconcile-plan --json"), script.index("brvtal_backup_create"))
         self.assertLess(script.index("brvtal_backup_create"), script.index("BRVTAL_MIGRATIONS_ALLOW_WRITE=1"))
         self.assertLess(script.index("BRVTAL_MIGRATIONS_ALLOW_WRITE=1"), script.index("verify-plan __NONE__"))
@@ -141,6 +153,13 @@ class ProductionMigrationReconcileWorkflowTests(unittest.TestCase):
             ("backup", 73, ["plan", "guard", "backup"]),
             ("marker", 74, ["plan", "guard", "backup"]),
             ("reconcile", 75, ["plan", "guard", "backup", "reconcile"]),
+            ("reconcile_120", 77, ["plan", "guard", "backup", "reconcile"]),
+            ("reconcile_121", 78, ["plan", "guard", "backup", "reconcile"]),
+            ("reconcile_122", 79, ["plan", "guard", "backup", "reconcile"]),
+            ("reconcile_123", 80, ["plan", "guard", "backup", "reconcile"]),
+            ("reconcile_124", 81, ["plan", "guard", "backup", "reconcile"]),
+            ("reconcile_125", 82, ["plan", "guard", "backup", "reconcile"]),
+            ("reconcile_126", 83, ["plan", "guard", "backup", "reconcile"]),
             ("verify", 76, ["plan", "guard", "backup", "reconcile", "verify"]),
             ("success", 0, ["plan", "guard", "backup", "reconcile", "verify"]),
         )
@@ -183,6 +202,8 @@ class ProductionMigrationReconcileWorkflowTests(unittest.TestCase):
                         sys.exit(5)
                     if os.environ.get("BRVTAL_MIGRATION_RECONCILE_BACKUP_READY") != "1":
                         sys.exit(6)
+                    if stage.startswith("reconcile_"):
+                        sys.exit(int(stage.split("_", 1)[1]))
                     sys.exit(1 if stage == "reconcile" else 0)
                 if argv == ["scripts/migrations.php", "verify-plan", "__NONE__"]:
                     step("verify")
