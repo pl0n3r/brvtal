@@ -147,7 +147,7 @@ jobs:
               print(f"- {name.capitalize()} count: **{len(values)}**")
               # Transport validates names; repeat the allowlist before public output.
               import re
-              if not all(isinstance(v, str) and re.fullmatch(r"migration_[a-z0-9_]+\\.sql", v) for v in values):
+              if not all(isinstance(v, str) and re.fullmatch(r"migration_[a-z0-9_]+[.]sql", v) for v in values):
                   raise SystemExit("Invalid sanitized migration names")
               print(f"- {name.capitalize()} files: **{', '.join(values) if values else 'none'}**")
           print("- No migration statements, backup, deployment or reconciliation executed.")
