@@ -144,7 +144,7 @@ jobs:
           print(f"- Registry record required: **{plan['record_registry_migration']}**")
           for name in ("pending", "baseline", "apply", "blocked"):
               values = plan[name]
-              print(f"- {name.capitalize()} count: **{len(values)}**")
+              print(f"- {name.capitalize()} count: **{len(plan[name])}**")
               # Transport validates names; repeat the allowlist before public output.
               import re
               if not all(isinstance(v, str) and re.fullmatch(r"migration_[a-z0-9_]+[.]sql", v) for v in values):
