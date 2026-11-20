@@ -1,4 +1,4 @@
-/* T18: private read-only views; authentication and permission remain server-side. */
+/* T18b: private records plus synthetic-only audited actions; server enforces RBAC. */
 export async function mount(panel, initialKind = 'orders') {
   const active = () => {
     const module = panel.closest('[data-admin-module="ticketing"]');
@@ -83,6 +83,116 @@ export async function mount(panel, initialKind = 'orders') {
       }
     }
   }
+
+  // T18b: visible affordances are mockable, but server enforces synthetic-only,
+  // active consent and per-action RBAC. Nothing ever calls Resend or Wompi.
+  function addSyntheticActions(box, orderId) {
+    const section = document.createElement('section');
+    section.dataset.ticketingActions = '';
+    const heading = document.createElement('h4');
+    heading.textContent = 'Acciones administrativas · simulación únicamente';
+    const warning = document.createElement('p');
+    warning.textContent = 'Sin correos, cobros, cambios de pago o emisión de QR. Consentimiento y permisos se comprueban en el servidor.';
+    const selectLabel = document.createElement('label');
+    selectLabel.textContent = 'Acción ';
+    const select = document.createElement('select');
+    select.dataset.ticketingAction = '';
+    for (const [value, caption] of [
+      ['note','Nota interna sintética'],['contact_preview','Preparar contacto (sin envío)'],
+      ['recovery_preview','Preparar recuperación (sin envío)'],
+      ['resend_preview','Preparar reenvío (sin envío)']
+    ]) {
+      const option = document.createElement('option');
+      option.value = value; option.textContent = caption; select.append(option);
+    }
+    selectLabel.append(select);
+    const noteLabel = document.createElement('label');
+    noteLabel.textContent = 'Nota breve, sin datos personales ';
+    const note = document.createElement('textarea');
+    note.dataset.ticketingNote = '';
+    note.maxLength = 280;
+    note.rows = 2;
+    note.autocomplete = 'off';
+    noteLabel.append(note);
+    const review = document.createElement('button');
+    review.type = 'button'; review.textContent = 'Preparar acción';
+    const confirm = document.createElement('button');
+    confirm.type = 'button'; confirm.textContent = 'Confirmar simulación';
+    confirm.dataset.ticketingConfirm = ''; confirm.hidden = true;
+    const cancel = document.createElement('button');
+    cancel.type = 'button'; cancel.textContent = 'Cancelar'; cancel.hidden = true;
+    const feedback = document.createElement('p');
+    feedback.dataset.ticketingActionStatus = ''; feedback.setAttribute('role','status');
+    feedback.setAttribute('aria-live','polite');
+    feedback.textContent = 'Ninguna acción enviada.';
+    let prepared = null;
+    function reset() {
+      prepared = null; review.hidden = false; confirm.hidden = true; cancel.hidden = true;
+      confirm.disabled = false;
+    }
+    select.addEventListener('change', () => {
+      noteLabel.hidden = select.value !== 'note';
+      reset();
+    });
+    review.addEventListener('click', () => {
+      const value = note.value.trim();
+      if (select.value === 'note' && (value.length < 3 || value.length > 280)) {
+        feedback.textContent = 'La nota necesita entre 3 y 280 caracteres.';
+        return;
+      }
+      prepared = {
+        order_id: String(orderId), action: select.value,
+        idempotency_key: globalThis.crypto.randomUUID(),
+        note: select.value === 'note' ? value : ''
+      };
+      feedback.textContent = 'Sin envío real. Confirma para registrar la simulación.';
+      review.hidden = true; confirm.hidden = false; cancel.hidden = false;
+      confirm.focus();
+    });
+    cancel.addEventListener('click', () => {
+      reset(); feedback.textContent = 'Acción cancelada: no se enviaron datos.';
+      review.focus();
+    });
+    confirm.addEventListener('click', async () => {
+      if (!prepared || !active()) return;
+      confirm.disabled = true;
+      feedback.textContent = 'Registrando simulación…';
+      try {
+        const response = await fetch('/api/ticketing/admin-actions.php', {
+          method:'POST',credentials:'same-origin',cache:'no-store',
+          headers:{'Content-Type':'application/json','X-CSRF-Token':
+            panel.querySelector('[data-ticketing-records]')?.dataset.ticketingCsrf || ''},
+          body:JSON.stringify(prepared)
+        });
+        const payload = await response.json();
+        if (!active()) return;
+        if (response.ok && payload?.ok && payload.data?.email_sent === false
+            && payload.data?.payment_changed === false) {
+          feedback.textContent = 'Acción registrada como ' + payload.data.status +
+            '. Sin envíos reales ni cambios de pago.';
+          reset();
+        } else if (response.status === 409 && payload?.error === 'CONSENT_REQUIRED') {
+          feedback.textContent = 'Sin consentimiento acreditado: solicitud bloqueada; no hubo envío.';
+          reset();
+        } else if (response.status === 403) {
+          feedback.textContent = 'Sin permiso para esta acción.';
+          reset();
+        } else if (response.status === 423) {
+          feedback.textContent = 'Operación deshabilitada fuera de pruebas sintéticas.';
+          reset();
+        } else {
+          feedback.textContent = 'No se pudo registrar. Reintenta la misma solicitud o cancela.';
+        }
+      } catch {
+        if (active()) feedback.textContent = 'Error de conexión. No se presume éxito ni envío.';
+      } finally {
+        confirm.disabled = false;
+      }
+    });
+    section.append(heading,warning,selectLabel,noteLabel,review,confirm,cancel,feedback);
+    box.append(section);
+  }
+
   async function loadDetail(id) {
     detail.textContent = 'Consultando el detalle…';
     try {
@@ -106,6 +216,7 @@ export async function mount(panel, initialKind = 'orders') {
         }
         box.append(list);
       }
+      addSyntheticActions(box, id);
       detail.replaceChildren(box);
     } catch { if (active()) detail.textContent = 'No se pudo cargar el detalle. No se modificó el pedido.'; }
   }

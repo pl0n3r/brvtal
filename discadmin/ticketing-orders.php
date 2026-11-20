@@ -15,7 +15,7 @@ try {
     }
 } catch (Throwable) { http_response_code(503); exit; }
 ?>
-<section data-ticketing-records>
+<section data-ticketing-records data-ticketing-csrf="<?= htmlspecialchars(brvtal_admin_csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
   <h2>Pedidos y compradores</h2>
   <p>Consulta privada. El estado «pagado» solo procede de la verificación del servidor. No se reembolsan ni emiten boletas aquí.</p>
   <form data-ticketing-records-form class="ticketing-records-form">
