@@ -143,6 +143,16 @@ jobs:
           print(f"- Registry exists: **{plan['registry_exists']}**")
           print(f"- Registry record required: **{plan['record_registry_migration']}**")
           for name in ("pending", "baseline", "apply", "blocked"):
-              print(f"- {name.capitalize()} count: **{len(plan[name])}**")
+              values = plan[name]
+              print(f"- {name.capitalize()} count: **{len(values)}**")
+              # Transport validates names; repeat the allowlist before public output.
+              import re
+              if not all(isinstance(v, str) and re.fullmatch(r"migration_[a-z0-9_]+\\.sql", v) for v in values):
+                  raise SystemExit("Invalid sanitized migration names")
+              print(f"- {name.capitalize()} files: **{', '.join(values) if values else 'none'}**")
           print("- No migration statements, backup, deployment or reconciliation executed.")
           PY
+          # The Actions job summary is not exposed by the REST job-logs endpoint.
+          # Mirror only the above sanitized/allowlisted summary for auditability.
+          test -s "$GITHUB_STEP_SUMMARY" || { echo "::error::Inspection summary empty"; exit 1; }
+          cat "$GITHUB_STEP_SUMMARY"
