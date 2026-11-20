@@ -654,6 +654,42 @@ function brvtalMigrationReconciliationPlan(PDO $pdo, string $directory): array
     return brvtalMigrationBuildReconciliationPlan($status, $proofs, $safeApply);
 }
 
+/**
+ * Keep the authoritative plan in deterministic filename order for inspection,
+ * but execute T03 before any uncreated ticketing tables that reference it.
+ * Preserves relative order for unrelated migrations and all proof/backup gates.
+ */
+function brvtalMigrationOrderDependencyActions(array $actions): array
+{
+    $parent = 'migration_ticketing_orders_01.sql';
+    $dependents = [
+        'migration_ticketing_entries_01.sql',
+        'migration_ticketing_reservations_01.sql',
+        'migration_ticketing_webhook_01.sql',
+        'migration_ticketing_admin_notes_01.sql',
+    ];
+    $parentIndex = null;
+    $firstDependentIndex = null;
+    foreach ($actions as $index => $action) {
+        if (!is_array($action) || !is_string($action['migration'] ?? null)) {
+            throw new RuntimeException('MIGRATION_RECONCILIATION_DRIFT');
+        }
+        $name = $action['migration'];
+        if ($name === $parent) {
+            $parentIndex = $index;
+        } elseif ($firstDependentIndex === null && in_array($name, $dependents, true)) {
+            $firstDependentIndex = $index;
+        }
+    }
+    if ($parentIndex !== null && $firstDependentIndex !== null
+        && $parentIndex > $firstDependentIndex) {
+        $parentAction = $actions[$parentIndex];
+        array_splice($actions, $parentIndex, 1);
+        array_splice($actions, $firstDependentIndex, 0, [$parentAction]);
+    }
+    return $actions;
+}
+
 function brvtalMigrationReconcileHistorical(
     PDO $pdo,
     string $directory,
@@ -678,7 +714,7 @@ function brvtalMigrationReconcileHistorical(
 
     $baselined = [];
     $applied = [];
-    foreach ($plan['actions'] as $action) {
+    foreach (brvtalMigrationOrderDependencyActions($plan['actions']) as $action) {
         if (!is_array($action)) {
             throw new RuntimeException('MIGRATION_RECONCILIATION_DRIFT');
         }
