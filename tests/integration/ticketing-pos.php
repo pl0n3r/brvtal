@@ -1,0 +1,166 @@
+<?php
+declare(strict_types=1);
+require_once __DIR__.'/../../config/ticketing_pos.php';
+require_once __DIR__.'/../../config/ticketing_checkin.php';
+function posAssert(bool $v,string $why): void {
+    if (!$v) throw new RuntimeException('T24 POS: '.$why);
+}
+function posDenies(callable $run,string $code): void {
+    try { $run(); throw new RuntimeException('POS accepted invalid input: '.$code); }
+    catch (DomainException | InvalidArgumentException $e) {
+        posAssert($e->getMessage()===$code, 'expected '.$code.', got '.$e->getMessage());
+    }
+}
+$prepare=['action'=>'prepare','shift_id'=>'1','ticket_type_id'=>'10',
+          'quantity'=>'1','method'=>'cash','idempotency_key'=>str_repeat('a',32)];
+posAssert(brvtalPosInput($prepare)['quantity']===1,'typed prepare');
+posAssert(brvtalPosCan('superadmin')&&brvtalPosCan('admin'),'seller roles');
+posAssert(!brvtalPosCan('door')&&!brvtalPosCan('viewer'),'door cannot sell');
+foreach ([
+  [$prepare+['payment_approved'=>true],'POS_INVALID_FIELDS'],
+  [array_replace($prepare,['quantity'=>'11']),'POS_INVALID_NUMBER'],
+  [array_replace($prepare,['quantity'=>'0']),'POS_INVALID_NUMBER'],
+  [array_replace($prepare,['idempotency_key'=>'short']),'POS_INVALID_PREPARE'],
+  [array_replace($prepare,['method'=>'wire']),'POS_INVALID_PREPARE'],
+  [['action'=>'confirm','sale_id'=>'1','confirmation_token'=>str_repeat('b',48),'confirm'=>false],
+    'POS_CONFIRMATION_REQUIRED'],
+] as [$bad,$code]) posDenies(static fn()=>brvtalPosInput($bad),$code);
+posAssert(!str_contains((string)file_get_contents(__DIR__.'/../../config/ticketing_pos.php'),'curl_exec('),
+    'no provider invocation');
+$api=(string)file_get_contents(__DIR__.'/../../api/ticketing/admin-pos.php');
+posAssert(str_contains($api,'brvtal_admin_require_csrf()'),'HTTP CSRF enforced');
+$gate=(string)file_get_contents(__DIR__.'/../../config/ticketing_checkin.php');
+posAssert(str_contains($gate,"ps.status='paid'")&&str_contains($gate,"ps.method='cash'"),
+    'door only trusts completed cash evidence');
+if (getenv('BRVTAL_INTEGRATION_TESTS')!=='1') {
+    echo "T24 POS validation/RBAC/CSRF/cash check-in contract OK; disposable MariaDB not configured.\n";
+    exit(0);
+}
+$prefix=(string)getenv('BRVTAL_TEST_DB_NAME');
+posAssert((bool)preg_match('/^brvtal_test[a-zA-Z0-9_]*$/D',$prefix),'only disposable DB');
+$host=(string)(getenv('BRVTAL_TEST_DB_HOST')?:'127.0.0.1');
+$port=(int)(getenv('BRVTAL_TEST_DB_PORT')?:3306);
+$user=(string)(getenv('BRVTAL_TEST_DB_USER')?:'root');
+$pass=(string)(getenv('BRVTAL_TEST_DB_PASS')?:'');
+$opts=[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,
+       PDO::ATTR_EMULATE_PREPARES=>false];
+$server=new PDO("mysql:host=$host;port=$port;charset=utf8mb4",$user,$pass,$opts);
+$name=$prefix.'_pos_'.bin2hex(random_bytes(3));
+$server->exec("CREATE DATABASE `$name` CHARACTER SET utf8mb4");
+register_shutdown_function(static function() use($server,$name):void {
+    try {$server->exec("DROP DATABASE IF EXISTS `$name`");} catch(Throwable) {}
+});
+$db=new PDO("mysql:host=$host;port=$port;dbname=$name;charset=utf8mb4",$user,$pass,$opts);
+$ddl=[
+  "CREATE TABLE admins (id INT UNSIGNED PRIMARY KEY,is_active TINYINT NOT NULL DEFAULT 1) ENGINE=InnoDB",
+  "CREATE TABLE events (id INT UNSIGNED PRIMARY KEY,status VARCHAR(24),event_date DATETIME,
+      published_at DATETIME NULL) ENGINE=InnoDB",
+  "CREATE TABLE event_ticket_types (
+      id INT UNSIGNED PRIMARY KEY,event_id INT UNSIGNED,name VARCHAR(120),price DECIMAL(12,2),
+      status VARCHAR(24),currency CHAR(3),available_from DATETIME NULL,available_until DATETIME NULL,
+      UNIQUE KEY uq_t03_ticket_type_event(id,event_id)) ENGINE=InnoDB",
+  "CREATE TABLE ticket_buyers (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      public_id BINARY(16),status VARCHAR(24)) ENGINE=InnoDB",
+  "CREATE TABLE ticket_orders (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      public_id BINARY(16),buyer_id BIGINT UNSIGNED,event_id INT UNSIGNED,
+      checkout_key_hash CHAR(64) UNIQUE,status VARCHAR(24),currency CHAR(3),total_cop BIGINT UNSIGNED,
+      UNIQUE KEY uq_ticket_orders_id_event(id,event_id)) ENGINE=InnoDB",
+  "CREATE TABLE ticket_order_items (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      order_id BIGINT UNSIGNED,event_id INT UNSIGNED,ticket_type_id INT UNSIGNED,
+      ticket_name_snapshot VARCHAR(120),quantity INT UNSIGNED,unit_price_cop BIGINT UNSIGNED,
+      subtotal_cop BIGINT UNSIGNED,currency CHAR(3),
+      UNIQUE KEY uq_ticket_order_item_type(order_id,ticket_type_id)) ENGINE=InnoDB",
+  "CREATE TABLE ticket_entries (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,public_id BINARY(16),
+      order_item_id BIGINT UNSIGNED,event_id INT UNSIGNED,ticket_type_id INT UNSIGNED,
+      unit_number INT UNSIGNED,status VARCHAR(24) NOT NULL DEFAULT 'issued',
+      issued_at_utc DATETIME(6),used_at_utc DATETIME(6) NULL,
+      UNIQUE KEY uq_ticket_entries_order_unit(order_item_id,unit_number)) ENGINE=InnoDB",
+  "CREATE TABLE ticket_entry_credentials(id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      entry_id BIGINT UNSIGNED,version INT UNSIGNED,token_hash BINARY(32),
+      created_at_utc DATETIME(6) NOT NULL,
+      status VARCHAR(24) NOT NULL DEFAULT 'active') ENGINE=InnoDB",
+  "CREATE TABLE ticket_payment_attempts (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      order_id BIGINT UNSIGNED,provider VARCHAR(24),status VARCHAR(24),
+      provider_transaction_id VARCHAR(120)) ENGINE=InnoDB",
+  "CREATE TABLE ticket_payment_webhook_events (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      attempt_id BIGINT UNSIGNED,provider_transaction_id VARCHAR(120),signed_status VARCHAR(24)) ENGINE=InnoDB",
+  "CREATE TABLE ticket_issue_outbox (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      order_id BIGINT UNSIGNED,state VARCHAR(24)) ENGINE=InnoDB",
+  "CREATE TABLE ticket_checkins (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      request_id BINARY(16),event_id INT UNSIGNED,entry_id BIGINT UNSIGNED NULL,
+      credential_version INT UNSIGNED NULL,operator_admin_id INT UNSIGNED,
+      device_id VARCHAR(96),outcome VARCHAR(24),reason_code VARCHAR(40) NULL,
+      attempted_at_utc DATETIME(6)) ENGINE=InnoDB",
+];
+foreach($ddl as $sql) $db->exec($sql);
+foreach(['migration_ticketing_reservations_01.sql','migration_ticketing_pos_01.sql'] as $path) {
+    $sql=(string)file_get_contents(__DIR__.'/../../database/'.$path);
+    $sql=preg_replace('/^\s*--[^\n]*$/m','',$sql);
+    foreach(array_filter(array_map(trim(...),explode(';',$sql))) as $statement) $db->exec($statement);
+}
+$when=(new DateTimeImmutable('now',new DateTimeZone('America/Bogota')));
+$date=$when->modify('+8 days')->format('Y-m-d H:i:s');
+$published=$when->modify('-1 day')->format('Y-m-d H:i:s');
+$db->exec("INSERT INTO admins VALUES (1,1),(2,1)");
+$event=$db->prepare("INSERT INTO events VALUES (6,'published',?,?)");
+$event->execute([$date,$published]);
+$db->exec("INSERT INTO event_ticket_types(id,event_id,name,price,status,currency)
+ VALUES(10,6,'General',25000.00,'active','COP')");
+$db->exec("INSERT INTO ticket_inventory_events(event_id,capacity) VALUES(6,3)");
+$db->exec("INSERT INTO ticket_inventory_types(ticket_type_id,event_id,capacity,courtesy_capacity)
+ VALUES(10,6,3,0)");
+$open=['action'=>'open','event_id'=>'6','opening_cash_cop'=>'50000'];
+posDenies(static fn()=>brvtalPosRun($db,1,'door',$open),'FORBIDDEN');
+$shift=brvtalPosRun($db,1,'admin',$open);
+posAssert($shift['status']==='open','open drawer');
+posDenies(static fn()=>brvtalPosRun($db,1,'admin',$open),'POS_SHIFT_ALREADY_OPEN');
+posDenies(static fn()=>brvtalPosRun($db,2,'admin',['action'=>'prepare']+$prepare),
+    'POS_SHIFT_UNAVAILABLE');
+posDenies(static fn()=>brvtalPosRun($db,1,'admin',
+    array_replace($prepare,['shift_id'=>(string)$shift['shift_id'],'method'=>'wompi_qr'])),
+    'POS_PROVIDER_PROOF_REQUIRED');
+posDenies(static fn()=>brvtalPosRun($db,1,'admin',
+    array_replace($prepare,['shift_id'=>(string)$shift['shift_id'],'method'=>'transfer'])),
+    'POS_TRANSFER_RULES_REQUIRED');
+$req=array_replace($prepare,['shift_id'=>(string)$shift['shift_id']]);
+$prepared=brvtalPosRun($db,1,'admin',$req);
+posAssert($prepared['status']==='prepared'&&$prepared['amount_cop']===25000,'server-owned price');
+$repeat=brvtalPosRun($db,1,'admin',$req);
+posAssert($repeat['replayed']&&$repeat['confirmation_token']===null,'replay cannot mint token');
+posDenies(static fn()=>brvtalPosRun($db,1,'admin',array_replace($req,['quantity'=>'2'])),
+    'POS_IDEMPOTENCY_CONFLICT');
+$confirm=['action'=>'confirm','sale_id'=>(string)$prepared['sale_id'],
+    'confirmation_token'=>$prepared['confirmation_token'],'confirm'=>true];
+posDenies(static fn()=>brvtalPosRun($db,2,'admin',$confirm),'POS_SHIFT_UNAVAILABLE');
+posDenies(static fn()=>brvtalPosRun($db,1,'admin',array_replace($confirm,
+    ['confirmation_token'=>str_repeat('e',48)])),'POS_SALE_UNAVAILABLE');
+posAssert((int)$db->query('SELECT COUNT(*) FROM ticket_entries')->fetchColumn()===0,
+    'no tickets before double confirmation');
+$paid=brvtalPosRun($db,1,'admin',$confirm);
+posAssert($paid['status']==='paid'&&count($paid['tickets'])===1,'one ticket');
+posAssert((int)$db->query('SELECT COUNT(*) FROM ticket_entries')->fetchColumn()===1,
+    'exactly one committed entry');
+posAssert((int)$db->query('SELECT COUNT(*) FROM ticket_payment_attempts')->fetchColumn()===0,
+    'no forged Wompi approved attempt');
+posDenies(static fn()=>brvtalPosRun($db,1,'admin',$confirm),'POS_SALE_UNAVAILABLE');
+$checkin=brvtalTicketCheckinConsume($db,6,2,'synthetic-reader',$paid['tickets'][0]);
+posAssert($checkin['ok']===true&&$checkin['reason']==='accepted','door accepts recorded cash sale');
+$again=brvtalTicketCheckinConsume($db,6,2,'synthetic-reader',$paid['tickets'][0]);
+posAssert(!$again['ok']&&$again['reason']==='already_used','door never double enters');
+$second=brvtalPosRun($db,1,'admin',array_replace($req,
+    ['idempotency_key'=>str_repeat('b',32)]));
+$cancel=brvtalPosRun($db,1,'admin',['action'=>'cancel','sale_id'=>(string)$second['sale_id'],
+    'confirmation_token'=>$second['confirmation_token']]);
+posAssert($cancel['status']==='cancelled','cancel preparation');
+posDenies(static fn()=>brvtalPosRun($db,1,'admin',[
+    'action'=>'confirm','sale_id'=>(string)$second['sale_id'],
+    'confirmation_token'=>$second['confirmation_token'],'confirm'=>true]),'POS_SALE_UNAVAILABLE');
+$close=brvtalPosRun($db,1,'admin',[
+    'action'=>'close','shift_id'=>(string)$shift['shift_id'],'closing_cash_cop'=>'70000']);
+posAssert($close['expected_cash_cop']===75000&&$close['cash_difference_cop']===-5000,
+    'cash variance excludes Wompi and cancelled sale');
+posDenies(static fn()=>brvtalPosRun($db,1,'admin',$req),'POS_SHIFT_UNAVAILABLE');
+putenv('BRVTAL_INTEGRATION_TESTS=0');
+try {posDenies(static fn()=>brvtalPosRun($db,1,'admin',$open),'POS_SYNTHETIC_ONLY');}
+finally {putenv('BRVTAL_INTEGRATION_TESTS=1');}
+echo "T24 disposable POS cash, inventory, QR/check-in, audit, cancellation, RBAC OK.\n";

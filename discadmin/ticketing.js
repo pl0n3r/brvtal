@@ -14,6 +14,7 @@ window.BRVTALTicketing = (() => {
     door:'Puerta', finance:'Finanzas', promos:'Promos', promoters:'Promotores',
     mail:'Correos', settings:'Ajustes'
   };
+  let stopDoor = null;
   function element(tag, text, className) {
     const node = document.createElement(tag);
     if (text !== undefined) node.textContent = text;
@@ -32,7 +33,42 @@ window.BRVTALTicketing = (() => {
     const panel = root.querySelector('[data-ticketing-panel]');
     if (!panel) return false;
     panel.setAttribute('aria-labelledby', active.id);
+    if (stopDoor) { stopDoor(); stopDoor = null; }
     panel.replaceChildren(element('h2', titles[key]), element('p', descriptions[key], 'ticketing-empty'));
+    if (key === 'door') {
+      const launch = element('button', 'Abrir lector móvil de puerta', 'btn ghost');
+      launch.type = 'button';
+      launch.addEventListener('click', async () => {
+        launch.disabled = true;
+        try {
+          const response = await fetch('/discadmin/ticketing-door.php', {
+            credentials: 'same-origin', cache: 'no-store',
+            headers: {'X-BRVTAL-ADMIN-FRAGMENT': '1'}
+          });
+          if (!response.ok) throw new Error('Puerta no disponible');
+          const fragment = new DOMParser().parseFromString(await response.text(), 'text/html');
+          const door = fragment.querySelector('[data-door]');
+          if (!door) throw new Error('Respuesta inválida');
+          const module = await import('/discadmin/ticketing-door.js');
+          if (!panel.isConnected || panel.getAttribute('aria-labelledby') !== active.id) return;
+          if (!document.querySelector('link[data-brvtal-ticketing-door]')) {
+            const style = document.createElement('link');
+            style.rel = 'stylesheet';
+            style.href = '/discadmin/ticketing-door.css';
+            style.dataset.brvtalTicketingDoor = '1';
+            document.head.appendChild(style);
+          }
+          panel.replaceChildren(document.importNode(door, true));
+          stopDoor = module.mount(panel.querySelector('[data-door]'));
+        } catch {
+          if (panel.isConnected && panel.getAttribute('aria-labelledby') === active.id) {
+            launch.disabled = false;
+            panel.replaceChildren(element('p', 'No se pudo cargar el lector de puerta.', 'ticketing-error'), launch);
+          }
+        }
+      });
+      panel.appendChild(launch);
+    }
     if (key === 'orders' || key === 'buyers') {
       import('/discadmin/ticketing-orders.js').then(mod => {
         if (panel.isConnected && panel.getAttribute('aria-labelledby') === active.id) {
@@ -45,8 +81,27 @@ window.BRVTALTicketing = (() => {
       });
     }
     if (key === 'finance') {
-      import('/discadmin/ticketing-finance.js').then(mod => {
-        if (panel.isConnected && panel.getAttribute('aria-labelledby') === active.id) mod.mount(panel);
+      import('/discadmin/ticketing-finance.js').then(async mod => {
+        if (!panel.isConnected || panel.getAttribute('aria-labelledby') !== active.id) return;
+        await mod.mount(panel);
+        if (!panel.isConnected || panel.getAttribute('aria-labelledby') !== active.id) return;
+        // T21 shares the single finance workspace. The API still enforces staff capability.
+        if (['superadmin','root','owner','platform_owner'].includes(root.dataset.ticketingRole)) {
+          const openRefunds = element('button', 'Gestionar devoluciones · pruebas', 'btn ghost');
+          openRefunds.type = 'button';
+          openRefunds.addEventListener('click', async () => {
+            openRefunds.disabled = true;
+            try {
+              const refunds = await import('/discadmin/ticketing-refunds.js');
+              if (panel.isConnected && panel.getAttribute('aria-labelledby') === active.id)
+                await refunds.mount(panel);
+            } catch {
+              if (panel.isConnected && panel.getAttribute('aria-labelledby') === active.id)
+                panel.replaceChildren(element('p', 'Devoluciones no disponibles.', 'ticketing-error'));
+            } finally { openRefunds.disabled = false; }
+          });
+          panel.append(openRefunds);
+        }
       }).catch(() => {
         if (panel.isConnected && panel.getAttribute('aria-labelledby') === active.id)
           panel.replaceChildren(element('p', 'Finanzas no disponibles.', 'ticketing-error'));

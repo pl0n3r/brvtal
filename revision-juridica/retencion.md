@@ -30,3 +30,4 @@ Producto: `pl0n3r/brvtal`
 | ticket_buyer_authentication | authentication | review_required | review_required |
 | ticket_mail_delivery | contact | review_required | review_required |
 | ticket_order_payment | financial | review_required | review_required |
+| ticket_waitlist | contact | review_required | review_required |
