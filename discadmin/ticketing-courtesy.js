@@ -24,7 +24,6 @@ export function mount(panel) {
   status.textContent='Sin emisión.';
   const qr=document.createElement('output');qr.dataset.courtesyQr='';
   const management=document.createElement('div');
-  const id=make.bind(null); // Ordinary admin actions use a separate, explicit identifier.
   const invite=document.createElement('input');invite.type='number';invite.min='1';invite.placeholder='ID de cortesía';
   invite.setAttribute('aria-label','ID de cortesía');
   const revoke=document.createElement('button');revoke.type='button';revoke.textContent='Revocar';

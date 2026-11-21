@@ -144,8 +144,10 @@ function brvtalCourtesyAction(PDO $db,int $actor,string $role,string $action,int
                 revoked_at_utc=UTC_TIMESTAMP(6) WHERE id=? AND status='issued'")->execute([$actor,$invite]);
         } elseif ($action==='resend') {
             // Record intention; plaintext QR is intentionally unrecoverable.
-            $db->prepare("UPDATE ticket_courtesy_invites SET resend_requests=resend_requests+1
-                WHERE id=? AND status='issued' AND resend_requests<100")->execute([$invite]);
+            $record=$db->prepare("UPDATE ticket_courtesy_invites SET resend_requests=resend_requests+1
+                WHERE id=? AND status='issued' AND resend_requests<100");
+            $record->execute([$invite]);
+            if ($record->rowCount()!==1) throw new DomainException('RESEND_LIMIT');
         } else throw new InvalidArgumentException('INVALID_ACTION');
         $db->commit();
         return ['invite_id'=>$invite,'status'=>$action==='revoke'?'revoked':'logged_only','sent'=>false];
