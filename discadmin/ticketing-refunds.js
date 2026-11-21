@@ -44,7 +44,7 @@ export async function mount(panel, csrf) {
                 body:JSON.stringify({id:Number(request.id),action,note:note.value,receipt:''})});
               const body=await res.json();
               if(!res.ok||!body.ok)throw Error('UNAVAILABLE');
-              if(live()) { status.textContent='Cambio registrado; no constituye un reembolso.';await refresh(); }
+              if(live()) { await refresh();status.textContent='Cambio registrado; no constituye un reembolso.'; }
             }catch(_) {if(live())message.textContent='No se confirmó el cambio. Comprueba el estado antes de reintentar.';}
             finally{approve.disabled=false;reject.disabled=false;}
           });
