@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/secrets.php';
 
 /**
  * Isolated Resend adapter. Disabled unless the operator explicitly configures
@@ -11,12 +12,12 @@ declare(strict_types=1);
  */
 function brvtal_ticket_resend_send(array $job, ?callable $request = null): array
 {
-    $mode = (string)(getenv('BRVTAL_TICKET_MAIL_MODE') ?: 'disabled');
-    $test = $mode === 'mock' && getenv('BRVTAL_TICKET_MAIL_TESTING') === '1';
+    $mode = (string)(brvtal_secret_value('BRVTAL_TICKET_MAIL_MODE') ?: 'disabled');
+    $test = $mode === 'mock' && brvtal_secret_value('BRVTAL_TICKET_MAIL_TESTING') === '1';
     $live = $mode === 'live'
-        && getenv('BRVTAL_TICKET_MAIL_ALLOW_LIVE') === '1'
-        && getenv('BRVTAL_TICKET_MAIL_PRIVACY_APPROVED') === '1'
-        && getenv('BRVTAL_TICKET_MAIL_DNS_VERIFIED') === '1';
+        && brvtal_secret_value('BRVTAL_TICKET_MAIL_ALLOW_LIVE') === '1'
+        && brvtal_secret_value('BRVTAL_TICKET_MAIL_PRIVACY_APPROVED') === '1'
+        && brvtal_secret_value('BRVTAL_TICKET_MAIL_DNS_VERIFIED') === '1';
     if (!$test && !$live) {
         return ['state' => 'failed', 'code' => 'transport_disabled'];
     }
@@ -25,9 +26,9 @@ function brvtal_ticket_resend_send(array $job, ?callable $request = null): array
     $key = (string)($job['message_key'] ?? '');
     $subject = (string)($job['subject'] ?? '');
     $body = (string)($job['body_text'] ?? '');
-    $domain = strtolower(trim((string)getenv('BRVTAL_TICKET_MAIL_DOMAIN')));
-    $from = trim((string)getenv('BRVTAL_TICKET_MAIL_FROM'));
-    $apiKey = (string)getenv('BRVTAL_TICKET_MAIL_API_KEY');
+    $domain = strtolower(trim((string)brvtal_secret_value('BRVTAL_TICKET_MAIL_DOMAIN')));
+    $from = trim((string)brvtal_secret_value('BRVTAL_TICKET_MAIL_FROM'));
+    $apiKey = (string)brvtal_secret_value('BRVTAL_TICKET_MAIL_API_KEY');
     if ($test) {
         // A mock must never pass a configured production secret to callbacks.
         $apiKey = '';
