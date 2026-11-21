@@ -314,6 +314,9 @@ jobs:
       - name: Lint T09 offline ticket issuance service
         run: php -l config/ticketing_issue.php
 
+      - name: Verify T15 scanner authorization, QR parsing, CSRF and rate limit
+        run: php tests/integration/ticketing-checkin.php
+
       - name: Verify production reconciliation stage diagnostics (#739)
         shell: bash
         run: |
@@ -471,6 +474,9 @@ jobs:
 
       - name: Verify T09 paid-only idempotent QR emission in disposable MariaDB
         run: php tests/integration/ticketing-issue.php
+
+      - name: Verify T15 atomic entry scan, replay and audit in disposable MariaDB
+        run: php tests/integration/ticketing-checkin.php
 
 
       - name: Verify Set duration migration on disposable MariaDB
@@ -655,6 +661,11 @@ jobs:
 
       - name: Run authenticated PHP/MariaDB browser smoke
         run: bash tests/e2e/run-content-core-real-stack.sh
+
+      - name: Verify T15 scanner concurrency against isolated real-stack MariaDB
+        env:
+          BRVTAL_INTEGRATION_TESTS: '1'
+        run: php tests/integration/ticketing-checkin.php
 
   webkit:
     name: webkit
