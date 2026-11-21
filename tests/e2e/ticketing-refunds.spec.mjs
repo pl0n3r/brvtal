@@ -40,3 +40,37 @@ test('T21 comprador solicita devolución parcial sin incluir entradas usadas ni 
   expect(posts[1].body.idempotency_key).toBe(posts[0].body.idempotency_key);
   expect(posts[0].headers['x-csrf-token']).toBe('csrf-sintetico');
 });
+
+
+test('T21 DISCADMIN exige CSRF y motivo para rechazo, sin reembolso automático',async({page})=>{
+  const calls=[];
+  const endpoint='http://127.0.0.1:4173/discadmin/refunds-test';
+  await page.route(endpoint,route=>route.fulfill({contentType:'text/html',body:
+    '<div id="refund-panel"></div><script type="module">import {mount} from "/discadmin/ticketing-refunds.js"; mount(document.getElementById("refund-panel"),"csrf-synthetic");</script>'
+  }));
+  const module=readFileSync(join(process.cwd(),'discadmin/ticketing-refunds.js'),'utf8');
+  await page.route('**/discadmin/ticketing-refunds.js',route=>route.fulfill({
+    contentType:'text/javascript',body:module
+  }));
+  await page.route('**/api/ticketing/admin-refunds.php',route=>{
+    if(route.request().method()==='POST'){
+      calls.push({body:route.request().postDataJSON(),headers:route.request().headers()});
+      return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:{id:7,status:'rejected'}})});
+    }
+    return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:[
+      {id:7,event_id:5,order_id:1,amount_cop:35000,status:'requested'}
+    ]})});
+  });
+  await page.goto(endpoint);
+  const region=page.getByRole('region',{name:'Gestión de devoluciones'});
+  await expect(region.getByRole('button',{name:'Aprobar'})).toBeVisible();
+  await region.getByRole('button',{name:'Rechazar'}).click();
+  await expect(region.getByText('Indica un motivo de rechazo.')).toBeVisible();
+  expect(calls).toHaveLength(0);
+  await region.getByLabel('Motivo de gestión #7').fill('Motivo sintético verificado');
+  await region.getByRole('button',{name:'Rechazar'}).click();
+  await expect(region.getByText('Cambio registrado; no constituye un reembolso.')).toBeVisible();
+  expect(calls).toHaveLength(1);
+  expect(calls[0].body.action).toBe('reject');
+  expect(calls[0].headers['x-csrf-token']).toBe('csrf-synthetic');
+});
