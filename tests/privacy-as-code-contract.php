@@ -81,6 +81,7 @@ $expectedIds = [
     'ticket_buyer_authentication',
     'ticket_mail_delivery',
     'ticket_order_payment',
+    'ticket_waitlist',
 ];
 $actualIds = array_map(static fn(array $row): string => (string)$row['id'], $data['treatments']);
 sort($actualIds);
@@ -140,6 +141,26 @@ privacy_expect(
         && $ticketMail['providers'] === ['resend']
         && $ticketMail['retention'] === 'review_required',
     'outbox must register persisted PII and unapproved Resend processing'
+);
+$waitlist = privacy_treatment($data, 'ticket_waitlist');
+privacy_expect(
+    $waitlist['category'] === 'contact'
+        && $waitlist['purpose'] === 'verified_opt_in_event_ticket_waitlist_and_expiring_offers'
+        && $waitlist['fields'] === [
+            'buyer_id','event_id','ticket_type_id','consent_version',
+            'consent_at_utc','status','unsubscribe_hash','offer_hash',
+            'offer_expires_at_utc','created_at_utc','updated_at_utc',
+        ]
+        && $waitlist['providers'] === ['resend']
+        && $waitlist['retention'] === 'review_required',
+    'T28 waitlist must document exact hashed-token fields and pending Resend/legal review'
+);
+$waitlistSql = privacy_text('database/migration_ticketing_waitlist_01.sql');
+privacy_expect(
+    str_contains($waitlistSql, 'CREATE TABLE IF NOT EXISTS ticket_waitlist_entries')
+        && str_contains($waitlistSql, 'unsubscribe_hash CHAR(64)')
+        && str_contains($waitlistSql, 'offer_hash CHAR(64)'),
+    'T28 schema must persist only hashed consent/unsubscribe/offer tokens'
 );
 $orderPayment = privacy_treatment($data, 'ticket_order_payment');
 privacy_expect(
