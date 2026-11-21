@@ -353,6 +353,18 @@ function brvtalMigrationProofSpecifications(): array
                 ['uq_ticket_payment_transaction','uq_ticket_payment_reference','uq_ticket_payment_idempotency'], true)
         );
     }
+    // T28 claim is separate: prove it only when its additive migration is present.
+    if (is_file(__DIR__ . '/../database/migration_ticketing_waitlist_01.sql')) {
+        $specifications['migration_ticketing_waitlist_01.sql'] = brvtalMigrationObjectRequirements(
+            'ticket_waitlist_entries',
+            ['id','event_id','ticket_type_id','buyer_id','consent_version',
+             'consent_at_utc','status','unsubscribe_hash','offer_hash',
+             'offer_expires_at_utc','created_at_utc','updated_at_utc'],
+            ['PRIMARY','uq_waitlist_event_type_buyer','uq_waitlist_unsubscribe',
+             'uq_waitlist_offer','idx_waitlist_priority','idx_waitlist_offer_expiry'],
+            true
+        );
+    }
     return $specifications;
 }
 
