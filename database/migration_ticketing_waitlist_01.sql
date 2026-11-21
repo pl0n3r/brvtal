@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS ticket_waitlist_entries (
   buyer_id BIGINT UNSIGNED NOT NULL,
   consent_version VARCHAR(40) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   consent_at_utc DATETIME(6) NOT NULL,
-  status ENUM('waiting','offered','unsubscribed') NOT NULL DEFAULT 'waiting',
+  status ENUM('waiting','offered','redeemed','unsubscribed') NOT NULL DEFAULT 'waiting',
   unsubscribe_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   offer_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NULL,
   offer_expires_at_utc DATETIME(6) NULL,
