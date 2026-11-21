@@ -8,6 +8,15 @@ function wlAssert(bool $ok,string $what): void {
 putenv('BRVTAL_WAITLIST_TESTING=0');
 putenv('BRVTAL_WAITLIST_ENABLED=0');
 wlAssert(!brvtal_waitlist_enabled(),'closed without operator gate');
+putenv('BRVTAL_WAITLIST_OFFERS_ENABLED');
+putenv('BRVTAL_WAITLIST_REDEMPTION_VERIFIED');
+putenv('BRVTAL_WAITLIST_ENABLED=1');
+putenv('BRVTAL_TICKET_MAIL_PRIVACY_APPROVED=1');
+wlAssert(brvtal_waitlist_enabled(),'synthetic signup gate enabled');
+wlAssert(!brvtal_waitlist_offers_enabled(),
+    'privacy/signup flags cannot activate offers without redemption verification');
+putenv('BRVTAL_WAITLIST_ENABLED=0');
+putenv('BRVTAL_TICKET_MAIL_PRIVACY_APPROVED=0');
 wlAssert(strlen(brvtal_waitlist_token())===43,'unpredictable token length');
 if (getenv('BRVTAL_INTEGRATION_TESTS')!=='1') {
     echo "T28 fail-closed policy passed; MariaDB fixture skipped.\n";
