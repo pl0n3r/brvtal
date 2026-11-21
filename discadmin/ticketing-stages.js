@@ -4,17 +4,20 @@ export function mount(panel, close = () => {}) {
   const section = document.createElement('section');
   const title = document.createElement('h3');
   title.textContent = 'Etapas de preventa (configuración no publicada)';
+  section.style.cssText = 'max-width:100%;min-width:0;overflow-wrap:anywhere';
   section.append(title);
   const help = document.createElement('p');
   help.textContent = 'Cupo acumulado por tipo; sin cobros ni activación pública hasta integración de checkout.';
   section.append(help);
   const form = document.createElement('form');
-  form.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:0.75rem';
+  form.style.cssText = 'display:grid;max-width:100%;min-width:0;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:0.75rem';
   function field(label, name, type = 'text') {
     const wrap = document.createElement('label');
     wrap.textContent = label + ' ';
+    wrap.style.minWidth = '0';
     const input = document.createElement('input');
     input.name = name; input.type = type; input.required = true;
+    input.style.cssText = 'width:100%;max-width:100%;min-width:0;box-sizing:border-box';
     if (type === 'number') input.min = '1';
     wrap.append(input); form.append(wrap);
     return input;
@@ -30,6 +33,8 @@ export function mount(panel, close = () => {}) {
     const option=document.createElement('option'); option.value=value;
     option.textContent=text; code.append(option);
   }
+  codeLabel.style.minWidth = '0';
+  code.style.cssText = 'width:100%;max-width:100%;min-width:0;box-sizing:border-box';
   codeLabel.append(code); form.append(codeLabel);
   const price = field('Precio COP','price_cop','number');
   const cap = field('Cupo acumulado','cumulative_capacity','number');
@@ -38,6 +43,7 @@ export function mount(panel, close = () => {}) {
   const status = document.createElement('p'); status.setAttribute('role','status');
   status.setAttribute('aria-live','polite');
   const actions=document.createElement('div');
+  actions.style.cssText = 'display:flex;flex-wrap:wrap;gap:0.5rem;max-width:100%';
   for (const [key,label] of [['read','Consultar'],['save','Guardar'],['close','Guardar y cerrar']]) {
     const button=document.createElement('button'); button.type='button';
     button.dataset.stageAction=key; button.textContent=label; actions.append(button);
