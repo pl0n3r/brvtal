@@ -1,11 +1,12 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/secrets.php';
 
 /** T07: sandbox-only hosted Wompi checkout preparation; never charges or confirms a sale. */
 function brvtal_ticket_wompi_config(?array $override = null): array
 {
     $env = static function (string $key) use ($override): string {
-        $value = $override === null ? getenv($key) : ($override[$key] ?? '');
+        $value = brvtal_secret_value($key, $override);
         return is_string($value) ? trim($value) : '';
     };
     $mode = $env('BRVTAL_TICKET_WOMPI_MODE');
