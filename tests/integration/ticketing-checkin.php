@@ -57,7 +57,7 @@ try {
         'CREATE TABLE ticket_order_items (id BIGINT UNSIGNED PRIMARY KEY,order_id BIGINT UNSIGNED,event_id INT UNSIGNED,ticket_type_id INT UNSIGNED) ENGINE=InnoDB',
         'CREATE TABLE ticket_issue_outbox (id BIGINT UNSIGNED PRIMARY KEY,order_id BIGINT UNSIGNED,state VARCHAR(20)) ENGINE=InnoDB',
         'CREATE TABLE ticket_payment_attempts (id BIGINT UNSIGNED PRIMARY KEY,order_id BIGINT UNSIGNED,provider VARCHAR(20),status VARCHAR(20),provider_transaction_id VARCHAR(100)) ENGINE=InnoDB',
-        'CREATE TABLE ticket_payment_webhook_events (id BIGINT UNSIGNED PRIMARY KEY,attempt_id BIGINT UNSIGNED,provider_transaction_id VARCHAR(100)) ENGINE=InnoDB',
+        'CREATE TABLE ticket_payment_webhook_events (id BIGINT UNSIGNED PRIMARY KEY,attempt_id BIGINT UNSIGNED,provider_transaction_id VARCHAR(100),signed_status VARCHAR(16) NOT NULL) ENGINE=InnoDB',
     ] as $sql) $pdo->exec($sql);
     $migration=(string)file_get_contents(__DIR__.'/../../database/migration_ticketing_entries_01.sql');
     foreach (array_filter(array_map(trim(...),explode(';',preg_replace('/^\s*--.*$/m','',$migration)))) as $sql) $pdo->exec($sql);
@@ -66,8 +66,26 @@ try {
         'INSERT INTO ticket_order_items VALUES (1,100,1,11)',
         "INSERT INTO ticket_issue_outbox VALUES (1,100,'done')",
         "INSERT INTO ticket_payment_attempts VALUES (1,100,'wompi','approved','txn-synth')",
-        "INSERT INTO ticket_payment_webhook_events VALUES (1,1,'txn-synth')"] as $sql) $pdo->exec($sql);
+        "INSERT INTO ticket_payment_webhook_events VALUES (1,1,'txn-synth','APPROVED')"] as $sql) $pdo->exec($sql);
     [$id1,$qr1]=t15Entry($pdo,1,1);
+    // A provider-approved attempt alone is insufficient without an APPROVED signed webhook.
+    $pdo->exec("UPDATE ticket_payment_webhook_events SET signed_status='PENDING' WHERE id=1");
+    t15(brvtalTicketCheckinConsume($pdo,1,7,'scanner-A',$qr1)['reason']==='payment_unverified',
+        'PENDING webhook denies check-in');
+    $pdo->exec("UPDATE ticket_payment_webhook_events SET signed_status='DECLINED' WHERE id=1");
+    t15(brvtalTicketCheckinConsume($pdo,1,7,'scanner-A',$qr1)['reason']==='payment_unverified',
+        'DECLINED webhook denies check-in');
+    t15($pdo->query("SELECT status FROM ticket_entries WHERE id=1")->fetchColumn()==='issued',
+        'unapproved webhooks cannot use ticket');
+    $pdo->exec("UPDATE ticket_payment_webhook_events SET signed_status='APPROVED' WHERE id=1");
+    brvtalTicketCheckinAuditRateLimited($pdo,1,7,'scanner-A');
+    $limited=$pdo->query("SELECT outcome,reason_code,device_id,entry_id FROM ticket_checkins
+        WHERE reason_code='rate_limited'")->fetch(PDO::FETCH_ASSOC);
+    t15(is_array($limited) && $limited['outcome']==='rejected'
+        && $limited['entry_id']===null && str_starts_with($limited['device_id'],'rate-')
+        && $limited['device_id']!=='scanner-A','throttled audit is redacted');
+    t15($pdo->query("SELECT status FROM ticket_entries WHERE id=1")->fetchColumn()==='issued',
+        'throttled audit cannot consume ticket');
     t15(brvtalTicketCheckinConsume($pdo,1,7,'scanner-A','garbage')['reason']==='malformed_qr','malformed audited');
     t15(brvtalTicketCheckinConsume($pdo,2,7,'scanner-A',$qr1)['reason']==='wrong_event','wrong event');
     t15(brvtalTicketCheckinConsume($pdo,1,7,'scanner-A',$qr1)['ok'],'scan accepted');
@@ -92,6 +110,7 @@ try {
         $cmd=[PHP_BINARY,'-r','require '.var_export(__DIR__.'/../../config/ticketing_checkin.php',true).';'
             .'$pdo=new PDO(getenv("T15_DSN"),getenv("BRVTAL_TEST_DB_USER"),getenv("BRVTAL_TEST_DB_PASS"),'
             .'[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_EMULATE_PREPARES=>false]);'
+            .'echo "READY:".(int)$pdo->query("SELECT CONNECTION_ID()")->fetchColumn().PHP_EOL;flush();'
             .'echo json_encode(brvtalTicketCheckinConsume($pdo,1,7,getenv("T15_DEVICE"),getenv("T15_QR")));'];
         $env=['T15_DSN'=>'mysql:host='.getenv('BRVTAL_TEST_DB_HOST').';port='.(getenv('BRVTAL_TEST_DB_PORT')?:3306).';dbname='.$db,
             'T15_DEVICE'=>$device,'T15_QR'=>$qr3,'BRVTAL_TEST_DB_USER'=>(string)getenv('BRVTAL_TEST_DB_USER'),
@@ -99,9 +118,38 @@ try {
         $p=proc_open($cmd,[1=>['pipe','w'],2=>['pipe','w']],$pipes,null,$env);
         t15(is_resource($p),'worker launched');$workers[]=[$p,$pipes];
     }
-    usleep(150000);$pdo->commit();
+    // Both workers must be blocked on InnoDB row locks before releasing parent.
+    $connections=[];
+    foreach ($workers as [$proc,$pipes]) stream_set_blocking($pipes[1],false);
+    $deadline=microtime(true)+10;
+    while (count($connections)<2 && microtime(true)<$deadline) {
+        $ready=[];
+        foreach ($workers as [$proc,$pipes]) $ready[]=$pipes[1];
+        $write=[];$except=[];
+        t15(stream_select($ready,$write,$except,0,100000)!==false,'worker ready select');
+        foreach ($ready as $stream) {
+            $line=fgets($stream);
+            if (is_string($line) && preg_match('/^READY:([1-9][0-9]*)$/D',trim($line),$m)) {
+                $connections[(int)$m[1]]=(int)$m[1];
+            }
+        }
+    }
+    t15(count($connections)===2,'both workers connected to MariaDB');
+    $ids=array_values($connections);
+    $lockWait=$pdo->prepare("SELECT COUNT(*) FROM information_schema.INNODB_TRX
+        WHERE trx_mysql_thread_id IN (?,?) AND trx_state='LOCK WAIT'");
+    $waiting=0;
+    while (microtime(true)<$deadline) {
+        $lockWait->execute($ids);
+        $waiting=(int)$lockWait->fetchColumn();
+        if ($waiting===2) break;
+        usleep(50000);
+    }
+    t15($waiting===2,'both scanners blocked on DB lock');
+    $pdo->commit();
     $reasons=[];
     foreach ($workers as [$proc,$pipes]) {
+        stream_set_blocking($pipes[1],true);
         $output=stream_get_contents($pipes[1]);$stderr=stream_get_contents($pipes[2]);
         fclose($pipes[1]);fclose($pipes[2]);
         t15(proc_close($proc)===0,'worker: '.$stderr);
@@ -109,7 +157,7 @@ try {
     }
     sort($reasons);
     t15($reasons===['accepted','already_used'],'exactly one of two scanners');
-    t15((int)$pdo->query("SELECT COUNT(*) FROM ticket_checkins")->fetchColumn()===9,'audit every attempt');
+    t15((int)$pdo->query("SELECT COUNT(*) FROM ticket_checkins")->fetchColumn()===12,'audit every attempt');
     t15((int)$pdo->query("SELECT COUNT(*) FROM ticket_checkins WHERE outcome='accepted'")->fetchColumn()===3,
         'exactly three admissions');
     [$id4,$qr4]=t15Entry($pdo,4,4);

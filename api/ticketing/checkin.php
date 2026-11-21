@@ -33,7 +33,14 @@ try {
     if (!brvtalTicketingCan((string)($stmt->fetchColumn()?:''),'door')) {
         json_response(['ok'=>false,'error'=>'FORBIDDEN'],403);
     }
-    brvtalTicketCheckinRate($operator,(string)($_SERVER['REMOTE_ADDR']??''));
+    try {
+        brvtalTicketCheckinRate($operator,(string)($_SERVER['REMOTE_ADDR']??''));
+    } catch (DomainException $error) {
+        if ($error->getMessage() !== 'CHECKIN_RATE_LIMITED') throw $error;
+        // Audit failure must fail closed through the outer 503 handler.
+        brvtalTicketCheckinAuditRateLimited($pdo,$data['event_id'],$operator,$data['device_id']);
+        json_response(['ok'=>false,'error'=>'RATE_LIMITED'],429);
+    }
     $result=brvtalTicketCheckinConsume($pdo,$data['event_id'],$operator,$data['device_id'],$data['qr']);
     json_response(['ok'=>$result['ok'],'reason'=>$result['reason']],$result['ok']?200:409);
 } catch (DomainException $e) {

@@ -47,6 +47,37 @@ function brvtalTicketCheckinRate(int $operator,string $ip,?int $now=null,?string
     }
 }
 
+/**
+ * Record rate-limited authenticated check-in attempts without accepting a QR.
+ * The device identifier is pseudonymized; no QR, IP, or token is persisted.
+ */
+function brvtalTicketCheckinAuditRateLimited(PDO $pdo,int $eventId,int $operator,string $device): void
+{
+    if ($eventId<1 || $operator<1
+        || preg_match('/^[A-Za-z0-9._:-]{1,96}$/D',$device)!==1
+        || $pdo->inTransaction()) {
+        throw new InvalidArgumentException('CHECKIN_INVALID_INPUT');
+    }
+    try {
+        $pdo->beginTransaction();
+        $event=$pdo->prepare('SELECT status FROM events WHERE id=? FOR UPDATE');
+        $event->execute([$eventId]);
+        if ($event->fetchColumn()===false) throw new DomainException('CHECKIN_EVENT_NOT_FOUND');
+        $audit=$pdo->prepare('INSERT INTO ticket_checkins
+            (request_id,event_id,entry_id,credential_version,operator_admin_id,device_id,outcome,reason_code,attempted_at_utc)
+            VALUES (?,?,?,?,?,?,?,?,UTC_TIMESTAMP(6))');
+        $audit->execute([random_bytes(16),$eventId,null,null,$operator,
+            'rate-'.substr(hash('sha256',$device),0,32),'rejected','rate_limited']);
+        $pdo->commit();
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        if ($error instanceof PDOException) {
+            throw new RuntimeException('CHECKIN_STORAGE_UNAVAILABLE',0,$error);
+        }
+        throw $error;
+    }
+}
+
 /** Validate a T09 credential without logging, returning, or persisting QR plaintext. */
 function brvtalTicketCheckinQr(string $qr): ?array
 {
@@ -103,7 +134,8 @@ function brvtalTicketCheckinConsume(PDO $pdo,int $eventId,int $operator,string $
                                     WHERE a.order_id=o.id AND a.provider='wompi'
                                       AND a.status='approved' AND a.provider_transaction_id IS NOT NULL
                                       AND EXISTS(SELECT 1 FROM ticket_payment_webhook_events w
-                                        WHERE w.attempt_id=a.id AND w.provider_transaction_id=a.provider_transaction_id)) AS verified
+                                        WHERE w.attempt_id=a.id AND w.provider_transaction_id=a.provider_transaction_id
+                                          AND w.signed_status='APPROVED')) AS verified
                                 FROM ticket_order_items i JOIN ticket_orders o ON o.id=i.order_id
                                 WHERE i.id=? AND i.event_id=? AND i.ticket_type_id=?");
                             $paid->execute([(int)$entry['order_item_id'],$eventId,(int)$entry['ticket_type_id']]);
