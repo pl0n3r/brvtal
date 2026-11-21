@@ -90,8 +90,9 @@ function brvtal_waitlist_subscribe(
         }
         brvtal_ticket_mail_enqueue($db,'waitlist:join:'.$id.':'.bin2hex(random_bytes(5)),
             'waitlist:'.$id,(string)$buyer['email'],'Lista de espera BRVTAL',
-            "Confirmamos tu inscripción consentida. Puedes darte de baja en ".
-            "https://www.brvtal.com.co/api/ticketing/waitlist.php usando este código: ".$token);
+            "Confirmamos tu inscripción consentida. No es una compra ni reserva. ".
+            "Para cancelar la inscripción y cualquier invitación, confirma tu baja en ".
+            "https://www.brvtal.com.co/api/ticketing/waitlist.php?token=".$token);
         $db->commit();
         return 'waiting'; // No order, provider charge, hold or issued ticket.
     } catch (Throwable $e) {
