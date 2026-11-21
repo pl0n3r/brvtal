@@ -182,6 +182,12 @@ function brvtalMigrationProofSpecifications(): array
                 ['PRIMARY','uq_inventory_hold_order_type','idx_inventory_event_expiry',
                  'idx_inventory_type_expiry'], true)
         ),
+        'migration_ticketing_stages_01.sql' => brvtalMigrationObjectRequirements(
+            'ticket_type_stages',
+            ['id','ticket_type_id','event_id','code','price_cop','cumulative_capacity',
+             'opens_at_local','closes_at_local'],
+            ['PRIMARY','uq_ticket_stage_type_code','idx_ticket_stage_event'], true
+        ),
         'migration_ticketing_admin_notes_01.sql' => brvtalMigrationObjectRequirements(
             'ticket_admin_actions',
             ['order_id','actor_admin_id','action','request_key_hash','request_hash',
@@ -215,6 +221,24 @@ function brvtalMigrationProofSpecifications(): array
             ],
             ['uq_ticket_mail_message_key', 'idx_ticket_mail_ready', 'idx_ticket_mail_relation'],
             true
+        ),
+        'migration_ticketing_refunds_01.sql' => array_merge(
+            brvtalMigrationObjectRequirements('ticket_refunds',
+                ['order_id','buyer_id','event_id','request_hash','selection_hash',
+                 'reason','amount_cop','status','approver_admin_id','provider_refund_id',
+                 'manual_receipt_sha256','created_at_utc','updated_at_utc'],
+                ['PRIMARY','uq_ticket_refund_request','uq_ticket_refund_provider',
+                 'idx_ticket_refund_buyer','idx_ticket_refund_event'], true),
+            brvtalMigrationObjectRequirements('ticket_refund_entries',
+                ['refund_id','entry_id','amount_cop'],
+                ['PRIMARY','uq_ticket_refund_claim'], true),
+            brvtalMigrationObjectRequirements('ticket_refund_adjustments',
+                ['refund_id','order_id','event_id','amount_cop','recorded_at_utc'],
+                ['PRIMARY'], true),
+            brvtalMigrationObjectRequirements('ticket_refund_audit',
+                ['refund_id','actor_kind','actor_id','prior_status','next_status',
+                 'created_at_utc'],
+                ['PRIMARY','idx_refund_audit_receipt'], true)
         ),
         'migration_ticketing_entries_01.sql' => array_merge(
             brvtalMigrationObjectRequirements('ticket_entries',
@@ -345,6 +369,56 @@ function brvtalMigrationProofSpecifications(): array
             brvtalMigrationObjectRequirements('ticket_payment_attempts',
                 ['order_id','provider','provider_transaction_id','gross_amount_cop'],
                 ['uq_ticket_payment_transaction','uq_ticket_payment_reference','uq_ticket_payment_idempotency'], true)
+        );
+    }
+    // T28 claim is separate: prove it only when its additive migration is present.
+    if (is_file(__DIR__ . '/../database/migration_ticketing_waitlist_01.sql')) {
+        $specifications['migration_ticketing_waitlist_01.sql'] = brvtalMigrationObjectRequirements(
+            'ticket_waitlist_entries',
+            ['id','event_id','ticket_type_id','buyer_id','consent_version',
+             'consent_at_utc','status','unsubscribe_hash','offer_hash',
+             'offer_expires_at_utc','created_at_utc','updated_at_utc'],
+            ['PRIMARY','uq_waitlist_event_type_buyer','uq_waitlist_unsubscribe',
+             'uq_waitlist_offer','idx_waitlist_priority','idx_waitlist_offer_expiry'],
+            true
+        );
+    }
+
+    // Serial proof registration for adjacent T24/T25/T29 PRs. Their respective
+    // SQL files and code remain owned by separate V3 leases. No DDL is run here.
+    if (is_file(__DIR__ . '/../database/migration_ticketing_pos_01.sql')) {
+        $specifications['migration_ticketing_pos_01.sql'] = array_merge(
+            brvtalMigrationObjectRequirements('ticket_pos_shifts',
+                ['id','event_id','operator_admin_id','status','opening_cash_cop',
+                 'expected_cash_cop','closing_cash_cop','cash_difference_cop',
+                 'opened_at_utc','closed_at_utc'],
+                ['PRIMARY','idx_pos_shift_operator_event'], true),
+            brvtalMigrationObjectRequirements('ticket_pos_sales',
+                ['id','shift_id','event_id','operator_admin_id','ticket_type_id',
+                 'order_id','quantity','unit_price_cop','amount_cop','method',
+                 'status','request_key_hash','request_hash','confirmation_hash',
+                 'expires_at_utc','created_at_utc','completed_at_utc'],
+                ['PRIMARY','uq_pos_sale_request','uq_pos_sale_order',
+                 'idx_pos_sale_shift_state'], true)
+        );
+    }
+    if (is_file(__DIR__ . '/../database/migration_ticketing_courtesy_01.sql')) {
+        $specifications['migration_ticketing_courtesy_01.sql'] = brvtalMigrationObjectRequirements(
+            'ticket_courtesy_invites',
+            ['event_id','ticket_type_id','order_id','entry_id','origin',
+             'recipient_digest','request_digest','authorized_by','status','resend_requests'],
+            ['uq_courtesy_event_recipient','uq_courtesy_request','uq_courtesy_entry'], true
+        );
+    }
+    if (is_file(__DIR__ . '/../database/migration_ticketing_recovery_01.sql')) {
+        $specifications['migration_ticketing_recovery_01.sql'] = array_merge(
+            brvtalMigrationObjectRequirements('ticket_recovery_consents',
+                ['buyer_id','event_id','policy_version','consented_at_utc','revoked_at_utc','expires_at_utc'],
+                ['PRIMARY'], true),
+            brvtalMigrationObjectRequirements('ticket_recovery_previews',
+                ['order_id','buyer_id','event_id','campaign_key','request_hash',
+                 'stage','outcome','created_at_utc','retention_until_utc'],
+                ['uq_recovery_request','idx_recovery_frequency','idx_recovery_reporting'], true)
         );
     }
     return $specifications;

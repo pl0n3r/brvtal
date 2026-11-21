@@ -243,3 +243,13 @@ Producto: `pl0n3r/brvtal`
 - Consentimiento: `review_required`
 - Proveedores: ninguno_declarado
 - Retención: `review_required`
+
+## ticket_waitlist
+
+- Categoría: `contact`
+- Campos de software: `buyer_id`, `event_id`, `ticket_type_id`, `consent_version`, `consent_at_utc`, `status`, `unsubscribe_hash`, `offer_hash`, `offer_expires_at_utc`, `created_at_utc`, `updated_at_utc`
+- Finalidad: `verified_opt_in_event_ticket_waitlist_and_expiring_offers`
+- Base documentada: `review_required` (revisión jurídica requerida)
+- Consentimiento: `review_required`
+- Proveedores: `resend`
+- Retención: `review_required`

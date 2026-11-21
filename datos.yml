@@ -423,6 +423,30 @@
       "retention": "review_required",
       "consent": "review_required",
       "providers": []
+    },
+    {
+      "id": "ticket_waitlist",
+      "category": "contact",
+      "fields": [
+        "buyer_id",
+        "event_id",
+        "ticket_type_id",
+        "consent_version",
+        "consent_at_utc",
+        "status",
+        "unsubscribe_hash",
+        "offer_hash",
+        "offer_expires_at_utc",
+        "created_at_utc",
+        "updated_at_utc"
+      ],
+      "purpose": "verified_opt_in_event_ticket_waitlist_and_expiring_offers",
+      "basis": "review_required",
+      "retention": "review_required",
+      "consent": "review_required",
+      "providers": [
+        "resend"
+      ]
     }
   ]
 }
