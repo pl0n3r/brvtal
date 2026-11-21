@@ -120,6 +120,13 @@ wlAssert(str_contains($body,'/api/ticketing/waitlist.php?token='),
 wlAssert((bool)preg_match('/[A-Za-z0-9_-]{43}$/D',$body,$parts),
     'unsubscribe delivered by outbox');
 wlAssert(brvtal_waitlist_unsubscribe($db,$parts[0]),'unsubscribe');
+wlAssert((int)$db->query("SELECT COUNT(*) FROM ticket_mail_outbox
+    WHERE related_ref='waitlist:1' AND state IN ('queued','retry','sending')")->fetchColumn()===0,
+    'unsubscribe atomically cancels all pending/retryable notifications');
+wlAssert((int)$db->query("SELECT COUNT(*) FROM ticket_mail_outbox
+    WHERE related_ref='waitlist:1' AND state='failed'
+    AND last_error_code='consent_revoked'")->fetchColumn()>=1,
+    'revoked consent is not automatically retried');
 wlAssert(!brvtal_waitlist_unsubscribe($db,$parts[0]),'unsubscribe replay');
 wlAssert(brvtal_ticket_inventory_usage($db,1,10,$clock)['held']===0,
     'unsubscribe releases offer');
