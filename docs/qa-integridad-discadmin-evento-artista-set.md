@@ -18,8 +18,8 @@
 | Criterio | UI → API → DB → UI | Positivo y negativo | Job |
 |---|---|---|---|
 | AC-01 | Dos Events draft; Enter crea Artist externo; Guardar lineup; recargar; crear Set asociado; leer joins SQL y reabrir editor | `event_artists` y `set_artists` reales, rol/orden y asociación persistentes | `real-stack` |
-| AC-02 | POST sin sesión, POST con sesión sin CSRF, fallo de red simulado en otro POST artista, slug duplicado real | Denegación 401/403, 409 `DUPLICATE_SLUG`, roles y selección conservados, segundo evento sin lineup | `real-stack` |
-| AC-02 | Artista draft, Event draft, Set draft e inspección API pública y SQL | `is_collective_member=0` y ninguna entidad sintética expuesta públicamente | `real-stack` |
+| AC-02 | POST sin sesión, POST con sesión sin CSRF, fallo de red simulado en otro POST artista, slug duplicado real | Sin sesión: 401/403; sin CSRF: 419 `CSRF`; 409 `DUPLICATE_SLUG` vía UI, roles y selección conservados, segundo evento sin lineup | `real-stack` |
+| AC-02 | Artista draft, ambos Events draft, Set draft e inspección API pública y SQL | `is_collective_member=0` y nombres de ambos Events, artista y Set ausentes del API público | `real-stack` |
 | AC-03 | Código de modal actual en harness de navegador; Enter con foco; Guardar a 390/1440 | Editor y acción Guardar visibles dentro del viewport, escritura visual por teclado | `chromium` |
 | AC-04 | Ejecución terminal de tests, SonarCloud y revisión FINAL de CodeRabbit | CI y seguridad en HEAD exacto antes de squash, sin equiparar CI y despliegue | `validate` |
 

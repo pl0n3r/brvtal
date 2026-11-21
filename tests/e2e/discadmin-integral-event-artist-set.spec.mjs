@@ -8,17 +8,15 @@ const password = process.env.BRVTAL_REAL_STACK_ADMIN_PASSWORD || '';
 const source = readFileSync('discadmin/index-core.php', 'utf8');
 const script = source.match(/<script>\s*(const API=[\s\S]*?)<\/script>/)?.[1];
 const css = source.match(/<style>([\s\S]*?)<\/style>/)?.[1];
-if (!script || !css) throw new Error('Missing canonical DISCADMIN script/CSS');
+const modalMarkup = source.match(/(<div class="modal" id="modal">[\s\S]*?<\/div>)\s*<script>/)?.[1];
+if (!script || !css || !modalMarkup) throw new Error('Missing canonical DISCADMIN script/CSS/modal');
 
 const fixtureUrl = 'http://127.0.0.1:4173/discadmin/integral-event-artist-set-harness.html';
 async function responsiveHarness(page, width) {
   await page.setViewportSize({width, height: 900});
   await page.route(fixtureUrl, route => route.fulfill({contentType: 'text/html', body:
     '<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>' +
-    '<main id="app"></main><div id="modal" class="modal"><div class="modalbox">' +
-    '<h2 id="mtitle"></h2><div id="notice" class="notice"></div><div id="mcontent"></div>' +
-    '<div class="modalfoot"><button type="button" id="saveBtn">GUARDAR</button></div>' +
-    '</div></div></body></html>'}));
+    '<main id="app"></main>' + modalMarkup + '</body></html>'}));
   await page.goto(fixtureUrl);
   await page.addStyleTag({content: css});
   await page.addScriptTag({content: script});
@@ -62,14 +60,18 @@ test('AC-03: modal de lineup es usable con teclado y guardado visible a 390/1440
     await page.keyboard.press('Enter');
     await expect(page.locator('#lineupCurrent .lineitem[data-id="80"]')).toBeVisible();
     await expect(search).toBeFocused();
-    await expect(page.locator('#saveBtn')).toBeVisible();
-    const dimensions = await page.locator('#saveBtn').evaluate(node => ({
-      left: node.getBoundingClientRect().left,
-      right: node.getBoundingClientRect().right,
-      viewport: window.innerWidth
-    }));
-    expect(dimensions.left).toBeGreaterThanOrEqual(-1);
-    expect(dimensions.right).toBeLessThanOrEqual(dimensions.viewport + 1);
+    await expect(page.locator('.modalfoot .helper')).toBeVisible();
+    await expect(page.getByRole('button', {name: 'CANCELAR'})).toBeVisible();
+    await expect(page.locator('#saveBtn.btn.red')).toBeVisible();
+    for (const selector of ['#saveBtn', '.footactions .btn.ghost:not([hidden])', '.modalfoot .helper']) {
+      const dimensions = await page.locator(selector).evaluate(node => ({
+        left: node.getBoundingClientRect().left,
+        right: node.getBoundingClientRect().right,
+        viewport: window.innerWidth
+      }));
+      expect(dimensions.left).toBeGreaterThanOrEqual(-1);
+      expect(dimensions.right).toBeLessThanOrEqual(dimensions.viewport + 1);
+    }
     await page.locator('#saveBtn').click();
     expect((await page.evaluate(() => window.__integralHarness.lineup)).map(row => row.artist_id)).toEqual([80]);
   }
@@ -117,11 +119,14 @@ if (base && password) {
         const guestName = 'CI INTEGRAL GUEST ' + key;
         const setTitle = 'CI INTEGRAL SET ' + key;
         const events = [];
+        const eventTitles = [];
         let artistId = 0, setId = 0;
         try {
           for (const suffix of ['primary', 'other']) {
+            const eventTitle = 'CI INTEGRAL ' + suffix + ' ' + key;
+            eventTitles.push(eventTitle);
             const create = await page.request.post(base + '/api/index.php/events', {
-              headers, data: {title: 'CI INTEGRAL ' + suffix + ' ' + key,
+              headers, data: {title: eventTitle,
                 slug: 'ci-integral-' + suffix + '-' + key, status: 'draft'}
             });
             expect(create.status()).toBe(201);
@@ -140,6 +145,10 @@ if (base && password) {
           await page.waitForFunction(() => Boolean(window.state?.authed), null, {timeout: 10000});
           await page.evaluate(async id => { await openLineup(id); }, eventId);
           await expect(page.locator('#lineupArtistSearch')).toBeVisible();
+          const memberId = await page.evaluate(() => Number(
+            state.artists.find(artist => artist.name === 'PL0N3R SMOKE')?.id
+          ));
+          expect(memberId).toBeGreaterThan(0);
           const addMember = page.locator('#available .artistpick')
             .filter({hasText: 'PL0N3R SMOKE'}).getByRole('button', {name: 'ADD'});
           await addMember.click();
@@ -176,9 +185,7 @@ if (base && password) {
           const lineup = (await (await page.request.get(base +
             '/api/index.php/events/' + eventId + '/lineup')).json()).data;
           expect(lineup).toHaveLength(2);
-          expect(lineup.map(item => Number(item.artist_id))).toEqual([
-            Number(lineup[0].artist_id), artistId
-          ]);
+          expect(lineup.map(item => Number(item.artist_id))).toEqual([memberId, artistId]);
           expect(lineup[1].role).toBe('External guest');
           const otherLineup = (await (await page.request.get(base +
             '/api/index.php/events/' + events[1] + '/lineup')).json()).data;
@@ -187,6 +194,9 @@ if (base && password) {
           await page.reload({waitUntil: 'domcontentloaded'});
           await page.waitForFunction(() => Boolean(window.state?.authed), null, {timeout: 10000});
           await page.evaluate(async id => { await openLineup(id); }, eventId);
+          expect(await page.locator('#lineupCurrent .lineitem').evaluateAll(
+            rows => rows.map(row => Number(row.dataset.id))
+          )).toEqual([memberId, artistId]);
           await expect(page.locator('#lineupCurrent .lineitem[data-id="' + artistId + '"] input.role'))
             .toHaveValue('External guest');
 
@@ -194,12 +204,22 @@ if (base && password) {
           const guest = artists.find(row => Number(row.id) === artistId);
           expect(guest).toMatchObject({name: guestName, status: 'draft'});
           expect(Number(guest.is_collective_member)).toBe(0);
-          const duplicate = await page.request.post(base + '/api/index.php/artists',
-            {headers, data: {name: guestName, slug: guest.slug,
-              status: 'draft', is_collective_member: 0}});
+          // Different display name, same normalized slug: cover the actual editor error handler.
+          const collisionName = guestName.replace('CI INTEGRAL', 'CI  INTEGRAL');
+          const duplicateRequest = page.waitForResponse(response =>
+            response.url().endsWith('/api/index.php/artists') &&
+            response.request().method() === 'POST');
+          await page.locator('#lineupArtistSearch').fill(collisionName);
+          await page.locator('#lineupArtistSearch').press('Enter');
+          const duplicate = await duplicateRequest;
           expect(duplicate.status()).toBe(409);
           expect(await duplicate.json()).toMatchObject({error: 'DUPLICATE_SLUG'});
-          await expect(page.locator('#lineupCurrent .lineitem')).toHaveCount(2);
+          await expect(page.locator('#lineupArtistError')).toContainText('Ya existe un artista');
+          expect(await page.locator('#lineupCurrent .lineitem').evaluateAll(
+            rows => rows.map(row => Number(row.dataset.id))
+          )).toEqual([memberId, artistId]);
+          await expect(page.locator('#lineupCurrent .lineitem[data-id="' + artistId + '"] input.role'))
+            .toHaveValue('External guest');
 
           // Persist Set through the real admin API, then reopen its actual editor.
           const createSet = await page.request.post(base + '/api/index.php/sets',
@@ -231,6 +251,7 @@ if (base && password) {
           const publicBody = await publicReply.text();
           expect(publicBody).not.toContain(guestName);
           expect(publicBody).not.toContain(setTitle);
+          for (const eventTitle of eventTitles) expect(publicBody).not.toContain(eventTitle);
         } finally {
           if (setId) await page.request.delete(base + '/api/index.php/sets/' + setId, {headers}).catch(() => {});
           for (const eventId of events.reverse()) {
