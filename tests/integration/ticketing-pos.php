@@ -77,6 +77,7 @@ $ddl=[
       UNIQUE KEY uq_ticket_entries_order_unit(order_item_id,unit_number)) ENGINE=InnoDB",
   "CREATE TABLE ticket_entry_credentials(id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
       entry_id BIGINT UNSIGNED,version INT UNSIGNED,token_hash BINARY(32),
+      created_at_utc DATETIME(6) NOT NULL,
       status VARCHAR(24) NOT NULL DEFAULT 'active') ENGINE=InnoDB",
   "CREATE TABLE ticket_payment_attempts (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
       order_id BIGINT UNSIGNED,provider VARCHAR(24),status VARCHAR(24),
