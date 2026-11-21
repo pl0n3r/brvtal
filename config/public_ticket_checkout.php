@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/ticketing_inventory.php';
 require_once __DIR__ . '/ticketing_wompi_client.php';
 require_once __DIR__ . '/ticketing_stages.php';
+require_once __DIR__ . '/ticketing_waitlist.php';
 
 /** Monetary snapshots are integer COP. Never trust a DOM/form price. */
 function brvtal_ticket_checkout_price(mixed $price, int $quantity): int
@@ -66,7 +67,7 @@ function brvtal_public_ticket_checkout_offers(PDO $db, int $eventId): array
  */
 function brvtal_public_ticket_checkout_stage_quote(
     PDO $db, int $eventId, int $typeId, int $quantity,
-    ?DateTimeImmutable $clock = null
+    ?DateTimeImmutable $clock = null, int $offeredUnit = 0
 ): ?array {
     if (getenv('BRVTAL_INTEGRATION_TESTS') !== '1'
         || !preg_match('/^brvtal_test[a-zA-Z0-9_]*$/D',
@@ -103,9 +104,15 @@ function brvtal_public_ticket_checkout_stage_quote(
     $utc = $now->format('Y-m-d H:i:s.u');
     $eventUsage = brvtal_ticket_inventory_usage($db,$eventId,0,$utc);
     $typeUsage = brvtal_ticket_inventory_usage($db,$eventId,$typeId,$utc);
-    $used = array_sum($typeUsage);
-    $free = min((int)$eventCap - array_sum($eventUsage),(int)$typeCap - $used);
-    return brvtalTicketStageQuote($rows,$used,$quantity,max(0,$free),$now);
+    // A verified token converts this same T28 offered unit into a T05 hold.
+    // Restore one slot only for pricing; invalid tokens roll the entire tx back.
+    if ($offeredUnit < 0 || $offeredUnit > 1) {
+        throw new InvalidArgumentException('CHECKOUT_OFFER_COUNT');
+    }
+    $used = array_sum($typeUsage) - $offeredUnit;
+    $free = min((int)$eventCap - array_sum($eventUsage) + $offeredUnit,
+        (int)$typeCap - array_sum($typeUsage) + $offeredUnit);
+    return brvtalTicketStageQuote($rows,max(0,$used),$quantity,max(0,$free),$now);
 }
 
 /** Transactional UI adapter: same idempotency key => one order + one hold. */
@@ -115,11 +122,18 @@ function brvtal_public_ticket_checkout_prepare(PDO $db, int $eventId, int $buyer
     $quantity = $input['quantity'] ?? null;
     $key = $input['idempotency_key'] ?? null;
     $method = $input['method'] ?? null;
+    $withOffer = array_key_exists('waitlist_token', $input);
+    $offerToken = $withOffer ? $input['waitlist_token'] : null;
     if ($buyerId < 1 || $eventId < 1 || !is_int($typeId) || $typeId < 1
         || !is_int($quantity) || $quantity < 1 || $quantity > 20
         || !is_string($key) || !preg_match('/^[A-Za-z0-9:_-]{16,128}$/D',$key)
-        || !is_string($method) || count($input) !== 4) {
+        || !is_string($method) || count($input) !== ($withOffer ? 5 : 4)
+        || ($withOffer && ($quantity !== 1 || !is_string($offerToken)
+            || preg_match('/^[A-Za-z0-9_-]{43}$/D', $offerToken) !== 1))) {
         throw new InvalidArgumentException('INVALID_CHECKOUT');
+    }
+    if ($withOffer && !brvtal_waitlist_offers_enabled()) {
+        throw new DomainException('WAITLIST_OFFERS_DISABLED');
     }
     $settings = brvtal_ticket_wompi_config();
     if (!in_array($method,$settings['methods'],true)) {
@@ -129,6 +143,14 @@ function brvtal_public_ticket_checkout_prepare(PDO $db, int $eventId, int $buyer
     if ($db->inTransaction()) throw new LogicException('CHECKOUT_TRANSACTION_ALREADY_ACTIVE');
     $db->beginTransaction();
     try {
+        if ($withOffer) {
+            // T05/Event mutex FIRST, ahead of any order or invitation FOR UPDATE.
+            $lock = $db->prepare('SELECT id FROM events WHERE id=? FOR UPDATE');
+            $lock->execute([$eventId]);
+            if (!$lock->fetchColumn()) {
+                throw new DomainException('CHECKOUT_UNAVAILABLE');
+            }
+        }
         $q = $db->prepare('SELECT id,status,event_id,buyer_id,expires_at_utc FROM ticket_orders
             WHERE checkout_key_hash=? FOR UPDATE');
         $q->execute([$digest]);
@@ -167,7 +189,8 @@ function brvtal_public_ticket_checkout_prepare(PDO $db, int $eventId, int $buyer
             }
         } else {
             // This path remains dormant outside disposable integration DBs.
-            $quote = brvtal_public_ticket_checkout_stage_quote($db,$eventId,$typeId,$quantity);
+            $quote = brvtal_public_ticket_checkout_stage_quote(
+                $db,$eventId,$typeId,$quantity,null,$withOffer ? 1 : 0);
             $price = $quote['unit_price_cop'] ?? $type['price'];
             $total = brvtal_ticket_checkout_price($price,$quantity);
             $q = $db->prepare("INSERT INTO ticket_orders
@@ -182,7 +205,15 @@ function brvtal_public_ticket_checkout_prepare(PDO $db, int $eventId, int $buyer
                 $quantity,(int)$price,$total]);
         }
         try {
-            brvtal_ticket_inventory_hold($db,$orderId,$typeId,$quantity);
+            if ($withOffer && !$prior) {
+                // Consume the invitation only when its hold is successfully
+                // created in this SAME transaction; exception rolls back both.
+                brvtal_waitlist_redeem_into_hold(
+                    $db,$offerToken,$orderId,$buyerId,$typeId);
+            } else {
+                // Matching idempotent retries reuse the existing paid hold.
+                brvtal_ticket_inventory_hold($db,$orderId,$typeId,$quantity);
+            }
         } catch (DomainException $error) {
             if ($prior && $error->getMessage() === 'INVENTORY_HOLD_CONFLICT') {
                 throw new DomainException('CHECKOUT_EXPIRED', 0, $error);
