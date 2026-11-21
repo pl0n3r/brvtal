@@ -65,7 +65,7 @@ test('guest: fallback home navigation and footer expose Mi cuenta on mobile', as
 test('logged-in buyer: Cromo menu and footer lead to Mis compras; keyboard and mobile menu work', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 780 });
   await home(page, true, true);
-  const nav = page.locator('#cromo-section-nav [data-buyer-account-link]');
+  const nav = page.locator('#cromo-home .cr-nav-actions [data-buyer-account-link]');
   const foot = page.locator('#cromo-home footer [data-buyer-account-link]');
   await expect(nav).toHaveAttribute('href', '/mi-cuenta');
   await expect(foot).toHaveAttribute('href', '/mi-cuenta');
@@ -87,7 +87,7 @@ test('inner Cromo topbar uses buyer API, not an admin cookie or cached identity'
     body: '<!doctype html><html lang="es"><body>' + inner + '<main>Evento sintético</main></body></html>',
   }));
   await page.goto(innerUrl);
-  const accountLink = page.locator('.cp-nav [data-buyer-account-link]');
+  const accountLink = page.locator('.cp-tools [data-buyer-account-link]');
   await expect(accountLink).toHaveAttribute('href', '/mi-cuenta');
   await accountLink.focus();
   await page.keyboard.press('Enter');
@@ -102,7 +102,7 @@ test('unauthenticated inner topbar safely defaults to access on API failure', as
     body: '<!doctype html><html lang="es"><body>' + inner + '</body></html>',
   }));
   await page.goto(innerUrl);
-  await expect(page.locator('.cp-nav [data-buyer-account-link]')).toHaveAttribute('href', '/mi-cuenta/acceso');
+  await expect(page.locator('.cp-tools [data-buyer-account-link]')).toHaveAttribute('href', '/mi-cuenta/acceso');
 });
 
 test('Apache real-stack preserves legacy query on 301 and serves Spanish endpoints', async ({ request }) => {

@@ -23,12 +23,12 @@ function brvtalPublicCromoTopbar(string $backHref = '/', string $backLabel = 'â†
     foreach ($sections as $id => $label) {
         $menu .= '<a href="/#' . $id . '">' . $label . '</a>';
     }
-    $menu .= '<a href="/mi-cuenta/acceso" data-buyer-account-link>Mi cuenta</a>';
     return '<header class="entity-nav cp-top">'
         . '<a href="/" class="entity-brand">BRVTAL<small>RAVE TILL GRAVE</small></a>'
         . '<nav class="cp-nav" aria-label="Secciones">' . $menu . '</nav>'
         . '<div class="cp-tools">'
         . brvtalPublicCromoSoundButton()
+        . '<a class="cp-back" href="/mi-cuenta/acceso" data-buyer-account-link>Mi cuenta</a>'
         . '<a class="cp-back" href="' . $backHref . '">' . $backLabel . '</a>'
         . '</div></header>'
         // Public HTML may be cached. Resolve buyer state in the browser,

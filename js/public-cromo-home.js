@@ -1096,15 +1096,16 @@
       ['contacto', 'Contacto'],
     ];
     const nav = el('nav', { id: 'cromo-section-nav', 'aria-label': 'Secciones' },
-      navLinks.map(([id, label]) => el('a', { href: '#' + id, text: label })),
-      el('a', { href: buyerAccountHref, 'data-buyer-account-link': true, text: 'Mi cuenta' }));
+      navLinks.map(([id, label]) => el('a', { href: '#' + id, text: label })));
     const menuToggle = el('button', { class: 'nav-toggle', type: 'button',
       'aria-controls': 'cromo-section-nav', 'aria-expanded': 'false', text: 'MENÚ' });
     const ticketsLink = nextTicket ? el('a', { class: 'tickets', text: 'Tickets', href: nextTicket,
       target: '_blank', rel: 'noopener noreferrer' }) : null;
     const header = el('header', { class: 'top' },
       el('a', { href: '#cromo-top', class: 'u', text: 'BRVTAL' }), nav,
-      el('div', { class: 'nav-actions' }, snd, ticketsLink, menuToggle));
+      el('div', { class: 'nav-actions' },
+        el('a', { class: 'account', href: buyerAccountHref, 'data-buyer-account-link': true, text: 'Mi cuenta' }),
+        snd, ticketsLink, menuToggle));
 
     // The mobile navigation is an actual keyboard/touch surface, not a hidden desktop nav.
     // A small interruptible transition follows the authorised transitions.dev dropdown rules.
