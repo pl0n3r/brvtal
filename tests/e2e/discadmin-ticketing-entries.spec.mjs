@@ -44,3 +44,22 @@ test('T19 servidor exige CSRF, rol fuerte, firma de pago y no reconstituye secre
   expect(apiPhp).not.toContain('BRVTAL_TICKET_MAIL_PRIVACY_APPROVED');
   expect(apiPhp).not.toContain("SET status='paid'");
 });
+
+test('T19 ficha muestra trazabilidad sin exponer QR ni correo privado',async({page})=>{
+  await setup(page,r=>{
+    const details=r.request().url().includes('entry_id=31');
+    return r.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,
+      data:[details?{...row,buyer_id:7,mail_state:'sent',
+        audit_history:[{outcome:'rejected',reason_code:'credential_reissued_lost',
+          operator_admin_id:3,attempted_at_utc:'2026-11-21'}],
+        mail_history:[{template_key:'reissue',delivery_state:'sent',
+          created_at:'2026-11-21'}]}:row]})});
+  });
+  await page.getByRole('button',{name:'Ver ficha'}).click();
+  const detail=page.getByRole('region',{name:'Ficha de boleta'});
+  await expect(detail).toContainText('Comprador: 7');
+  await expect(detail).toContainText('credential_reissued_lost');
+  await expect(detail).toContainText('reissue');
+  await expect(detail).not.toContainText('@example');
+  await expect(detail).not.toContainText('BRVTAL:T1:');
+});

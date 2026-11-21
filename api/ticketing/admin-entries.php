@@ -140,8 +140,27 @@ try {
             FROM ticket_entries e JOIN ticket_order_items i ON i.id=e.order_item_id
             JOIN ticket_orders o ON o.id=i.order_id
             WHERE e.id" . ($id > 0 ? '=?' : '<?') . ' ORDER BY e.id DESC LIMIT 25';
-        $query=$pdo->prepare($sql);$query->execute([$id > 0 ? $id : $before]);
-        json_response(['ok'=>true,'data'=>$query->fetchAll(PDO::FETCH_ASSOC),'read_only'=>true]);
+        $query=$pdo->prepare($sql);
+        $query->execute([$id > 0 ? $id : $before]);
+        $rows=$query->fetchAll(PDO::FETCH_ASSOC);
+        if ($id > 0 && count($rows)===1) {
+            // Bounded, read-only history; no QR secret, email address or token
+            // is exposed by this detail endpoint.
+            $audit=$pdo->prepare('SELECT outcome,reason_code,operator_admin_id,attempted_at_utc
+                FROM ticket_checkins WHERE entry_id=? ORDER BY id DESC LIMIT 20');
+            $audit->execute([$id]);
+            $rows[0]['audit_history']=$audit->fetchAll(PDO::FETCH_ASSOC);
+            $rows[0]['mail_history']=[];
+            if ($hasMail) {
+                $mailHistory=$pdo->prepare('SELECT template_key,delivery_state,created_at
+                    FROM ticket_mail_history
+                    WHERE ticket_id=? OR (ticket_id IS NULL AND order_id=?)
+                    ORDER BY id DESC LIMIT 20');
+                $mailHistory->execute([$id,(int)$rows[0]['order_id']]);
+                $rows[0]['mail_history']=$mailHistory->fetchAll(PDO::FETCH_ASSOC);
+            }
+        }
+        json_response(['ok'=>true,'data'=>$rows,'read_only'=>true]);
     }
     $raw=file_get_contents('php://input',false,null,0,2049);
     if (!is_string($raw) || strlen($raw)>2048

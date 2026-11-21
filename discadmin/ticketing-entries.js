@@ -67,6 +67,46 @@ export async function mount(panel) {
     } catch(e) {if(active())status.textContent='Acción no completada: '+e.message+'. No se presume éxito.';}
     finally {busy=false;}
   }
+  let detailSeq=0;
+  async function showDetail(row) {
+    const id=Number(row.id),seq=++detailSeq;
+    if (!Number.isSafeInteger(id) || id < 1 || !active()) return;
+    detail.replaceChildren(el('p','Consultando ficha privada…'));
+    try {
+      const results=await api('GET',null,'?entry_id='+id);
+      if (!active() || seq!==detailSeq) return;
+      const entry=Array.isArray(results)?results[0]:null;
+      if (!entry || Number(entry.id)!==id) throw Error('ENTRY_NOT_FOUND');
+      const section=document.createElement('section');
+      section.setAttribute('role','region');
+      section.setAttribute('aria-label','Ficha de boleta');
+      section.append(el('h3','Ficha de boleta #'+id));
+      for (const [label,value] of [
+        ['Evento',entry.event_id],['Pedido',entry.order_id],
+        ['Comprador',entry.buyer_id],['Estado',entry.status],
+        ['Check-ins',entry.uses],['Estado de correo',entry.mail_state||'Sin evidencia']]) {
+        section.append(el('p',label+': '+String(value??'Sin evidencia')));
+      }
+      const audit=Array.isArray(entry.audit_history)?entry.audit_history:[];
+      section.append(el('h4','Historial de auditoría'));
+      if (!audit.length) section.append(el('p','Sin operaciones registradas.'));
+      for (const item of audit.slice(0,20)) {
+        section.append(el('p',[item.outcome,item.reason_code||'check-in',
+          item.operator_admin_id,item.attempted_at_utc].filter(x=>x!==null&&x!==undefined).join(' · ')));
+      }
+      const mail=Array.isArray(entry.mail_history)?entry.mail_history:[];
+      section.append(el('h4','Historial de avisos'));
+      if (!mail.length) section.append(el('p','Sin avisos registrados.'));
+      for (const item of mail.slice(0,20)) {
+        section.append(el('p',[item.template_key,item.delivery_state,item.created_at]
+          .filter(x=>x!==null&&x!==undefined).join(' · ')));
+      }
+      detail.replaceChildren(section);
+    } catch {
+      if (active() && seq===detailSeq) detail.replaceChildren(
+        el('p','No se pudo consultar la ficha. No se presume estado.'));
+    }
+  }
   function rows(rows,append) {
     if (!append) list.replaceChildren();
     if (!rows.length && !append) {list.textContent='No hay boletas para mostrar.';return;}
@@ -83,6 +123,10 @@ export async function mount(panel) {
       [row.id,row.event_id,row.order_id,row.status,row.uses,row.mail_state||'Sin evidencia']
         .forEach(t=>tr.append(el('td',t)));
       const controls=el('td','');
+      const inspect=el('button','Ver ficha');
+      inspect.type='button';
+      inspect.addEventListener('click',()=>showDetail(row));
+      controls.append(inspect);
       for (const [name,title,allowed] of [
         ['preview','Ver QR',true],['reissue','Reemitir',host.dataset.ticketingCanReissue==='1'],
         ['void','Anular',host.dataset.ticketingCanVoid==='1']]) {
