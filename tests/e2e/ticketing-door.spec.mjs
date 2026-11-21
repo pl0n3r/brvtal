@@ -167,42 +167,34 @@ test('T16 evita adquisiciones concurrentes y apaga stream tardío tras detener c
   await expect.poll(() => page.evaluate(() => window.__cameraStops)).toBe(1);
   await expect(page.locator('[data-door-video]')).toBeHidden();
 });
-test('T16 lector es módulo del único shell, sin documento paralelo', async ({page}) => {
-  const fixtureShell = '<!doctype html><html><body><div id="app"><div class="shell">'
-    + '<aside class="side">Navegación</aside><main class="main"><div id="admin-module-host"></div></main>'
-    + '</div></div><script>window.state={authed:true,section:"ticketing"};</script>'
-    + '<script src="/discadmin/ticketing.js"></script></body></html>';
-  const fixtureTabs = '<section data-admin-module="ticketing"><div role="tablist">'
-    + '<button role="tab" data-ticketing-tab="door" id="tab-door">Puerta</button></div>'
-    + '<div role="tabpanel" data-ticketing-panel></div></section>';
-  await page.route('**/discadmin/t16-shell-fixture.html',route=>route.fulfill({contentType:'text/html',body:fixtureShell}));
-  await page.route('**/discadmin/ticketing.js',route=>route.fulfill({contentType:'text/javascript',body:shell}));
-  await page.route('**/discadmin/ticketing.php',route=>route.fulfill({contentType:'text/html',body:fixtureTabs}));
-  await page.route('**/discadmin/ticketing-door.php',route=>route.fulfill({contentType:'text/html',
-    body:'<section class="door" data-door data-csrf="synthetic-csrf"><form data-door-form>'
-     + '<select data-door-event><option value="7">Evento A</option></select><input name="qr">'
-     + '<button type="submit">Validar entrada</button><button type="button" data-door-camera>Usar cámara</button>'
-     + '<button type="button" data-door-stop hidden>Detener cámara</button><video data-door-video></video>'
-     + '<output data-door-camera-status></output></form><output data-door-result></output>'
-     + '<output data-door-summary></output><div data-door-audit></div></section>'}));
-  await page.route('**/discadmin/ticketing-door.js',route=>route.fulfill({contentType:'text/javascript',body:script}));
-  await page.route('**/discadmin/ticketing-door.css',route=>route.fulfill({contentType:'text/css',body:css}));
-  await page.route('**/discadmin/ticketing-door.php?*',route=>route.fulfill({contentType:'application/json',
-    body:JSON.stringify({ok:true,summary:{accepted:0,rejected:0},recent:[]})}));
-  await page.goto('/discadmin/t16-shell-fixture.html');
-  await page.waitForFunction(() => !!window.BRVTALTicketing);
-  // The shared shell's fragment loading is covered by discadmin-ticketing-shell.
-  // Here mount the synthetic role-filtered ticketing tab and exercise its real door selector.
-  await page.evaluate(markup => {
-    const host = document.getElementById('admin-module-host');
-    host.innerHTML = markup;
-    if (!window.BRVTALTicketing.select(host.firstElementChild, 'door')) {
-      throw new Error('Door tab is not available inside canonical shell');
-    }
-  }, fixtureTabs);
-  await expect(page.getByRole('button',{name:'Abrir lector móvil de puerta'})).toBeVisible();
-  await page.getByRole('button',{name:'Abrir lector móvil de puerta'}).click();
+test('T16 lector funciona dentro del único workspace DISCADMIN, sin segunda página', async ({page}) => {
+  // The navigation/fragment lifecycle is independently exercised by discadmin-ticketing-shell.spec.mjs.
+  // Mount the actual T16 module within the existing shell and validate server confirmation in place.
+  const doorMarkup = fixture.slice(fixture.indexOf('<main class="door"'),fixture.indexOf('</main>') + 7);
+  const fixtureShell = '<!doctype html><html lang="es"><body><div id="app"><div class="shell">'
+    + '<aside class="side">Navegación</aside><main class="main"><div id="admin-module-host">'
+    + '<section data-admin-module="ticketing"><div role="tabpanel" data-ticketing-panel>'
+    + doorMarkup + '</div></section></div></main></div></div>'
+    + '<script type="module">import {mount} from "/discadmin/ticketing-door.js";'
+    + 'mount(document.querySelector("#app [data-door]"));</script></body></html>';
+  await page.route('**/discadmin/t16-shell-fixture.html',route=>route.fulfill({
+    contentType:'text/html',body:fixtureShell
+  }));
+  await page.route('**/discadmin/ticketing-door.js',route=>route.fulfill({
+    contentType:'text/javascript',body:script
+  }));
+  await page.route('**/discadmin/ticketing-door.php?*',route=>route.fulfill({
+    contentType:'application/json',body:JSON.stringify({ok:true,summary:{accepted:0,rejected:0},recent:[]})
+  }));
+  await page.route('**/api/ticketing/checkin.php',route=>route.fulfill({
+    status:200,contentType:'application/json',body:JSON.stringify({ok:true,reason:'accepted'})
+  }));
+  await page.goto('https://www.brvtal.com.co/discadmin/t16-shell-fixture.html');
   await expect(page.locator('#app .shell aside.side')).toHaveCount(1);
   await expect(page.locator('#app .shell main.main [data-door]')).toBeVisible();
+  await page.locator('[data-door-event]').selectOption('7');
+  await page.locator('#door-qr').fill('BRVTAL:T1:synthetic-shell-token');
+  await page.getByRole('button',{name:'Validar entrada'}).click();
+  await expect(page.locator('#app .shell [data-door-result]')).toHaveAttribute('data-state','allow');
   await expect(page.locator('html')).toHaveCount(1);
 });
