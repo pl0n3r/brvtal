@@ -317,22 +317,21 @@ function brvtalRefundSandboxExchange(
         if (!function_exists('curl_init')) throw new DomainException('REFUND_TRANSPORT_UNAVAILABLE');
         $curl=curl_init($payload['endpoint']);
         if ($curl===false) throw new DomainException('REFUND_TRANSPORT_UNAVAILABLE');
-        try {
-            curl_setopt_array($curl,[
-                CURLOPT_POST=>true,
-                CURLOPT_POSTFIELDS=>json_encode($payload['body'],JSON_THROW_ON_ERROR),
-                CURLOPT_HTTPHEADER=>$headers,
-                CURLOPT_RETURNTRANSFER=>true,
-                CURLOPT_FOLLOWLOCATION=>false,
-                CURLOPT_CONNECTTIMEOUT=>3,
-                CURLOPT_TIMEOUT=>8,
-                CURLOPT_SSL_VERIFYPEER=>true,
-                CURLOPT_SSL_VERIFYHOST=>2
-            ]);
-            $body=curl_exec($curl);
-            if (!is_string($body)) throw new DomainException('REFUND_PROVIDER_UNVERIFIED');
-            $reply=['status'=>(int)curl_getinfo($curl,CURLINFO_HTTP_CODE),'body'=>$body];
-        } finally {curl_close($curl);}
+        curl_setopt_array($curl,[
+            CURLOPT_POST=>true,
+            CURLOPT_POSTFIELDS=>json_encode($payload['body'],JSON_THROW_ON_ERROR),
+            CURLOPT_HTTPHEADER=>$headers,
+            CURLOPT_RETURNTRANSFER=>true,
+            CURLOPT_FOLLOWLOCATION=>false,
+            CURLOPT_CONNECTTIMEOUT=>3,
+            CURLOPT_TIMEOUT=>8,
+            CURLOPT_SSL_VERIFYPEER=>true,
+            CURLOPT_SSL_VERIFYHOST=>2
+        ]);
+        $body=curl_exec($curl);
+        if (!is_string($body)) throw new DomainException('REFUND_PROVIDER_UNVERIFIED');
+        $reply=['status'=>(int)curl_getinfo($curl,CURLINFO_HTTP_CODE),'body'=>$body];
+
     }
     if (!is_array($reply)||!is_int($reply['status']??null)
         ||!is_string($reply['body']??null)||strlen($reply['body'])>65536) {
