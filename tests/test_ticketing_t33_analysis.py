@@ -94,8 +94,9 @@ class TicketingT33AnalysisTests(unittest.TestCase):
             parse_matrix(data)
 
     def test_safety_regression_rejects_removed_no_live(self) -> None:
+        data = self.document.replace("NO_LIVE / NO_GO", "LIVE aprobado")
         with self.assertRaises(ValueError):
-            assert_no_live(self.document.replace("NO_LIVE / NO_GO", "LIVE aprobado"))
+            assert_no_live(data)
 
 
 if __name__ == "__main__":
