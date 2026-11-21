@@ -53,7 +53,7 @@ function brvtalRecoveryPlan(PDO $db, int $actor, string $role, array $input): ar
     if (!brvtalRecoverySynthetic($db)) throw new DomainException('SYNTHETIC_ONLY');
     $db->beginTransaction();
     try {
-        $nowUtc = (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format('Y-m-d H:i:s.u');
+        $nowUtc = new DateTimeImmutable('now', new DateTimeZone('UTC'))->format('Y-m-d H:i:s.u');
         $db->exec('DELETE FROM ticket_recovery_previews WHERE retention_until_utc<=UTC_TIMESTAMP(6)');
         $q = $db->prepare('SELECT o.id,o.buyer_id,o.event_id,o.status,o.expires_at_utc,
             b.status AS buyer_status,b.email_verified_at,

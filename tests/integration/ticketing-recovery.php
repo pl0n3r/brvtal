@@ -36,7 +36,7 @@ try {
         order_id BIGINT UNSIGNED,status VARCHAR(16))');
     $ddl=preg_replace('/^\s*--[^\n]*$/m','',
         (string)file_get_contents(__DIR__.'/../../database/migration_ticketing_recovery_01.sql'));
-    foreach (array_filter(array_map('trim',explode(';',(string)$ddl))) as $sql) $db->exec($sql);
+    foreach (array_filter(array_map(trim(...),explode(';',(string)$ddl))) as $sql) $db->exec($sql);
     $db->exec("INSERT INTO events VALUES (6,'Rave test','prueba')");
     $db->exec("INSERT INTO ticket_buyers VALUES
         (3,'active','2026-11-20'),(4,'active','2026-11-20')");
