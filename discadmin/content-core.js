@@ -562,6 +562,34 @@ function addTicket(t={}){
     d.remove();
     eventEditorRefresh();
   });
+  if (Number(t.id) > 0) {
+    const button = document.createElement('button');
+    button.type = 'button'; button.className = 'icon';
+    button.textContent = 'ETAPAS';
+    button.setAttribute('aria-label', 'Etapas de ' + String(t.name || 'boleta'));
+    d.querySelector('.ticket-row-head')?.append(button);
+    button.addEventListener('click', async () => {
+      const eventId = Number(currentEvent?.id), typeId = Number(t.id);
+      if (!d.isConnected || !Number.isSafeInteger(eventId) || eventId < 1
+          || !Number.isSafeInteger(typeId) || typeId < 1) return;
+      let host = d.querySelector('[data-stage-editor]');
+      if (!host) {
+        host = document.createElement('div');
+        host.dataset.stageEditor = 'true';
+        host.style.cssText = 'max-width:100%;min-width:0';
+        d.append(host);
+      }
+      host.replaceChildren();
+      try {
+        const module = await import('/discadmin/ticketing-stages.js');
+        if (!d.isConnected || !host.isConnected
+            || Number(currentEvent?.id) !== eventId) return;
+        module.mount(host, () => host.replaceChildren(), {eventId, typeId});
+      } catch (_) {
+        if (host.isConnected) host.textContent = 'No fue posible abrir las etapas.';
+      }
+    });
+  }
   $('#tickets').appendChild(d);
   eventSalesRefresh();
 }

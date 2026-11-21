@@ -100,3 +100,6 @@ try {
     $root->exec('DROP DATABASE IF EXISTS '.$name);
 }
 echo "T18b synthetic audit, retention, roles, consent and idempotency OK.\n";
+
+// T29 shares this established MariaDB job; no extra test runner or live DB.
+if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') require __DIR__ . '/ticketing-recovery.php';

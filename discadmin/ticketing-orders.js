@@ -21,6 +21,13 @@ export async function mount(panel, initialKind = 'orders') {
   const results = panel.querySelector('[data-ticketing-records-results]');
   const status = panel.querySelector('[data-ticketing-records-status]');
   const detail = panel.querySelector('[data-ticketing-records-detail]');
+  // T25 mounts only in the existing Orders workspace; no second admin shell.
+  if (initialKind === 'orders' && ['superadmin','root','owner','platform_owner']
+    .includes(panel.closest('[data-admin-module="ticketing"]')?.dataset.ticketingRole)) {
+    import('/discadmin/ticketing-courtesy.js')
+      .then(({mount}) => {if (active()) mount(panel);})
+      .catch(() => {if (active()) status.textContent='Cortesías no disponibles.';});
+  }
   const more = panel.querySelector('[data-ticketing-records-more]');
   const kind = form.elements.namedItem('kind');
   const state = form.elements.namedItem('status');
