@@ -13,7 +13,9 @@ try {
     if(($_SERVER['REQUEST_METHOD']??'GET')==='GET') {
         $q=$db->query('SELECT id,order_id,event_id,amount_cop,status,created_at_utc
             FROM ticket_refunds ORDER BY id DESC LIMIT 100');
-        json_response(['ok'=>true,'data'=>$q->fetchAll(PDO::FETCH_ASSOC)]);
+        // Same-origin, authenticated superadmin only; no-store and server-enforced CSRF.
+        json_response(['ok'=>true,'data'=>$q->fetchAll(PDO::FETCH_ASSOC),
+            'csrf'=>(string)($_SESSION['csrf']??'')]);
     }
     if(($_SERVER['REQUEST_METHOD']??'GET')!=='POST') json_response(['ok'=>false,'error'=>'METHOD_NOT_ALLOWED'],405);
     brvtal_admin_require_csrf();

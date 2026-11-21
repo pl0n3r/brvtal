@@ -74,3 +74,31 @@ test('T21 DISCADMIN exige CSRF y motivo para rechazo, sin reembolso automático'
   expect(calls[0].body.action).toBe('reject');
   expect(calls[0].headers['x-csrf-token']).toBe('csrf-synthetic');
 });
+
+
+test('T21 el shell único expone reembolsos solo a staff autorizado',async({page})=>{
+  const base='http://127.0.0.1:4173/discadmin/refunds-shell-synthetic';
+  const shell=readFileSync(join(process.cwd(),'discadmin/ticketing.js'),'utf8');
+  const finance="export async function mount(panel){panel.textContent='Finanzas sintéticas';}";
+  const refundModule=readFileSync(join(process.cwd(),'discadmin/ticketing-refunds.js'),'utf8');
+  await page.route(base,route=>route.fulfill({contentType:'text/html',body:
+    '<section data-admin-module="ticketing" data-ticketing-role="superadmin">'+
+    '<div role="tablist"><button id="ticketing-tab-finance" role="tab" data-ticketing-tab="finance" aria-selected="true">Finanzas</button></div>'+
+    '<div data-ticketing-panel role="tabpanel"></div></section>'}));
+  await page.route('**/discadmin/ticketing-finance.js',route=>route.fulfill({
+    contentType:'text/javascript',body:finance
+  }));
+  await page.route('**/discadmin/ticketing-refunds.js',route=>route.fulfill({
+    contentType:'text/javascript',body:refundModule
+  }));
+  await page.route('**/api/ticketing/admin-refunds.php',route=>route.fulfill({
+    contentType:'application/json',body:JSON.stringify({ok:true,data:[],csrf:'a'.repeat(64)})
+  }));
+  await page.goto(base);
+  await page.addScriptTag({content:shell});
+  await page.evaluate(()=>window.BRVTALTicketing.select(
+    document.querySelector('[data-admin-module="ticketing"]'),'finance'));
+  await page.getByRole('button',{name:'Gestionar devoluciones · pruebas'}).click();
+  await expect(page.getByRole('region',{name:'Gestión de devoluciones'})).toBeVisible();
+  await expect(page.getByText('Sin solicitudes en el entorno sintético.')).toBeVisible();
+});

@@ -1,6 +1,7 @@
 /* T21 sandbox staff component; mount inside the canonical DISCADMIN ticketing panel. */
-export async function mount(panel, csrf) {
-  if (!panel || typeof csrf !== 'string' || !csrf) throw Error('REFUND_ADMIN_CONTEXT');
+export async function mount(panel, csrf = '') {
+  if (!panel || typeof csrf !== 'string') throw Error('REFUND_ADMIN_CONTEXT');
+  let csrfToken = csrf;
   const api='/api/ticketing/admin-refunds.php';
   const el=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=String(text);return n;};
   const root=el('section');
@@ -19,6 +20,8 @@ export async function mount(panel, csrf) {
       if(!response.ok)throw Error('UNAVAILABLE');
       const result=await response.json();
       if(!result.ok||!Array.isArray(result.data))throw Error('UNAVAILABLE');
+      if (!csrfToken && typeof result.csrf === 'string' && /^[a-f0-9]{64}$/.test(result.csrf))
+        csrfToken = result.csrf;
       listing.replaceChildren();
       if(!result.data.length)listing.append(el('p','Sin solicitudes en el entorno sintético.'));
       for(const request of result.data) {
@@ -37,10 +40,11 @@ export async function mount(panel, csrf) {
             if(action==='reject'&&note.value.trim().length<4){
               message.textContent='Indica un motivo de rechazo.';return;
             }
+            if (!csrfToken) { message.textContent='Token CSRF no disponible.'; return; }
             approve.disabled=true;reject.disabled=true;message.textContent='Procesando…';
             try {
               const res=await fetch(api,{method:'POST',credentials:'same-origin',cache:'no-store',
-                headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},
+                headers:{'Content-Type':'application/json','X-CSRF-Token':csrfToken},
                 body:JSON.stringify({id:Number(request.id),action,note:note.value,receipt:''})});
               const body=await res.json();
               if(!res.ok||!body.ok)throw Error('UNAVAILABLE');
