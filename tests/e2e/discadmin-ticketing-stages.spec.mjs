@@ -24,7 +24,7 @@ test('T22 mobile: stage editor refuses 403 and Save and Close remains in shell',
   await page.getByLabel('Abre (Bogotá)').fill('2026-12-01T09:00');
   await page.getByLabel('Cierra (Bogotá)').fill('2026-12-02T20:00');
   await page.getByRole('button',{name:'Guardar',exact:true}).click();
-  await expect(page.getByRole('status')).toContainText('No fue posible');
+  await expect(page.getByRole('status')).toContainText('Sin permiso');
   denied=false;
   await page.getByRole('button',{name:'Guardar y cerrar'}).click();
   await expect.poll(()=>page.evaluate(()=>document.body.dataset.closed)).toBe('true');

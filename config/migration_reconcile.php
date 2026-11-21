@@ -182,6 +182,12 @@ function brvtalMigrationProofSpecifications(): array
                 ['PRIMARY','uq_inventory_hold_order_type','idx_inventory_event_expiry',
                  'idx_inventory_type_expiry'], true)
         ),
+        'migration_ticketing_stages_01.sql' => brvtalMigrationObjectRequirements(
+            'ticket_type_stages',
+            ['id','ticket_type_id','event_id','code','price_cop','cumulative_capacity',
+             'opens_at_local','closes_at_local'],
+            ['PRIMARY','uq_ticket_stage_type_code','idx_ticket_stage_event'], true
+        ),
         'migration_ticketing_admin_notes_01.sql' => brvtalMigrationObjectRequirements(
             'ticket_admin_actions',
             ['order_id','actor_admin_id','action','request_key_hash','request_hash',
