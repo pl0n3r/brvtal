@@ -57,7 +57,7 @@ if (root) {
       const response = await fetch('/discadmin/ticketing-door.php?summary=1&event_id=' + encodeURIComponent(id), {
         credentials: 'same-origin', cache: 'no-store'
       });
-      if (!response.ok) throw Error('summary');
+      if (!response.ok) throw new Error('summary');
       const data = await response.json();
       if (!data.ok || request !== generation || event.value !== id) return;
       summary.textContent = 'Ingresos confirmados: ' + Number(data.summary.accepted || 0)
@@ -108,12 +108,12 @@ if (root) {
   }
   form.addEventListener('submit', e => {
     e.preventDefault();
-    submit(qr.value.trim());
+    void submit(qr.value.trim());
   });
   event.addEventListener('change', () => {
     stopCamera();
     feedback('idle', 'Esperando confirmación del servidor.');
-    refresh();
+    void refresh();
   });
   cameraButton.addEventListener('click', async () => {
     if (!event.value) { feedback('deny', 'Selecciona primero un evento.'); return; }
