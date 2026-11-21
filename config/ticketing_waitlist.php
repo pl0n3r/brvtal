@@ -61,17 +61,34 @@ function brvtal_waitlist_token(): string
  * inventory is exhausted; POST still revalidates identity, consent and state.
  * Missing schema or disabled privacy gate means no subscription form.
  */
+/**
+ * A published Event cannot leak to anonymous visitors or accept interest
+ * before its explicitly scheduled Bogota publication time.
+ */
+function brvtal_waitlist_publication_open(array $event, DateTimeImmutable $now): bool
+{
+    $raw = trim((string)($event['published_at'] ?? ''));
+    if ($raw === '') return false;
+    try {
+        $published = new DateTimeImmutable($raw,new DateTimeZone('America/Bogota'));
+        return $published <= $now->setTimezone(new DateTimeZone('America/Bogota'));
+    } catch (Throwable) {
+        return false;
+    }
+}
+
 function brvtal_waitlist_public_types(PDO $db, int $eventId): array
 {
     if ($eventId < 1 || !brvtal_waitlist_enabled()) return [];
     try {
-        $q = $db->prepare('SELECT e.status,e.event_date,i.capacity FROM events e
+        $q = $db->prepare('SELECT e.status,e.event_date,e.published_at,i.capacity FROM events e
             JOIN ticket_inventory_events i ON i.event_id=e.id WHERE e.id=?');
         $q->execute([$eventId]);
         $event = $q->fetch(PDO::FETCH_ASSOC);
         $clock = brvtal_waitlist_clock();
         if (!$event || !in_array((string)$event['status'],
             ['published','sold_out','tickets_available','last_tickets'],true)
+            || !brvtal_waitlist_publication_open($event,$clock)
             || (string)$event['event_date'] <= $clock->setTimezone(
                 new DateTimeZone('America/Bogota'))->format('Y-m-d H:i:s')) {
             return [];
@@ -109,12 +126,13 @@ function brvtal_waitlist_subscribe(
     $db->beginTransaction();
     try {
         // Same Event mutex as checkout T05. Never join cancelled, past or draft nights.
-        $q = $db->prepare('SELECT status,event_date FROM events WHERE id=? FOR UPDATE');
+        $q = $db->prepare('SELECT status,event_date,published_at FROM events WHERE id=? FOR UPDATE');
         $q->execute([$eventId]);
         $event = $q->fetch(PDO::FETCH_ASSOC);
         $clock = brvtal_waitlist_clock($now);
         if (!$event || !in_array($event['status'],
             ['published','sold_out','tickets_available','last_tickets'], true)
+            || !brvtal_waitlist_publication_open($event,$clock)
             || (string)$event['event_date'] <= $clock->setTimezone(
                 new DateTimeZone('America/Bogota'))->format('Y-m-d H:i:s')) {
             throw new DomainException('WAITLIST_EVENT_CLOSED');

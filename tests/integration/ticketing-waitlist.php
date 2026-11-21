@@ -84,6 +84,19 @@ brvtal_waitlist_assert_test_storage($db);
 putenv('BRVTAL_TICKET_MAIL_TESTING=1');
 putenv('BRVTAL_TICKET_MAIL_MODE=mock');
 $now=new DateTimeImmutable('2026-12-04 20:00:00',new DateTimeZone('America/Bogota'));
+// A future publication is not a public event or a valid opt-in target.
+$db->exec("UPDATE events SET published_at='2026-12-06 09:00:00' WHERE id=1");
+wlAssert(brvtal_waitlist_public_types($db,1)===[],
+    'pre-publication catalog cannot leak ticket types');
+try {
+    brvtal_waitlist_subscribe($db,1,10,1,'waitlist-v1','',$now);
+    wlAssert(false,'pre-publication consent must not create an entry');
+} catch (DomainException $e) {
+    wlAssert($e->getMessage()==='WAITLIST_EVENT_CLOSED','unpublished gate');
+}
+wlAssert((int)$db->query('SELECT COUNT(*) FROM ticket_waitlist_entries')->fetchColumn()===0,
+    'unpublished signup must roll back');
+$db->exec("UPDATE events SET published_at='2026-11-01 09:00:00' WHERE id=1");
 wlAssert(brvtal_waitlist_subscribe($db,1,10,1,'waitlist-v1','',$now)==='waiting',
     'verified opt-in');
 wlAssert(brvtal_waitlist_subscribe($db,1,10,1,'waitlist-v1','',$now)==='already_registered',

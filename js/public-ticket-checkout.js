@@ -160,7 +160,7 @@
       if (!auth.authenticated || typeof auth.csrf !== 'string' || !auth.csrf) {
         for (const [container] of containers) {
           const link = document.createElement('a');
-          link.href = '/mi-cuenta/acceso';
+          link.href = '/buyer/login.php';
           link.textContent = 'Inicia sesión y verifica tu correo para inscribirte';
           container.append(link);
         }
