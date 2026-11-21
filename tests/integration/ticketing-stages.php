@@ -31,6 +31,28 @@ foreach ([
     try { brvtalTicketStageInput($invalid); throw new RuntimeException('invalid stage accepted'); }
     catch (InvalidArgumentException) {}
 }
+$quote = brvtalTicketStageQuote($stages,0,2,4,$now('2026-12-01 09:00:00'));
+stageAssert($quote['code']==='early_bird' && $quote['unit_price_cop']===15000
+    && $quote['subtotal_cop']===30000 && $quote['available']===2,
+    'quote uses exact COP and stage allocation');
+$quote = brvtalTicketStageQuote($stages,2,2,3,$now('2026-12-02 09:00:00'));
+stageAssert($quote['code']==='preventa' && $quote['subtotal_cop']===40000,
+    'stage rollover uses server price and cumulative capacity');
+foreach ([
+    [$stages,0,3,5,$now('2026-12-01 09:00:00')],
+    [$stages,2,1,0,$now('2026-12-02 09:00:00')],
+    [$stages,0,1,10,$now('2026-11-30 09:00:00')],
+    [[array_replace($stages[0],['price_cop'=>10000000])],0,2,2,$now('2026-12-01 09:00:00')],
+] as $notSaleable) {
+    try {
+        brvtalTicketStageQuote(...$notSaleable);
+        throw new RuntimeException('stage quote accepted unavailable purchase');
+    } catch (DomainException) {}
+}
+try {
+    brvtalTicketStageQuote($stages,-1,1,2,$now('2026-12-01 09:00:00'));
+    throw new RuntimeException('negative inventory accepted');
+} catch (InvalidArgumentException) {}
 $read=(string)file_get_contents(__DIR__.'/../../api/ticketing/admin-stages.php');
 stageAssert(str_contains($read,'brvtal_admin_require_csrf'),'admin POST CSRF required');
 stageAssert(str_contains($read,"'settings'"),'admin settings permission required');

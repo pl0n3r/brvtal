@@ -68,6 +68,32 @@ function brvtalTicketStageCurrent(array $stages, int $used,
     return $selected;
 }
 
+/**
+ * Quote-only T22 policy. Caller must obtain T05 Event mutex and compute
+ * inventoryFree from sold + held + courtesy before calling. This pure helper
+ * does not activate stage pricing for the public checkout.
+ */
+function brvtalTicketStageQuote(array $stages, int $used, int $quantity,
+    int $inventoryFree, ?DateTimeImmutable $clock = null): array
+{
+    if ($used < 0 || $inventoryFree < 0 || $quantity < 1 || $quantity > 20) {
+        throw new InvalidArgumentException('INVALID_STAGE_QUOTE');
+    }
+    $stage = brvtalTicketStageCurrent($stages, $used, $clock);
+    if ($stage === null) throw new DomainException('STAGE_NOT_SALEABLE');
+    $free = min($inventoryFree, $stage['cumulative_capacity'] - $used);
+    if ($free < $quantity) throw new DomainException('STAGE_SOLD_OUT');
+    $price = $stage['price_cop'];
+    if ($price > intdiv(10000000, $quantity)) {
+        throw new DomainException('STAGE_PRICE_LIMIT');
+    }
+    return [
+        'code' => $stage['code'], 'unit_price_cop' => $price,
+        'subtotal_cop' => $price * $quantity,
+        'available' => min(20, $free),
+    ];
+}
+
 /** Serialize with T05 holds on the Event row. Never mutate paid order snapshots. */
 function brvtalTicketStageSave(PDO $pdo,int $eventId,int $typeId,array $rows): void
 {
