@@ -150,7 +150,7 @@ function brvtalSentryRuntimeConfig(array $config = [], ?callable $resolver = nul
         return null;
     }
 
-    $dsn = trim(brvtal_secret_value('BRVTAL_SENTRY_DSN', null, $config === [] ? null : $config));
+    $dsn = trim(brvtal_secret_value('BRVTAL_SENTRY_DSN', null, $config));
     return brvtalSentryParseDsn($dsn, $resolver);
 }
 
