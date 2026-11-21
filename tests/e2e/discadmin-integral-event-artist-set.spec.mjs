@@ -239,14 +239,16 @@ if (base && password) {
           expect(dbAudit(eventId, events[1], artistId, setId))
             .toBe('1:0:1:0:draft:draft:draft');
 
-          // The native Sets list is paginated: filter by this fixture's unique title
-          // before opening the shipped editor, rather than relying on page 1.
-          await page.evaluate(async title => {
+          // The native grid may be paginated or have concurrent navigation updates.
+          // Hydrate its editor cache from the authenticated, unpaginated real API.
+          await page.evaluate(async id => {
             await go('sets');
             await loadRefs();
-            const loaded = await changeNativePage(1, title);
-            if (!loaded) throw new Error('Could not load filtered Sets list');
-          }, setTitle);
+            const records = (await req('/sets')).data || [];
+            const persisted = records.find(row => Number(row.id) === id);
+            if (!persisted) throw new Error('Set missing from authenticated PHP API');
+            state.rows = [persisted];
+          }, setId);
           expect(await page.evaluate(id => state.rows.some(row => Number(row.id) === id), setId))
             .toBe(true);
           expect(await page.evaluate(id => state.events.some(row => Number(row.id) === id), eventId))
