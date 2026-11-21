@@ -67,6 +67,31 @@ wlAssert(brvtal_waitlist_subscribe($db,1,10,2,'waitlist-v1','',$now)==='waiting'
     'second interest');
 wlAssert((int)$db->query('SELECT COUNT(*) FROM ticket_waitlist_entries')->fetchColumn()===2,
     'no double signup');
+// T10 Resend transient retry is tested end-to-end through T28's own outbox message.
+$attempts=0;
+$sendSynthetic=static function (array $payload, array $headers) use (&$attempts): array {
+    $attempts++;
+    wlAssert($headers[0]==='Authorization: Bearer ', 'mock cannot expose API credentials');
+    wlAssert($payload['to']===['first@example.test'], 'only the consented recipient');
+    return match ($attempts) {
+        1 => ['status'=>429,'body'=>'{}','retry_after'=>1],
+        2 => ['status'=>503,'body'=>'{}'],
+        default => ['status'=>200,'body'=>'{"id":"synthetic-waitlist-accepted"}'],
+    };
+};
+wlAssert(brvtal_ticket_mail_deliver_one($db,$sendSynthetic)==='retry',
+    '429 must enter backoff instead of losing notification');
+$db->exec("UPDATE ticket_mail_outbox SET next_attempt_at=DATE_SUB(UTC_TIMESTAMP(),INTERVAL 1 SECOND)
+    WHERE recipient_email='first@example.test'");
+wlAssert(brvtal_ticket_mail_deliver_one($db,$sendSynthetic)==='retry',
+    '503 must remain retryable');
+$db->exec("UPDATE ticket_mail_outbox SET next_attempt_at=DATE_SUB(UTC_TIMESTAMP(),INTERVAL 1 SECOND)
+    WHERE recipient_email='first@example.test'");
+wlAssert(brvtal_ticket_mail_deliver_one($db,$sendSynthetic)==='accepted',
+    'Resend recovery must accept exactly one message');
+wlAssert($attempts===3 && (int)$db->query("SELECT COUNT(*) FROM ticket_mail_outbox
+    WHERE recipient_email='first@example.test' AND state='accepted'")->fetchColumn()===1,
+    'retry cannot duplicate accepted notifications');
 foreach ([[3,'waitlist-v1',''],[1,'no',''],[1,'waitlist-v1','bot']] as [$buyer,$consent,$honey]) {
     try { brvtal_waitlist_subscribe($db,1,10,$buyer,$consent,$honey,$now);
         wlAssert(false,'invalid signup denied');
@@ -91,5 +116,8 @@ wlAssert(brvtal_waitlist_offer($db,1,10,$now->modify('+11 minutes'))!==null,
     'expired offers return to inventory');
 $db->exec("UPDATE events SET status='cancelled' WHERE id=1");
 try { brvtal_waitlist_offer($db,1,10,$now); wlAssert(false,'cancelled offer'); }
+catch (DomainException) {}
+try { brvtal_waitlist_subscribe($db,1,10,2,'waitlist-v1','',$now);
+    wlAssert(false,'cancelled event enrollment'); }
 catch (DomainException) {}
 echo "T28 MariaDB: opt-in, duplicate, unsubscribe, limits, FIFO, expiry, closed event passed.\n";
