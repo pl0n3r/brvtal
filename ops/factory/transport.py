@@ -166,7 +166,7 @@ def _run(args: list[str], *, input_text: str | None = None, label: str) -> None:
         raise TransportError(f"{label} failed with exit code {completed.returncode}")
 
 
-def ssh_script(config: Config, script: str, *arguments: str) -> None:
+def ssh_script(config: Config, script: str, *arguments: str, diagnostic: bool = False) -> None:
     with credentials(config) as (key, hosts):
         command = [
             "ssh",
@@ -174,7 +174,29 @@ def ssh_script(config: Config, script: str, *arguments: str) -> None:
             f"{config.user}@{config.host}",
             "bash", "-s", "--", config.site_root, *arguments,
         ]
-        _run(command, input_text=script, label="SSH command")
+        if not diagnostic:
+            _run(command, input_text=script, label="SSH command")
+            return
+
+        # Owner-authorized reconciliation only: raw stdout/stderr never leave
+        # this adapter; only one bounded allowlisted marker may be forwarded.
+        completed = subprocess.run(
+            command, input=script, text=True, stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL, check=False,
+        )
+        if completed.returncode != 0:
+            message = f"SSH command failed with exit code {completed.returncode}"
+            stdout = completed.stdout if isinstance(completed.stdout, str) else ""
+            if len(stdout.encode("utf-8")) <= 8192:
+                matches = re.findall(
+                    r"^BRVTAL_RECONCILE_CONFLICT:(migration_[a-z0-9_]+[.]sql):"
+                    r"(schema_sql_or_ddl_conflict|database_integrity_constraint|post_apply_schema_proof_mismatch)$",
+                    stdout, flags=re.MULTILINE,
+                )
+                if len(matches) == 1:
+                    name, category = matches[0]
+                    message += f" [migration={name}, conflict={category}]"
+            raise TransportError(message)
 
 
 def ssh_status(config: Config, script: str, *arguments: str) -> bool:
@@ -487,10 +509,43 @@ marker_tmp="$marker.tmp.$BASHPID"
 printf 'backup-ready\n' > "$marker_tmp" || exit 74
 mv -f -- "$marker_tmp" "$marker" || exit 74
 
-if BRVTAL_MIGRATIONS_ALLOW_WRITE=1 BRVTAL_MIGRATION_RECONCILE_BACKUP_READY=1 BRVTAL_MIGRATION_ACTOR=factory-reconcile php scripts/migrations.php reconcile --confirm --json >/dev/null; then
+# Raw progress is private. Only a validated filename and fixed category may
+# leave SSH on failure, after the existing mandatory backup-ready marker.
+progress="$(mktemp "$state/migration-reconcile-progress.XXXXXXXX")" || exit 74
+test ! -L "$progress" || exit 74
+trap 'rm -f -- "$progress"' EXIT
+if BRVTAL_MIGRATIONS_ALLOW_WRITE=1 BRVTAL_MIGRATION_RECONCILE_BACKUP_READY=1 BRVTAL_MIGRATION_RECONCILE_DIAGNOSTIC=1 BRVTAL_MIGRATION_ACTOR=factory-reconcile php scripts/migrations.php reconcile --confirm --json >"$progress"; then
     :
 else
     reconcile_code=$?
+    conflict=""
+    case "$reconcile_code" in
+        122) conflict="schema_sql_or_ddl_conflict" ;;
+        123) conflict="database_integrity_constraint" ;;
+        126) conflict="post_apply_schema_proof_mismatch" ;;
+    esac
+    if [[ -n "$conflict" ]]; then
+        # Attribute only the one action still active at the exact failure.
+        # STEP/DONE also covers the registry migration. Unknown/malformed
+        # records and out-of-sequence events fail closed, without naming SQL.
+        active=""
+        invalid_progress=false
+        while IFS= read -r progress_line || [[ -n "$progress_line" ]]; do
+            if [[ "$progress_line" =~ ^BRVTAL_RECONCILE_STEP:(migration_[a-z0-9_]+[.]sql)$ ]]; then
+                if [[ -n "$active" ]]; then invalid_progress=true; break; fi
+                active="${BASH_REMATCH[1]}"
+            elif [[ "$progress_line" =~ ^BRVTAL_RECONCILE_DONE:(migration_[a-z0-9_]+[.]sql)$ ]]; then
+                if [[ "$active" != "${BASH_REMATCH[1]}" ]]; then invalid_progress=true; break; fi
+                active=""
+            else
+                invalid_progress=true
+                break
+            fi
+        done < "$progress"
+        if [[ "$invalid_progress" == false && "$active" =~ ^migration_[a-z0-9_]+[.]sql$ ]]; then
+            printf 'BRVTAL_RECONCILE_CONFLICT:%s:%s\n' "$active" "$conflict"
+        fi
+    fi
     # Only explicit, deterministic CLI categories can escape SSH; unknown => 75.
     case "$reconcile_code" in
         120) exit 77 ;;
@@ -989,11 +1044,15 @@ def reconcile_migrations(config: Config, sha: str, version: str, origin: str) ->
     safe_origin = _safe_origin(origin)
     _assert_identity(safe_origin, safe_sha, safe_version)
     try:
-        ssh_script(config, _RECONCILE_MIGRATIONS, safe_sha)
+        ssh_script(config, _RECONCILE_MIGRATIONS, safe_sha, diagnostic=True)
     except TransportError as exc:
         # The SSH transport suppresses remote stderr (credentials, SQL/PII).
         # These exit codes are emitted by our fixed, allowlisted shell stages.
-        failure = re.fullmatch(r"SSH command failed with exit code (\d{1,3})", str(exc))
+        failure = re.fullmatch(
+            r"SSH command failed with exit code (\d{1,3})"
+            r"(?: \[migration=(migration_[a-z0-9_]+[.]sql), conflict=([a-z_]+)\])?",
+            str(exc),
+        )
         stages = {
             70: "remote preflight",
             71: "read-only plan",
@@ -1012,7 +1071,16 @@ def reconcile_migrations(config: Config, sha: str, version: str, origin: str) ->
         }
         stage = stages.get(int(failure.group(1))) if failure else None
         if stage is not None:
-            raise TransportError(f"production migration reconcile failed at {stage} stage") from None
+            detail = ""
+            if failure and failure.group(2):
+                expected_category = {
+                    79: "schema_sql_or_ddl_conflict",
+                    80: "database_integrity_constraint",
+                    83: "post_apply_schema_proof_mismatch",
+                }.get(int(failure.group(1)))
+                if expected_category == failure.group(3):
+                    detail = f" (migration={failure.group(2)}, conflict={expected_category})"
+            raise TransportError(f"production migration reconcile failed at {stage} stage{detail}") from None
         raise
     assert_factory_readiness(safe_origin, safe_sha, safe_version)
     _assert_public_smoke(safe_origin)

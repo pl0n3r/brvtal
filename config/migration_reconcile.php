@@ -654,6 +654,58 @@ function brvtalMigrationReconciliationPlan(PDO $pdo, string $directory): array
     return brvtalMigrationBuildReconciliationPlan($status, $proofs, $safeApply);
 }
 
+/**
+ * Keep the authoritative plan in deterministic filename order for inspection,
+ * but execute T03 before any uncreated ticketing tables that reference it.
+ * Preserves relative order for unrelated migrations and all proof/backup gates.
+ */
+function brvtalMigrationOrderDependencyActions(array $actions): array
+{
+    $parent = 'migration_ticketing_orders_01.sql';
+    $dependents = [
+        'migration_ticketing_entries_01.sql',
+        'migration_ticketing_reservations_01.sql',
+        'migration_ticketing_webhook_01.sql',
+        'migration_ticketing_admin_notes_01.sql',
+    ];
+    $parentIndex = null;
+    $firstDependentIndex = null;
+    foreach ($actions as $index => $action) {
+        if (!is_array($action) || !is_string($action['migration'] ?? null)) {
+            throw new RuntimeException('MIGRATION_RECONCILIATION_DRIFT');
+        }
+        $name = $action['migration'];
+        if ($name === $parent) {
+            $parentIndex = $index;
+        } elseif ($firstDependentIndex === null && in_array($name, $dependents, true)) {
+            $firstDependentIndex = $index;
+        }
+    }
+    if ($parentIndex !== null && $firstDependentIndex !== null
+        && $parentIndex > $firstDependentIndex) {
+        $parentAction = $actions[$parentIndex];
+        array_splice($actions, $parentIndex, 1);
+        array_splice($actions, $firstDependentIndex, 0, [$parentAction]);
+    }
+    return $actions;
+}
+
+/**
+ * Emit only one allowlisted migration filename per active reconciliation step.
+ * No SQL, schema details, application data or exception text can escape.
+ */
+function brvtalMigrationEmitSafeProgress(string $event, string $name): void
+{
+    if (PHP_SAPI !== 'cli' || (string)getenv('BRVTAL_MIGRATION_RECONCILE_DIAGNOSTIC') !== '1') {
+        return;
+    }
+    if (!in_array($event, ['STEP', 'DONE'], true)
+        || preg_match('/^migration_[a-z0-9_]+[.]sql$/D', $name) !== 1) {
+        throw new RuntimeException('MIGRATION_RECONCILIATION_DRIFT');
+    }
+    echo 'BRVTAL_RECONCILE_' . $event . ':' . $name . PHP_EOL;
+}
+
 function brvtalMigrationReconcileHistorical(
     PDO $pdo,
     string $directory,
@@ -673,12 +725,14 @@ function brvtalMigrationReconcileHistorical(
         if (!is_string($registry)) {
             throw new RuntimeException('MIGRATION_REGISTRY_FILE_MISSING');
         }
+        brvtalMigrationEmitSafeProgress('STEP', 'migration_schema_migrations_01.sql');
         brvtal_migration_apply_file($pdo, $registry, $actor, $deploySha);
+        brvtalMigrationEmitSafeProgress('DONE', 'migration_schema_migrations_01.sql');
     }
 
     $baselined = [];
     $applied = [];
-    foreach ($plan['actions'] as $action) {
+    foreach (brvtalMigrationOrderDependencyActions($plan['actions']) as $action) {
         if (!is_array($action)) {
             throw new RuntimeException('MIGRATION_RECONCILIATION_DRIFT');
         }
@@ -689,9 +743,12 @@ function brvtalMigrationReconcileHistorical(
             throw new RuntimeException('MIGRATION_RECONCILIATION_DRIFT');
         }
 
+        // The remote wrapper attributes only an unfinished STEP to a failure.
+        brvtalMigrationEmitSafeProgress('STEP', $name);
         if ($kind === 'baseline') {
             brvtal_migration_baseline_file($pdo, $path, $actor, $deploySha);
             $baselined[] = $name;
+            brvtalMigrationEmitSafeProgress('DONE', $name);
             continue;
         }
         if ($kind !== 'apply') {
@@ -714,6 +771,7 @@ function brvtalMigrationReconcileHistorical(
         }
         brvtal_migration_baseline_file($pdo, $path, $actor, $deploySha);
         $applied[] = $name;
+        brvtalMigrationEmitSafeProgress('DONE', $name);
     }
 
     $final = brvtal_migration_status($pdo, $directory);
