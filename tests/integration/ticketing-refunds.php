@@ -15,6 +15,16 @@ t21($reflect->getNumberOfParameters()===1,'guard requires DB');
 t21(brvtalTicketingCan('superadmin','refund'),'superadmin refund');
 t21(!brvtalTicketingCan('admin','refund'),'staff role denied');
 t21(!brvtalTicketingCan('door','refund'),'door denied');
+t21(brvtalRefundProrate(25000,1,4)===6250,'partial refund integer COP');
+t21(brvtalRefundProrate(100,2,3)===66,'partial refund floors without float');
+t21(brvtalRefundProrate(1000000000000,500000000000,1000000000000)===500000000000,
+    '12-digit COP and per-entry prices do not overflow PHP integers');
+t21(brvtalRefundProrate(1000000000000,1000000000000,1000000000000)===1000000000000,
+    'exact full refund at bound');
+t21Reject(static fn()=>brvtalRefundProrate(100,101,100),'AMOUNT_UNVERIFIED');
+t21Reject(static fn()=>brvtalRefundProrate(100,1,0),'AMOUNT_UNVERIFIED');
+t21Reject(static fn()=>brvtalRefundProrate(100,1,1000),'AMOUNT_UNVERIFIED');
+
 // Both list surfaces must fail closed on non-synthetic databases, including GET.
 $refundCode=(string)file_get_contents(__DIR__.'/../../config/ticketing_refunds.php');
 $adminCode=(string)file_get_contents(__DIR__.'/../../api/ticketing/admin-refunds.php');

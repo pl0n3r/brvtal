@@ -14,6 +14,21 @@ function brvtalRefundAudit(PDO $db,int $id,string $kind,?int $actor,?string $bef
     $db->prepare('INSERT INTO ticket_refund_audit(refund_id,actor_kind,actor_id,prior_status,next_status)
         VALUES(?,?,?,?,?)')->execute([$id,$kind,$actor,$before,$after]);
 }
+/** Exact floor(total × selected / gross) without overflowing 64-bit PHP integers. */
+function brvtalRefundProrate(int $total, int $selected, int $gross): int {
+    $limit=1000000000000;
+    if ($total<1||$total>$limit||$gross<1||$gross>$limit
+        ||$selected<1||$selected>$gross) throw new DomainException('AMOUNT_UNVERIFIED');
+    // Binary long division: partial remainder < gross, so each step < 3 × limit.
+    $quotient=0; $remainder=0;
+    foreach (str_split(decbin($selected)) as $bit) {
+        $partial=2*$remainder+($bit==='1'?$total:0);
+        $quotient=2*$quotient+intdiv($partial,$gross);
+        $remainder=$partial%$gross;
+    }
+    if ($quotient<1||$quotient>$total) throw new DomainException('AMOUNT_UNVERIFIED');
+    return $quotient;
+}
 /** Buyer identity is always session-derived; input supplies only opaque IDs. */
 function brvtalRefundRequest(PDO $db,int $buyer,array $input):array {
     brvtalRefundGuard($db);
@@ -57,9 +72,14 @@ function brvtalRefundRequest(PDO $db,int $buyer,array $input):array {
         if (!$all) throw new DomainException('ORDER_NOT_REFUNDABLE');
         $chosen=[]; $gross=0; $selected=0;
         foreach ($all as $row) {
-            $unit=(int)$row['unit_price_cop']; $gross+=$unit;
+            $unit=(int)$row['unit_price_cop'];
+            if ($unit<1||$unit>1000000000000||$gross>1000000000000-$unit) {
+                throw new DomainException('AMOUNT_UNVERIFIED');
+            }
+            $gross+=$unit;
             if (!$ids||in_array($row['ref'],$ids,true)) {
                 if ($row['status']!=='issued') throw new DomainException('ENTRY_NOT_REFUNDABLE');
+                if ($selected>1000000000000-$unit) throw new DomainException('AMOUNT_UNVERIFIED');
                 $chosen[]=$row; $selected+=$unit;
             }
         }
@@ -68,7 +88,7 @@ function brvtalRefundRequest(PDO $db,int $buyer,array $input):array {
         if (!$chosen||$gross<1||$total<1||$total>1000000000000||$gross>1000000000000) {
             throw new DomainException('AMOUNT_UNVERIFIED');
         }
-        $amount=count($chosen)===count($all)?$total:intdiv($total*$selected,$gross);
+        $amount=count($chosen)===count($all)?$total:brvtalRefundProrate($total,$selected,$gross);
         if ($amount<1||$amount>$total) throw new DomainException('AMOUNT_UNVERIFIED');
         $db->prepare('INSERT INTO ticket_refunds(order_id,buyer_id,event_id,request_hash,selection_hash,reason,amount_cop)
             VALUES(?,?,?,?,?,?,?)')->execute([(int)$order['id'],$buyer,(int)$order['event_id'],$request,$selection,$reason,$amount]);
