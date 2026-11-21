@@ -145,3 +145,67 @@ function brvtalRefundBuyerList(PDO $db,int $buyer):array {
         ORDER BY r.id DESC LIMIT 100');
     $q->execute([$buyer]); return $q->fetchAll(PDO::FETCH_ASSOC);
 }
+
+
+/**
+ * Wompi Refunds V2 sandbox-only request contract.
+ * Pure construction: no HTTP, DB changes, payment movement or auto-finalization.
+ * The authorized server transport, never the browser, must supply the private key.
+ */
+function brvtalRefundSandboxV2Payload(
+    array $wompi, string $transactionId, int $amountCop, string $reason, string $reference
+): array {
+    if (($wompi['mode'] ?? '') !== 'sandbox'
+        || !is_string($wompi['private'] ?? null)
+        || !str_starts_with($wompi['private'], 'prv_test_')
+        || strlen($wompi['private']) < 16) {
+        throw new DomainException('REFUND_SANDBOX_ONLY');
+    }
+    if (!preg_match('/^[A-Za-z0-9._:-]{1,128}$/D', $transactionId)
+        || !preg_match('/^[A-Za-z0-9._:-]{1,128}$/D', $reference)
+        || $amountCop < 1 || $amountCop > 10000000
+        || strlen(trim($reason)) < 4 || strlen($reason) > 220) {
+        throw new DomainException('REFUND_INVALID');
+    }
+    return [
+        'endpoint' => 'https://sandbox.wompi.co/v1/refunds',
+        'body' => [
+            'transaction_id' => $transactionId,
+            'amount_in_cents' => $amountCop * 100,
+            'reason' => trim($reason),
+            'reference' => $reference,
+        ],
+    ];
+}
+
+/** Strictly correlate a trusted sandbox HTTP response before any ledger transition. */
+function brvtalRefundSandboxV2Receipt(
+    int $httpStatus, string $response, string $transactionId, int $amountCop, string $reference
+): array {
+    if ($httpStatus !== 201 || strlen($response) > 65536) {
+        throw new DomainException('REFUND_PROVIDER_UNVERIFIED');
+    }
+    $decoded = json_decode($response, true);
+    $data = is_array($decoded) ? ($decoded['data'] ?? null) : null;
+    if (!is_array($data)
+        || ($data['transaction_id'] ?? null) !== $transactionId
+        || ($data['amount_in_cents'] ?? null) !== $amountCop * 100
+        || ($data['reference'] ?? null) !== $reference) {
+        throw new DomainException('REFUND_PROVIDER_UNVERIFIED');
+    }
+    $status = $data['status'] ?? null;
+    if (!in_array($status, ['APPROVED','PENDING','DECLINED','ERROR','CANCELLED'], true)) {
+        throw new DomainException('REFUND_PROVIDER_UNVERIFIED');
+    }
+    $providerId = $data['v2_refund_id'] ?? null;
+    if ($status === 'APPROVED' && (!is_string($providerId)
+        || !preg_match('/^[A-Za-z0-9._:-]{1,190}$/D', $providerId))) {
+        throw new DomainException('REFUND_PROVIDER_UNVERIFIED');
+    }
+    return [
+        'state' => $status === 'APPROVED' ? 'confirmed'
+            : ($status === 'PENDING' ? 'processing' : 'failed'),
+        'provider_status' => $status,
+        'provider_refund_id' => is_string($providerId) ? $providerId : null,
+    ];
+}

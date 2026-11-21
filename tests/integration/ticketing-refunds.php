@@ -24,6 +24,38 @@ t21(str_contains($adminCode,'$db=db(); brvtalRefundGuard($db);'),
     'staff refund GET remains sandbox-only');
 t21(strpos($refundCode,"if (\$order['status']!=='paid') throw new DomainException('ORDER_NOT_REFUNDABLE');")
     > strpos($refundCode,'if ($existing) {'),'idempotent replay precedes paid-status gate');
+
+$testWompi = ['mode'=>'sandbox','private'=>'prv_test_synthetic_only'];
+$testTx = 'trx_synthetic_01';
+$testRef = 'BRVTAL-T21-1';
+$testPayload = brvtalRefundSandboxV2Payload($testWompi,$testTx,500,'Solicitud sintética',$testRef);
+t21($testPayload['endpoint']==='https://sandbox.wompi.co/v1/refunds',
+    'refund V2 must use the sandbox-only endpoint');
+t21($testPayload['body']['amount_in_cents']===50000,
+    'refund amounts use cents without floating-point rounding');
+t21(!str_contains(json_encode($testPayload,JSON_THROW_ON_ERROR),'prv_test_'),
+    'private sandbox key must not appear in the request payload');
+t21Reject(static fn()=>brvtalRefundSandboxV2Payload(
+    ['mode'=>'sandbox','private'=>'prv_prod_fake'],$testTx,500,'Motivo',$testRef
+),'REFUND_SANDBOX_ONLY');
+t21Reject(static fn()=>brvtalRefundSandboxV2Payload(
+    ['mode'=>'production','private'=>'prv_test_synthetic_only'],$testTx,500,'Motivo',$testRef
+),'REFUND_SANDBOX_ONLY');
+$receipt = static fn(string $status,int $amount,string $reference):string => json_encode(['data'=>[
+    'status'=>$status,'transaction_id'=>$testTx,'amount_in_cents'=>$amount,
+    'reference'=>$reference,'v2_refund_id'=>'v2_refund_synthetic_01'
+]],JSON_THROW_ON_ERROR);
+$confirmed = brvtalRefundSandboxV2Receipt(201,$receipt('APPROVED',50000,$testRef),$testTx,500,$testRef);
+t21($confirmed['state']==='confirmed','provider must confirm an exact approved refund');
+$declined = brvtalRefundSandboxV2Receipt(201,$receipt('DECLINED',50000,$testRef),$testTx,500,$testRef);
+t21($declined['state']==='failed','declined refund must not revoke tickets');
+t21Reject(static fn()=>brvtalRefundSandboxV2Receipt(
+    201,$receipt('APPROVED',50100,$testRef),$testTx,500,$testRef
+),'REFUND_PROVIDER_UNVERIFIED');
+t21Reject(static fn()=>brvtalRefundSandboxV2Receipt(
+    201,$receipt('APPROVED',50000,'other_ref'),$testTx,500,$testRef
+),'REFUND_PROVIDER_UNVERIFIED');
+
 $schema=(string)file_get_contents(__DIR__.'/../../database/migration_ticketing_refunds_01.sql');
 t21(str_contains($schema,'uq_ticket_refund_claim'),'no double-refund claim');
 t21(str_contains($schema,'ticket_refund_adjustments'),'immutable finance witness');
