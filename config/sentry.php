@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/deployment.php';
+require_once __DIR__ . '/secrets.php';
 
 const BRVTAL_SENTRY_TIMEOUT_SECONDS = 1.2;
 
@@ -149,12 +150,7 @@ function brvtalSentryRuntimeConfig(array $config = [], ?callable $resolver = nul
         return null;
     }
 
-    $dsn = trim((string)(getenv('BRVTAL_SENTRY_DSN') ?: ''));
-    if ($dsn === '') {
-        $observability = $config['observability'] ?? [];
-        $dsn = is_array($observability) ? trim((string)($observability['sentry_dsn'] ?? '')) : '';
-    }
-
+    $dsn = trim(brvtal_secret_value('BRVTAL_SENTRY_DSN', null, $config === [] ? null : $config));
     return brvtalSentryParseDsn($dsn, $resolver);
 }
 
