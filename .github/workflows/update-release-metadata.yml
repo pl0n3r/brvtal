@@ -247,6 +247,8 @@ jobs:
     with:
       operation: validate
       profile: en
+      # Factory#2163: version-only bumps no longer serialize leaves (#1811).
+      shared_version_paths: '["config/version.php","package.json"]'
       pr_number: ${{ github.event.pull_request.number }}
       # Bootstrap-only exception: PR #728 migrates the last trusted BRVTAL v1
       # reservation marker. Every subsequent PR must present Factory v2 fingerprinting.
@@ -334,6 +336,7 @@ jobs:
         run: |
           set -euo pipefail
           php tests/public-entity-card-framing-contract.php
+          php tests/work-coordination-shared-version-contract.php
 
       - name: Run S27 coverage gap contracts (PHP + Node)
         shell: bash
