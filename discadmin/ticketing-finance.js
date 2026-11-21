@@ -12,6 +12,13 @@ export async function mount(panel) {
       .querySelector('[data-finance-module]');
     if (!fragment || !live()) return;
     panel.replaceChildren(document.importNode(fragment,true));
+    // POS is a separate, fail-closed synthetic module inside Finance.
+    import('/discadmin/ticketing-pos.js').then(mod=>{
+      if(live()) return mod.mount(panel.querySelector('[data-finance-module]'));
+    }).catch(()=>{ if(live()) {
+      const notice=document.createElement('p');notice.textContent='POS no disponible.';
+      panel.querySelector('[data-finance-module]')?.append(notice);
+    } });
     const form = panel.querySelector('[data-finance-form]');
     const status = panel.querySelector('[data-finance-status]');
     const results = panel.querySelector('[data-finance-results]');
