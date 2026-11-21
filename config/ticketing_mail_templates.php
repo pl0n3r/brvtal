@@ -10,7 +10,7 @@ function brvtal_ticket_mail_render(string $kind, array $data): array
     if (!isset($catalog[$kind])) throw new InvalidArgumentException('MAIL_TEMPLATE_UNKNOWN');
     $event = trim((string)($data['event'] ?? ''));
     if (!in_array($kind, ['verify_account','reset_password'], true)
-        && ($event === '' || strlen($event) > 160 || preg_match('/[\r\n<>]/', $event))) {
+        && ($event === '' || strlen($event) > 160 || preg_match('/[\r\n]/', $event))) {
         throw new InvalidArgumentException('MAIL_EVENT_INVALID');
     }
     $link = (string)($data['link'] ?? '');
@@ -19,7 +19,7 @@ function brvtal_ticket_mail_render(string $kind, array $data): array
     $testHost = getenv('BRVTAL_TICKET_MAIL_TESTING') === '1' && $host === 'brvtal.invalid';
     if (!is_array($parts) || ($parts['scheme'] ?? '') !== 'https'
         || (!$testHost && !in_array($host, ['brvtal.com.co','www.brvtal.com.co'], true))
-        || isset($parts['user'], $parts['pass']) || isset($parts['port'])
+        || isset($parts['user']) || isset($parts['pass']) || isset($parts['port'])
         || isset($parts['fragment']) || strpbrk($link, "\r\n") !== false
         || strlen($link) > 2048) {
         throw new InvalidArgumentException('MAIL_LINK_INVALID');
@@ -82,12 +82,11 @@ function brvtal_ticket_mail_queue_order(
               AND w.signed_status='APPROVED' LIMIT 1");
         $proof->execute([$orderId]);
         if ($proof->fetchColumn() === false) throw new DomainException('MAIL_PAYMENT_NOT_VERIFIED');
-        $count = $db->prepare("SELECT COUNT(e.id) AS issued, COALESCE(SUM(i.quantity),0) AS expected
+        $count = $db->prepare("SELECT COUNT(e.id) AS issued
             FROM ticket_order_items i LEFT JOIN ticket_entries e ON e.order_item_id=i.id
               AND e.status='issued' WHERE i.order_id=?");
         $count->execute([$orderId]);
         $counts = $count->fetch(PDO::FETCH_ASSOC);
-        // SUM over joined rows can multiply quantity; use scalar subqueries instead.
         $expected = $db->prepare('SELECT COALESCE(SUM(quantity),0) FROM ticket_order_items WHERE order_id=?');
         $expected->execute([$orderId]);
         $units = (int)$expected->fetchColumn();
@@ -126,7 +125,7 @@ function brvtal_ticket_mail_queue_security(
     $row = $get->fetch(PDO::FETCH_ASSOC);
     if (!is_array($row) || !is_string($row['email'])
         || strtolower($row['email']) !== strtolower($recipient)
-        || !hash_equals((string)$row['token_hash'], hash('sha256',base64_decode(strtr($token,'-_','+/').'=',true) ?: ''))) {
+        || !hash_equals((string)$row['token_hash'], hash('sha256', $token))) {
         throw new DomainException('MAIL_TOKEN_UNAVAILABLE');
     }
     $rendered = brvtal_ticket_mail_render($kind, $data);

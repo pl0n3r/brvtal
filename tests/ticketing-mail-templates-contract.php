@@ -63,7 +63,10 @@ register_shutdown_function(static function () use ($server,$name): void {
 });
 $db=new PDO("mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4",$user,$pass,$opts);
 $db->exec((string)file_get_contents(__DIR__.'/../database/migration_ticketing_mail_outbox_01.sql'));
-$db->exec((string)file_get_contents(__DIR__.'/../database/migration_ticketing_mail_history_01.sql'));
+foreach (preg_split('/;\s*(?=CREATE|$)/i',
+    (string)file_get_contents(__DIR__.'/../database/migration_ticketing_mail_history_01.sql')) ?: [] as $statement) {
+    if (trim($statement)!=='') $db->exec($statement);
+}
 $db->exec("CREATE TABLE ticket_buyers (id INT PRIMARY KEY,email VARCHAR(190))");
 $db->exec("CREATE TABLE ticket_orders (id INT PRIMARY KEY,event_id INT,buyer_id INT,status VARCHAR(16))");
 $db->exec("CREATE TABLE ticket_order_items (id INT PRIMARY KEY,order_id INT,quantity INT)");
