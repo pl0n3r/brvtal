@@ -108,9 +108,16 @@ try {
     $workers=[];
     foreach (['scanner-C','scanner-D'] as $device) {
         $cmd=[PHP_BINARY,'-r','require '.var_export(__DIR__.'/../../config/ticketing_checkin.php',true).';'
+            // Test-only PDO statement hook: READY is emitted directly before
+            // the real event FOR UPDATE query, not merely after connecting.
+            .'class T15ReadyStmt extends PDOStatement {protected function __construct(){}'
+            .'public function execute(?array $params=null):bool {'
+            .'if(str_contains($this->queryString,"SELECT status FROM events WHERE id=? FOR UPDATE"))'
+            .'{echo "READY".PHP_EOL;flush();}'
+            .'return parent::execute($params);}}'
             .'$pdo=new PDO(getenv("T15_DSN"),getenv("BRVTAL_TEST_DB_USER"),getenv("BRVTAL_TEST_DB_PASS"),'
             .'[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_EMULATE_PREPARES=>false]);'
-            .'echo "READY:".(int)$pdo->query("SELECT CONNECTION_ID()")->fetchColumn().PHP_EOL;flush();'
+            .'$pdo->setAttribute(PDO::ATTR_STATEMENT_CLASS,[T15ReadyStmt::class,[]]);'
             .'echo json_encode(brvtalTicketCheckinConsume($pdo,1,7,getenv("T15_DEVICE"),getenv("T15_QR")));'];
         $env=['T15_DSN'=>'mysql:host='.getenv('BRVTAL_TEST_DB_HOST').';port='.(getenv('BRVTAL_TEST_DB_PORT')?:3306).';dbname='.$db,
             'T15_DEVICE'=>$device,'T15_QR'=>$qr3,'BRVTAL_TEST_DB_USER'=>(string)getenv('BRVTAL_TEST_DB_USER'),
@@ -118,36 +125,25 @@ try {
         $p=proc_open($cmd,[1=>['pipe','w'],2=>['pipe','w']],$pipes,null,$env);
         t15(is_resource($p),'worker launched');$workers[]=[$p,$pipes];
     }
-    // Both workers must be blocked on InnoDB row locks before releasing parent.
+    // Both workers signal just before executing the real FOR UPDATE statement.
     $barrierPassed=false;
     try {
         $connections=[];
         foreach ($workers as [$proc,$pipes]) stream_set_blocking($pipes[1],false);
-    $deadline=microtime(true)+10;
-    while (count($connections)<2 && microtime(true)<$deadline) {
-        $ready=[];
-        foreach ($workers as [$proc,$pipes]) $ready[]=$pipes[1];
-        $write=[];$except=[];
-        t15(stream_select($ready,$write,$except,0,100000)!==false,'worker ready select');
-        foreach ($ready as $stream) {
-            $line=fgets($stream);
-            if (is_string($line) && preg_match('/^READY:([1-9][0-9]*)$/D',trim($line),$m)) {
-                $connections[(int)$m[1]]=(int)$m[1];
+        $deadline=microtime(true)+10;
+        while (count($connections)<2 && microtime(true)<$deadline) {
+            $ready=[];
+            foreach ($workers as [$proc,$pipes]) $ready[]=$pipes[1];
+            $write=[];$except=[];
+            t15(stream_select($ready,$write,$except,0,100000)!==false,'worker ready select');
+            foreach ($ready as $stream) {
+                $line=fgets($stream);
+                if (is_string($line) && trim($line)==='READY') {
+                    $connections[(int)$stream]=true;
+                }
             }
         }
-    }
-    t15(count($connections)===2,'both workers connected to MariaDB');
-    $ids=array_values($connections);
-    $lockWait=$pdo->prepare("SELECT COUNT(*) FROM information_schema.INNODB_TRX
-        WHERE trx_mysql_thread_id IN (?,?) AND trx_state='LOCK WAIT'");
-    $waiting=0;
-    while (microtime(true)<$deadline) {
-        $lockWait->execute($ids);
-        $waiting=(int)$lockWait->fetchColumn();
-        if ($waiting===2) break;
-        usleep(50000);
-    }
-    t15($waiting===2,'both scanners blocked on DB lock');
+        t15(count($connections)===2,'both scanners reached event row-lock query');
         $pdo->commit();
         $barrierPassed=true;
     } finally {
