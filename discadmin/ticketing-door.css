@@ -1,0 +1,21 @@
+:root{color-scheme:dark;font-family:system-ui,-apple-system,sans-serif;background:#07090b;color:#f0f2f5}
+*{box-sizing:border-box}body{margin:0}.door{max-width:680px;margin:auto;padding:clamp(16px,4vw,30px)}
+header{border-bottom:2px solid #b9203b;padding-bottom:18px}header h1{font-size:clamp(1.65rem,6vw,2.4rem);margin:4px 0}
+header p{color:#c6c9cc}a{color:#e7bfc8}.eyebrow{letter-spacing:.2em;color:#ff6e87;font-size:.75rem}
+form,section{margin-top:22px;padding:18px;background:#11161a;border:1px solid #303941;border-radius:12px}
+label{display:block;margin:12px 0 6px;font-weight:700}
+select,input,button{font:inherit;min-height:48px;border-radius:8px}
+select,input{width:100%;background:#07090b;border:1px solid #697781;color:#fff;padding:12px}
+.actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:18px}
+button{background:#bf2945;border:1px solid #ed6a83;color:#fff;font-weight:700;padding:9px;cursor:pointer}
+button[data-door-camera],button[data-door-stop]{background:#283039;border-color:#67727c}
+button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:3px solid #fcbf5c;outline-offset:3px}
+video{width:100%;max-height:320px;margin-top:16px;background:#050505}
+[data-door-result]{display:block;margin-top:20px;padding:24px;border-radius:10px;border:2px solid #687178;font-size:1.2rem;font-weight:800}
+[data-state="allow"]{background:#123c2c;border-color:#78dc9c;color:#eafff0}
+[data-state="deny"]{background:#481822;border-color:#ff778f;color:#fff3f5}
+[data-state="pending"]{background:#414024;border-color:#f7d675}
+[data-door-audit] p{border-top:1px solid #424a50;padding:9px 0;overflow-wrap:anywhere}
+[data-door-camera-status]{color:#c6c9cc}h2{margin:0;font-size:1.2rem}
+[hidden]{display:none!important}
+@media(max-width:420px){.actions{grid-template-columns:1fr}form,section{padding:14px}}
