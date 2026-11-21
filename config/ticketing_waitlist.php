@@ -12,6 +12,21 @@ function brvtal_waitlist_enabled(): bool
             && getenv('BRVTAL_TICKET_MAIL_PRIVACY_APPROVED') === '1');
 }
 
+/**
+ * Invitations cannot be activated merely by enabling signups. Until an
+ * independently verified checkout-token redemption flow is deployed, offers
+ * stay blocked. No self-attestation here replaces D-063 / release approval.
+ */
+function brvtal_waitlist_offers_enabled(): bool
+{
+    if (getenv('BRVTAL_WAITLIST_TESTING') === '1') {
+        return true;
+    }
+    return brvtal_waitlist_enabled()
+        && getenv('BRVTAL_WAITLIST_OFFERS_ENABLED') === '1'
+        && getenv('BRVTAL_WAITLIST_REDEMPTION_VERIFIED') === '1';
+}
+
 function brvtal_waitlist_clock(?DateTimeImmutable $now = null): DateTimeImmutable
 {
     return ($now ?? new DateTimeImmutable('now', new DateTimeZone('UTC')))
@@ -117,7 +132,7 @@ function brvtal_waitlist_unsubscribe(PDO $db, string $token): bool
 /** One private invitation at a time, serialized by T05 Event row lock. */
 function brvtal_waitlist_offer(PDO $db, int $eventId, int $typeId, ?DateTimeImmutable $now = null): ?array
 {
-    if (!brvtal_waitlist_enabled()) throw new DomainException('WAITLIST_DISABLED');
+    if (!brvtal_waitlist_offers_enabled()) throw new DomainException('WAITLIST_OFFERS_DISABLED');
     if ($eventId < 1 || $typeId < 1 || $db->inTransaction()) {
         throw new InvalidArgumentException('WAITLIST_INVALID_OFFER');
     }
