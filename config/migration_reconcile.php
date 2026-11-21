@@ -182,6 +182,21 @@ function brvtalMigrationProofSpecifications(): array
                 ['PRIMARY','uq_inventory_hold_order_type','idx_inventory_event_expiry',
                  'idx_inventory_type_expiry'], true)
         ),
+        // T24: drawer and cash-only POS receipts are independent of Wompi payout.
+        'migration_ticketing_pos_01.sql' => array_merge(
+            brvtalMigrationObjectRequirements('ticket_pos_shifts',
+                ['id','event_id','operator_admin_id','status','opening_cash_cop',
+                 'expected_cash_cop','closing_cash_cop','cash_difference_cop',
+                 'opened_at_utc','closed_at_utc'],
+                ['PRIMARY','idx_pos_shift_operator_event'], true),
+            brvtalMigrationObjectRequirements('ticket_pos_sales',
+                ['id','shift_id','event_id','operator_admin_id','ticket_type_id',
+                 'order_id','quantity','unit_price_cop','amount_cop','method',
+                 'status','request_key_hash','request_hash','confirmation_hash',
+                 'expires_at_utc','created_at_utc','completed_at_utc'],
+                ['PRIMARY','uq_pos_sale_request','uq_pos_sale_order',
+                 'idx_pos_sale_shift_state'], true)
+        ),
         'migration_ticketing_admin_notes_01.sql' => brvtalMigrationObjectRequirements(
             'ticket_admin_actions',
             ['order_id','actor_admin_id','action','request_key_hash','request_hash',
