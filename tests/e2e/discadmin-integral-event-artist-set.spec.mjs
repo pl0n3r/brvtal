@@ -79,7 +79,9 @@ function dbAudit(eventId, otherEventId, artistId, setId) {
   const env = process.env;
   const name = env.BRVTAL_TEST_DB_NAME || '';
   if (!/^brvtal_test[a-zA-Z0-9_]*$/.test(name)) throw new Error('Refusing non-test database');
-  const client = env.BRVTAL_TEST_DB_CLI || 'mariadb';
+  const client = env.BRVTAL_TEST_DB_CLI || execFileSync('sh',
+    ['-c', 'command -v mariadb >/dev/null 2>&1 && printf mariadb || printf mysql'],
+    {encoding: 'utf8', timeout: 3000}).trim();
   const query =
     'SELECT CONCAT(' +
     '(SELECT COUNT(*) FROM event_artists WHERE event_id=' + eventId + ' AND artist_id=' + artistId + '),' +
@@ -130,7 +132,8 @@ if (base && password) {
           expect([401, 403]).toContain(forbidden.status());
           const noCsrf = await page.request.post(base + '/api/index.php/events/' + eventId + '/lineup',
             {data: {lineup: []}});
-          expect([401, 403]).toContain(noCsrf.status());
+          expect(noCsrf.status()).toBe(419);
+          expect(await noCsrf.json()).toMatchObject({error: 'CSRF'});
 
           await page.goto(base + '/discadmin/', {waitUntil: 'domcontentloaded'});
           await page.waitForFunction(() => Boolean(window.state?.authed), null, {timeout: 10000});
@@ -199,7 +202,7 @@ if (base && password) {
           // Persist Set through the real admin API, then reopen its actual editor.
           const createSet = await page.request.post(base + '/api/index.php/sets',
             {headers, data: {title: setTitle, slug: 'ci-integral-set-' + key,
-              platform: 'soundcloud', status: 'draft', event_id: eventId,
+              platform: 'soundcloud', status: 'draft', external_url: '', event_id: eventId,
               artist_id: artistId, artist_ids: [artistId]}});
           expect(createSet.status()).toBe(201);
           setId = Number((await createSet.json()).id);
