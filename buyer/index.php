@@ -6,7 +6,7 @@
 main{max-width:66rem;margin:auto;padding:clamp(1rem,4vw,3rem)}h1{font-size:clamp(2.2rem,7vw,4.5rem);text-transform:uppercase;letter-spacing:-.06em}
 header{border-bottom:2px solid #d32626;margin-bottom:2rem}section,article{border:1px solid #555;padding:1.1rem;margin:1rem 0}
 form{display:flex;flex-wrap:wrap;gap:.8rem;align-items:end}label{display:grid;gap:.35rem;flex:1 1 9rem}
-input,button{font:inherit;padding:.7rem;color:inherit;background:#1b1b1b;border:1px solid #bbb;border-radius:.15rem}
+input,button,textarea{font:inherit;padding:.7rem;color:inherit;background:#1b1b1b;border:1px solid #bbb;border-radius:.15rem}
 button{cursor:pointer;background:#e9e9e9;color:#111;font-weight:700}button:disabled{opacity:.5;cursor:wait}
 a{color:#ff6b6b}:focus-visible{outline:3px solid #ff5252;outline-offset:3px}
 small,.muted{color:#bcbcbc}.ticket{border-left:3px solid #e13838;padding:.4rem .8rem;margin:.5rem 0}
@@ -19,6 +19,7 @@ small,.muted{color:#bcbcbc}.ticket{border-left:3px solid #e13838;padding:.4rem .
 <button>Filtrar</button></form>
 <p id="feedback" role="status" aria-live="polite"></p><section id="orders" aria-label="Pedidos"><p>Cargando compras…</p></section>
 <button id="more" hidden type="button">Ver más pedidos</button>
+<section id="refund-list" aria-label="Solicitudes de devolución"><h2>Devoluciones</h2><div id="refund-items" aria-live="polite">Cargando solicitudes…</div></section>
 <section id="qr" hidden aria-label="Entrada QR"><h2>Entrada protegida</h2>
 <p class="muted">Usa la credencial original recibida al emitir tu entrada. BRVTAL no conserva el secreto en claro.</p>
 <form id="qr-form"><label>Credencial original<input id="token" type="password" required autocomplete="off" spellcheck="false" minlength="43" maxlength="43"></label>
@@ -32,6 +33,61 @@ small,.muted{color:#bcbcbc}.ticket{border-left:3px solid #e13838;padding:.4rem .
   let csrf='',page=0,ticket='',payload='';
   const el=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=String(text);return n;};
   const statuses={draft:'Borrador',pending:'Pago pendiente',paid:'Aprobado',failed:'Rechazado',declined:'Rechazado',error:'Error',created:'Iniciado',cancelled:'Cancelado',expired:'Expirado',refunded:'Reembolsado',issued:'Disponible',used:'Usada',revoked:'Revocada'};
+
+  const refundsApi='/api/buyer/refunds.php';
+  const refundStates={requested:'Solicitada',approved:'Aprobada',processing:'En proceso',manual_pending:'Pendiente manual',
+    refunded:'Reembolsada',rejected:'Rechazada',failed:'Fallida'};
+  async function loadRefunds(){
+    const target=$('refund-items');
+    try{
+      const response=await fetch(refundsApi,{credentials:'same-origin',cache:'no-store'});
+      if(!response.ok)throw Error('UNAVAILABLE');
+      const payload=await response.json();
+      if(!Array.isArray(payload.data))throw Error('UNAVAILABLE');
+      target.replaceChildren();
+      if(!payload.data.length)target.append(el('p','Sin solicitudes de devolución.'));
+      for(const r of payload.data){
+        const text='Pedido '+r.order_id+' · '+(refundStates[r.status]||'Estado pendiente de verificación')+' · '+r.amount_cop+' COP';
+        target.append(el('p',text));
+      }
+    }catch(_){target.textContent='Las devoluciones no están disponibles en este entorno.';}
+  }
+  function refundForm(order){
+    const eligible=(order.items||[]).filter(item=>item.status==='issued'&&item.ticket_id);
+    if(order.status!=='paid'||!eligible.length||!/^[a-f0-9]{32}$/.test(order.public_id||''))return null;
+    const form=el('form');form.setAttribute('aria-label','Solicitar devolución');
+    const caption=el('h3','Solicitar devolución');form.append(caption);
+    eligible.forEach((item,i)=>{
+      const label=el('label');const checkbox=el('input');checkbox.type='checkbox';checkbox.name='refund_entry';
+      checkbox.value=item.ticket_id;
+      label.append(checkbox,document.createTextNode(' '+(item.name||'Entrada')+' #'+(i+1)));form.append(label);
+    });
+    const reasonLabel=el('label','Motivo de la devolución');
+    const reason=el('textarea');reason.name='reason';reason.required=true;reason.minLength=4;reason.maxLength=220;
+    reasonLabel.append(reason);form.append(reasonLabel);
+    const button=el('button','Enviar solicitud');button.type='submit';
+    const status=el('p');status.setAttribute('role','status');form.append(button,status);
+    form.addEventListener('input',()=>delete form.dataset.idempotencyKey);
+    form.addEventListener('submit',async event=>{
+      event.preventDefault();
+      const selected=Array.from(form.querySelectorAll('input[name="refund_entry"]:checked'),input=>input.value);
+      if(!selected.length){status.textContent='Selecciona al menos una entrada disponible.';return;}
+      if(!csrf){status.textContent='Sesión no disponible.';return;}
+      button.disabled=true;status.textContent='Enviando solicitud…';
+      form.dataset.idempotencyKey||=crypto.randomUUID();
+      try{
+        const response=await fetch(refundsApi,{method:'POST',credentials:'same-origin',cache:'no-store',
+          headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},
+          body:JSON.stringify({order_id:order.public_id,entry_ids:selected,reason:reason.value,
+            idempotency_key:form.dataset.idempotencyKey})});
+        if(!response.ok)throw Error('UNAVAILABLE');
+        status.textContent='Solicitud registrada; pendiente de confirmación.';
+        await loadRefunds();
+      }catch(_){status.textContent='No se confirmó la solicitud. Puedes reintentar sin duplicarla.';}
+      finally{button.disabled=false;}
+    });
+    return form;
+  }
   function resetQr(){ticket='';payload='';qr.hidden=true;$('token').value='';$('qr-output').replaceChildren();$('qr-output').hidden=true;$('download').hidden=true;$('qr-feedback').textContent='';}
   function showQr(id){resetQr();ticket=id;qr.hidden=false;$('token').focus();}
   function card(order){
@@ -43,7 +99,9 @@ small,.muted{color:#bcbcbc}.ticket{border-left:3px solid #e13838;padding:.4rem .
       if(order.status==='paid'&&item.status==='issued'&&item.credential_active!==false&&item.qr_requires_original_token&&item.ticket_id){
         const button=el('button','Ver QR');button.type='button';button.addEventListener('click',()=>showQr(item.ticket_id));line.append(button);
       }box.append(line);
-    }return box;
+    }
+    const refund=refundForm(order);if(refund)box.append(refund);
+    return box;
   }
   async function load(append=false){
     more.disabled=true;feedback.textContent='Cargando compras…';if(!append){orders.replaceChildren();resetQr();}
@@ -108,7 +166,7 @@ small,.muted{color:#bcbcbc}.ticket{border-left:3px solid #e13838;padding:.4rem .
     const a=el('a');a.href=url;a.download='entrada-brvtal.svg';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),0);
   });
   (async()=>{try{const r=await fetch('/api/buyer/auth.php',{credentials:'same-origin',cache:'no-store'});const d=await r.json();
-    if(!r.ok||!d.authenticated){location.href='/buyer/login.php';return;}csrf=String(d.csrf||'');if(!csrf)throw Error('AUTH');await load();
+    if(!r.ok||!d.authenticated){location.href='/buyer/login.php';return;}csrf=String(d.csrf||'');if(!csrf)throw Error('AUTH');await load();await loadRefunds();
   }catch(_){feedback.textContent='No está disponible tu cuenta. Reintenta más tarde.';orders.replaceChildren();}})();
 })();
 </script></body></html>

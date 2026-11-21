@@ -222,6 +222,24 @@ function brvtalMigrationProofSpecifications(): array
             ['uq_ticket_mail_message_key', 'idx_ticket_mail_ready', 'idx_ticket_mail_relation'],
             true
         ),
+        'migration_ticketing_refunds_01.sql' => array_merge(
+            brvtalMigrationObjectRequirements('ticket_refunds',
+                ['order_id','buyer_id','event_id','request_hash','selection_hash',
+                 'reason','amount_cop','status','approver_admin_id','provider_refund_id',
+                 'manual_receipt_sha256','created_at_utc','updated_at_utc'],
+                ['PRIMARY','uq_ticket_refund_request','uq_ticket_refund_provider',
+                 'idx_ticket_refund_buyer','idx_ticket_refund_event'], true),
+            brvtalMigrationObjectRequirements('ticket_refund_entries',
+                ['refund_id','entry_id','amount_cop'],
+                ['PRIMARY','uq_ticket_refund_claim'], true),
+            brvtalMigrationObjectRequirements('ticket_refund_adjustments',
+                ['refund_id','order_id','event_id','amount_cop','recorded_at_utc'],
+                ['PRIMARY'], true),
+            brvtalMigrationObjectRequirements('ticket_refund_audit',
+                ['refund_id','actor_kind','actor_id','prior_status','next_status',
+                 'created_at_utc'],
+                ['PRIMARY','idx_refund_audit_receipt'], true)
+        ),
         'migration_ticketing_entries_01.sql' => array_merge(
             brvtalMigrationObjectRequirements('ticket_entries',
                 ['order_item_id','event_id','ticket_type_id','unit_number','issued_at_utc'],

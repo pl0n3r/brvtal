@@ -81,8 +81,27 @@ window.BRVTALTicketing = (() => {
       });
     }
     if (key === 'finance') {
-      import('/discadmin/ticketing-finance.js').then(mod => {
-        if (panel.isConnected && panel.getAttribute('aria-labelledby') === active.id) mod.mount(panel);
+      import('/discadmin/ticketing-finance.js').then(async mod => {
+        if (!panel.isConnected || panel.getAttribute('aria-labelledby') !== active.id) return;
+        await mod.mount(panel);
+        if (!panel.isConnected || panel.getAttribute('aria-labelledby') !== active.id) return;
+        // T21 shares the single finance workspace. The API still enforces staff capability.
+        if (['superadmin','root','owner','platform_owner'].includes(root.dataset.ticketingRole)) {
+          const openRefunds = element('button', 'Gestionar devoluciones · pruebas', 'btn ghost');
+          openRefunds.type = 'button';
+          openRefunds.addEventListener('click', async () => {
+            openRefunds.disabled = true;
+            try {
+              const refunds = await import('/discadmin/ticketing-refunds.js');
+              if (panel.isConnected && panel.getAttribute('aria-labelledby') === active.id)
+                await refunds.mount(panel);
+            } catch {
+              if (panel.isConnected && panel.getAttribute('aria-labelledby') === active.id)
+                panel.replaceChildren(element('p', 'Devoluciones no disponibles.', 'ticketing-error'));
+            } finally { openRefunds.disabled = false; }
+          });
+          panel.append(openRefunds);
+        }
       }).catch(() => {
         if (panel.isConnected && panel.getAttribute('aria-labelledby') === active.id)
           panel.replaceChildren(element('p', 'Finanzas no disponibles.', 'ticketing-error'));
