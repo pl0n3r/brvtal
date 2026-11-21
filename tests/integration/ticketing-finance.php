@@ -54,3 +54,5 @@ $invalid=brvtalFinanceSummarize($orders,$items,$payments)[0];
 t20($invalid['paid_orders']===0 && $invalid['unverified_orders']===2,
     'provider gross mismatch cannot certify revenue');
 echo "T20 finance synthetic invariants OK\n";
+// T21 synthetic MariaDB regressions execute in the existing finance integration harness.
+require __DIR__.'/ticketing-refunds.php';

@@ -104,7 +104,7 @@ test('T28: formulario público consentido y canje opaco sin URL ni sessionStorag
   await page.goto(url);
   await page.addScriptTag({content:readFileSync('js/public-ticket-checkout.js','utf8')});
   const join=page.locator('#lista-espera');
-  await expect(join).toContainText('no reserva un cupo');
+  await expect(join).toContainText('No reserva cupos ni confirma pagos');
   await join.getByRole('checkbox').check();
   await join.getByRole('button',{name:'Entrar en lista de espera'}).click();
   await expect(join.getByRole('status')).toContainText('No es una reserva');
