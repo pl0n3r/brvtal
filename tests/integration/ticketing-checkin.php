@@ -182,3 +182,5 @@ try {
         'DB outage never admits');
 } finally {$root->exec('DROP DATABASE IF EXISTS '.$db);}
 echo "T15 atomic scans, revocation, refund, audit and DB failure passed.\n";
+// T25 runs within the same disposable MariaDB CI, never as a live migration.
+require __DIR__ . '/ticketing-courtesy.php';

@@ -6,8 +6,10 @@ require_once __DIR__ . '/ticketing_inventory.php';
 
 /** Off by default; the test escape hatch is limited to disposable MariaDB. */
 function brvtalCourtesyEnabled(PDO $db): bool {
-    if (getenv('BRVTAL_COURTESY_ENABLED') === '1') return true;
-    if (getenv('BRVTAL_INTEGRATION_TESTS') !== '1') return false;
+    // A CI/disposable DB alone never activates courtesy checks in legacy scans.
+    // Explicit opt-in is required even in the synthetic test environment.
+    if (getenv('BRVTAL_COURTESY_ENABLED') !== '1') return false;
+    if (getenv('BRVTAL_INTEGRATION_TESTS') !== '1') return true;
     $name = (string)$db->query('SELECT DATABASE()')->fetchColumn();
     return preg_match('/^brvtal_test[A-Za-z0-9_]*$/D', $name) === 1;
 }

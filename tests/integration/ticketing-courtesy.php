@@ -62,6 +62,7 @@ try {
     $db->exec("INSERT INTO event_ticket_types VALUES (11,1,'active')");
     $db->exec('INSERT INTO ticket_inventory_events VALUES (1,2)');
     $db->exec('INSERT INTO ticket_inventory_types VALUES (11,1,2,2)');
+    putenv('BRVTAL_COURTESY_ENABLED=1');
     t25(brvtalCourtesyEnabled($db),'only synthetic mode enabled');
     try {brvtalCourtesyIssue($db,8,'admin',$input);throw new RuntimeException('role bypass');}
     catch(DomainException $e){t25($e->getMessage()==='FORBIDDEN','least privilege');}
@@ -70,6 +71,13 @@ try {
         && !$first['sent'],'distinct QR, no provider');
     $replay=brvtalCourtesyIssue($db,7,'superadmin',$input);
     t25($replay['replayed']&&$replay['qr']===null,'idempotent no second secret');
+    try {
+        brvtalCourtesyIssue($db,7,'superadmin',array_merge($input,
+            ['idempotency_key'=>str_repeat('z',24)]));
+        throw new RuntimeException('duplicate recipient bypass');
+    } catch (DomainException $error) {
+        t25($error->getMessage()==='DUPLICATE_INVITATION','same guest different request denied');
+    }
     $secondInput=array_merge($input,['recipient'=>'guest02','idempotency_key'=>str_repeat('b',24)]);
     $second=brvtalCourtesyIssue($db,7,'superadmin',$secondInput);
     t25(!$second['replayed'],'second recipient');
