@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/ticketing_inventory.php';
 require_once __DIR__ . '/ticketing_wompi_client.php';
+require_once __DIR__ . '/ticketing_stages.php';
 
 /** Monetary snapshots are integer COP. Never trust a DOM/form price. */
 function brvtal_ticket_checkout_price(mixed $price, int $quantity): int
@@ -58,6 +59,54 @@ function brvtal_public_ticket_checkout_offers(PDO $db, int $eventId): array
     }
 }
 
+/**
+ * Stage pricing is ONLY test-enabled on disposable MariaDB. Never start selling
+ * a new stage just because its migration or UI was merged. When enabled, this
+ * lock and T05 inventory counts serialize the quote with all concurrent holds.
+ */
+function brvtal_public_ticket_checkout_stage_quote(
+    PDO $db, int $eventId, int $typeId, int $quantity
+): ?array {
+    if (getenv('BRVTAL_INTEGRATION_TESTS') !== '1'
+        || !preg_match('/^brvtal_test[a-zA-Z0-9_]*$/D',
+            (string)$db->query('SELECT DATABASE()')->fetchColumn())) return null;
+    if (!$db->inTransaction()) throw new LogicException('STAGE_TRANSACTION_REQUIRED');
+    $q = $db->prepare('SELECT id FROM events WHERE id=? FOR UPDATE');
+    $q->execute([$eventId]);
+    if (!$q->fetchColumn()) throw new DomainException('CHECKOUT_UNAVAILABLE');
+    $q = $db->query("SELECT COUNT(*) FROM information_schema.TABLES
+        WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='ticket_type_stages'");
+    if ((int)$q->fetchColumn() === 0) return null;
+    $q = $db->prepare('SELECT code,price_cop,cumulative_capacity,opens_at_local,closes_at_local
+        FROM ticket_type_stages WHERE event_id=? AND ticket_type_id=? FOR UPDATE');
+    $q->execute([$eventId,$typeId]);
+    $rows = $q->fetchAll(PDO::FETCH_ASSOC);
+    if (!$rows) return null;
+    foreach ($rows as &$row) {
+        $row['price_cop'] = (int)$row['price_cop'];
+        $row['cumulative_capacity'] = (int)$row['cumulative_capacity'];
+    }
+    unset($row);
+    $q = $db->prepare('SELECT capacity FROM ticket_inventory_events
+        WHERE event_id=? FOR UPDATE');
+    $q->execute([$eventId]);
+    $eventCap = $q->fetchColumn();
+    $q = $db->prepare('SELECT capacity FROM ticket_inventory_types
+        WHERE event_id=? AND ticket_type_id=? FOR UPDATE');
+    $q->execute([$eventId,$typeId]);
+    $typeCap = $q->fetchColumn();
+    if ($eventCap === false || $typeCap === false) {
+        throw new DomainException('CHECKOUT_UNAVAILABLE');
+    }
+    $now = brvtal_ticket_inventory_now();
+    $utc = $now->format('Y-m-d H:i:s.u');
+    $eventUsage = brvtal_ticket_inventory_usage($db,$eventId,0,$utc);
+    $typeUsage = brvtal_ticket_inventory_usage($db,$eventId,$typeId,$utc);
+    $used = array_sum($typeUsage);
+    $free = min((int)$eventCap - array_sum($eventUsage),(int)$typeCap - $used);
+    return brvtalTicketStageQuote($rows,$used,$quantity,max(0,$free),$now);
+}
+
 /** Transactional UI adapter: same idempotency key => one order + one hold. */
 function brvtal_public_ticket_checkout_prepare(PDO $db, int $eventId, int $buyerId, array $input): array
 {
@@ -99,19 +148,27 @@ function brvtal_public_ticket_checkout_prepare(PDO $db, int $eventId, int $buyer
         if (!$type || $type['currency'] !== 'COP') {
             throw new DomainException('CHECKOUT_UNAVAILABLE');
         }
-        $total = brvtal_ticket_checkout_price($type['price'],$quantity);
         if ($prior) {
+            // A retry binds the original immutable price snapshot, not a new
+            // stage/clock or the current editorial ticket price.
             $orderId = (int)$prior['id'];
-            $q = $db->prepare('SELECT ticket_type_id,quantity,subtotal_cop FROM ticket_order_items
-                WHERE order_id=?');
+            $q = $db->prepare('SELECT ticket_type_id,quantity,unit_price_cop,subtotal_cop
+                FROM ticket_order_items WHERE order_id=?');
             $q->execute([$orderId]);
             $items = $q->fetchAll(PDO::FETCH_ASSOC);
             if (count($items)!==1 || (int)$items[0]['ticket_type_id']!==$typeId
-                || (int)$items[0]['quantity']!==$quantity
-                || (int)$items[0]['subtotal_cop']!==$total) {
+                || (int)$items[0]['quantity']!==$quantity) {
+                throw new DomainException('CHECKOUT_RETRY_CONFLICT');
+            }
+            $total = brvtal_ticket_checkout_price($items[0]['unit_price_cop'],$quantity);
+            if ((int)$items[0]['subtotal_cop'] !== $total) {
                 throw new DomainException('CHECKOUT_RETRY_CONFLICT');
             }
         } else {
+            // This path remains dormant outside disposable integration DBs.
+            $quote = brvtal_public_ticket_checkout_stage_quote($db,$eventId,$typeId,$quantity);
+            $price = $quote['unit_price_cop'] ?? $type['price'];
+            $total = brvtal_ticket_checkout_price($price,$quantity);
             $q = $db->prepare("INSERT INTO ticket_orders
                 (public_id,buyer_id,event_id,checkout_key_hash,status,currency,total_cop,expires_at_utc)
                 VALUES (?,?,?,?,'draft','COP',?,DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 10 MINUTE))");
@@ -121,7 +178,7 @@ function brvtal_public_ticket_checkout_prepare(PDO $db, int $eventId, int $buyer
                 (order_id,event_id,ticket_type_id,ticket_name_snapshot,quantity,
                  unit_price_cop,subtotal_cop,currency) VALUES (?,?,?,?,?,?,?,'COP')");
             $q->execute([$orderId,$eventId,$typeId,mb_substr((string)$type['name'],0,120),
-                $quantity,(int)$type['price'],$total]);
+                $quantity,(int)$price,$total]);
         }
         try {
             brvtal_ticket_inventory_hold($db,$orderId,$typeId,$quantity);

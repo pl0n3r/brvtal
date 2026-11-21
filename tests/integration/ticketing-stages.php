@@ -59,6 +59,15 @@ stageAssert(str_contains($read,"'settings'"),'admin settings permission required
 stageAssert(str_contains((string)file_get_contents(__DIR__.'/../../config/ticketing_stages.php'),
     'BRVTAL_INTEGRATION_TESTS'),'writes must be synthetic only');
 stageAssert(!str_contains($read,'ticket_order_items'),'API must not rewrite order snapshots');
+$checkoutSource = (string)file_get_contents(__DIR__.'/../../config/public_ticket_checkout.php');
+stageAssert(str_contains($checkoutSource, "BRVTAL_INTEGRATION_TESTS")
+    && str_contains($checkoutSource, "STAGE_TRANSACTION_REQUIRED")
+    && str_contains($checkoutSource, "FOR UPDATE"),
+    'stage checkout quote remains synthetic and serialized');
+stageAssert(str_contains($checkoutSource, "brvtal_public_ticket_checkout_stage_quote("),
+    'server-side quote is invoked in checkout before order insertion');
+stageAssert(str_contains($checkoutSource, "unit_price_cop,subtotal_cop"),
+    'idempotent checkout reads the immutable item price snapshot');
 $core = (string)file_get_contents(__DIR__.'/../../discadmin/content-core.js');
 stageAssert(str_contains($core,"import('/discadmin/ticketing-stages.js')"),
     'stage editor mounted inside existing event ticket type shell');
