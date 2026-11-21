@@ -23,11 +23,11 @@ test('T29 390: preview requires explicit confirmation; no providers, no tracking
   await page.goto('https://www.brvtal.com.co/t29-synthetic.html');
   await expect(page.locator('[data-recovery-rows] tr')).toHaveCount(1);
   await page.locator('[name=order_id]').fill('91');
-  await page.getByRole('button',{name:'Preparar simulación'}).click();
-  await page.getByRole('button',{name:'Cancelar'}).click();
+  await page.locator('[data-recovery-form] button[type="submit"]').click();
+  await page.locator('[data-recovery-no]').click();
   expect(calls).toHaveLength(0);
-  await page.getByRole('button',{name:'Preparar simulación'}).click();
-  await page.getByRole('button',{name:'Confirmar simulación'}).focus();
+  await page.locator('[data-recovery-form] button[type="submit"]').click();
+  await page.locator('[data-recovery-yes]').focus();
   await page.keyboard.press('Enter');
   await expect(page.getByRole('status')).toContainText('omitida');
   expect(calls).toHaveLength(1);

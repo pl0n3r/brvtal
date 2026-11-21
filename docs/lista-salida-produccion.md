@@ -41,10 +41,10 @@ Fuentes: [BRVTAL-SPEC](https://github.com/pl0n3r/brvtal/blob/main/docs/BRVTAL-SP
 | Smoke de producción | Smoke terminal sobre despliegue autorizado con SHA real | SIN_COBERTURA | [PR #1053](https://github.com/pl0n3r/brvtal/pull/1053) y `tests/test_prelive_smoke_seo.py` son preflight sintético; falta smoke público/autenticado terminal sobre despliegue autorizado con SHA real. | [#1044](https://github.com/pl0n3r/brvtal/issues/1044) |
 | Contenido real y medios definitivos | Textos reales, artistas, fechas y enlaces aprobados | DEL_DUEÑO | El responsable editorial debe entregar o aprobar datos definitivos, sin inventar contenido | [#1036](https://github.com/pl0n3r/brvtal/issues/1036) |
 | Contenido real y medios definitivos | Fotografías y medios finales con derechos autorizados | DEL_DUEÑO | El dueño debe acreditar permisos de medios finales; placeholders no son licencias | [#975](https://github.com/pl0n3r/brvtal/issues/975) |
-| Imágenes del home | Conectar imágenes reemplazables al CMS del Concepto 05 | EN_CURSO | Issue #975 abierto, PR #1031 activo; placeholders no equivalen a imágenes finales | [#975](https://github.com/pl0n3r/brvtal/issues/975) |
+| Imágenes del home | Conectar imágenes reemplazables al CMS del Concepto 05 | LISTO | #975 cerrado; PR #1031 fusionado (`4fc4d962`): tests/test_home_c05_media_placeholders.py y tests/e2e/public-concept05-media-placeholders.spec.mjs; las imágenes definitivas siguen en la fila del dueño | [#975](https://github.com/pl0n3r/brvtal/issues/975) |
 | Imágenes del home | Selección definitiva de imágenes en desktop y móvil | DEL_DUEÑO | El dueño debe aportar o aprobar imágenes definitivas y sus derechos de uso | [#975](https://github.com/pl0n3r/brvtal/issues/975) |
 | Traducción ES/EN y DeepL | Selector ES/EN, fallback y rutas internacionalizadas | LISTO | tests/test_public_i18n_contract.py y tests/test_public_i18n_routing.py; #857 | [#857](https://github.com/pl0n3r/brvtal/issues/857) |
-| Traducción ES/EN y DeepL | Transporte DeepL Free apagado por defecto con pruebas offline | EN_CURSO | Issue #1034 abierto, PR #1037 activo; autorización limitada por #1033 | [#1034](https://github.com/pl0n3r/brvtal/issues/1034) |
+| Traducción ES/EN y DeepL | Transporte DeepL Free apagado por defecto con pruebas offline | LISTO | #1034 cerrado; PR #1037 fusionado (`918065db`): tests/test_deepl_real_transport.py y docs/deepl-adapter-build-ahead.md; autorización limitada por #1033, la activación real sigue en la fila del dueño | [#1034](https://github.com/pl0n3r/brvtal/issues/1034) |
 | Traducción ES/EN y DeepL | Credenciales, términos y activación real de API externa | DEL_DUEÑO | El titular decide sobre cuenta y habilitación productiva; #1033 no autoriza gastos ni publicar secretos | [#1033](https://github.com/pl0n3r/brvtal/issues/1033) |
 | Aprobación visual del dueño | Visto bueno final Concepto 05 sobre 1440/390 y medios | DEL_DUEÑO | La aprobación estética del dueño fue diferida en #1025; la prueba sintética no la reemplaza | [#1025](https://github.com/pl0n3r/brvtal/issues/1025) |
 | SEO e indexación en producción | Soporte técnico sitemap e IndexNow | LISTO | tests/public-sitemap-contract.php y tests/indexnow-contract.php; #481 | [#481](https://github.com/pl0n3r/brvtal/issues/481) |
@@ -53,13 +53,13 @@ Fuentes: [BRVTAL-SPEC](https://github.com/pl0n3r/brvtal/blob/main/docs/BRVTAL-SP
 
 ## Resumen final
 
-- LISTO: 10
-- EN_CURSO: 2
-- SIN_COBERTURA: 12
+- LISTO: 16
+- EN_CURSO: 0
+- SIN_COBERTURA: 8
 - DEL_DUEÑO: 10
 - NO_APLICA: 0
 - TOTAL: 34
 
-**Impedimentos para go-live:** faltan restauración verificable, alertas y soporte, validación DNS/TLS, ensayo de migración y rollback, auditoría de seguridad, pruebas finales de accesibilidad/rendimiento, smoke exact-SHA e indexabilidad (hojas #1039–#1044). Los PR activos #1031/#1037 cubren integración de imágenes CMS y transporte DeepL pero no prueba de live. El titular debe validar contenido y licencias reales, responsable legal, presupuestos, cuentas, dominio, imágenes y aprobación visual, además de emitir autorización explícita para salir a producción.
+**Impedimentos para go-live:** faltan restauración verificable, alertas y soporte, validación DNS/TLS, ensayo de migración y rollback, auditoría de seguridad, pruebas finales de accesibilidad/rendimiento, smoke exact-SHA e indexabilidad (hojas #1039–#1044). Los PR fusionados #1031/#1037 cubren integración de imágenes CMS y transporte DeepL apagado, pero no prueban el live. Actualizado el 21-nov-2026 (#1816). El titular debe validar contenido y licencias reales, responsable legal, presupuestos, cuentas, dominio, imágenes y aprobación visual, además de emitir autorización explícita para salir a producción.
 
 Las hojas #1039–#1044 se crearon bajo petición expresa de #1036; comienzan bloqueadas por dependencia de su merge. No tocar producción, secretos, datos reales, DNS, pagos o go-live. No hay permiso implícito para desplegar.
