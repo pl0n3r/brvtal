@@ -134,6 +134,7 @@ function brvtalRecoveryMetrics(PDO $db): array {
     $sql = "SELECT p.event_id,p.campaign_key,p.stage,COUNT(*) AS previews
         FROM ticket_recovery_previews p
         JOIN ticket_orders o ON o.id=p.order_id AND o.status IN ('draft','pending')
+            AND o.expires_at_utc>UTC_TIMESTAMP(6)
         JOIN ticket_recovery_consents c ON c.buyer_id=p.buyer_id AND c.event_id=p.event_id
             AND c.revoked_at_utc IS NULL AND c.expires_at_utc>UTC_TIMESTAMP(6)
             AND c.consented_at_utc<=UTC_TIMESTAMP(6) AND c.policy_version LIKE 'marketing-%'

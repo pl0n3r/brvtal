@@ -72,6 +72,10 @@ try {
         ['order_id'=>95,'idempotency_key'=>str_repeat('g',32)]))['reason']==='payment_confirmed',
         'server-approved payment blocks recovery even when order state is still pending');
     t29(count(brvtalRecoveryMetrics($db))===1,'aggregate eligible only');
+    $db->exec("UPDATE ticket_orders SET expires_at_utc=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND) WHERE id=91");
+    t29(brvtalRecoveryMetrics($db)===[],'expired checkout hidden from recovery dashboard');
+    $db->exec("UPDATE ticket_orders SET expires_at_utc=DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 3 DAY) WHERE id=91");
+    t29(count(brvtalRecoveryMetrics($db))===1,'future checkout remains eligible');
     t29(brvtalRecoveryOptOut($db,3,6),'optout');
     t29(brvtalRecoveryMetrics($db)===[],'optout removes dashboard count');
     putenv('BRVTAL_INTEGRATION_TESTS=0');
