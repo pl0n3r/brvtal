@@ -92,3 +92,37 @@ test('T23: checkout sintético confirma desglose del servidor, no persiste cupó
   expect(await page.evaluate(()=>document.documentElement.scrollWidth))
     .toBeLessThanOrEqual(391);
 });
+
+test('T23: cambio de evento vacía reglas e ignora respuesta tardía', async ({page}) => {
+  const url='https://www.brvtal.com.co/discadmin/t23-event-race.html';
+  await page.route('**/discadmin/t23-event-race.html', r => r.fulfill({
+    contentType:'text/html',body:'<!doctype html><html lang="es"><main data-panel></main></html>'
+  }));
+  await page.route('**/discadmin/ticketing-promos.js', r => r.fulfill({
+    contentType:'text/javascript',body:source
+  }));
+  let releaseSix;
+  const pendingSix=new Promise(resolve => { releaseSix=resolve; });
+  await page.route('**/api/ticketing/admin-promos.php*', async route => {
+    const id=new URL(route.request().url()).searchParams.get('event_id');
+    if (id==='6') await pendingSix;
+    await route.fulfill({contentType:'application/json',
+      body:JSON.stringify({ok:true,rules:[{id:Number(id),kind:'fixed',uses_count:0,
+        max_uses:1,active:0,campaign_key:'evento-'+id}]})});
+  });
+  await page.goto(url);
+  await page.evaluate(async()=>{const m=await import('/discadmin/ticketing-promos.js');
+    m.mount(document.querySelector('[data-panel]'));});
+  await page.getByLabel('Evento ID').fill('6');
+  const requestSix=page.waitForRequest(req=>req.url().includes('event_id=6'));
+  await page.getByRole('button',{name:'Consultar reglas'}).click();
+  await requestSix;
+  await page.getByLabel('Evento ID').fill('7');
+  releaseSix();
+  await expect(page.getByRole('button',{name:'Consultar reglas'})).toBeEnabled();
+  await expect(page.locator('[data-promo-rules]')).toBeEmpty();
+  await page.getByRole('button',{name:'Consultar reglas'}).click();
+  await expect(page.locator('[data-promo-rules]')).toContainText('evento-7');
+  await page.getByLabel('Evento ID').fill('8');
+  await expect(page.locator('[data-promo-rules]')).toBeEmpty();
+});

@@ -33,10 +33,15 @@ export function mount(panel) {
   const status = document.createElement('p'); status.setAttribute('role','status');
   status.setAttribute('aria-live','polite');
   const list = document.createElement('ul'); list.dataset.promoRules = '';
+  let eventRevision = 0;
+  inputs.event_id.addEventListener('input', () => {
+    eventRevision++;
+    list.replaceChildren();
+  });
   const utc = value => value.replace('T',' ') + (value.length===16?':00':'');
-  async function request(body) {
+  async function request(body, eventId = inputs.event_id.value) {
     const response = await fetch('/api/ticketing/admin-promos.php'+
-      (body?'':'?event_id='+encodeURIComponent(inputs.event_id.value)), {
+      (body?'':'?event_id='+encodeURIComponent(eventId)), {
       method:body?'POST':'GET', credentials:'same-origin',cache:'no-store',
       headers:body?{'Content-Type':'application/json',
         'X-CSRF-Token':String(window.csrf || '')}:{},
@@ -49,7 +54,10 @@ export function mount(panel) {
     return payload;
   }
   async function refresh() {
-    const data = await request();
+    const eventId = inputs.event_id.value;
+    const revision = eventRevision;
+    const data = await request(null, eventId);
+    if (inputs.event_id.value !== eventId || eventRevision !== revision) return;
     list.replaceChildren();
     for (const rule of data.rules || []) {
       const item = document.createElement('li');
@@ -60,8 +68,10 @@ export function mount(panel) {
         const disable = document.createElement('button');
         disable.type = 'button'; disable.textContent = 'Desactivar';
         disable.addEventListener('click', async () => {
+          if (inputs.event_id.value !== eventId || eventRevision !== revision) return;
           disable.disabled=true;
           try { await request({action:'deactivate',id:Number(rule.id)});
+            if (inputs.event_id.value !== eventId || eventRevision !== revision) return;
             status.textContent='Desactivada sin cambiar ventas anteriores.';
             await refresh();
           } catch (error) { status.textContent=error.message; disable.disabled=false; }

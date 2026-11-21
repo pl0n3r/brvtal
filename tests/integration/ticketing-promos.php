@@ -31,6 +31,10 @@ promoAssert(str_contains($checkoutCode,'brvtalPromoQuote('),'quote before order'
 promoAssert(str_contains($checkoutCode,'brvtalPromoReserve('),'ledger reservation in checkout tx');
 promoAssert(str_contains($checkoutCode,"'promo_breakdown'"),'server returns immutable COP breakdown');
 promoAssert(str_contains($checkoutCode,"'environment'=>'mock'"),'T23 never creates real provider attempts');
+$guardAt=strpos($checkoutCode,'brvtalPromoRejectUncodedReplay($db,$orderId)');
+$providerAt=strpos($checkoutCode,'brvtal_ticket_wompi_prepare($db,$buyerId,$orderId');
+promoAssert($guardAt!==false && $providerAt!==false && $guardAt<$providerAt,
+    'the persisted coupon guard runs before the payment provider');
 if (getenv('BRVTAL_INTEGRATION_TESTS')==='1') {
     $prefix=(string)(getenv('BRVTAL_TEST_DB_NAME')?:'');
     promoAssert((bool)preg_match('/^brvtal_test[a-zA-Z0-9_]*$/D',$prefix),
@@ -147,6 +151,39 @@ if (getenv('BRVTAL_INTEGRATION_TESTS')==='1') {
         catch (DomainException) {}
     }
     $db->rollBack();
+    // DATETIME(6) precise boundaries: start inclusive, expiration exclusive.
+    brvtalPromoCreate($db,array_replace($rule,[
+        'code'=>'BOUNDARY2026','starts_at_utc'=>'2026-11-21 12:00:00',
+        'ends_at_utc'=>'2026-11-21 12:00:01','max_uses'=>8,'buyer_limit'=>2]));
+    $db->beginTransaction();
+    $boundary=brvtalPromoQuote($db,1,10,3,1,15000,'BOUNDARY2026',[],$now);
+    promoAssert($boundary['total_cop']===10000,'opening second included');
+    try {
+        brvtalPromoQuote($db,1,10,3,1,15000,'BOUNDARY2026',[],
+            new DateTimeImmutable('2026-11-21 12:00:01 UTC'));
+        throw new RuntimeException('expiration second incorrectly accepted');
+    } catch (DomainException $e) {
+        promoAssert($e->getMessage()==='PROMO_UNAVAILABLE','expiration second excluded');
+    }
+    $db->rollBack();
+    // 3x15000 COP bundle priced at 45000 COP still has a coupon ledger.
+    $db->exec("INSERT INTO ticket_orders VALUES (102,3,1,'draft',45000)");
+    brvtalPromoCreate($db,array_replace($rule,[
+        'code'=>'GROUP3ZERO26','kind'=>'group3','value_cop'=>45000,
+        'max_uses'=>8,'buyer_limit'=>2]));
+    $db->beginTransaction();
+    $zero=brvtalPromoReserve($db,102,1,10,3,3,15000,'GROUP3ZERO26',$now);
+    promoAssert($zero['subtotal_cop']===45000 && $zero['total_cop']===45000
+        && $zero['discount_cop']===0,'zero-discount bundle persisted');
+    try {
+        brvtalPromoRejectUncodedReplay($db,102);
+        throw new RuntimeException('coupon omission accepted');
+    } catch (DomainException $e) {
+        promoAssert($e->getMessage()==='CHECKOUT_RETRY_CONFLICT',
+            'zero-discount replay rejects omitted code');
+    }
+    brvtalPromoRejectUncodedReplay($db,999);
+    $db->commit();
     $db->exec("UPDATE ticket_orders SET status='paid' WHERE id=100");
     $frozen=(int)$db->query('SELECT total_cop FROM ticket_promo_redemptions WHERE order_id=100')
         ->fetchColumn();

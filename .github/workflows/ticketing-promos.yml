@@ -5,6 +5,8 @@ on:
     paths:
       - '.github/workflows/ticketing-promos.yml'
       - 'config/ticketing_promos.php'
+      - 'config/ticketing_inventory.php'
+      - 'config/public_ticket_checkout.php'
       - 'api/ticketing/admin-promos.php'
       - 'database/migration_ticketing_promos_01.sql'
       - 'tests/integration/ticketing-promos.php'
@@ -13,6 +15,8 @@ on:
     paths:
       - '.github/workflows/ticketing-promos.yml'
       - 'config/ticketing_promos.php'
+      - 'config/ticketing_inventory.php'
+      - 'config/public_ticket_checkout.php'
       - 'api/ticketing/admin-promos.php'
       - 'database/migration_ticketing_promos_01.sql'
       - 'tests/integration/ticketing-promos.php'

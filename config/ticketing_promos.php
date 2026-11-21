@@ -17,6 +17,20 @@ function brvtalPromoDigest(string $code): string {
     }
     return hash('sha256', 'brvtal:t23:coupon:'.$code);
 }
+/** A retry without a coupon must not silently discard an existing redemption,
+ * even if the coupon's discount was zero. An absent T23 table is legitimate
+ * before the migration is applied; other SQL failures do not get ignored.
+ */
+function brvtalPromoRejectUncodedReplay(PDO $db,int $orderId): void {
+    if ($orderId<1) throw new InvalidArgumentException('PROMO_ORDER_REQUIRED');
+    try {
+        $q=$db->prepare('SELECT 1 FROM ticket_promo_redemptions WHERE order_id=? LIMIT 1');
+        $q->execute([$orderId]);
+        if ($q->fetchColumn()!==false) throw new DomainException('CHECKOUT_RETRY_CONFLICT');
+    } catch (PDOException $error) {
+        if ((int)($error->errorInfo[1] ?? 0)!==1146) throw $error;
+    }
+}
 /** Fixed values are COP; percent uses an integer percentage; group3/5 is a bundle total. */
 function brvtalPromoInput(array $in): array {
     $expected=['code','event_id','ticket_type_id','kind','value_cop',
@@ -124,7 +138,7 @@ function brvtalPromoQuote(PDO $db,int $eventId,int $typeId,int $buyerId,
     $q->execute([brvtalPromoDigest($code)]);
     $rule=$q->fetch(PDO::FETCH_ASSOC);
     $now=($clock??new DateTimeImmutable('now',new DateTimeZone('UTC')))
-        ->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s');
+        ->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s.u');
     if (!$rule || (int)$rule['active']!==1 ||
         (int)$rule['event_id']!==$eventId ||
         ($rule['ticket_type_id']!==null && (int)$rule['ticket_type_id']!==$typeId) ||
@@ -176,6 +190,10 @@ function brvtalPromoReserve(PDO $db,int $orderId,int $eventId,int $typeId,
     ?DateTimeImmutable $clock=null): array {
     brvtalPromoSynthetic($db);
     if ($orderId<1 || !$db->inTransaction()) throw new LogicException('PROMO_TRANSACTION_REQUIRED');
+    // Lock Event before the first snapshot read, even for direct reserve callers.
+    $q=$db->prepare('SELECT id FROM events WHERE id=? FOR UPDATE');
+    $q->execute([$eventId]);
+    if (!$q->fetchColumn()) throw new DomainException('PROMO_EVENT_NOT_FOUND');
     $q=$db->prepare('SELECT * FROM ticket_promo_redemptions WHERE order_id=?');
     $q->execute([$orderId]); $previous=$q->fetch(PDO::FETCH_ASSOC);
     if ($previous) {

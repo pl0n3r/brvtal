@@ -218,9 +218,11 @@ function brvtal_public_ticket_checkout_prepare(PDO $db, int $eventId, int $buyer
                     throw new DomainException('CHECKOUT_RETRY_CONFLICT');
                 }
                 $promoBreakdown=$savedPromo;
-            } elseif ($subtotal !== $total) {
-                // Never silently omit a previous discount on replay.
-                throw new DomainException('CHECKOUT_RETRY_CONFLICT');
+            } else {
+                // A zero-discount bundle still has a redemption and must not
+                // fall through to a payment-provider attempt on retry.
+                if ($subtotal !== $total) throw new DomainException('CHECKOUT_RETRY_CONFLICT');
+                brvtalPromoRejectUncodedReplay($db,$orderId);
             }
         } else {
             // This path remains dormant outside disposable integration DBs.
