@@ -5,6 +5,100 @@ require_once __DIR__ . '/../../config/ticketing_staff_permissions.php';
 require_once __DIR__ . '/../../config/ticketing_checkin.php';
 require_once __DIR__ . '/../../config/ticketing_mail_outbox.php';
 require_once __DIR__ . '/../../config/ticketing_mail_events.php';
+/** Isolated transactional T19 service, also exercised on disposable MariaDB. */
+function brvtalTicketAdminEntryMutation(PDO $pdo,int $entryId,int $operator,string $role,
+    string $action,string $reason,string $key): array
+{
+    if ($entryId<1 || $operator<1
+        || !in_array($action,['reissue','void'],true)
+        || !in_array($reason,['lost','compromised','buyer_request'],true)
+        || !preg_match('/^[A-Za-z0-9_-]{20,64}$/D',$key)) {
+        throw new InvalidArgumentException('INVALID_REQUEST');
+    }
+    if (!brvtalTicketingCan($role,$action==='reissue'?'reissue':'void')) {
+        throw new DomainException('FORBIDDEN');
+    }
+    $requestId=substr(hash('sha256','t19:'.$operator.':'.$key,true),0,16);
+    $reasonCode=($action==='reissue'?'credential_reissued_':'entry_revoked_').$reason;
+    $pdo->beginTransaction();
+    try {
+        $old=$pdo->prepare('SELECT entry_id,reason_code,operator_admin_id FROM ticket_checkins
+            WHERE request_id=? FOR UPDATE');
+        $old->execute([$requestId]);$prior=$old->fetch(PDO::FETCH_ASSOC);
+        if ($prior) {
+            if ((int)$prior['entry_id']!==$entryId
+                || (int)$prior['operator_admin_id']!==$operator
+                || $prior['reason_code']!==$reasonCode) {
+                throw new DomainException('IDEMPOTENCY_CONFLICT');
+            }
+            $pdo->commit();
+            return ['replayed'=>true,'qr'=>null];
+        }
+        $entry=$pdo->prepare('SELECT e.id,e.event_id,e.status,LOWER(HEX(e.public_id)) AS public_id,
+                o.id AS order_id,o.status AS order_status,o.buyer_id,b.email,b.consent_version,b.consent_recorded_at
+            FROM ticket_entries e JOIN ticket_order_items i ON i.id=e.order_item_id
+            JOIN ticket_orders o ON o.id=i.order_id JOIN ticket_buyers b ON b.id=o.buyer_id
+            WHERE e.id=? FOR UPDATE');
+        $entry->execute([$entryId]);$row=$entry->fetch(PDO::FETCH_ASSOC);
+        if (!$row || $row['status']!=='issued') throw new DomainException('ENTRY_NOT_ISSUED');
+        $credential=$pdo->prepare("SELECT version FROM ticket_entry_credentials
+            WHERE entry_id=? AND status='active' FOR UPDATE");
+        $credential->execute([$entryId]);$version=$credential->fetchColumn();
+        if ($version===false) throw new DomainException('CREDENTIAL_UNAVAILABLE');
+        $qr=null;
+        if ($action==='reissue') {
+            if ($row['order_status']!=='paid') throw new DomainException('ORDER_NOT_PAID');
+            $proof=$pdo->prepare("SELECT 1 FROM ticket_issue_outbox b
+              JOIN ticket_payment_attempts a ON a.id=b.payment_attempt_id
+              JOIN ticket_payment_webhook_events w ON w.attempt_id=a.id
+                AND w.provider_transaction_id=a.provider_transaction_id
+              WHERE b.order_id=? AND b.state='done' AND a.status='approved'
+                AND a.provider='wompi' AND w.signed_status='APPROVED' LIMIT 1");
+            $proof->execute([(int)$row['order_id']]);
+            if (!$proof->fetchColumn()) throw new DomainException('PAYMENT_UNVERIFIED');
+            if (!is_string($row['email']) || !filter_var($row['email'],FILTER_VALIDATE_EMAIL)
+                || !trim((string)$row['consent_version']) || !$row['consent_recorded_at']) {
+                throw new DomainException('BUYER_CONSENT_REQUIRED');
+            }
+        }
+        $pdo->prepare("UPDATE ticket_entry_credentials SET status='revoked',
+          revoked_at_utc=UTC_TIMESTAMP(6) WHERE entry_id=? AND status='active'")->execute([$entryId]);
+        $newVersion=(int)$version;
+        if ($action==='reissue') {
+            $newVersion++;
+            $secret=random_bytes(32);
+            $pdo->prepare('INSERT INTO ticket_entry_credentials
+                (entry_id,version,token_hash,created_at_utc) VALUES (?,?,?,UTC_TIMESTAMP(6))')
+                ->execute([$entryId,$newVersion,hash('sha256',$secret,true)]);
+            $qr='BRVTAL:T1:'.$row['public_id'].':'.rtrim(strtr(base64_encode($secret),'+/','-_'),'=');
+            // Queue only a generic alert; QR plaintext is never persisted in the mail outbox.
+            $keyMail='ticket:reissue:'.$entryId.':'.$newVersion;
+            $mailId=brvtal_ticket_mail_enqueue($pdo,$keyMail,'ticket:'.$entryId,$row['email'],
+                'BRVTAL · entrada reemitida',
+                'Se ha reemitido una entrada de tu pedido. Solicita el nuevo QR por el canal seguro de soporte. No compartas el anterior.');
+            brvtal_mail_history_record($pdo,$mailId,['event_id'=>(int)$row['event_id'],
+                'buyer_id'=>(int)$row['buyer_id'],'order_id'=>(int)$row['order_id'],
+                'ticket_id'=>$entryId,'actor_kind'=>'admin','template_key'=>'reissue']);
+        } else {
+            $pdo->prepare("UPDATE ticket_entries SET status='revoked',
+                revoked_at_utc=UTC_TIMESTAMP(6) WHERE id=? AND status='issued'")->execute([$entryId]);
+        }
+        $pdo->prepare("INSERT INTO ticket_checkins
+          (request_id,event_id,entry_id,credential_version,operator_admin_id,device_id,outcome,reason_code,attempted_at_utc)
+          VALUES (?,?,?,?,?,'discadmin','rejected',?,UTC_TIMESTAMP(6))")
+          ->execute([$requestId,(int)$row['event_id'],$entryId,$newVersion,$operator,$reasonCode]);
+        $pdo->commit();
+        return ['action'=>$action,'qr'=>$qr,'replayed'=>false,
+            'notification'=>$action==='reissue'?'queued':'not_required'];
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
+}
+
+/* Direct CLI fixture includes this service without opening an HTTP session. */
+if (defined('BRVTAL_T19_LIBRARY_ONLY') && PHP_SAPI==='cli') return;
+
 header('Cache-Control: private, no-store');
 header('X-Content-Type-Options: nosniff');
 brvtal_admin_require();
@@ -93,82 +187,8 @@ try {
         || ($action==='void' && ($input['confirm']??'')!=='ANULAR')) {
         json_response(['ok'=>false,'error'=>'INVALID_REASON_OR_KEY'],422);
     }
-    $requestId=substr(hash('sha256','t19:'.$operator.':'.$key,true),0,16);
-    $reasonCode=($action==='reissue'?'credential_reissued_':'entry_revoked_').$reason;
-    $pdo->beginTransaction();
-    try {
-        $old=$pdo->prepare('SELECT entry_id,reason_code,operator_admin_id FROM ticket_checkins
-            WHERE request_id=? FOR UPDATE');
-        $old->execute([$requestId]);$prior=$old->fetch(PDO::FETCH_ASSOC);
-        if ($prior) {
-            if ((int)$prior['entry_id']!==$entryId
-                || (int)$prior['operator_admin_id']!==$operator
-                || $prior['reason_code']!==$reasonCode) {
-                throw new DomainException('IDEMPOTENCY_CONFLICT');
-            }
-            $pdo->commit();
-            json_response(['ok'=>true,'data'=>['replayed'=>true,'qr'=>null]]);
-        }
-        $entry=$pdo->prepare('SELECT e.id,e.event_id,e.status,LOWER(HEX(e.public_id)) AS public_id,
-                o.id AS order_id,o.status AS order_status,o.buyer_id,b.email,b.consent_version,b.consent_recorded_at
-            FROM ticket_entries e JOIN ticket_order_items i ON i.id=e.order_item_id
-            JOIN ticket_orders o ON o.id=i.order_id JOIN ticket_buyers b ON b.id=o.buyer_id
-            WHERE e.id=? FOR UPDATE');
-        $entry->execute([$entryId]);$row=$entry->fetch(PDO::FETCH_ASSOC);
-        if (!$row || $row['status']!=='issued') throw new DomainException('ENTRY_NOT_ISSUED');
-        $credential=$pdo->prepare("SELECT version FROM ticket_entry_credentials
-            WHERE entry_id=? AND status='active' FOR UPDATE");
-        $credential->execute([$entryId]);$version=$credential->fetchColumn();
-        if ($version===false) throw new DomainException('CREDENTIAL_UNAVAILABLE');
-        $qr=null;
-        if ($action==='reissue') {
-            if ($row['order_status']!=='paid') throw new DomainException('ORDER_NOT_PAID');
-            $proof=$pdo->prepare("SELECT 1 FROM ticket_issue_outbox b
-              JOIN ticket_payment_attempts a ON a.id=b.payment_attempt_id
-              JOIN ticket_payment_webhook_events w ON w.attempt_id=a.id
-                AND w.provider_transaction_id=a.provider_transaction_id
-              WHERE b.order_id=? AND b.state='done' AND a.status='approved'
-                AND a.provider='wompi' AND w.signed_status='APPROVED' LIMIT 1");
-            $proof->execute([(int)$row['order_id']]);
-            if (!$proof->fetchColumn()) throw new DomainException('PAYMENT_UNVERIFIED');
-            if (!is_string($row['email']) || !filter_var($row['email'],FILTER_VALIDATE_EMAIL)
-                || !trim((string)$row['consent_version']) || !$row['consent_recorded_at']) {
-                throw new DomainException('BUYER_CONSENT_REQUIRED');
-            }
-        }
-        $pdo->prepare("UPDATE ticket_entry_credentials SET status='revoked',
-          revoked_at_utc=UTC_TIMESTAMP(6) WHERE entry_id=? AND status='active'")->execute([$entryId]);
-        $newVersion=(int)$version;
-        if ($action==='reissue') {
-            $newVersion++;
-            $secret=random_bytes(32);
-            $pdo->prepare('INSERT INTO ticket_entry_credentials
-                (entry_id,version,token_hash,created_at_utc) VALUES (?,?,?,UTC_TIMESTAMP(6))')
-                ->execute([$entryId,$newVersion,hash('sha256',$secret,true)]);
-            $qr='BRVTAL:T1:'.$row['public_id'].':'.rtrim(strtr(base64_encode($secret),'+/','-_'),'=');
-            // Queue only a generic alert; QR plaintext is never persisted in the mail outbox.
-            $keyMail='ticket:reissue:'.$entryId.':'.$newVersion;
-            $mailId=brvtal_ticket_mail_enqueue($pdo,$keyMail,'ticket:'.$entryId,$row['email'],
-                'BRVTAL · entrada reemitida',
-                'Se ha reemitido una entrada de tu pedido. Solicita el nuevo QR por el canal seguro de soporte. No compartas el anterior.');
-            brvtal_mail_history_record($pdo,$mailId,['event_id'=>(int)$row['event_id'],
-                'buyer_id'=>(int)$row['buyer_id'],'order_id'=>(int)$row['order_id'],
-                'ticket_id'=>$entryId,'actor_kind'=>'admin','template_key'=>'reissue']);
-        } else {
-            $pdo->prepare("UPDATE ticket_entries SET status='revoked',
-                revoked_at_utc=UTC_TIMESTAMP(6) WHERE id=? AND status='issued'")->execute([$entryId]);
-        }
-        $pdo->prepare("INSERT INTO ticket_checkins
-          (request_id,event_id,entry_id,credential_version,operator_admin_id,device_id,outcome,reason_code,attempted_at_utc)
-          VALUES (?,?,?,?,?,'discadmin','rejected',?,UTC_TIMESTAMP(6))")
-          ->execute([$requestId,(int)$row['event_id'],$entryId,$newVersion,$operator,$reasonCode]);
-        $pdo->commit();
-        json_response(['ok'=>true,'data'=>['action'=>$action,'qr'=>$qr,'replayed'=>false,
-            'notification'=>$action==='reissue'?'queued':'not_required']]);
-    } catch (Throwable $e) {
-        if ($pdo->inTransaction()) $pdo->rollBack();
-        throw $e;
-    }
+    json_response(['ok'=>true,'data'=>brvtalTicketAdminEntryMutation(
+        $pdo,$entryId,$operator,$role,$action,$reason,$key)]);
 } catch (DomainException $e) {
     json_response(['ok'=>false,'error'=>$e->getMessage()],409);
 } catch (JsonException|InvalidArgumentException $e) {

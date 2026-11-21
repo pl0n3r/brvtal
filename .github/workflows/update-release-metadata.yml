@@ -319,6 +319,9 @@ jobs:
       - name: Verify T15 scanner authorization, QR parsing, CSRF and rate limit
         run: php tests/integration/ticketing-checkin.php
 
+      - name: Verify T19 role contract and API helper parsing
+        run: php tests/integration/ticketing-admin-entries.php
+
       - name: Verify production reconciliation stage diagnostics (#739)
         shell: bash
         run: |
@@ -480,6 +483,9 @@ jobs:
 
       - name: Verify T15 atomic entry scan, replay and audit in disposable MariaDB
         run: php tests/integration/ticketing-checkin.php
+
+      - name: Verify T19 audited QR rotation against isolated MariaDB
+        run: php tests/integration/ticketing-admin-entries.php
 
 
       - name: Verify Set duration migration on disposable MariaDB
@@ -669,6 +675,11 @@ jobs:
         env:
           BRVTAL_INTEGRATION_TESTS: '1'
         run: php tests/integration/ticketing-checkin.php
+
+      - name: Verify T19 idempotency and annulment on real-stack MariaDB
+        env:
+          BRVTAL_INTEGRATION_TESTS: '1'
+        run: php tests/integration/ticketing-admin-entries.php
 
   webkit:
     name: webkit
