@@ -191,7 +191,7 @@ try {
         $pdo,$entryId,$operator,$role,$action,$reason,$key)]);
 } catch (DomainException $e) {
     json_response(['ok'=>false,'error'=>$e->getMessage()],409);
-} catch (JsonException|InvalidArgumentException $e) {
+} catch (JsonException|InvalidArgumentException) {
     json_response(['ok'=>false,'error'=>'INVALID_REQUEST'],422);
 } catch (Throwable) {
     json_response(['ok'=>false,'error'=>'ENTRIES_UNAVAILABLE'],503);
