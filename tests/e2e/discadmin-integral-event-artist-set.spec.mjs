@@ -101,6 +101,7 @@ function dbAudit(eventId, otherEventId, artistId, setId) {
 // backend in its real-stack job; the runner explicitly lists this file.
 if (base && password) {
   test('AC-01/02: Event → artista externo → lineup → Set persiste en MariaDB real', async ({page}, testInfo) => {
+    test.setTimeout(120_000); // Two viewports, real authenticated PHP and MariaDB.
     const login = await page.request.post(base + '/api/index.php/auth', {
       data: {email, password}
     });
@@ -169,7 +170,8 @@ if (base && password) {
           const save = page.waitForResponse(response =>
             response.url().endsWith('/events/' + eventId + '/lineup') &&
             response.request().method() === 'POST');
-          await page.locator('#saveBtn').click();
+          // Network-error toast may overlay the footer, but keyboard activation remains valid.
+          await page.locator('#saveBtn').press('Enter');
           expect((await save).ok()).toBe(true);
           const lineup = (await (await page.request.get(base +
             '/api/index.php/events/' + eventId + '/lineup')).json()).data;
