@@ -43,8 +43,8 @@ test('T24 mobile: two-stage cash confirmation, no payment provider request',asyn
   });
   const section=page.locator('[data-pos-module]');
   await expect(section).toContainText('Transferencias y QR Wompi requieren verificación independiente');
-  await expect(section.locator('option[value="transfer"]')).toBeDisabled();
-  await expect(section.locator('option[value="wompi_qr"]')).toBeDisabled();
+  await expect(section.locator('option[value="transfer"]')).toHaveAttribute('disabled','');
+  await expect(section.locator('option[value="wompi_qr"]')).toHaveAttribute('disabled','');
   expect(calls).toHaveLength(0);
   await section.locator('[name="event_id"]').fill('6');
   await section.getByRole('button',{name:'Abrir caja de prueba'}).click();
