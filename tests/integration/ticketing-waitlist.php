@@ -40,23 +40,33 @@ $db=new PDO("mysql:host=$host;port=$port;dbname=$name;charset=utf8mb4",$user,$pa
 foreach ([
     "CREATE TABLE events (id INT UNSIGNED PRIMARY KEY,status VARCHAR(32),event_date DATETIME,published_at DATETIME)",
     "CREATE TABLE event_ticket_types (id INT UNSIGNED PRIMARY KEY,event_id INT UNSIGNED,
-        status VARCHAR(32),currency VARCHAR(3),available_from DATETIME,available_until DATETIME,
+        name VARCHAR(120) NOT NULL DEFAULT 'Test pass',price INT UNSIGNED NOT NULL DEFAULT 25000,
+        sort_order INT NOT NULL DEFAULT 0,status VARCHAR(32),currency VARCHAR(3),
+        available_from DATETIME,available_until DATETIME,
         UNIQUE KEY uq_type_event(id,event_id))",
     "CREATE TABLE ticket_buyers (id BIGINT UNSIGNED PRIMARY KEY,email VARCHAR(190),
         email_verified_at DATETIME,status VARCHAR(20))",
     "CREATE TABLE ticket_inventory_events (event_id INT UNSIGNED PRIMARY KEY,capacity INT UNSIGNED)",
     "CREATE TABLE ticket_inventory_types (ticket_type_id INT UNSIGNED PRIMARY KEY,
         event_id INT UNSIGNED,capacity INT UNSIGNED,courtesy_capacity INT UNSIGNED DEFAULT 0)",
-    "CREATE TABLE ticket_orders (id BIGINT UNSIGNED PRIMARY KEY,event_id INT UNSIGNED,buyer_id BIGINT UNSIGNED,status VARCHAR(20))",
-    "CREATE TABLE ticket_order_items (order_id BIGINT UNSIGNED,ticket_type_id INT UNSIGNED,quantity INT)",
+    "CREATE TABLE ticket_orders (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,event_id INT UNSIGNED,
+        buyer_id BIGINT UNSIGNED,status VARCHAR(20),public_id BINARY(16),checkout_key_hash CHAR(64) UNIQUE,
+        currency CHAR(3),total_cop BIGINT UNSIGNED,expires_at_utc DATETIME(6))",
+    "CREATE TABLE ticket_order_items (order_id BIGINT UNSIGNED,ticket_type_id INT UNSIGNED,
+        quantity INT,event_id INT UNSIGNED,ticket_name_snapshot VARCHAR(120),
+        unit_price_cop BIGINT UNSIGNED,subtotal_cop BIGINT UNSIGNED,currency CHAR(3))",
     "CREATE TABLE ticket_inventory_holds (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,order_id BIGINT UNSIGNED,event_id INT UNSIGNED,
         ticket_type_id INT UNSIGNED,quantity INT,kind VARCHAR(20),status VARCHAR(20),
-        expires_at_utc DATETIME(6))"
+        expires_at_utc DATETIME(6),UNIQUE KEY uq_hold_order_type(order_id,ticket_type_id))",
+    "CREATE TABLE ticket_payment_attempts (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        order_id BIGINT UNSIGNED,provider VARCHAR(24),provider_reference VARCHAR(190),
+        idempotency_key_hash CHAR(64),gross_amount_cop BIGINT UNSIGNED,status VARCHAR(20))"
 ] as $ddl) $db->exec($ddl);
 $db->exec((string)file_get_contents(__DIR__.'/../../database/migration_ticketing_waitlist_01.sql'));
 $db->exec((string)file_get_contents(__DIR__.'/../../database/migration_ticketing_mail_outbox_01.sql'));
 $db->exec("INSERT INTO events VALUES (1,'published','2026-12-05 21:00:00','2026-11-01 09:00:00')");
-$db->exec("INSERT INTO event_ticket_types VALUES
+$db->exec("INSERT INTO event_ticket_types
+    (id,event_id,status,currency,available_from,available_until) VALUES
     (10,1,'active','COP','2026-12-04 19:00:00','2026-12-04 22:00:00')");
 $db->exec("INSERT INTO ticket_inventory_events VALUES (1,1)");
 $db->exec("INSERT INTO ticket_inventory_types VALUES (10,1,1,0)");
@@ -142,7 +152,8 @@ wlAssert(brvtal_waitlist_offer($db,1,10,$now->modify('+11 minutes'))!==null,
 // inventory hold in its OWN transaction; never a payment or issued ticket.
 $db->exec("INSERT INTO ticket_orders(id,event_id,buyer_id,status)
     VALUES (42,1,2,'draft'),(43,1,1,'draft')");
-$db->exec("INSERT INTO ticket_order_items VALUES (42,10,1),(43,10,1)");
+$db->exec("INSERT INTO ticket_order_items (order_id,ticket_type_id,quantity)
+    VALUES (42,10,1),(43,10,1)");
 $offerBody=(string)$db->query("SELECT body_text FROM ticket_mail_outbox
     WHERE related_ref='waitlist:2' AND subject='Cupo liberado en BRVTAL'
     ORDER BY id DESC LIMIT 1")->fetchColumn();
@@ -215,4 +226,77 @@ catch (DomainException) {}
 try { brvtal_waitlist_subscribe($db,1,10,2,'waitlist-v1','',$now);
     wlAssert(false,'cancelled event enrollment'); }
 catch (DomainException) {}
-echo "T28 MariaDB: opt-in, duplicate, unsubscribe, limits, FIFO, expiry, closed event passed.\n";
+
+// Checkout T22 is now merged: validate the real adapter with a *live-clock*
+// disposable MariaDB fixture and Wompi mock. No production or provider access.
+require_once __DIR__.'/../../config/public_ticket_checkout.php';
+putenv('BRVTAL_TICKET_WOMPI_MODE=mock');
+putenv('BRVTAL_TICKET_WOMPI_TESTING=1');
+putenv('BRVTAL_TICKET_WOMPI_PUBLIC_KEY=pub_test_waitlist_fixture');
+putenv('BRVTAL_TICKET_WOMPI_PRIVATE_KEY=prv_test_waitlist_fixture');
+putenv('BRVTAL_TICKET_WOMPI_INTEGRITY_SECRET=test_integrity_waitlist_fixture');
+putenv('BRVTAL_TICKET_WOMPI_ENABLED_METHODS=CARD');
+putenv('BRVTAL_TICKET_WOMPI_RETURN_URL=https://example.test/return');
+$clockNow=new DateTimeImmutable('now', new DateTimeZone('UTC'));
+$eventAt=$clockNow->modify('+3 days')->setTimezone(
+    new DateTimeZone('America/Bogota'))->format('Y-m-d H:i:s');
+$windowStart=$clockNow->modify('-1 day')->format('Y-m-d H:i:s');
+$windowEnd=$clockNow->modify('+1 day')->format('Y-m-d H:i:s');
+$db->prepare("INSERT INTO events(id,status,event_date,published_at)
+    VALUES (2,'published',?,?)")->execute([$eventAt,$windowStart]);
+$db->prepare("INSERT INTO event_ticket_types
+    (id,event_id,status,currency,available_from,available_until)
+    VALUES (20,2,'active','COP',?,?)")->execute([$windowStart,$windowEnd]);
+$db->exec('INSERT INTO ticket_inventory_events VALUES (2,1)');
+$db->exec('INSERT INTO ticket_inventory_types VALUES (20,2,1,0)');
+wlAssert(brvtal_waitlist_subscribe($db,2,20,2,'waitlist-v1')==='waiting',
+    'buyer opts in before checkout');
+wlAssert(brvtal_waitlist_offer($db,2,20)!==null, 'exclusive invitation offered');
+$mail=(string)$db->query("SELECT body_text FROM ticket_mail_outbox
+    WHERE related_ref='waitlist:3' AND subject='Cupo liberado en BRVTAL'
+    ORDER BY id DESC LIMIT 1")->fetchColumn();
+wlAssert(preg_match('/Código: ([A-Za-z0-9_-]{43})[.]/', $mail, $offerCode2)===1,
+    'checkout invitation token comes from mock outbox');
+$normal=['ticket_type_id'=>20,'quantity'=>1,'idempotency_key'=>str_repeat('n',20),'method'=>'CARD'];
+try {
+    brvtal_public_ticket_checkout_prepare($db,2,1,$normal);
+    wlAssert(false,'ordinary checkout must not oversell an offered unit');
+} catch (DomainException $error) {
+    wlAssert($error->getMessage()==='INVENTORY_SOLD_OUT',
+        'ordinary checkout sees waitlist seat as held');
+}
+wlAssert((int)$db->query("SELECT COUNT(*) FROM ticket_orders WHERE event_id=2")->fetchColumn()===0,
+    'failed non-invited checkout rolls back its order');
+$requested=$normal;
+$requested['idempotency_key']=str_repeat('w',20);
+$requested['waitlist_token']=$offerCode2[1];
+$alien=$requested;
+$alien['idempotency_key']=str_repeat('a',20);
+try {
+    brvtal_public_ticket_checkout_prepare($db,2,1,$alien);
+    wlAssert(false,'checkout cannot redeem another buyer token');
+} catch (DomainException $error) {
+    wlAssert($error->getMessage()==='WAITLIST_OFFER_NOT_ELIGIBLE',
+        'buyer mismatch rejects redemption');
+}
+wlAssert((int)$db->query("SELECT COUNT(*) FROM ticket_waitlist_entries
+    WHERE event_id=2 AND status='offered'")->fetchColumn()===1,
+    'alien checkout rolls back the invitation');
+$prepared=brvtal_public_ticket_checkout_prepare($db,2,2,$requested);
+wlAssert((int)$prepared['order_id']>0
+    && ($prepared['checkout']['state']??'')==='awaiting_provider',
+    'verified invite creates only Wompi mock checkout preparation');
+$retried=brvtal_public_ticket_checkout_prepare($db,2,2,$requested);
+wlAssert((int)$retried['order_id']===(int)$prepared['order_id'],
+    'repeated idempotency key reuses paid hold, not invitation');
+wlAssert((int)$db->query("SELECT COUNT(*) FROM ticket_waitlist_entries
+    WHERE event_id=2 AND status='redeemed' AND offer_hash IS NULL")->fetchColumn()===1,
+    'checkout consumes token exactly once');
+wlAssert((int)$db->query("SELECT COUNT(*) FROM ticket_inventory_holds
+    WHERE event_id=2 AND status='active'")->fetchColumn()===1,
+    'one hold only after checkout and idempotent replay');
+wlAssert((int)$db->query("SELECT COUNT(*) FROM ticket_orders
+    WHERE event_id=2 AND status='paid'")->fetchColumn()===0,
+    'mock checkout cannot cause a paid state or issue tickets');
+echo "T28 MariaDB: opt-in, unsubscribe, FIFO, reservation, checkout redemption, replay and safety passed.\n";
+
