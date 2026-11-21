@@ -84,7 +84,9 @@ export function mountPublic(container, {eventId, typeId, csrf}) {
   honeypot.setAttribute('aria-hidden', 'true'); honeypot.hidden = true;
   const send = el('button', 'Entrar en lista de espera'); send.type = 'submit';
   const status = el('p'); status.setAttribute('role','status');
-  form.append(label,honeypot,send);
+  const privacy = el('a','Privacidad y mis derechos');
+  privacy.href = '/privacy';
+  form.append(label,privacy,honeypot,send);
   container.append(form,status);
   form.addEventListener('submit',async event => {
     event.preventDefault();
