@@ -204,10 +204,12 @@ if (base && password) {
           // Persist Set through the real admin API, then reopen its actual editor.
           const createSet = await page.request.post(base + '/api/index.php/sets',
             {headers, data: {title: setTitle, slug: 'ci-integral-set-' + key,
-              platform: 'soundcloud', status: 'draft', external_url: '', event_id: eventId,
+              platform: 'soundcloud', status: 'draft',
+              external_url: 'https://example.com/ci-integral-placeholder', event_id: eventId,
               artist_id: artistId, artist_ids: [artistId]}});
-          expect(createSet.status()).toBe(201);
-          setId = Number((await createSet.json()).id);
+          const createdSet = await createSet.json();
+          expect(createSet.status(), JSON.stringify(createdSet)).toBe(201);
+          setId = Number(createdSet.id);
           expect(setId).toBeGreaterThan(0);
           const setList = (await (await page.request.get(base + '/api/index.php/sets')).json()).data;
           const persistedSet = setList.find(item => Number(item.id) === setId);
