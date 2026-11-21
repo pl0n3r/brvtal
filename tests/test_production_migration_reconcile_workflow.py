@@ -79,6 +79,60 @@ class ProductionMigrationReconcileWorkflowTests(unittest.TestCase):
         with self.assertRaisesRegex(error, "proofs are invalid"):
             sanitize(payload)
 
+    def test_sanitized_conflict_diagnostic_names_migration_without_private_output(self):
+        """Only the migration filename and allowlisted SQL/DDL category may escape."""
+        from contextlib import nullcontext
+
+        namespace = runpy.run_path(str(ROOT / "ops/factory/transport.py"))
+        ssh = namespace["ssh_script"]
+        reconcile = namespace["reconcile_migrations"]
+        error = namespace["TransportError"]
+        name = "migration_ticketing_entries_01.sql"
+        category = "schema_sql_or_ddl_conflict"
+        marker = f"BRVTAL_RECONCILE_CONFLICT:{name}:{category}"
+        secret = "SQL=DROP TABLE secrets; PASSWORD=never-expose"
+        config = SimpleNamespace(user="ci", host="example.test", site_root="/ci/site")
+
+        for stdout, valid in (
+            (marker + "\n" + secret, True),
+            ("BRVTAL_RECONCILE_CONFLICT:migration_bad;DROP.sql:" + category, False),
+            ("BRVTAL_RECONCILE_CONFLICT:" + name + ":private_credentials", False),
+            (marker + "\n" + marker, False),
+            (marker + "\n" + "x" * 8192, False),
+        ):
+            with self.subTest(sanitized=valid, payload_prefix=stdout[:85]):
+                completed = SimpleNamespace(returncode=79, stdout=stdout, stderr=secret)
+                with mock.patch.dict(ssh.__globals__, {
+                    "credentials": lambda _: nullcontext(("key", "hosts")),
+                    "_ssh_options": mock.Mock(return_value=[]),
+                }), mock.patch("subprocess.run", return_value=completed) as proc:
+                    with self.assertRaises(error) as raised:
+                        ssh(config, "exit 79", "a" * 40, diagnostic=True)
+                    self.assertEqual(proc.call_args.kwargs["stderr"], subprocess.DEVNULL)
+                    message = str(raised.exception)
+                    self.assertIn("SSH command failed with exit code 79", message)
+                    self.assertEqual(f"migration={name}" in message, valid)
+                    self.assertNotIn(secret, message)
+                    self.assertNotIn("DROP", message)
+                    self.assertNotIn("private_credentials", message)
+                    self.assertNotIn("x" * 30, message)
+
+        with mock.patch.dict(reconcile.__globals__, {
+            "_assert_identity": mock.Mock(),
+            "ssh_script": mock.Mock(side_effect=error(
+                f"SSH command failed with exit code 79 [migration={name}, conflict={category}]"
+            )),
+            "assert_factory_readiness": mock.Mock(),
+            "_assert_public_smoke": mock.Mock(),
+        }):
+            with self.assertRaises(error) as raised:
+                reconcile(None, "a" * 40, "0.1.267", "https://www.brvtal.com.co")
+            message = str(raised.exception)
+            self.assertIn(f"migration={name}, conflict={category}", message)
+            self.assertIn("schema SQL or DDL conflict", message)
+            reconcile.__globals__["ssh_script"].assert_called_once()
+            self.assertTrue(reconcile.__globals__["ssh_script"].call_args.kwargs["diagnostic"])
+
     def test_remote_reconcile_has_distinct_fail_closed_stages_and_backup_first(self):
         """Opaque remote errors must identify the failed gate without exposing SQL or private values."""
         namespace = runpy.run_path(str(ROOT / "ops/factory/transport.py"))
@@ -203,6 +257,8 @@ class ProductionMigrationReconcileWorkflowTests(unittest.TestCase):
                     if os.environ.get("BRVTAL_MIGRATION_RECONCILE_BACKUP_READY") != "1":
                         sys.exit(6)
                     if stage.startswith("reconcile_"):
+                        if stage == "reconcile_122":
+                            print("BRVTAL_RECONCILE_STEP:migration_ticketing_entries_01.sql")
                         sys.exit(int(stage.split("_", 1)[1]))
                     sys.exit(1 if stage == "reconcile" else 0)
                 if argv == ["scripts/migrations.php", "verify-plan", "__NONE__"]:
@@ -243,6 +299,13 @@ class ProductionMigrationReconcileWorkflowTests(unittest.TestCase):
                 )
                 self.assertEqual(run.returncode, expected_code,
                                  f"{stage}: unexpected remote stage exit")
+                if stage == "reconcile_122":
+                    self.assertEqual(
+                        run.stdout.strip(),
+                        "BRVTAL_RECONCILE_CONFLICT:"
+                        "migration_ticketing_entries_01.sql:schema_sql_or_ddl_conflict",
+                    )
+                    self.assertNotIn("SQL=", run.stdout)
                 self.assertEqual(trace.read_text(encoding="utf-8").splitlines(), expected_trace)
                 if stage in {"preflight", "plan", "guard", "backup"}:
                     self.assertFalse(marker.exists(), f"{stage}: no backup marker may exist")
