@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/../config/admin_auth.php';
-require_once __DIR__ . '/../config/ticketing_staff_permissions.php';
+require_once __DIR__ . '/../config/ticketing_recovery.php';
 header('Cache-Control: no-store, private');
 header('X-Frame-Options: SAMEORIGIN');
 header("Content-Security-Policy: frame-ancestors 'self'");
@@ -9,9 +9,7 @@ header('X-Robots-Tag: noindex, nofollow');
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') { http_response_code(405); exit; }
 brvtal_admin_require();
 try {
-    $stmt=db()->prepare('SELECT staff_role FROM admins WHERE id=? AND is_active=1');
-    $stmt->execute([(int)($_SESSION['admin_id'] ?? 0)]);
-    $role=(string)($stmt->fetchColumn() ?: '');
+    [$actor, $role] = brvtalRecoveryAdminIdentity(db());
     if (!brvtalTicketingCan($role,'mail') || !brvtalTicketingCan($role,'buyers')) {
         http_response_code(403); exit;
     }

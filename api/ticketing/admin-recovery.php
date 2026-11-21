@@ -7,10 +7,7 @@ header('X-Content-Type-Options: nosniff');
 brvtal_admin_require();
 try {
     $db = db();
-    $actor = (int)($_SESSION['admin_id'] ?? 0);
-    $stmt = $db->prepare('SELECT staff_role FROM admins WHERE id=? AND is_active=1');
-    $stmt->execute([$actor]);
-    $role = (string)($stmt->fetchColumn() ?: '');
+    [$actor, $role] = brvtalRecoveryAdminIdentity($db);
     if ($actor<1 || !brvtalTicketingCan($role,'mail')
         || !brvtalTicketingCan($role,'buyers')) {
         json_response(['ok'=>false,'error'=>'FORBIDDEN'],403);

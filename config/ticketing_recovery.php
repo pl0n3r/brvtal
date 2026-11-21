@@ -2,6 +2,20 @@
 declare(strict_types=1);
 require_once __DIR__ . '/ticketing_staff_permissions.php';
 
+/** Share one verified, read-only staff-role lookup across view and JSON controller. */
+function brvtalRecoveryAdminIdentity(PDO $db): array
+{
+    $actor = (int)($_SESSION['admin_id'] ?? 0);
+    if ($actor < 1) {
+        return [0, ''];
+    }
+    $lookup = $db->prepare(
+        'SELECT staff_role FROM admins WHERE id=? AND is_active=1 LIMIT 1'
+    );
+    $lookup->execute([$actor]);
+    return [$actor, (string)($lookup->fetchColumn() ?: '')];
+}
+
 /** T29: explicit marketing opt-in, separate from terms/transactional mail. */
 function brvtalRecoverySynthetic(PDO $db): bool {
     if (getenv('BRVTAL_INTEGRATION_TESTS') !== '1') return false;
