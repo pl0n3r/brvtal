@@ -1,0 +1,24 @@
+.door{color-scheme:dark;font-family:system-ui,-apple-system,sans-serif;background:#07090b;color:#f0f2f5;max-width:680px;margin:auto;padding:clamp(16px,4vw,30px);border-radius:12px}
+.door *{box-sizing:border-box}
+.door header{border-bottom:2px solid #b9203b;padding-bottom:18px}
+.door header h1{font-size:clamp(1.65rem,6vw,2.4rem);margin:4px 0}
+.door header p{color:#c6c9cc}
+.door .eyebrow{letter-spacing:.2em;color:#ff6e87;font-size:.75rem}
+.door form,.door section{margin-top:22px;padding:18px;background:#11161a;border:1px solid #303941;border-radius:12px}
+.door label{display:block;margin:12px 0 6px;font-weight:700}
+.door select,.door input,.door button{font:inherit;min-height:48px;border-radius:8px}
+.door select,.door input{width:100%;background:#07090b;border:1px solid #697781;color:#fff;padding:12px}
+.door .actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:18px}
+.door button{background:#bf2945;border:1px solid #ed6a83;color:#fff;font-weight:700;padding:9px;cursor:pointer}
+.door button[data-door-camera],.door button[data-door-stop]{background:#283039;border-color:#67727c}
+.door button:focus-visible,.door input:focus-visible,.door select:focus-visible{outline:3px solid #fcbf5c;outline-offset:3px}
+.door video{width:100%;max-height:320px;margin-top:16px;background:#050505}
+.door [data-door-result]{display:block;margin-top:20px;padding:24px;border-radius:10px;border:2px solid #687178;font-size:1.2rem;font-weight:800}
+.door [data-state="allow"]{background:#123c2c;border-color:#78dc9c;color:#eafff0}
+.door [data-state="deny"]{background:#481822;border-color:#ff778f;color:#fff3f5}
+.door [data-state="pending"]{background:#414024;border-color:#f7d675}
+.door [data-door-audit] p{border-top:1px solid #424a50;padding:9px 0;overflow-wrap:anywhere}
+.door [data-door-camera-status]{color:#c6c9cc}
+.door h2{margin:0;font-size:1.2rem}
+.door [hidden]{display:none!important}
+@media(max-width:420px){.door .actions{grid-template-columns:1fr}.door form,.door section{padding:14px}}
