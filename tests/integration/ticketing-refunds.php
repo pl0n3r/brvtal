@@ -82,6 +82,26 @@ t21Reject(static fn()=>brvtalRefundProviderNextStatus('requested','confirmed'),
 t21Reject(static fn()=>brvtalRefundProviderNextStatus('approved','untrusted'),
     'REFUND_PROVIDER_UNVERIFIED');
 
+
+$captured = [];
+$mock = static function(string $url,array $headers,array $body) use (&$captured,$receipt,$testRef):array {
+    $captured=['url'=>$url,'headers'=>$headers,'body'=>$body];
+    return ['status'=>201,'body'=>$receipt('APPROVED',50000,$testRef)];
+};
+$exchange=brvtalRefundSandboxExchange($testWompi,$testTx,500,'Motivo sintético',$testRef,$mock);
+t21($exchange['status']===201,'sandbox server transport returns validated HTTP receipt');
+t21($captured['url']==='https://sandbox.wompi.co/v1/refunds',
+    'server transport cannot move to production host');
+t21($captured['headers'][0]==='Authorization: Bearer '.$testWompi['private'],
+    'test-only private bearer is server-side');
+t21($captured['body']['amount_in_cents']===50000,
+    'only database-validated amount is passed to provider');
+t21(!str_contains(json_encode($exchange,JSON_THROW_ON_ERROR),'prv_test_'),
+    'transport never returns the private bearer');
+t21Reject(static fn()=>brvtalRefundSandboxExchange(
+    ['mode'=>'production','private'=>'prv_prod_fake'],$testTx,500,'Motivo sintético',$testRef,$mock
+),'REFUND_SANDBOX_ONLY');
+
 $schema=(string)file_get_contents(__DIR__.'/../../database/migration_ticketing_refunds_01.sql');
 t21(str_contains($schema,'uq_ticket_refund_claim'),'no double-refund claim');
 t21(str_contains($schema,'ticket_refund_adjustments'),'immutable finance witness');

@@ -299,3 +299,108 @@ function brvtalRefundSandboxApply(PDO $db,int $id,int $httpStatus,string $respon
         $db->commit();return ['id'=>$id,'status'=>$next,'replayed'=>false];
     } catch(Throwable $e) {if ($db->inTransaction())$db->rollBack();throw $e;}
 }
+
+
+/**
+ * POST only to Colombia Wompi V2 sandbox, from the server. A mocked transport
+ * can be injected for deterministic tests; neither path logs nor returns keys.
+ */
+function brvtalRefundSandboxExchange(
+    array $config,string $transactionId,int $amountCop,string $reason,string $reference,
+    ?callable $transport=null
+):array {
+    $payload=brvtalRefundSandboxV2Payload($config,$transactionId,$amountCop,$reason,$reference);
+    $headers=['Authorization: Bearer '.$config['private'],'Content-Type: application/json'];
+    if ($transport!==null) {
+        $reply=$transport($payload['endpoint'],$headers,$payload['body']);
+    } else {
+        if (!function_exists('curl_init')) throw new DomainException('REFUND_TRANSPORT_UNAVAILABLE');
+        $curl=curl_init($payload['endpoint']);
+        if ($curl===false) throw new DomainException('REFUND_TRANSPORT_UNAVAILABLE');
+        try {
+            curl_setopt_array($curl,[
+                CURLOPT_POST=>true,
+                CURLOPT_POSTFIELDS=>json_encode($payload['body'],JSON_THROW_ON_ERROR),
+                CURLOPT_HTTPHEADER=>$headers,
+                CURLOPT_RETURNTRANSFER=>true,
+                CURLOPT_FOLLOWLOCATION=>false,
+                CURLOPT_CONNECTTIMEOUT=>3,
+                CURLOPT_TIMEOUT=>8,
+                CURLOPT_SSL_VERIFYPEER=>true,
+                CURLOPT_SSL_VERIFYHOST=>2
+            ]);
+            $body=curl_exec($curl);
+            if (!is_string($body)) throw new DomainException('REFUND_PROVIDER_UNVERIFIED');
+            $reply=['status'=>(int)curl_getinfo($curl,CURLINFO_HTTP_CODE),'body'=>$body];
+        } finally {curl_close($curl);}
+    }
+    if (!is_array($reply)||!is_int($reply['status']??null)
+        ||!is_string($reply['body']??null)||strlen($reply['body'])>65536) {
+        throw new DomainException('REFUND_PROVIDER_UNVERIFIED');
+    }
+    // Do not accept a status or amount from a caller; verify Wompi's reply
+    // against our already-persisted original transaction before committing.
+    brvtalRefundSandboxV2Receipt(
+        $reply['status'],$reply['body'],$transactionId,$amountCop,$reference);
+    return ['status'=>$reply['status'],'body'=>$reply['body']];
+}
+
+/**
+ * Persistent processing barrier is set BEFORE the provider request. Network
+ * ambiguity must not trigger a second refund; the operator reconciles it.
+ */
+function brvtalRefundSandboxDispatch(
+    PDO $db,int $actor,string $role,int $id,array $config,?callable $transport=null
+):array {
+    brvtalRefundGuard($db);
+    if ($actor<1||$id<1||!brvtalTicketingCan($role,'refund')) throw new DomainException('FORBIDDEN');
+    if (getenv('BRVTAL_TICKET_WOMPI_SANDBOX_ENABLED')!=='1'
+        ||getenv('BRVTAL_TICKET_WOMPI_MODE')!=='sandbox') {
+        throw new DomainException('REFUND_SANDBOX_ONLY');
+    }
+    if ($db->inTransaction()) throw new DomainException('REFUND_BUSY');
+    $lookup=$db->prepare('SELECT order_id,event_id FROM ticket_refunds WHERE id=?');
+    $lookup->execute([$id]);$link=$lookup->fetch(PDO::FETCH_ASSOC);
+    if (!$link) throw new DomainException('REFUND_NOT_FOUND');
+    $db->beginTransaction();
+    try {
+        $db->prepare('SELECT id FROM events WHERE id=? FOR UPDATE')->execute([(int)$link['event_id']]);
+        $db->prepare('SELECT id FROM ticket_orders WHERE id=? FOR UPDATE')->execute([(int)$link['order_id']]);
+        $q=$db->prepare('SELECT * FROM ticket_refunds WHERE id=? FOR UPDATE');
+        $q->execute([$id]);$r=$q->fetch(PDO::FETCH_ASSOC);
+        if (!$r) throw new DomainException('REFUND_NOT_FOUND');
+        if (in_array($r['status'],['processing','refunded','failed'],true)) {
+            $db->commit();return ['id'=>$id,'status'=>$r['status'],'replayed'=>true];
+        }
+        if ($r['status']!=='approved') throw new DomainException('REFUND_INVALID_STATE');
+        $tx=$db->prepare("SELECT a.provider_transaction_id,a.gross_amount_cop
+            FROM ticket_payment_attempts a WHERE a.order_id=? AND a.provider='wompi'
+                AND a.status='approved' AND a.provider_transaction_id IS NOT NULL
+                AND EXISTS(SELECT 1 FROM ticket_payment_webhook_events w
+                    WHERE w.attempt_id=a.id AND w.provider_transaction_id=a.provider_transaction_id
+                      AND w.signed_status='APPROVED')
+            ORDER BY a.id DESC LIMIT 1");
+        $tx->execute([(int)$r['order_id']]);$payment=$tx->fetch(PDO::FETCH_ASSOC);
+        if (!$payment||(int)$r['amount_cop']<1
+            ||(int)$r['amount_cop']>(int)$payment['gross_amount_cop']) {
+            throw new DomainException('REFUND_PAYMENT_UNVERIFIED');
+        }
+        $transactionId=(string)$payment['provider_transaction_id'];
+        $reference='BRVTAL-T21-'.$id;
+        brvtalRefundSandboxV2Payload($config,$transactionId,(int)$r['amount_cop'],
+            (string)$r['reason'],$reference);
+        $db->prepare("UPDATE ticket_refunds SET status='processing',
+            updated_at_utc=UTC_TIMESTAMP(6) WHERE id=?")->execute([$id]);
+        brvtalRefundAudit($db,$id,'staff',$actor,'approved','processing');
+        $db->commit();
+    } catch(Throwable $e) {if ($db->inTransaction())$db->rollBack();throw $e;}
+    try {
+        $reply=brvtalRefundSandboxExchange($config,$transactionId,(int)$r['amount_cop'],
+            (string)$r['reason'],$reference,$transport);
+        return brvtalRefundSandboxApply($db,$id,$reply['status'],$reply['body']);
+    } catch(Throwable) {
+        // HTTP timeout/5xx or DB failure after provider acceptance is UNKNOWN.
+        // Never retry POST implicitly; keep the durable processing witness.
+        return ['id'=>$id,'status'=>'processing','unverified'=>true];
+    }
+}

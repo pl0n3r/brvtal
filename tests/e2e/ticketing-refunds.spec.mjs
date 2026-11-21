@@ -110,3 +110,34 @@ test('T21 contratos PHP se ejecutan en Chromium sin base productiva',()=>{
   });
   expect(stdout).toContain('T21 refund contract checks OK');
 });
+
+
+test('T21 el staff procesa reembolso sandbox solo tras aprobación',async({page})=>{
+  const endpoint='http://127.0.0.1:4173/discadmin/refund-confirm-test';
+  let dispatched=false;
+  await page.route(endpoint,route=>route.fulfill({contentType:'text/html',body:
+    '<div id="refund-panel"></div><script type="module">import {mount} from "/discadmin/ticketing-refunds.js"; mount(document.getElementById("refund-panel"),"csrf-synthetic");</script>'
+  }));
+  const module=readFileSync(join(process.cwd(),'discadmin/ticketing-refunds.js'),'utf8');
+  await page.route('**/discadmin/ticketing-refunds.js',route=>route.fulfill({
+    contentType:'text/javascript',body:module
+  }));
+  await page.route('**/api/ticketing/admin-refunds.php',route=>{
+    if(route.request().method()==='POST'){
+      const input=route.request().postDataJSON();
+      expect(input.action).toBe('sandbox_dispatch');
+      expect(route.request().headers()['x-csrf-token']).toBe('csrf-synthetic');
+      dispatched=true;
+      return route.fulfill({contentType:'application/json',body:JSON.stringify({
+        ok:true,data:{id:7,status:'refunded'}})});
+    }
+    return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:[
+      {id:7,event_id:1,order_id:4,amount_cop:3000,status:dispatched?'refunded':'approved'}
+    ]})});
+  });
+  await page.goto(endpoint);
+  const region=page.getByRole('region',{name:'Gestión de devoluciones'});
+  await region.getByRole('button',{name:'Procesar reembolso sandbox'}).click();
+  await expect(region.getByText('Confirmación sandbox registrada y entradas revocadas.')).toBeVisible();
+  await expect(region.getByText(/· refunded/)).toBeVisible();
+});

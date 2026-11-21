@@ -27,6 +27,11 @@ try {
     $id=$body['id']??null; $action=$body['action']??null; $note=$body['note']??'';
     if(!is_int($id)||!is_string($action)||!is_string($note)||!is_string($body['receipt']??''))
         throw new InvalidArgumentException('REFUND_INVALID');
+    if ($action==='sandbox_dispatch') {
+        $config=['mode'=>(string)(getenv('BRVTAL_TICKET_WOMPI_MODE')?:''),
+            'private'=>(string)(getenv('BRVTAL_TICKET_WOMPI_PRIVATE_KEY')?:'')];
+        json_response(['ok'=>true,'data'=>brvtalRefundSandboxDispatch($db,$actor,$role,$id,$config)]);
+    }
     json_response(['ok'=>true,'data'=>brvtalRefundStaff($db,$actor,$role,$id,$action,$note,(string)($body['receipt']??''))]);
 } catch(InvalidArgumentException) {
     json_response(['ok'=>false,'error'=>'REFUND_INVALID'],422);

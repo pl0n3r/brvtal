@@ -29,6 +29,31 @@ export async function mount(panel, csrf = '') {
         const state=String(request.status||'desconocido');
         item.append(el('h3','Solicitud #'+request.id),el('p','Evento '+request.event_id+
           ' · Pedido '+request.order_id+' · '+request.amount_cop+' COP · '+state));
+        if(state==='approved') {
+          const dispatch=el('button','Procesar reembolso sandbox');
+          dispatch.type='button';
+          const message=el('p');message.setAttribute('role','status');
+          dispatch.addEventListener('click',async()=>{
+            if (!csrfToken) {message.textContent='Token CSRF no disponible.';return;}
+            dispatch.disabled=true;message.textContent='Consultando proveedor sandbox…';
+            try {
+              const response=await fetch(api,{method:'POST',credentials:'same-origin',cache:'no-store',
+                headers:{'Content-Type':'application/json','X-CSRF-Token':csrfToken},
+                body:JSON.stringify({id:Number(request.id),action:'sandbox_dispatch',note:'',receipt:''})});
+              const body=await response.json();
+              if (!response.ok||!body.ok) throw Error('UNAVAILABLE');
+              if (live()) {
+                await refresh();
+                status.textContent=body.data.status==='refunded'
+                  ? 'Confirmación sandbox registrada y entradas revocadas.'
+                  : 'Estado de proveedor pendiente de verificación; no reintentar el envío.';
+              }
+            } catch (_) {
+              if(live())message.textContent='Estado incierto. Comprueba la solicitud antes de reintentar.';
+            } finally{dispatch.disabled=false;}
+          });
+          item.append(dispatch,message);
+        }
         if(state==='requested') {
           const note=el('input');note.type='text';note.maxLength=220;
           note.setAttribute('aria-label','Motivo de gestión #'+request.id);
