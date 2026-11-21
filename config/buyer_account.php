@@ -102,7 +102,7 @@ function brvtalBuyerAccountQr(PDO $db, int $buyerId, string $ticketId, string $t
     $q->execute([$ticketId,$buyerId]);
     $eventDate=$q->fetchColumn();
     if (!is_string($eventDate) || $eventDate === '') throw new DomainException('TICKET_UNAVAILABLE');
-    $cutoff=(new DateTimeImmutable($eventDate,new DateTimeZone('America/Bogota')))
+    $cutoff=new DateTimeImmutable($eventDate,new DateTimeZone('America/Bogota'))
         ->modify('+1 day')->setTimezone(new DateTimeZone('UTC'));
     return brvtal_ticket_issue_download($db,$buyerId,$ticketId,$token,$cutoff);
 }
