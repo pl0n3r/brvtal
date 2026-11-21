@@ -27,6 +27,24 @@ function brvtal_waitlist_offers_enabled(): bool
         && getenv('BRVTAL_WAITLIST_REDEMPTION_VERIFIED') === '1';
 }
 
+/**
+ * Testing flags must never turn a production database into a synthetic fixture.
+ * Actual production operations remain protected by the independent privacy
+ * and offer gates; tests may mutate only disposable brvtal_test* databases.
+ */
+function brvtal_waitlist_assert_test_storage(PDO $db): void
+{
+    if (getenv('BRVTAL_WAITLIST_TESTING') !== '1') return;
+    if (getenv('BRVTAL_INTEGRATION_TESTS') !== '1') {
+        throw new DomainException('WAITLIST_TEST_DATABASE_REQUIRED');
+    }
+    $database = $db->query('SELECT DATABASE()')->fetchColumn();
+    if (!is_string($database)
+        || preg_match('/^brvtal_test[A-Za-z0-9_]*$/D', $database) !== 1) {
+        throw new DomainException('WAITLIST_TEST_DATABASE_REQUIRED');
+    }
+}
+
 function brvtal_waitlist_clock(?DateTimeImmutable $now = null): DateTimeImmutable
 {
     return ($now ?? new DateTimeImmutable('now', new DateTimeZone('UTC')))
@@ -46,6 +64,7 @@ function brvtal_waitlist_subscribe(
     if ($eventId < 1 || $typeId < 1 || $buyerId < 1 || $honeypot !== ''
         || $consent !== 'waitlist-v1') throw new InvalidArgumentException('WAITLIST_INVALID');
     if ($db->inTransaction()) throw new LogicException('WAITLIST_TRANSACTION_OWNED');
+    brvtal_waitlist_assert_test_storage($db);
     $db->beginTransaction();
     try {
         // Same Event mutex as checkout T05. Never join cancelled, past or draft nights.
@@ -123,6 +142,7 @@ function brvtal_waitlist_unsubscribe(PDO $db, string $token): bool
         throw new InvalidArgumentException('WAITLIST_INVALID_TOKEN');
     }
     if ($db->inTransaction()) throw new LogicException('WAITLIST_TRANSACTION_OWNED');
+    brvtal_waitlist_assert_test_storage($db);
     $db->beginTransaction();
     try {
         $q = $db->prepare('SELECT id,status FROM ticket_waitlist_entries
@@ -175,6 +195,7 @@ function brvtal_waitlist_redeem_into_hold(
     if (!$db->inTransaction()) {
         throw new LogicException('WAITLIST_CHECKOUT_TRANSACTION_REQUIRED');
     }
+    brvtal_waitlist_assert_test_storage($db);
 
     // Match inventory_hold's lock order: first resolve the immutable mapping,
     // then lock the event BEFORE reading any mutable order or offer rows.
@@ -232,6 +253,7 @@ function brvtal_waitlist_offer(PDO $db, int $eventId, int $typeId, ?DateTimeImmu
     if ($eventId < 1 || $typeId < 1 || $db->inTransaction()) {
         throw new InvalidArgumentException('WAITLIST_INVALID_OFFER');
     }
+    brvtal_waitlist_assert_test_storage($db);
     $db->beginTransaction();
     try {
         $q=$db->prepare('SELECT e.id,e.status,e.event_date,e.published_at,
