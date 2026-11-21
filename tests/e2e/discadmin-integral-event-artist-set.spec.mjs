@@ -239,7 +239,18 @@ if (base && password) {
           expect(dbAudit(eventId, events[1], artistId, setId))
             .toBe('1:0:1:0:draft:draft:draft');
 
-          await page.evaluate(async () => { await go('sets'); await loadRefs(); });
+          // The native Sets list is paginated: filter by this fixture's unique title
+          // before opening the shipped editor, rather than relying on page 1.
+          await page.evaluate(async title => {
+            await go('sets');
+            await loadRefs();
+            const loaded = await changeNativePage(1, title);
+            if (!loaded) throw new Error('Could not load filtered Sets list');
+          }, setTitle);
+          expect(await page.evaluate(id => state.rows.some(row => Number(row.id) === id), setId))
+            .toBe(true);
+          expect(await page.evaluate(id => state.events.some(row => Number(row.id) === id), eventId))
+            .toBe(true);
           await page.evaluate(id => openModal('sets', id), setId);
           await expect(page.locator('#f_event_id')).toHaveValue(String(eventId));
           await expect(page.locator('#setArtistChoices input[value="' + artistId + '"]'))
