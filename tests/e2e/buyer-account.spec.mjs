@@ -13,11 +13,11 @@ const paid = { ...base, status:'paid', payment_status:'approved', items:[
   {name:'General',quantity:1,ticket_id:'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',status:'used',qr_requires_original_token:true},
   {name:'General',quantity:1,ticket_id:'cccccccccccccccccccccccccccccccc',status:'revoked',qr_requires_original_token:false},
 ]};
-function fakeAccount(page, rows, qrStatus=200) {
+async function fakeAccount(page, rows, qrStatus=200) {
   const requests = [];
-  page.route(url, route=>route.fulfill({ contentType:'text/html', body:html }));
-  page.route('**/api/buyer/auth.php', route=>route.fulfill({ contentType:'application/json', body:JSON.stringify({ok:true,authenticated:true,csrf:'fake-csrf'}) }));
-  page.route('**/api/buyer/account.php**', route=>{
+  await page.route(url, route=>route.fulfill({ contentType:'text/html', body:html }));
+  await page.route('**/api/buyer/auth.php', route=>route.fulfill({ contentType:'application/json', body:JSON.stringify({ok:true,authenticated:true,csrf:'fake-csrf'}) }));
+  await page.route('**/api/buyer/account.php**', route=>{
     requests.push({method:route.request().method(),url:route.request().url(),headers:route.request().headers(),data:route.request().postDataJSON?.()});
     if(route.request().method()==='POST') return route.fulfill({status:qrStatus,contentType:'application/json',body:JSON.stringify(qrStatus===200
       ? {ok:true,qr:'BRVTAL:T1:'+'abcdef0123456789'.repeat(2)+':'+'A'.repeat(43),filename:'entrada.txt'}
@@ -43,7 +43,7 @@ test('T14 protects buyer, order and credential boundaries without Resend couplin
 
 test('mobile: empty orders and filters are clear and do not reveal a QR', async ({page}) => {
   await page.setViewportSize({width:390,height:780});
-  const calls=fakeAccount(page,[]);
+  const calls=await fakeAccount(page,[]);
   await page.goto(url);
   await expect(page.getByRole('heading',{name:'Mis compras'})).toBeVisible();
   await expect(page.getByRole('status').first()).toContainText('No hay más pedidos');
@@ -57,12 +57,13 @@ test('mobile: empty orders and filters are clear and do not reveal a QR', async 
 
 test('desktop: pending, expired, used, revoked, paid and secure scannable SVG download', async ({page}) => {
   await page.setViewportSize({width:1280,height:900});
-  const calls=fakeAccount(page,[paid,{...base,public_id:'p',status:'pending',payment_status:'pending',items:[]},
+  const calls=await fakeAccount(page,[paid,{...base,public_id:'p',status:'pending',payment_status:'pending',items:[]},
     {...base,public_id:'e',status:'expired',payment_status:'declined',items:[]}]);
   await page.goto(url);
   await expect(page.getByText('Noche sintética').first()).toBeVisible();
   await expect(page.getByText('Pago pendiente').first()).toBeVisible();
   await expect(page.getByText(/Expirado/)).toBeVisible();
+  await expect(page.getByText(/Rechazado/)).toBeVisible();
   await expect(page.getByText(/Usada/)).toBeVisible();
   await expect(page.getByText(/Revocada/)).toBeVisible();
   expect(await page.getByRole('button',{name:'Ver QR'}).count()).toBe(1);
@@ -82,7 +83,7 @@ test('desktop: pending, expired, used, revoked, paid and secure scannable SVG do
 
 test('mobile: invalid/revoked token remains hidden and pagination stays read-only', async ({page}) => {
   await page.setViewportSize({width:360,height:720});
-  const calls=fakeAccount(page,[paid],404);
+  const calls=await fakeAccount(page,[paid],404);
   await page.goto(url);
   await page.getByRole('button',{name:'Ver QR'}).click();
   await page.getByLabel('Credencial original').fill('A'.repeat(43));

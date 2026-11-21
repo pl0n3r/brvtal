@@ -31,7 +31,7 @@ small,.muted{color:#bcbcbc}.ticket{border-left:3px solid #e13838;padding:.4rem .
   const filters=$('filters'),orders=$('orders'),feedback=$('feedback'),more=$('more'),qr=$('qr');
   let csrf='',page=0,ticket='',payload='';
   const el=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=String(text);return n;};
-  const statuses={draft:'Borrador',pending:'Pago pendiente',paid:'Aprobado',failed:'Rechazado',cancelled:'Cancelado',expired:'Expirado',refunded:'Reembolsado',issued:'Disponible',used:'Usada',revoked:'Revocada'};
+  const statuses={draft:'Borrador',pending:'Pago pendiente',paid:'Aprobado',failed:'Rechazado',declined:'Rechazado',error:'Error',created:'Iniciado',cancelled:'Cancelado',expired:'Expirado',refunded:'Reembolsado',issued:'Disponible',used:'Usada',revoked:'Revocada'};
   function resetQr(){ticket='';payload='';qr.hidden=true;$('token').value='';$('qr-output').replaceChildren();$('qr-output').hidden=true;$('download').hidden=true;$('qr-feedback').textContent='';}
   function showQr(id){resetQr();ticket=id;qr.hidden=false;$('token').focus();}
   function card(order){
