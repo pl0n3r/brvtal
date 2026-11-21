@@ -25,6 +25,12 @@ promoAssert(str_contains($source,"'settings'"),'RBAC mandatory');
 promoAssert(!str_contains($source,'code_digest,kind'),'list must not disclose digest');
 promoAssert(str_contains((string)file_get_contents(__DIR__.'/../../config/ticketing_promos.php'),
     'BRVTAL_INTEGRATION_TESTS'),'live writes blocked');
+$checkoutCode=(string)file_get_contents(__DIR__.'/../../config/public_ticket_checkout.php');
+promoAssert(str_contains($checkoutCode,"'promo_code'"),'coupon is strictly whitelisted');
+promoAssert(str_contains($checkoutCode,'brvtalPromoQuote('),'quote before order');
+promoAssert(str_contains($checkoutCode,'brvtalPromoReserve('),'ledger reservation in checkout tx');
+promoAssert(str_contains($checkoutCode,"'promo_breakdown'"),'server returns immutable COP breakdown');
+promoAssert(str_contains($checkoutCode,"'environment'=>'mock'"),'T23 never creates real provider attempts');
 if (getenv('BRVTAL_INTEGRATION_TESTS')==='1') {
     $prefix=(string)(getenv('BRVTAL_TEST_DB_NAME')?:'');
     promoAssert((bool)preg_match('/^brvtal_test[a-zA-Z0-9_]*$/D',$prefix),
