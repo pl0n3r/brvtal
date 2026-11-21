@@ -64,3 +64,61 @@ test('T28 DISCADMIN dentro del shell, FIFO y permiso CSRF para ofertar',async ({
     csrf:'synthetic-csrf'});
   expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(391);
 });
+
+
+test('T28: formulario público consentido y canje opaco sin URL ni sessionStorage',async ({page})=>{
+  const {execFileSync}=await import('node:child_process');
+  const body=execFileSync('php',['-r',[
+    "require_once 'config/public_seo.php'; require_once 'config/public_page.php';",
+    "$e=['id'=>42,'route_type'=>'events','title'=>'Noche sintética','description'=>'Entradas','status'=>'tickets_available'];",
+    "$page=['entity'=>$e,'facts'=>[],'links'=>[],'related'=>[],'record'=>['state'=>'active','status'=>'TICKETS AVAILABLE','year'=>'2026'],'degraded'=>false,",
+    "'checkout'=>['offers'=>[['id'=>10,'title'=>'General','price_cop'=>25000,'available'=>0,'invite_only'=>true]],'methods'=>['CARD'],'invite_mode'=>true],",
+    "'waitlist'=>[['id'=>10,'name'=>'General']]];",
+    "$seo=['title'=>'Noche','description'=>'Prueba','image'=>'','canonical'=>'https://www.brvtal.com.co/events/t28-offer','schema'=>[]];",
+    "echo brvtal_public_entity_page($page,$seo);",
+  ].join(' ')],{encoding:'utf8'})
+    .replace('<script src="/js/public-ticket-checkout.js" defer></script>','');
+  const url='https://www.brvtal.com.co/events/t28-offer';
+  await page.route(url,route=>route.fulfill({contentType:'text/html',body}));
+  await page.route('**/api/buyer/auth.php',route=>route.fulfill({contentType:'application/json',
+    body:JSON.stringify({ok:true,authenticated:true,csrf:'synthetic-csrf'})}));
+  await page.route('**/discadmin/ticketing-waitlist.js',route=>route.fulfill({
+    contentType:'text/javascript',body:source}));
+  const posted=[];
+  await page.route('**/api/ticketing/waitlist.php',route=>{
+    posted.push({kind:'optin',body:route.request().postDataJSON()});
+    return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,status:'waiting'})});
+  });
+  await page.route(url,route=>{
+    if(route.request().method()==='POST'){
+      posted.push({kind:'checkout',body:route.request().postDataJSON(),url:route.request().url()});
+      return route.fulfill({contentType:'application/json',body:JSON.stringify({
+        ok:true,order_id:94,checkout:{environment:'mock',state:'awaiting_provider'}})});
+    }
+    return route.fulfill({contentType:'text/html',body});
+  });
+  await page.goto(url);
+  await page.addScriptTag({content:readFileSync('js/public-ticket-checkout.js','utf8')});
+  const join=page.locator('#lista-espera');
+  await expect(join).toContainText('no reserva un cupo');
+  await join.getByRole('checkbox').check();
+  await join.getByRole('button',{name:'Entrar en lista de espera'}).click();
+  await expect(join.getByRole('status')).toContainText('No es una reserva');
+  expect(posted[0].body).toMatchObject({action:'subscribe',event_id:42,ticket_type_id:10,
+    consent:'waitlist-v1'});
+  const button=page.getByRole('button',{name:'Continuar al pago'});
+  await expect(button).toBeDisabled();
+  const code='T'.repeat(43);
+  await page.getByLabel('Código de invitación').fill(code);
+  await expect(button).toBeEnabled();
+  await button.click();
+  await expect(page.locator('#ticket-checkout-status')).toContainText('Reserva preparada');
+  const request=posted.find(x=>x.kind==='checkout');
+  expect(request.body).toMatchObject({waitlist_token:code,ticket_type_id:10,quantity:1,
+    method:'CARD'});
+  expect(request.url).not.toContain(code);
+  const session=await page.evaluate(()=>JSON.stringify(sessionStorage));
+  expect(session).not.toContain(code);
+  await expect(page.getByLabel('Código de invitación')).toHaveValue('');
+  await expect(button).toBeDisabled();
+});

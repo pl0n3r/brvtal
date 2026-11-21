@@ -56,6 +56,47 @@ function brvtal_waitlist_token(): string
     return rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
 }
 
+/**
+ * Read-only public chooser. A ticket type appears only when its event/type
+ * inventory is exhausted; POST still revalidates identity, consent and state.
+ * Missing schema or disabled privacy gate means no subscription form.
+ */
+function brvtal_waitlist_public_types(PDO $db, int $eventId): array
+{
+    if ($eventId < 1 || !brvtal_waitlist_enabled()) return [];
+    try {
+        $q = $db->prepare('SELECT e.status,e.event_date,i.capacity FROM events e
+            JOIN ticket_inventory_events i ON i.event_id=e.id WHERE e.id=?');
+        $q->execute([$eventId]);
+        $event = $q->fetch(PDO::FETCH_ASSOC);
+        $clock = brvtal_waitlist_clock();
+        if (!$event || !in_array((string)$event['status'],
+            ['published','sold_out','tickets_available','last_tickets'],true)
+            || (string)$event['event_date'] <= $clock->setTimezone(
+                new DateTimeZone('America/Bogota'))->format('Y-m-d H:i:s')) {
+            return [];
+        }
+        $q = $db->prepare("SELECT t.id,t.name,i.capacity FROM event_ticket_types t
+            JOIN ticket_inventory_types i ON i.ticket_type_id=t.id
+            WHERE t.event_id=? AND t.status='active' AND t.currency='COP'
+            ORDER BY t.sort_order,t.id LIMIT 30");
+        $q->execute([$eventId]);
+        $utc = $clock->format('Y-m-d H:i:s.u');
+        $eventLeft = (int)$event['capacity'] -
+            array_sum(brvtal_ticket_inventory_usage($db,$eventId,0,$utc));
+        $types = [];
+        foreach ($q->fetchAll(PDO::FETCH_ASSOC) as $type) {
+            $typeLeft = (int)$type['capacity'] -
+                array_sum(brvtal_ticket_inventory_usage($db,$eventId,(int)$type['id'],$utc));
+            if ($eventLeft > 0 && $typeLeft > 0) continue;
+            $types[] = ['id'=>(int)$type['id'],'name'=>(string)$type['name']];
+        }
+        return $types;
+    } catch (Throwable) {
+        return []; // Fail closed if inventory/migration not yet present.
+    }
+}
+
 function brvtal_waitlist_subscribe(
     PDO $db, int $eventId, int $typeId, int $buyerId, string $consent,
     string $honeypot = '', ?DateTimeImmutable $now = null

@@ -267,6 +267,7 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
     if ($type === 'events') {
         brvtal_public_ticket_checkout_http($pdo, $id);
         $data['checkout'] = brvtal_public_ticket_checkout_offers($pdo, $id);
+        $data['waitlist'] = brvtal_waitlist_public_types($pdo, $id);
         $detail = brvtal_page_row($pdo, "SELECT event_date,venue,venue_address,city,status,skin,accent,ticket_url,ticket_instructions,published_at,finished_at,cancelled_at FROM events WHERE id=? LIMIT 1", [$id], true);
         $isHistorical = brvtal_public_event_is_historical($detail);
         $allowsTicketing = brvtal_public_event_allows_ticketing($detail);
@@ -501,6 +502,7 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
         && !in_array(strtoupper($recordStatus),['SOLD OUT','CANCELLED','CANCELED','FINISHED'],true)
         ? (array)($page['checkout']['offers'] ?? []) : [];
     $internalMethods = (array)($page['checkout']['methods'] ?? []);
+    $inviteMode = !empty($page['checkout']['invite_mode']);
     $internalEnabled = $internal !== [] && $internalMethods !== [];
     $checkoutPanel = '';
     if ($internalEnabled) {
@@ -509,10 +511,13 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
             $id = (int)($option['id'] ?? 0);
             $price = (int)($option['price_cop'] ?? 0);
             $available = (int)($option['available'] ?? 0);
-            if ($id < 1 || $price < 1 || $available < 1) continue;
+            $inviteOnly = !empty($option['invite_only']);
+            if ($id < 1 || $price < 1 || ($available < 1 && !$inviteOnly)) continue;
             $name = $escape($option['title'] ?? '');
             $options .= '<option value="' . $id . '" data-price="' . $price
-                . '" data-available="' . min(20,$available) . '">' . $name . ' · '
+                . '" data-available="' . min(20,$available)
+                . '" data-invite-only="' . ($inviteOnly ? '1' : '0') . '">' . $name
+                . ($inviteOnly ? ' · solo con invitación' : '') . ' · '
                 . number_format($price,0,',','.') . ' COP</option>';
         }
         $methods = '';
@@ -521,18 +526,44 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
             $methods .= '<option value="' . $method . '">' . $escape($method) . '</option>';
         }
         $internalEnabled = $options !== '' && $methods !== '';
+        $inviteField = $inviteMode
+            ? '<label>Código de invitación (opcional si hay cupo)'
+                . '<input name="waitlist_token" type="text" inputmode="text"'
+                . ' autocomplete="off" spellcheck="false" maxlength="43"'
+                . ' placeholder="Solo si recibiste una oferta"></label>'
+            : '';
         if ($internalEnabled) {
             $checkoutPanel = '<section class="event-ticket-checkout" id="checkout-boletas" aria-label="Checkout seguro">'
                 . '<h2>Escoge tus boletas</h2><p>El cupo, precio final y reserva se verifican de nuevo en el servidor. Sin recargos BRVTAL.</p>'
                 . '<form id="brvtal-ticket-checkout"><label>Tipo<select name="ticket_type_id">' . $options . '</select></label>'
                 . '<label>Cantidad<input name="quantity" type="number" value="1" min="1" max="20" step="1" inputmode="numeric"></label>'
                 . '<label>Método<select name="method">' . $methods . '</select></label>'
+                . $inviteField
                 . '<output id="ticket-checkout-total" class="checkout-total" aria-live="polite"></output>'
                 . '<button type="submit">Continuar al pago</button></form>'
                 . '<p id="ticket-checkout-status" role="status" aria-live="polite">Pago pendiente hasta verificación del servidor.</p>'
                 . '<p>¿Ya tienes cuenta? <a href="/buyer/login.php">Inicia sesión o recupera el acceso</a>.'
                 . ' Compradores invitados: el checkout está pendiente de habilitación segura.</p></section>';
         }
+    }
+    $waitlistPanel = '';
+    if ($isEvent && $recordState === 'active'
+        && !in_array(strtoupper($recordStatus), ['CANCELLED','CANCELED','FINISHED'], true)) {
+        $publicTypes = (array)($page['waitlist'] ?? []);
+        foreach ($publicTypes as $type) {
+            $typeId = (int)($type['id'] ?? 0);
+            if ($typeId < 1) continue;
+            if ($waitlistPanel === '') {
+                $waitlistPanel = '<section class="event-ticket-checkout"'
+                    . ' id="lista-espera" aria-label="Lista de espera">'
+                    . '<h2>Lista de espera</h2><p>Alta consentida para avisos'
+                    . ' de este evento. Inscribirte no reserva un cupo ni crea un pago.</p>';
+            }
+            $waitlistPanel .= '<div class="brvtal-public-waitlist" data-event-id="'
+                . (int)($entity['id'] ?? 0) . '" data-type-id="' . $typeId
+                . '"><h3>' . $escape($type['name'] ?? '') . '</h3></div>';
+        }
+        if ($waitlistPanel !== '') $waitlistPanel .= '</section>';
     }
     // A prior order remains inspectable after the last unit is reserved or sold.
     if ($isEvent && $checkoutPanel === '') {
@@ -817,6 +848,7 @@ JS;
     {$degradedNotice}
     {$related}
     {$checkoutPanel}
+    {$waitlistPanel}
     {$mapSection}
     {$repeatBuy}
   </main>

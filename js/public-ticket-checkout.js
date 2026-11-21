@@ -58,18 +58,57 @@
     void refresh(record.order_id);
   }
 
+  // Consent is explicit and scoped to the exhausted ticket type. No token or
+  // buyer PII is embedded in the public page or transmitted through the URL.
+  async function mountWaitlists() {
+    const containers = Array.from(document.querySelectorAll('.brvtal-public-waitlist'));
+    if (!containers.length) return;
+    try {
+      const auth = await json(await fetch('/api/buyer/auth.php', {
+        credentials: 'same-origin', cache: 'no-store',
+      }));
+      if (!auth.authenticated || typeof auth.csrf !== 'string' || !auth.csrf) {
+        for (const container of containers) {
+          const link = document.createElement('a');
+          link.href = '/mi-cuenta/acceso';
+          link.textContent = 'Inicia sesión con tu correo verificado para inscribirte';
+          container.append(link);
+        }
+        return;
+      }
+      const { mountPublic } = await import('/discadmin/ticketing-waitlist.js');
+      for (const container of containers) {
+        mountPublic(container, {
+          eventId: Number(container.dataset.eventId),
+          typeId: Number(container.dataset.typeId),
+          csrf: auth.csrf,
+        });
+      }
+    } catch {
+      for (const container of containers) {
+        const note = document.createElement('p');
+        note.textContent = 'La lista de espera no está disponible.';
+        container.append(note);
+      }
+    }
+  }
+  void mountWaitlists();
+
   // No new tickets may be sold, yet a previously created order can still be queried.
   const form = document.getElementById('brvtal-ticket-checkout');
   if (!form) return;
   const type = form.elements.namedItem('ticket_type_id');
   const quantity = form.elements.namedItem('quantity');
   const method = form.elements.namedItem('method');
+  const invitation = form.elements.namedItem('waitlist_token');
   const button = form.querySelector('button[type="submit"]');
   const total = document.getElementById('ticket-checkout-total');
   const money = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP',
     maximumFractionDigits: 0 });
   let submitting = false;
   const selected = () => type.selectedOptions[0];
+  const code = () => typeof invitation?.value === 'string' ? invitation.value.trim() : '';
+  const validCode = () => /^[A-Za-z0-9_-]{43}$/.test(code());
   const input = () => ({ ticket_type_id: Number(type.value), quantity: Number(quantity.value),
     method: method.value });
   const same = (a, b) => a && a.ticket_type_id === b.ticket_type_id
@@ -86,14 +125,20 @@
   }
   function update() {
     const option = selected();
-    const max = Math.min(20, Number(option?.dataset.available || 0));
+    const hasCode = code() !== '';
+    const codeValid = !hasCode || validCode();
+    const available = Math.min(20, Number(option?.dataset.available || 0));
+    const max = option?.dataset.inviteOnly === '1'
+      ? (validCode() ? 1 : 0)
+      : (hasCode ? (validCode() ? 1 : 0) : available);
     quantity.max = String(max);
     const count = Number(quantity.value);
-    const valid = Number.isInteger(count) && count >= 1 && count <= max;
+    const valid = codeValid && Number.isInteger(count) && count >= 1 && count <= max;
     button.disabled = submitting || !valid;
     type.disabled = submitting;
     quantity.disabled = submitting;
     method.disabled = submitting;
+    if (invitation) invitation.disabled = submitting;
     total.textContent = valid ? money.format(Number(option.dataset.price) * count)
       : 'Cantidad fuera del cupo disponible';
   }
@@ -106,6 +151,7 @@
   type.addEventListener('change', newPurchase);
   quantity.addEventListener('input', newPurchase);
   method.addEventListener('change', newPurchase);
+  invitation?.addEventListener('input', () => { if (!submitting) update(); });
   form.addEventListener('submit', async event => {
     event.preventDefault();
     if (submitting || button.disabled) return;
@@ -134,11 +180,13 @@
         method: 'POST', credentials: 'same-origin', cache: 'no-store',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': auth.csrf,
           'X-BRVTAL-TICKET-CHECKOUT': 'prepare' },
-        body: JSON.stringify({ ...selection, idempotency_key: intent }),
+        body: JSON.stringify({ ...selection, idempotency_key: intent,
+          ...(code() ? { waitlist_token: code() } : {}) }),
       });
       const result = await json(response);
       const checkout = result.checkout;
       save({ ...pending, order_id: String(result.order_id) });
+      if (invitation) invitation.value = ''; // Never persist or retain the opaque token.
       say('Reserva preparada. El pago sigue pendiente hasta confirmación del servidor.');
       if (checkout.environment === 'mock') return; // Synthetic mode NEVER charges.
       if (checkout.environment !== 'sandbox' || checkout.currency !== 'COP'

@@ -38,6 +38,7 @@ function brvtal_public_ticket_checkout_offers(PDO $db, int $eventId): array
         $eventUsage = brvtal_ticket_inventory_usage($db,$eventId,0,$utc);
         $eventFree = (int)$event['event_capacity'] - array_sum($eventUsage);
         $offers = [];
+        $inviteMode = brvtal_waitlist_offers_enabled();
         foreach ($q->fetchAll(PDO::FETCH_ASSOC) as $type) {
             if (!brvtal_ticket_inventory_saleable($event,$type,$now)
                 || (int)$type['capacity'] < 1) continue;
@@ -48,13 +49,15 @@ function brvtal_public_ticket_checkout_offers(PDO $db, int $eventId): array
             }
             $usage = brvtal_ticket_inventory_usage($db,$eventId,(int)$type['id'],$utc);
             $free = min($eventFree,(int)$type['capacity'] - array_sum($usage));
-            if ($free < 1) continue;
+            if ($free < 1 && !$inviteMode) continue;
             $offers[] = [
                 'id'=>(int)$type['id'], 'title'=>(string)$type['name'],
-                'price_cop'=>$price, 'available'=>min(20,$free),
+                'price_cop'=>$price, 'available'=>max(0,min(20,$free)),
+                'invite_only'=>$free < 1,
             ];
         }
-        return $offers ? ['offers'=>$offers, 'methods'=>$settings['methods']] : [];
+        return $offers ? ['offers'=>$offers, 'methods'=>$settings['methods'],
+            'invite_mode'=>$inviteMode] : [];
     } catch (Throwable) {
         return []; // Missing schema, disabled merchant, query errors: legacy stays intact.
     }
