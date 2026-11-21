@@ -57,11 +57,12 @@ if (root) {
       });
       const payload = await response.json();
       if (!response.ok || !payload.ok) throw new Error('BLOCKED');
-      say(payload.data.state === 'planned'
+      const notice = payload.data.state === 'planned'
         ? 'Vista previa registrada. Sin correo, pago ni reserva restaurada.'
-        : 'Recuperación omitida por consentimiento, pago, vencimiento o frecuencia.');
+        : 'Recuperación omitida por consentimiento, pago, vencimiento o frecuencia.';
       reset();
       await summary();
+      say(notice);
     } catch {
       reset();
       say('Operación no disponible o no autorizada. No se envió correo.');

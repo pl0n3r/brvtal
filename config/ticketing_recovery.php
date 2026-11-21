@@ -58,7 +58,9 @@ function brvtalRecoveryPlan(PDO $db, int $actor, string $role, array $input): ar
         if ($row['buyer_status'] !== 'active' || empty($row['email_verified_at'])
             || !is_string($row['policy_version'])
             || !preg_match('/^marketing-[a-z0-9._-]{1,30}$/D', $row['policy_version'])
-            || empty($row['consented_at_utc']) || !empty($row['revoked_at_utc'])
+            || empty($row['consented_at_utc'])
+            || (string)$row['consented_at_utc'] > gmdate('Y-m-d H:i:s')
+            || !empty($row['revoked_at_utc'])
             || (string)$row['consent_expires'] <= gmdate('Y-m-d H:i:s')) {
             return $suppressed('consent_unavailable');
         }
@@ -119,6 +121,9 @@ function brvtalRecoveryMetrics(PDO $db): array {
         JOIN ticket_orders o ON o.id=p.order_id AND o.status IN ('draft','pending')
         JOIN ticket_recovery_consents c ON c.buyer_id=p.buyer_id AND c.event_id=p.event_id
             AND c.revoked_at_utc IS NULL AND c.expires_at_utc>UTC_TIMESTAMP(6)
+            AND c.consented_at_utc<=UTC_TIMESTAMP(6) AND c.policy_version LIKE 'marketing-%'
+        JOIN ticket_buyers b ON b.id=p.buyer_id AND b.status='active'
+            AND b.email_verified_at IS NOT NULL
         WHERE p.retention_until_utc>UTC_TIMESTAMP(6)
           AND NOT EXISTS (SELECT 1 FROM ticket_payment_attempts a
               WHERE a.order_id=o.id AND a.status='approved')

@@ -347,6 +347,17 @@ function brvtalMigrationProofSpecifications(): array
                 ['uq_ticket_payment_transaction','uq_ticket_payment_reference','uq_ticket_payment_idempotency'], true)
         );
     }
+    if (is_file(__DIR__ . '/../database/migration_ticketing_recovery_01.sql')) {
+        $specifications['migration_ticketing_recovery_01.sql'] = array_merge(
+            brvtalMigrationObjectRequirements('ticket_recovery_consents',
+                ['buyer_id','event_id','policy_version','consented_at_utc','revoked_at_utc','expires_at_utc'],
+                ['PRIMARY'], true),
+            brvtalMigrationObjectRequirements('ticket_recovery_previews',
+                ['order_id','buyer_id','event_id','campaign_key','request_hash',
+                 'stage','outcome','created_at_utc','retention_until_utc'],
+                ['uq_recovery_request','idx_recovery_frequency','idx_recovery_reporting'], true)
+        );
+    }
     return $specifications;
 }
 

@@ -48,6 +48,8 @@ try {
     $db->exec("INSERT INTO ticket_recovery_consents VALUES
         (3,6,'marketing-v1',UTC_TIMESTAMP(6),NULL,DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 30 DAY))");
     $db->exec("INSERT INTO ticket_payment_attempts VALUES (1,91,'pending'),(2,93,'approved')");
+    $db->exec("INSERT INTO ticket_orders VALUES (94,3,6,'pending',DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 DAY))");
+    $db->exec("INSERT INTO ticket_order_items VALUES (4,94,7,1)");
     $input=['order_id'=>91,'campaign'=>'noviembre','idempotency_key'=>str_repeat('a',32)];
     $result=brvtalRecoveryPlan($db,7,'superadmin',$input);
     t29($result['state']==='planned' && $result['stage']==='payment_open'
@@ -61,6 +63,9 @@ try {
     t29(brvtalRecoveryPlan($db,7,'superadmin',array_merge($input,
         ['order_id'=>93,'idempotency_key'=>str_repeat('d',32)]))['reason']==='order_terminal',
         'paid never targeted');
+    t29(brvtalRecoveryPlan($db,7,'superadmin',array_merge($input,
+        ['order_id'=>94,'idempotency_key'=>str_repeat('e',32)]))['reason']==='checkout_expired',
+        'expired selection cannot rearm hold');
     t29(count(brvtalRecoveryMetrics($db))===1,'aggregate eligible only');
     t29(brvtalRecoveryOptOut($db,3,6),'optout');
     t29(brvtalRecoveryMetrics($db)===[],'optout removes dashboard count');
