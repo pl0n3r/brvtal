@@ -126,6 +126,7 @@ GitHub is the arbiter for concurrent implementation.
 - Coordinated PRs target `main`, use their reserved `work/issue-N` branch and close the matching Issue with `Closes #N`, `Fixes #N` or `Resolves #N`.
 - Coordination fails closed when Issue, branch, reservation metadata or closing relation disagree.
 - Changed-file overlap with another open PR targeting `main` is a fail-closed collision and must identify exact paths.
+- Shared version files (Factory#2163, #1811): `config/version.php` and `package.json` are declared as `shared_version_paths` in the coordination calls. Leaves do **not** claim them when they only bump the version line; two open PRs that only change those lines do not collide. If another PR merges first with the same number, rebase and bump to the next patch. A leaf that changes anything else in those files (e.g. `package.json` dependencies or scripts) still claims them exclusively.
 - `README.md` follows the same changed-file collision rules as any other path. README Contract v2 never uses a per-PR snapshot: do not rewrite README merely because `main` moved.
 - Independent reservations may run in parallel; conflicting implementation work may not.
 - PR/Issue lifecycle synchronizes visible state and reservation/branch cleanup.
