@@ -151,6 +151,7 @@ function brvtal_public_ticket_checkout_prepare(PDO $db, int $eventId, int $buyer
     }
     $digest = hash('sha256','t13|'.$buyerId.'|'.$eventId.'|'.$key);
     if ($db->inTransaction()) throw new LogicException('CHECKOUT_TRANSACTION_ALREADY_ACTIVE');
+    $promoBreakdown = null; // Defined on both first purchase and idempotent replay.
     $db->beginTransaction();
     try {
         if ($withOffer || $withPromo) {
@@ -275,6 +276,9 @@ function brvtal_public_ticket_checkout_prepare(PDO $db, int $eventId, int $buyer
         $db->commit();
         $response=['order_id'=>$orderId,'checkout'=>$checkout];
         if ($withPromo) {
+            if (!is_array($promoBreakdown)) {
+                throw new LogicException('PROMO_SNAPSHOT_MISSING');
+            }
             $response['promo_breakdown']=[
                 'subtotal_cop'=>(int)$promoBreakdown['subtotal_cop'],
                 'discount_cop'=>(int)$promoBreakdown['discount_cop'],
