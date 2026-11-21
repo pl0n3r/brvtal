@@ -119,8 +119,10 @@ try {
         t15(is_resource($p),'worker launched');$workers[]=[$p,$pipes];
     }
     // Both workers must be blocked on InnoDB row locks before releasing parent.
-    $connections=[];
-    foreach ($workers as [$proc,$pipes]) stream_set_blocking($pipes[1],false);
+    $barrierPassed=false;
+    try {
+        $connections=[];
+        foreach ($workers as [$proc,$pipes]) stream_set_blocking($pipes[1],false);
     $deadline=microtime(true)+10;
     while (count($connections)<2 && microtime(true)<$deadline) {
         $ready=[];
@@ -146,7 +148,20 @@ try {
         usleep(50000);
     }
     t15($waiting===2,'both scanners blocked on DB lock');
-    $pdo->commit();
+        $pdo->commit();
+        $barrierPassed=true;
+    } finally {
+        // A failing readiness check must not hold the entry row while cleanup
+        // tries to drop the disposable database and workers still wait on it.
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        if (!$barrierPassed) {
+            foreach ($workers as [$proc,$pipes]) {
+                if (is_resource($proc)) proc_terminate($proc);
+                foreach ($pipes as $pipe) if (is_resource($pipe)) fclose($pipe);
+                if (is_resource($proc)) proc_close($proc);
+            }
+        }
+    }
     $reasons=[];
     foreach ($workers as [$proc,$pipes]) {
         stream_set_blocking($pipes[1],true);
