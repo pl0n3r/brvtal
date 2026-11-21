@@ -83,9 +83,21 @@ function brvtal_ticket_inventory_usage(PDO $db, int $eventId, int $typeId, strin
     $salesArgs = $typeId > 0 ? [$eventId,$utc,$typeId] : [$eventId,$utc];
     $heldArgs = $typeId > 0 ? [$eventId,$utc,$typeId] : [$eventId,$utc];
     $courtesyArgs = $typeId > 0 ? [$eventId,$typeId] : [$eventId];
+    // Waitlist invitations reserve one unit across ALL checkout entrypoints.
+    // Missing additive schema must not break legacy checkout before migration.
+    $waitlist = 0;
+    try {
+        $offerSql = "SELECT COUNT(*) FROM ticket_waitlist_entries
+            WHERE event_id=? AND status='offered' AND offer_expires_at_utc>?"
+            . ($typeId > 0 ? ' AND ticket_type_id=?' : '');
+        $waitlist = brvtal_ticket_inventory_scalar($db,$offerSql,
+            $typeId > 0 ? [$eventId,$utc,$typeId] : [$eventId,$utc]);
+    } catch (PDOException $e) {
+        if ((int)($e->errorInfo[1] ?? 0) !== 1146) throw $e;
+    }
     return [
         'sold'=>brvtal_ticket_inventory_scalar($db,$sold.$soldType,$salesArgs),
-        'held'=>brvtal_ticket_inventory_scalar($db,$held.$typeSuffix,$heldArgs),
+        'held'=>brvtal_ticket_inventory_scalar($db,$held.$typeSuffix,$heldArgs)+$waitlist,
         'courtesy'=>brvtal_ticket_inventory_scalar($db,$courtesy.$typeSuffix,$courtesyArgs),
     ];
 }
