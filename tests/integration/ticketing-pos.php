@@ -46,9 +46,9 @@ $opts=[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>P
        PDO::ATTR_EMULATE_PREPARES=>false];
 $server=new PDO("mysql:host=$host;port=$port;charset=utf8mb4",$user,$pass,$opts);
 $name=$prefix.'_pos_'.bin2hex(random_bytes(3));
-$server->exec("CREATE DATABASE \`$name\` CHARACTER SET utf8mb4");
+$server->exec("CREATE DATABASE `$name` CHARACTER SET utf8mb4");
 register_shutdown_function(static function() use($server,$name):void {
-    try {$server->exec("DROP DATABASE IF EXISTS \`$name\`");} catch(Throwable) {}
+    try {$server->exec("DROP DATABASE IF EXISTS `$name`");} catch(Throwable) {}
 });
 $db=new PDO("mysql:host=$host;port=$port;dbname=$name;charset=utf8mb4",$user,$pass,$opts);
 $ddl=[
