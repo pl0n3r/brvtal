@@ -105,4 +105,12 @@ try {
     if ($original===null) unset($GLOBALS['config']);
     else $GLOBALS['config']=$original;
 }
+// HTTP worker guard contract: deny requests before private config or SMTP is loaded.
+$adminWorker = (string)file_get_contents(__DIR__.'/../ops/admin-password-mail-worker.php');
+$cliGuard = strpos($adminWorker, "if (PHP_SAPI !== 'cli')");
+provisionCheck($cliGuard !== false, 'admin password worker must be CLI only');
+provisionCheck(strpos($adminWorker, 'http_response_code(404);') > $cliGuard
+    && strpos($adminWorker, 'http_response_code(404);') < strpos($adminWorker, '$configPath ='),
+    'web entry must fail closed before loading private config');
+
 echo "BRVTAL secrets precedence, sandbox-only, fallbacks, and redacted status passed.\n";
