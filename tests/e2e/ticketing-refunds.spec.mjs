@@ -1,6 +1,7 @@
 import {test,expect} from '@playwright/test';
 import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
+import {execFileSync} from 'node:child_process';
 
 const html=readFileSync(join(process.cwd(),'buyer/index.php'),'utf8');
 const url='http://127.0.0.1:4173/buyer/index.php';
@@ -101,4 +102,11 @@ test('T21 el shell único expone reembolsos solo a staff autorizado',async({page
   await page.getByRole('button',{name:'Gestionar devoluciones · pruebas'}).click();
   await expect(page.getByRole('region',{name:'Gestión de devoluciones'})).toBeVisible();
   await expect(page.getByText('Sin solicitudes en el entorno sintético.')).toBeVisible();
+});
+
+test('T21 contratos PHP se ejecutan en Chromium sin base productiva',()=>{
+  const stdout=execFileSync('php',['tests/integration/ticketing-refunds.php'],{
+    encoding:'utf8',env:{...process.env,BRVTAL_INTEGRATION_TESTS:'0'}
+  });
+  expect(stdout).toContain('T21 refund contract checks OK');
 });

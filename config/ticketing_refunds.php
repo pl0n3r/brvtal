@@ -229,3 +229,73 @@ function brvtalRefundSandboxV2Receipt(
         'provider_refund_id' => is_string($providerId) ? $providerId : null,
     ];
 }
+
+
+/** Terminal outcomes are monotonic: late contradictory replies never revoke tickets. */
+function brvtalRefundProviderNextStatus(string $current,string $providerState):string {
+    if (!in_array($providerState,['confirmed','processing','failed'],true)) {
+        throw new DomainException('REFUND_PROVIDER_UNVERIFIED');
+    }
+    if (in_array($current,['refunded','failed','rejected'],true)) return $current;
+    if (!in_array($current,['approved','processing'],true)) {
+        throw new DomainException('REFUND_INVALID_STATE');
+    }
+    return match($providerState) {
+        'confirmed'=>'refunded','processing'=>'processing','failed'=>'failed',
+    };
+}
+
+/**
+ * Apply only a Wompi HTTP response received by a trusted server-side transport.
+ * The buyer/staff HTTP endpoint never accepts arbitrary confirmation JSON.
+ */
+function brvtalRefundSandboxApply(PDO $db,int $id,int $httpStatus,string $response):array {
+    brvtalRefundGuard($db);
+    if ($id<1||$db->inTransaction()) throw new DomainException('REFUND_INVALID_STATE');
+    $linkStmt=$db->prepare('SELECT order_id,event_id FROM ticket_refunds WHERE id=?');
+    $linkStmt->execute([$id]);$link=$linkStmt->fetch(PDO::FETCH_ASSOC);
+    if (!$link) throw new DomainException('REFUND_NOT_FOUND');
+    $db->beginTransaction();
+    try {
+        // Canonical mutex order: Event, Order, Refund, then Entries.
+        $db->prepare('SELECT id FROM events WHERE id=? FOR UPDATE')->execute([(int)$link['event_id']]);
+        $db->prepare('SELECT id FROM ticket_orders WHERE id=? FOR UPDATE')->execute([(int)$link['order_id']]);
+        $q=$db->prepare('SELECT * FROM ticket_refunds WHERE id=? FOR UPDATE');
+        $q->execute([$id]);$refund=$q->fetch(PDO::FETCH_ASSOC);
+        if (!$refund) throw new DomainException('REFUND_NOT_FOUND');
+        $tx=$db->prepare("SELECT a.provider_transaction_id FROM ticket_payment_attempts a
+            WHERE a.order_id=? AND a.provider='wompi' AND a.status IN ('approved','refunded')
+              AND a.provider_transaction_id IS NOT NULL
+              AND EXISTS(SELECT 1 FROM ticket_payment_webhook_events w
+                WHERE w.attempt_id=a.id AND w.provider_transaction_id=a.provider_transaction_id
+                  AND w.signed_status='APPROVED')
+            ORDER BY a.id DESC LIMIT 1");
+        $tx->execute([(int)$refund['order_id']]);$transactionId=(string)$tx->fetchColumn();
+        if ($transactionId==='') throw new DomainException('REFUND_PAYMENT_UNVERIFIED');
+        $receipt=brvtalRefundSandboxV2Receipt(
+            $httpStatus,$response,$transactionId,(int)$refund['amount_cop'],'BRVTAL-T21-'.$id);
+        $before=(string)$refund['status'];
+        $next=brvtalRefundProviderNextStatus($before,$receipt['state']);
+        $providerId=$receipt['provider_refund_id'];
+        if ($next===$before) {
+            if ($before==='refunded' && $providerId!==$refund['provider_refund_id']) {
+                throw new DomainException('REFUND_PROVIDER_CONFLICT');
+            }
+            $db->commit();return ['id'=>$id,'status'=>$before,'replayed'=>true];
+        }
+        if ($next==='refunded') {
+            if (!is_string($providerId)||$providerId===''
+                ||($refund['provider_refund_id']!==null
+                    && !hash_equals((string)$refund['provider_refund_id'],$providerId))) {
+                throw new DomainException('REFUND_PROVIDER_CONFLICT');
+            }
+            brvtalRefundFinalize($db,$id,(int)$refund['order_id'],
+                (int)$refund['event_id'],(int)$refund['amount_cop']);
+        }
+        $db->prepare('UPDATE ticket_refunds SET status=?,provider_refund_id=?,
+            updated_at_utc=UTC_TIMESTAMP(6) WHERE id=?')
+            ->execute([$next,$providerId??$refund['provider_refund_id'],$id]);
+        brvtalRefundAudit($db,$id,'provider',null,$before,$next);
+        $db->commit();return ['id'=>$id,'status'=>$next,'replayed'=>false];
+    } catch(Throwable $e) {if ($db->inTransaction())$db->rollBack();throw $e;}
+}

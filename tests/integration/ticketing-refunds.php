@@ -66,6 +66,22 @@ t21Reject(static fn()=>brvtalRefundSandboxV2Receipt(
     201,$receipt('APPROVED',50000,'other_ref'),$testTx,500,$testRef
 ),'REFUND_PROVIDER_UNVERIFIED');
 
+
+t21(brvtalRefundProviderNextStatus('approved','confirmed')==='refunded',
+    'approved sandbox receipt is the only route to provider-settled');
+t21(brvtalRefundProviderNextStatus('processing','confirmed')==='refunded',
+    'pending sandbox receipt can later be approved');
+t21(brvtalRefundProviderNextStatus('approved','failed')==='failed',
+    'failed sandbox refund never triggers credential revocation');
+t21(brvtalRefundProviderNextStatus('failed','confirmed')==='failed',
+    'late contradictory approved event cannot revoke failed refund');
+t21(brvtalRefundProviderNextStatus('refunded','failed')==='refunded',
+    'late failure cannot undo a confirmed refund');
+t21Reject(static fn()=>brvtalRefundProviderNextStatus('requested','confirmed'),
+    'REFUND_INVALID_STATE');
+t21Reject(static fn()=>brvtalRefundProviderNextStatus('approved','untrusted'),
+    'REFUND_PROVIDER_UNVERIFIED');
+
 $schema=(string)file_get_contents(__DIR__.'/../../database/migration_ticketing_refunds_01.sql');
 t21(str_contains($schema,'uq_ticket_refund_claim'),'no double-refund claim');
 t21(str_contains($schema,'ticket_refund_adjustments'),'immutable finance witness');
