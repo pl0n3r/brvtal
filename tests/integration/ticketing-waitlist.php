@@ -144,6 +144,28 @@ $offerBody=(string)$db->query("SELECT body_text FROM ticket_mail_outbox
 wlAssert(preg_match('/Código: ([A-Za-z0-9_-]{43})[.]/',$offerBody,$offerCode)===1,
     'offer token issued only to opted-in buyer');
 $redeemAt=$now->modify('+12 minutes');
+// An expired but still-stored token must never redeem even before cleanup.
+$db->beginTransaction();
+try {
+    brvtal_waitlist_redeem_into_hold($db,$offerCode[1],42,2,10,
+        $now->modify('+22 minutes'));
+    wlAssert(false,'expired offer cannot redeem');
+} catch (DomainException) {
+    $db->rollBack();
+}
+// Even a valid offer must survive failed checkout stock validation after
+// the caller rolls its transaction back.
+$db->beginTransaction();
+$db->exec('UPDATE ticket_inventory_types SET capacity=0 WHERE ticket_type_id=10');
+try {
+    brvtal_waitlist_redeem_into_hold($db,$offerCode[1],42,2,10,$redeemAt);
+    wlAssert(false,'no stock checkout must abort conversion');
+} catch (DomainException) {
+    $db->rollBack();
+}
+wlAssert((int)$db->query("SELECT COUNT(*) FROM ticket_waitlist_entries
+    WHERE buyer_id=2 AND status='offered'")->fetchColumn()===1,
+    'failed hold rollback preserves original offered unit');
 $db->beginTransaction();
 try {
     brvtal_waitlist_redeem_into_hold($db,$offerCode[1],43,1,10,$redeemAt);
