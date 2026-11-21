@@ -525,10 +525,25 @@ else
         126) conflict="post_apply_schema_proof_mismatch" ;;
     esac
     if [[ -n "$conflict" ]]; then
-        line="$(grep -E '^BRVTAL_RECONCILE_STEP:migration_[a-z0-9_]+[.]sql$' "$progress" | tail -n 1 || true)"
-        name="${line#BRVTAL_RECONCILE_STEP:}"
-        if [[ "$line" == BRVTAL_RECONCILE_STEP:* && "$name" =~ ^migration_[a-z0-9_]+[.]sql$ ]]; then
-            printf 'BRVTAL_RECONCILE_CONFLICT:%s:%s\n' "$name" "$conflict"
+        # Attribute only the one action still active at the exact failure.
+        # STEP/DONE also covers the registry migration. Unknown/malformed
+        # records and out-of-sequence events fail closed, without naming SQL.
+        active=""
+        invalid_progress=false
+        while IFS= read -r progress_line || [[ -n "$progress_line" ]]; do
+            if [[ "$progress_line" =~ ^BRVTAL_RECONCILE_STEP:(migration_[a-z0-9_]+[.]sql)$ ]]; then
+                if [[ -n "$active" ]]; then invalid_progress=true; break; fi
+                active="${BASH_REMATCH[1]}"
+            elif [[ "$progress_line" =~ ^BRVTAL_RECONCILE_DONE:(migration_[a-z0-9_]+[.]sql)$ ]]; then
+                if [[ "$active" != "${BASH_REMATCH[1]}" ]]; then invalid_progress=true; break; fi
+                active=""
+            else
+                invalid_progress=true
+                break
+            fi
+        done < "$progress"
+        if [[ "$invalid_progress" == false && "$active" =~ ^migration_[a-z0-9_]+[.]sql$ ]]; then
+            printf 'BRVTAL_RECONCILE_CONFLICT:%s:%s\n' "$active" "$conflict"
         fi
     fi
     # Only explicit, deterministic CLI categories can escape SSH; unknown => 75.

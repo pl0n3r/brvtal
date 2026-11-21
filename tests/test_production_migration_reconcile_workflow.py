@@ -196,6 +196,25 @@ class ProductionMigrationReconcileWorkflowTests(unittest.TestCase):
                     with self.assertRaisesRegex(failure_type, f"SSH command failed with exit code {code}"):
                         reconcile(None, sha, "0.1.261", "https://www.brvtal.com.co")
 
+    def test_diagnostic_progress_covers_registry_and_closes_all_actions(self):
+        source = (ROOT / "config/migration_reconcile.php").read_text(encoding="utf-8")
+        self.assertIn("brvtalMigrationEmitSafeProgress('STEP', 'migration_schema_migrations_01.sql');", source)
+        self.assertIn("brvtalMigrationEmitSafeProgress('DONE', 'migration_schema_migrations_01.sql');", source)
+        self.assertLess(
+            source.index("brvtalMigrationEmitSafeProgress('STEP', 'migration_schema_migrations_01.sql');"),
+            source.index("brvtal_migration_apply_file($pdo, $registry, $actor, $deploySha);"),
+        )
+        self.assertLess(
+            source.index("brvtal_migration_apply_file($pdo, $registry, $actor, $deploySha);"),
+            source.index("brvtalMigrationEmitSafeProgress('DONE', 'migration_schema_migrations_01.sql');"),
+        )
+        self.assertIn("brvtalMigrationEmitSafeProgress('STEP', $name);", source)
+        self.assertEqual(source.count("brvtalMigrationEmitSafeProgress('DONE', $name);"), 2)
+        self.assertLess(
+            source.rindex("brvtalMigrationEmitSafeProgress('DONE', $name);"),
+            source.index("$final = brvtal_migration_status($pdo, $directory);"),
+        )
+
     def test_remote_shell_emits_each_stage_exit_code_without_running_later_stages(self):
         """Execute the fixed remote Bash script with disposable fake git/php only."""
         script = runpy.run_path(str(ROOT / "ops/factory/transport.py"))["_RECONCILE_MIGRATIONS"]
@@ -210,6 +229,9 @@ class ProductionMigrationReconcileWorkflowTests(unittest.TestCase):
             ("reconcile_120", 77, ["plan", "guard", "backup", "reconcile"]),
             ("reconcile_121", 78, ["plan", "guard", "backup", "reconcile"]),
             ("reconcile_122", 79, ["plan", "guard", "backup", "reconcile"]),
+            ("reconcile_122_registry", 79, ["plan", "guard", "backup", "reconcile"]),
+            ("reconcile_122_after", 79, ["plan", "guard", "backup", "reconcile"]),
+            ("reconcile_122_malformed", 79, ["plan", "guard", "backup", "reconcile"]),
             ("reconcile_123", 80, ["plan", "guard", "backup", "reconcile"]),
             ("reconcile_124", 81, ["plan", "guard", "backup", "reconcile"]),
             ("reconcile_125", 82, ["plan", "guard", "backup", "reconcile"]),
@@ -256,6 +278,17 @@ class ProductionMigrationReconcileWorkflowTests(unittest.TestCase):
                         sys.exit(5)
                     if os.environ.get("BRVTAL_MIGRATION_RECONCILE_BACKUP_READY") != "1":
                         sys.exit(6)
+                    if stage == "reconcile_122_registry":
+                        print("BRVTAL_RECONCILE_STEP:migration_schema_migrations_01.sql")
+                        sys.exit(122)
+                    if stage == "reconcile_122_after":
+                        print("BRVTAL_RECONCILE_STEP:migration_ticketing_entries_01.sql")
+                        print("BRVTAL_RECONCILE_DONE:migration_ticketing_entries_01.sql")
+                        sys.exit(122)
+                    if stage == "reconcile_122_malformed":
+                        print("BRVTAL_RECONCILE_STEP:migration_ticketing_entries_01.sql")
+                        print("BRVTAL_RECONCILE_DONE:migration_ticketing_orders_01.sql")
+                        sys.exit(122)
                     if stage.startswith("reconcile_"):
                         if stage == "reconcile_122":
                             print("BRVTAL_RECONCILE_STEP:migration_ticketing_entries_01.sql")
@@ -306,6 +339,14 @@ class ProductionMigrationReconcileWorkflowTests(unittest.TestCase):
                         "migration_ticketing_entries_01.sql:schema_sql_or_ddl_conflict",
                     )
                     self.assertNotIn("SQL=", run.stdout)
+                if stage == "reconcile_122_registry":
+                    self.assertEqual(
+                        run.stdout.strip(),
+                        "BRVTAL_RECONCILE_CONFLICT:"
+                        "migration_schema_migrations_01.sql:schema_sql_or_ddl_conflict",
+                    )
+                if stage in {"reconcile_122_after", "reconcile_122_malformed"}:
+                    self.assertEqual(run.stdout.strip(), "")
                 self.assertEqual(trace.read_text(encoding="utf-8").splitlines(), expected_trace)
                 if stage in {"preflight", "plan", "guard", "backup"}:
                     self.assertFalse(marker.exists(), f"{stage}: no backup marker may exist")

@@ -690,6 +690,22 @@ function brvtalMigrationOrderDependencyActions(array $actions): array
     return $actions;
 }
 
+/**
+ * Emit only one allowlisted migration filename per active reconciliation step.
+ * No SQL, schema details, application data or exception text can escape.
+ */
+function brvtalMigrationEmitSafeProgress(string $event, string $name): void
+{
+    if (PHP_SAPI !== 'cli' || (string)getenv('BRVTAL_MIGRATION_RECONCILE_DIAGNOSTIC') !== '1') {
+        return;
+    }
+    if (!in_array($event, ['STEP', 'DONE'], true)
+        || preg_match('/^migration_[a-z0-9_]+[.]sql$/D', $name) !== 1) {
+        throw new RuntimeException('MIGRATION_RECONCILIATION_DRIFT');
+    }
+    echo 'BRVTAL_RECONCILE_' . $event . ':' . $name . PHP_EOL;
+}
+
 function brvtalMigrationReconcileHistorical(
     PDO $pdo,
     string $directory,
@@ -709,7 +725,9 @@ function brvtalMigrationReconcileHistorical(
         if (!is_string($registry)) {
             throw new RuntimeException('MIGRATION_REGISTRY_FILE_MISSING');
         }
+        brvtalMigrationEmitSafeProgress('STEP', 'migration_schema_migrations_01.sql');
         brvtal_migration_apply_file($pdo, $registry, $actor, $deploySha);
+        brvtalMigrationEmitSafeProgress('DONE', 'migration_schema_migrations_01.sql');
     }
 
     $baselined = [];
@@ -725,17 +743,12 @@ function brvtalMigrationReconcileHistorical(
             throw new RuntimeException('MIGRATION_RECONCILIATION_DRIFT');
         }
 
-        // Owner-only CLI breadcrumb: a validated filename, never SQL, error
-        // text, application rows or credentials. The SSH wrapper sanitizes it.
-        if (PHP_SAPI === 'cli' && (string)getenv('BRVTAL_MIGRATION_RECONCILE_DIAGNOSTIC') === '1') {
-            if (preg_match('/^migration_[a-z0-9_]+[.]sql$/D', $name) !== 1) {
-                throw new RuntimeException('MIGRATION_RECONCILIATION_DRIFT');
-            }
-            echo 'BRVTAL_RECONCILE_STEP:' . $name . PHP_EOL;
-        }
+        // The remote wrapper attributes only an unfinished STEP to a failure.
+        brvtalMigrationEmitSafeProgress('STEP', $name);
         if ($kind === 'baseline') {
             brvtal_migration_baseline_file($pdo, $path, $actor, $deploySha);
             $baselined[] = $name;
+            brvtalMigrationEmitSafeProgress('DONE', $name);
             continue;
         }
         if ($kind !== 'apply') {
@@ -758,6 +771,7 @@ function brvtalMigrationReconcileHistorical(
         }
         brvtal_migration_baseline_file($pdo, $path, $actor, $deploySha);
         $applied[] = $name;
+        brvtalMigrationEmitSafeProgress('DONE', $name);
     }
 
     $final = brvtal_migration_status($pdo, $directory);
