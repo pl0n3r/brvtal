@@ -3,16 +3,19 @@ import {readFileSync} from 'node:fs';
 const script = readFileSync('discadmin/ticketing-door.js','utf8');
 const css = readFileSync('discadmin/ticketing-door.css','utf8');
 const php = readFileSync('discadmin/ticketing-door.php','utf8');
+const shell = readFileSync('discadmin/ticketing.js','utf8');
 const fixture = '<!doctype html><html lang="es"><meta name="viewport" content="width=device-width,initial-scale=1">'
-  + '<style>' + css + '</style><main data-door data-csrf="synthetic-csrf">'
+  + '<style>' + css + '</style><main class="door" data-door data-csrf="synthetic-csrf">'
   + '<form data-door-form><label>Evento<select data-door-event><option value="">Seleccione</option><option value="7">Evento A</option><option value="9">Evento B</option></select></label>'
   + '<label for="door-qr">Código QR de entrada</label><input id="door-qr" name="qr">'
   + '<button type="submit" data-door-submit>Validar entrada</button>'
   + '<button type="button" data-door-camera>Usar cámara</button><button type="button" data-door-stop hidden>Detener cámara</button>'
   + '<video data-door-video hidden></video><p data-door-camera-status></p></form>'
   + '<output role="status" data-door-result data-state="idle"></output>'
-  + '<p data-door-summary></p><div data-door-audit></div></main><script type="module" src="/discadmin/ticketing-door.js"></script></html>';
-async function setup(page, scan, options = {}) {
+  + '<p data-door-summary></p><div data-door-audit></div></main>'
+  + '<script type="module">import {mount} from "/discadmin/ticketing-door.js";'
+  + 'mount(document.querySelector("[data-door]"));</script></html>';
+async function setup(page, scan) {
   await page.route('**/discadmin/t16-fixture.html', route => route.fulfill({contentType:'text/html',body:fixture}));
   await page.route('**/discadmin/ticketing-door.js', route => route.fulfill({contentType:'text/javascript',body:script}));
   await page.route('**/discadmin/ticketing-door.php?*', route => route.fulfill({contentType:'application/json',
@@ -91,5 +94,106 @@ test('T16 rutas PHP exigen staff door y no exponen finanzas ni compradores', asy
   expect(php).toContain("WHERE status='published'");
   expect(php).not.toMatch(/SELECT.+email/i);
   expect(php).toContain("Cache-Control: no-store, private");
-  expect(readFileSync('discadmin/ticketing.js','utf8')).toContain('Abrir lector móvil de puerta');
+  expect(shell).toContain('Abrir lector móvil de puerta');
+  expect(shell).toContain("'X-BRVTAL-ADMIN-FRAGMENT': '1'");
+  expect(shell).toContain('document.importNode(door, true)');
+  expect(php).toContain('HTTP_X_BRVTAL_ADMIN_FRAGMENT');
+  expect(php).not.toContain('<!doctype html>');
+});
+
+test('T16 cambio de evento 7 → 9 → 7 durante POST nunca concede entrada', async ({page}) => {
+  let release;
+  const responseGate = new Promise(resolve => { release = resolve; });
+  await setup(page, async route => {
+    await responseGate;
+    await route.fulfill({status:200,contentType:'application/json',
+      body:JSON.stringify({ok:true,reason:'accepted'})});
+  });
+  await page.locator('#door-qr').fill('BRVTAL:T1:synthetic-delayed');
+  await page.getByRole('button',{name:'Validar entrada'}).click();
+  await expect(page.locator('[data-door-result]')).toHaveAttribute('data-state','pending');
+  await page.locator('[data-door-event]').selectOption('9');
+  await page.locator('[data-door-event]').selectOption('7');
+  release();
+  await expect(page.locator('[data-door-result]')).toHaveAttribute('data-state','deny');
+  await expect(page.locator('[data-door-result]')).not.toContainText('ENTRADA VÁLIDA');
+});
+test('T16 detección retrasada tras detener cámara no consume QR', async ({page}) => {
+  let calls=0;
+  await setup(page, route => { calls++; return route.fulfill({
+    status:200,contentType:'application/json',body:JSON.stringify({ok:true,reason:'accepted'})
+  }); });
+  await page.evaluate(() => {
+    window.BarcodeDetector = class {
+      detect() { return new Promise(resolve => { window.__resolveDetectedQR = resolve; }); }
+    };
+    Object.defineProperty(navigator,'mediaDevices',{
+      configurable:true,value:{getUserMedia:async()=>new MediaStream()}
+    });
+    HTMLMediaElement.prototype.play = async function(){};
+  });
+  await page.locator('[data-door-camera]').click();
+  await page.waitForFunction(() => typeof window.__resolveDetectedQR === 'function');
+  await page.locator('[data-door-stop]').click();
+  await page.evaluate(() => window.__resolveDetectedQR([{rawValue:'BRVTAL:T1:synthetic-stopped'}]));
+  await page.waitForTimeout(100);
+  expect(calls).toBe(0);
+  await expect(page.locator('[data-door-result]')).not.toHaveAttribute('data-state','allow');
+  await expect(page.locator('[data-door-video]')).toBeHidden();
+});
+test('T16 evita adquisiciones concurrentes y apaga stream tardío tras detener cámara', async ({page}) => {
+  await setup(page, route => route.abort('failed'));
+  await page.evaluate(() => {
+    window.BarcodeDetector = class {};
+    window.__cameraAcquires = 0;
+    window.__cameraStops = 0;
+    Object.defineProperty(navigator,'mediaDevices',{configurable:true,value:{
+      getUserMedia:() => {
+        window.__cameraAcquires++;
+        return new Promise(resolve => { window.__resolveAcquiredStream = resolve; });
+      }
+    }});
+    HTMLMediaElement.prototype.play = async function(){};
+  });
+  await page.locator('[data-door-camera]').evaluate(button => { button.click(); button.click(); });
+  await page.waitForFunction(() => typeof window.__resolveAcquiredStream === 'function');
+  expect(await page.evaluate(() => window.__cameraAcquires)).toBe(1);
+  await page.locator('[data-door-stop]').click();
+  await page.evaluate(() => {
+    const stream = new MediaStream();
+    stream.getTracks = () => [{stop:() => {window.__cameraStops++;}}];
+    window.__resolveAcquiredStream(stream);
+  });
+  await expect.poll(() => page.evaluate(() => window.__cameraStops)).toBe(1);
+  await expect(page.locator('[data-door-video]')).toBeHidden();
+});
+test('T16 lector es módulo del único shell, sin documento paralelo', async ({page}) => {
+  const fixtureShell = '<!doctype html><html><body><div id="app"><div class="shell">'
+    + '<aside class="side">Navegación</aside><main class="main"><div id="admin-module-host"></div></main>'
+    + '</div></div><script>window.state={authed:true,section:"ticketing"};</script>'
+    + '<script src="/discadmin/ticketing.js"></script></body></html>';
+  const fixtureTabs = '<section data-admin-module="ticketing"><div role="tablist">'
+    + '<button role="tab" data-ticketing-tab="door" id="tab-door">Puerta</button></div>'
+    + '<div role="tabpanel" data-ticketing-panel></div></section>';
+  await page.route('**/discadmin/t16-shell-fixture.html',route=>route.fulfill({contentType:'text/html',body:fixtureShell}));
+  await page.route('**/discadmin/ticketing.js',route=>route.fulfill({contentType:'text/javascript',body:shell}));
+  await page.route('**/discadmin/ticketing.php',route=>route.fulfill({contentType:'text/html',body:fixtureTabs}));
+  await page.route('**/discadmin/ticketing-door.php',route=>route.fulfill({contentType:'text/html',
+    body:'<section class="door" data-door data-csrf="synthetic-csrf"><form data-door-form>'
+     + '<select data-door-event><option value="7">Evento A</option></select><input name="qr">'
+     + '<button type="submit">Validar entrada</button><button type="button" data-door-camera>Usar cámara</button>'
+     + '<button type="button" data-door-stop hidden>Detener cámara</button><video data-door-video></video>'
+     + '<output data-door-camera-status></output></form><output data-door-result></output>'
+     + '<output data-door-summary></output><div data-door-audit></div></section>'}));
+  await page.route('**/discadmin/ticketing-door.js',route=>route.fulfill({contentType:'text/javascript',body:script}));
+  await page.route('**/discadmin/ticketing-door.css',route=>route.fulfill({contentType:'text/css',body:css}));
+  await page.route('**/discadmin/ticketing-door.php?*',route=>route.fulfill({contentType:'application/json',
+    body:JSON.stringify({ok:true,summary:{accepted:0,rejected:0},recent:[]})}));
+  await page.goto('/discadmin/t16-shell-fixture.html');
+  await page.waitForFunction(() => !!window.BRVTALTicketing);
+  await page.evaluate(() => window.BRVTALTicketing.mount());
+  await page.getByRole('button',{name:'Abrir lector móvil de puerta'}).click();
+  await expect(page.locator('#app .shell aside.side')).toHaveCount(1);
+  await expect(page.locator('#app .shell main.main [data-door]')).toBeVisible();
+  await expect(page.locator('html')).toHaveCount(1);
 });
