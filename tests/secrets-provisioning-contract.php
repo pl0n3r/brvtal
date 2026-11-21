@@ -69,12 +69,12 @@ try {
         provisionCheck($e->getMessage() === 'SECRET_CONFIG_INVALID','invalid private type denied');
     }
 
-    $config = brvtal_ticket_wompi_config();
-    provisionCheck($config['mode'] === 'sandbox','Wompi restricted to sandbox');
+    $wompiSettings = brvtal_ticket_wompi_config();
+    provisionCheck($wompiSettings['mode'] === 'sandbox','Wompi restricted to sandbox');
     $hook = brvtal_wompi_hook_config();
     provisionCheck($hook['eventsSecret'] === 'test_events_synthetic_fixture','events key is separate');
     $reference='BW7-42-CARD-' . str_repeat('a',24);
-    $payload=brvtal_ticket_wompi_payload($config,$reference,25000,'CARD');
+    $payload=brvtal_ticket_wompi_payload($wompiSettings,$reference,25000,'CARD');
     provisionCheck($payload['state']==='awaiting_provider'
         && $payload['environment']==='sandbox','checkout cannot confirm sale');
     provisionCheck(!str_contains(json_encode($payload,JSON_THROW_ON_ERROR),
