@@ -65,6 +65,11 @@ $db->exec("INSERT INTO ticket_buyers VALUES
     (2,'second@example.test','2026-11-01 00:00:00','active'),
     (3,'unverified@example.test',NULL,'active')");
 putenv('BRVTAL_WAITLIST_TESTING=1');
+try {
+    brvtal_waitlist_assert_test_storage($server);
+    wlAssert(false,'test flag must never permit a database outside brvtal_test namespace');
+} catch (DomainException) {}
+brvtal_waitlist_assert_test_storage($db);
 putenv('BRVTAL_TICKET_MAIL_TESTING=1');
 putenv('BRVTAL_TICKET_MAIL_MODE=mock');
 $now=new DateTimeImmutable('2026-12-04 20:00:00',new DateTimeZone('America/Bogota'));
