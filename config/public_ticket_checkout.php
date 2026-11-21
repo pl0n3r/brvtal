@@ -65,7 +65,8 @@ function brvtal_public_ticket_checkout_offers(PDO $db, int $eventId): array
  * lock and T05 inventory counts serialize the quote with all concurrent holds.
  */
 function brvtal_public_ticket_checkout_stage_quote(
-    PDO $db, int $eventId, int $typeId, int $quantity
+    PDO $db, int $eventId, int $typeId, int $quantity,
+    ?DateTimeImmutable $clock = null
 ): ?array {
     if (getenv('BRVTAL_INTEGRATION_TESTS') !== '1'
         || !preg_match('/^brvtal_test[a-zA-Z0-9_]*$/D',
@@ -98,7 +99,7 @@ function brvtal_public_ticket_checkout_stage_quote(
     if ($eventCap === false || $typeCap === false) {
         throw new DomainException('CHECKOUT_UNAVAILABLE');
     }
-    $now = brvtal_ticket_inventory_now();
+    $now = brvtal_ticket_inventory_now($clock);
     $utc = $now->format('Y-m-d H:i:s.u');
     $eventUsage = brvtal_ticket_inventory_usage($db,$eventId,0,$utc);
     $typeUsage = brvtal_ticket_inventory_usage($db,$eventId,$typeId,$utc);
