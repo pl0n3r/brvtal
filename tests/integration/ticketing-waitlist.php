@@ -106,7 +106,10 @@ wlAssert((int)$db->query('SELECT COUNT(*) FROM ticket_orders')->fetchColumn()===
     'no order, charge or ticket from signup/offer');
 $body=(string)$db->query("SELECT body_text FROM ticket_mail_outbox
     WHERE related_ref='waitlist:1' ORDER BY id LIMIT 1")->fetchColumn();
-wlAssert((bool)preg_match('/[A-Za-z0-9_-]{43}$/D',$body,$parts),'unsubscribe delivered by outbox');
+wlAssert(str_contains($body,'/api/ticketing/waitlist.php?token='),
+    'email has actionable unsubscribe confirmation link');
+wlAssert((bool)preg_match('/[A-Za-z0-9_-]{43}$/D',$body,$parts),
+    'unsubscribe delivered by outbox');
 wlAssert(brvtal_waitlist_unsubscribe($db,$parts[0]),'unsubscribe');
 wlAssert(!brvtal_waitlist_unsubscribe($db,$parts[0]),'unsubscribe replay');
 wlAssert(brvtal_ticket_inventory_usage($db,1,10,$clock)['held']===0,
