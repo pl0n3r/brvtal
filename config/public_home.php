@@ -348,6 +348,8 @@ function brvtalPublicHomeConcept05Menu(string $html): string
         . '<a href="#connected" data-c5-nav-section="connected"><span>07</span>'
         . '<strong>CONECTADO</strong></a>'
         . '<a href="/contact"><span>08</span><strong>CONTACTO</strong></a>'
+        . '<a href="/mi-cuenta/acceso" data-buyer-account-link><span>09</span>'
+        . '<strong>MI CUENTA</strong></a>'
         . '</nav>'
         . '<div class="menu-footer mono">PEREIRA / COLOMBIA · CULTURA ELECTRÓNICA UNDERGROUND</div>'
         . '</div>'
@@ -384,6 +386,7 @@ function brvtalPublicHomeConcept05Footer(string $html): string
         . '<a href="#events">NOCHES</a><a href="#artists">ARTISTAS</a>'
         . '<a href="#sets">SONIDO</a><a href="/releases">DISCOS</a>'
         . '<a href="#transmissions">JOURNAL</a><a href="#connected">CONECTADO</a>'
+        . '<a href="/mi-cuenta/acceso" data-buyer-account-link>MI CUENTA</a>'
         . '</nav>'
         . '<div class="c5-footer-contact">'
         . '<span class="mono">TRANSMITE / COLABORA</span>'
@@ -457,6 +460,7 @@ function brvtal_public_home_concept05_dressing(string $html): string
             . '<a href="/releases" data-c5-nav-section="releases">DISCOS</a>'
             . '<a href="#transmissions" data-c5-nav-section="transmissions">JOURNAL</a>'
             . '<a href="#connected" data-c5-nav-section="connected">CONECTADO</a>'
+            . '<a href="/mi-cuenta/acceso" data-buyer-account-link>MI CUENTA</a>'
             . '</nav>'
             . '<span class="c5-header-origin mono">PEREIRA / COLOMBIA</span>';
         $html = str_replace($brandLink, $brandLink . $headerNav, $html);
