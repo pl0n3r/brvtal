@@ -54,10 +54,10 @@ async function home(page, authenticated, cromo = false) {
 test('guest: fallback home navigation and footer expose Mi cuenta on mobile', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 780 });
   await home(page, false);
-  const anchors = page.locator('.c5-menu-nav [data-buyer-account-link], .c5-footer-nav [data-buyer-account-link]');
+  const anchors = page.locator('.c5-menu-nav [data-buyer-account-link], .c5-footer-contact [data-buyer-account-link]');
   await expect(anchors).toHaveCount(2);
   for (const a of await anchors.all()) await expect(a).toHaveAttribute('href', '/mi-cuenta/acceso');
-  await page.locator('.c5-footer-nav [data-buyer-account-link]').click();
+  await page.locator('.c5-footer-contact [data-buyer-account-link]').click();
   await expect(page).toHaveURL(homeUrl + 'mi-cuenta/acceso');
   await expect(page.getByRole('heading', { name: 'Cuenta de comprador' })).toBeVisible();
 });
