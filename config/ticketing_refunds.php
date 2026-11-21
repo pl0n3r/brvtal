@@ -39,7 +39,7 @@ function brvtalRefundRequest(PDO $db,int $buyer,array $input):array {
         $q=$db->prepare("SELECT id,event_id,total_cop,status,currency FROM ticket_orders
             WHERE public_id=UNHEX(?) AND buyer_id=? FOR UPDATE");
         $q->execute([$ref,$buyer]); $order=$q->fetch(PDO::FETCH_ASSOC);
-        if (!$order||$order['status']!=='paid'||$order['currency']!=='COP') {
+        if (!$order||$order['currency']!=='COP') {
             throw new DomainException('ORDER_NOT_REFUNDABLE');
         }
         $prior=$db->prepare('SELECT id,status,selection_hash FROM ticket_refunds WHERE order_id=? AND request_hash=?');
@@ -48,6 +48,8 @@ function brvtalRefundRequest(PDO $db,int $buyer,array $input):array {
             if (!hash_equals($existing['selection_hash'],$selection)) throw new DomainException('IDEMPOTENCY_CONFLICT');
             $db->commit(); return ['id'=>(int)$existing['id'],'status'=>$existing['status'],'replayed'=>true];
         }
+        // A replay after the full refund must remain idempotent, but a new request is forbidden.
+        if ($order['status']!=='paid') throw new DomainException('ORDER_NOT_REFUNDABLE');
         $q=$db->prepare('SELECT e.id,LOWER(HEX(e.public_id)) AS ref,e.status,i.unit_price_cop
             FROM ticket_entries e JOIN ticket_order_items i ON i.id=e.order_item_id
             WHERE i.order_id=? ORDER BY e.id FOR UPDATE');
@@ -136,6 +138,8 @@ function brvtalRefundStaff(PDO $db,int $actor,string $role,int $id,string $actio
     } catch(Throwable $e){if($db->inTransaction())$db->rollBack();throw $e;}
 }
 function brvtalRefundBuyerList(PDO $db,int $buyer):array {
+    brvtalRefundGuard($db);
+    if ($buyer<1) throw new DomainException('AUTH_REQUIRED');
     $q=$db->prepare('SELECT r.id,LOWER(HEX(o.public_id)) AS order_id,r.status,r.amount_cop,r.created_at_utc
         FROM ticket_refunds r JOIN ticket_orders o ON o.id=r.order_id WHERE r.buyer_id=?
         ORDER BY r.id DESC LIMIT 100');

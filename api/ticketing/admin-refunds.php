@@ -6,7 +6,7 @@ header('Cache-Control: no-store, private');
 header('X-Content-Type-Options: nosniff');
 brvtal_admin_require();
 try {
-    $db=db(); $actor=(int)($_SESSION['admin_id']??0);
+    $db=db(); brvtalRefundGuard($db); $actor=(int)($_SESSION['admin_id']??0);
     $q=$db->prepare('SELECT staff_role FROM admins WHERE id=? AND is_active=1 LIMIT 1');
     $q->execute([$actor]); $role=(string)($q->fetchColumn()?:'');
     if(!brvtalTicketingCan($role,'refund')) json_response(['ok'=>false,'error'=>'FORBIDDEN'],403);

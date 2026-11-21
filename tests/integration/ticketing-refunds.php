@@ -15,6 +15,15 @@ t21($reflect->getNumberOfParameters()===1,'guard requires DB');
 t21(brvtalTicketingCan('superadmin','refund'),'superadmin refund');
 t21(!brvtalTicketingCan('admin','refund'),'staff role denied');
 t21(!brvtalTicketingCan('door','refund'),'door denied');
+// Both list surfaces must fail closed on non-synthetic databases, including GET.
+$refundCode=(string)file_get_contents(__DIR__.'/../../config/ticketing_refunds.php');
+$adminCode=(string)file_get_contents(__DIR__.'/../../api/ticketing/admin-refunds.php');
+t21(str_contains($refundCode,"function brvtalRefundBuyerList(PDO \$db,int \$buyer):array {\n    brvtalRefundGuard(\$db);"),
+    'buyer refund GET remains sandbox-only');
+t21(str_contains($adminCode,'$db=db(); brvtalRefundGuard($db);'),
+    'staff refund GET remains sandbox-only');
+t21(strpos($refundCode,"if (\$order['status']!=='paid') throw new DomainException('ORDER_NOT_REFUNDABLE');")
+    > strpos($refundCode,'if ($existing) {'),'idempotent replay precedes paid-status gate');
 $schema=(string)file_get_contents(__DIR__.'/../../database/migration_ticketing_refunds_01.sql');
 t21(str_contains($schema,'uq_ticket_refund_claim'),'no double-refund claim');
 t21(str_contains($schema,'ticket_refund_adjustments'),'immutable finance witness');
