@@ -32,7 +32,9 @@ try {
         $count->execute([$id]);
         $summary=['accepted'=>0, 'rejected'=>0];
         foreach ($count->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            if (array_key_exists($row['outcome'], $summary)) $summary[$row['outcome']]=(int)$row['n'];
+            if (array_key_exists($row['outcome'], $summary)) {
+                $summary[$row['outcome']] = (int)$row['n'];
+            }
         }
         $recent=$pdo->prepare('SELECT operator_admin_id, device_id, outcome, reason_code, attempted_at_utc
             FROM ticket_checkins WHERE event_id=? ORDER BY id DESC LIMIT 12');
@@ -47,6 +49,10 @@ try {
         echo json_encode(['ok'=>true, 'summary'=>$summary, 'recent'=>$audit], JSON_THROW_ON_ERROR);
         exit;
     }
+    if (($_SERVER['HTTP_X_BRVTAL_ADMIN_FRAGMENT'] ?? '') !== '1') {
+        http_response_code(404);
+        exit;
+    }
     $events=$pdo->query("SELECT id, title FROM events WHERE status='published'
         ORDER BY event_date DESC, id DESC LIMIT 100")->fetchAll(PDO::FETCH_ASSOC);
 } catch (Throwable) {
@@ -56,15 +62,10 @@ try {
 }
 $csrf=brvtal_admin_csrf_token();
 ?>
-<!doctype html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="dark"><title>Puerta · BRVTAL</title>
-<link rel="stylesheet" href="/discadmin/ticketing-door.css">
-<script type="module" src="/discadmin/ticketing-door.js"></script></head>
-<body><main class="door" data-door data-csrf="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>">
+<section class="door" data-door data-csrf="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>">
 <header><p class="eyebrow">BRVTAL · STAFF</p><h1>Control de puerta</h1>
 <p>Solo confirma la API del servidor. Sin conexión, no hay ingreso.</p>
-<a href="/discadmin?module=ticketing">Volver a DISCADMIN</a></header>
+</header>
 <form data-door-form autocomplete="off">
 <label for="door-event">Evento autorizado</label>
 <select id="door-event" data-door-event required>
@@ -85,4 +86,4 @@ $csrf=brvtal_admin_csrf_token();
 <section aria-labelledby="door-summary-title"><h2 id="door-summary-title">Asistencia del evento</h2>
 <output data-door-summary>Elige un evento para consultar la asistencia.</output>
 <div data-door-audit aria-label="Últimos intentos de ingreso"></div></section>
-</main></body></html>
+</section>
