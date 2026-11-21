@@ -128,27 +128,14 @@ function brvtalTicketCheckinConsume(PDO $pdo,int $eventId,int $operator,string $
                             || !hash_equals($credential['token_hash'],$token['hash'])) {
                             $reason='credential_revoked';
                         } else {
-                            // T24 synthetic cash receipts are NOT Wompi webhooks. If the
-                            // additive POS migration is absent, preserve original T15
-                            // Wompi verification without referencing a missing table.
-                            $posTable=$pdo->query("SELECT COUNT(*) FROM information_schema.TABLES
-                                WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='ticket_pos_sales'");
-                            $posSql=(int)$posTable->fetchColumn()===1
-                                ? "EXISTS(SELECT 1 FROM ticket_pos_sales ps
-                                      WHERE ps.order_id=o.id AND ps.event_id=o.event_id
-                                        AND ps.ticket_type_id=i.ticket_type_id
-                                        AND ps.status='paid' AND ps.method='cash'
-                                        AND ps.operator_admin_id>0)"
-                                : '0';
                             $paid=$pdo->prepare("SELECT o.status,o.event_id,
-                                (EXISTS(SELECT 1 FROM ticket_issue_outbox b
-                                  WHERE b.order_id=o.id AND b.state='done') OR $posSql) AS issued,
-                                (EXISTS(SELECT 1 FROM ticket_payment_attempts a
+                                EXISTS(SELECT 1 FROM ticket_issue_outbox b WHERE b.order_id=o.id AND b.state='done') AS issued,
+                                EXISTS(SELECT 1 FROM ticket_payment_attempts a
                                     WHERE a.order_id=o.id AND a.provider='wompi'
                                       AND a.status='approved' AND a.provider_transaction_id IS NOT NULL
                                       AND EXISTS(SELECT 1 FROM ticket_payment_webhook_events w
                                         WHERE w.attempt_id=a.id AND w.provider_transaction_id=a.provider_transaction_id
-                                          AND w.signed_status='APPROVED')) OR $posSql) AS verified
+                                          AND w.signed_status='APPROVED')) AS verified
                                 FROM ticket_order_items i JOIN ticket_orders o ON o.id=i.order_id
                                 WHERE i.id=? AND i.event_id=? AND i.ticket_type_id=?");
                             $paid->execute([(int)$entry['order_item_id'],$eventId,(int)$entry['ticket_type_id']]);
