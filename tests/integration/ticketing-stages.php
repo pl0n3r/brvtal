@@ -34,5 +34,7 @@ foreach ([
 $read=(string)file_get_contents(__DIR__.'/../../api/ticketing/admin-stages.php');
 stageAssert(str_contains($read,'brvtal_admin_require_csrf'),'admin POST CSRF required');
 stageAssert(str_contains($read,"'settings'"),'admin settings permission required');
+stageAssert(str_contains((string)file_get_contents(__DIR__.'/../../config/ticketing_stages.php'),
+    'BRVTAL_INTEGRATION_TESTS'),'writes must be synthetic only');
 stageAssert(!str_contains($read,'ticket_order_items'),'API must not rewrite order snapshots');
 echo "T22 stage windows, quotas, snapshots and input guards OK (synthetic).".PHP_EOL;

@@ -74,6 +74,13 @@ function brvtalTicketStageSave(PDO $pdo,int $eventId,int $typeId,array $rows): v
     if ($eventId < 1 || $typeId < 1 || $pdo->inTransaction()) {
         throw new InvalidArgumentException('INVALID_STAGE_TARGET');
     }
+    // Explicitly synthetic until checkout also binds stage price + stock
+    // under the existing T05 lock; never change a real tenant's prices.
+    if (getenv('BRVTAL_INTEGRATION_TESTS') !== '1'
+        || !preg_match('/^brvtal_test[a-zA-Z0-9_]*$/D',
+            (string)$pdo->query('SELECT DATABASE()')->fetchColumn())) {
+        throw new DomainException('STAGES_DRAFT_ONLY');
+    }
     $stages = brvtalTicketStageInput($rows);
     $pdo->beginTransaction();
     try {
@@ -87,6 +94,19 @@ function brvtalTicketStageSave(PDO $pdo,int $eventId,int $typeId,array $rows): v
           AND status='active' AND expires_at_utc > UTC_TIMESTAMP(6) LIMIT 1 FOR UPDATE");
         $q->execute([$eventId,$typeId]);
         if ($q->fetchColumn()) throw new DomainException('ACTIVE_RESERVATIONS');
+        // Validate existing + proposed stage rows as one coherent policy.
+        $existing=$pdo->prepare('SELECT code,price_cop,cumulative_capacity,
+          opens_at_local,closes_at_local FROM ticket_type_stages
+          WHERE ticket_type_id=? AND event_id=? FOR UPDATE');
+        $existing->execute([$typeId,$eventId]);
+        $combined=[];
+        foreach ($existing->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $row['price_cop']=(int)$row['price_cop'];
+            $row['cumulative_capacity']=(int)$row['cumulative_capacity'];
+            $combined[$row['code']]=$row;
+        }
+        foreach ($stages as $stage) $combined[$stage['code']]=$stage;
+        brvtalTicketStageInput(array_values($combined));
         $write=$pdo->prepare('INSERT INTO ticket_type_stages
           (ticket_type_id,event_id,code,price_cop,cumulative_capacity,opens_at_local,closes_at_local)
           VALUES (?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE price_cop=VALUES(price_cop),

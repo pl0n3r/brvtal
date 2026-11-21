@@ -48,7 +48,7 @@ try {
     json_response(['ok'=>false,'error'=>'INVALID_STAGE_INPUT'],422);
 } catch (DomainException $e) {
     $error=$e->getMessage();
-    json_response(['ok'=>false,'error'=>$error],$error==='ACTIVE_RESERVATIONS'?409:404);
+    json_response(['ok'=>false,'error'=>$error],$error==='STAGES_DRAFT_ONLY'?423:($error==='ACTIVE_RESERVATIONS'?409:404));
 } catch (Throwable) {
     json_response(['ok'=>false,'error'=>'STAGES_UNAVAILABLE'],503);
 }
