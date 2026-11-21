@@ -47,9 +47,9 @@ foreach ([
     "CREATE TABLE ticket_inventory_events (event_id INT UNSIGNED PRIMARY KEY,capacity INT UNSIGNED)",
     "CREATE TABLE ticket_inventory_types (ticket_type_id INT UNSIGNED PRIMARY KEY,
         event_id INT UNSIGNED,capacity INT UNSIGNED,courtesy_capacity INT UNSIGNED DEFAULT 0)",
-    "CREATE TABLE ticket_orders (id BIGINT UNSIGNED PRIMARY KEY,event_id INT UNSIGNED,status VARCHAR(20))",
+    "CREATE TABLE ticket_orders (id BIGINT UNSIGNED PRIMARY KEY,event_id INT UNSIGNED,buyer_id BIGINT UNSIGNED,status VARCHAR(20))",
     "CREATE TABLE ticket_order_items (order_id BIGINT UNSIGNED,ticket_type_id INT UNSIGNED,quantity INT)",
-    "CREATE TABLE ticket_inventory_holds (order_id BIGINT UNSIGNED,event_id INT UNSIGNED,
+    "CREATE TABLE ticket_inventory_holds (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,order_id BIGINT UNSIGNED,event_id INT UNSIGNED,
         ticket_type_id INT UNSIGNED,quantity INT,kind VARCHAR(20),status VARCHAR(20),
         expires_at_utc DATETIME(6))"
 ] as $ddl) $db->exec($ddl);
@@ -133,6 +133,55 @@ wlAssert(brvtal_ticket_inventory_usage($db,1,10,$clock)['held']===0,
 wlAssert(brvtal_waitlist_offer($db,1,10,$now)['entry_id']===2,'next eligible entry');
 wlAssert(brvtal_waitlist_offer($db,1,10,$now->modify('+11 minutes'))!==null,
     'expired offers return to inventory');
+// A checkout may redeem a consented one-time invitation for exactly one
+// inventory hold in its OWN transaction; never a payment or issued ticket.
+$db->exec("INSERT INTO ticket_orders(id,event_id,buyer_id,status)
+    VALUES (42,1,2,'draft'),(43,1,1,'draft')");
+$db->exec("INSERT INTO ticket_order_items VALUES (42,10,1),(43,10,1)");
+$offerBody=(string)$db->query("SELECT body_text FROM ticket_mail_outbox
+    WHERE related_ref='waitlist:2' AND subject='Cupo liberado en BRVTAL'
+    ORDER BY id DESC LIMIT 1")->fetchColumn();
+wlAssert(preg_match('/Código: ([A-Za-z0-9_-]{43})[.]/',$offerBody,$offerCode)===1,
+    'offer token issued only to opted-in buyer');
+$redeemAt=$now->modify('+12 minutes');
+$db->beginTransaction();
+try {
+    brvtal_waitlist_redeem_into_hold($db,$offerCode[1],43,1,10,$redeemAt);
+    wlAssert(false,'wrong buyer cannot redeem another buyer invitation');
+} catch (DomainException) {
+    $db->rollBack();
+}
+wlAssert((int)$db->query("SELECT COUNT(*) FROM ticket_waitlist_entries
+    WHERE buyer_id=2 AND status='offered'")->fetchColumn()===1,
+    'wrong buyer leaves invitation intact');
+$db->beginTransaction();
+$claimed=brvtal_waitlist_redeem_into_hold($db,$offerCode[1],42,2,10,$redeemAt);
+$db->commit();
+wlAssert(($claimed['status']??null)==='active' && (int)$claimed['quantity']===1,
+    'single-use invitation converts to paid T05 hold');
+wlAssert((int)$db->query("SELECT COUNT(*) FROM ticket_waitlist_entries
+    WHERE buyer_id=2 AND status='redeemed' AND offer_hash IS NULL")->fetchColumn()===1,
+    'redeemed offer is terminal');
+wlAssert(brvtal_ticket_inventory_usage($db,1,10,
+    brvtal_waitlist_clock($redeemAt)->format('Y-m-d H:i:s.u'))['held']===1,
+    'held inventory counts exactly once after conversion');
+$db->beginTransaction();
+try {
+    brvtal_waitlist_redeem_into_hold($db,$offerCode[1],42,2,10,$redeemAt);
+    wlAssert(false,'redeemed token replay denied');
+} catch (DomainException) {
+    $db->rollBack();
+}
+$db->beginTransaction();
+try {
+    brvtal_ticket_inventory_hold($db,43,10,1,'paid',600,$redeemAt);
+    wlAssert(false,'non-invited checkout cannot oversell');
+} catch (DomainException) {
+    $db->rollBack();
+}
+wlAssert((int)$db->query("SELECT COUNT(*) FROM ticket_orders
+    WHERE status='paid'")->fetchColumn()===0,
+    'redemption did not charge, pay or issue a ticket');
 $db->exec("UPDATE events SET status='cancelled' WHERE id=1");
 try { brvtal_waitlist_offer($db,1,10,$now); wlAssert(false,'cancelled offer'); }
 catch (DomainException) {}
