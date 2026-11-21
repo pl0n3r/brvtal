@@ -125,7 +125,7 @@ brvtal_ci_classify_files() {
     esac
 
     case "$file" in
-      config/admin_auth.php|config/totp*.php|discadmin/totp*|discadmin/index.php|api/index.php)
+      config/admin_auth.php|config/totp*.php|discadmin/totp*|discadmin/index.php|api/index.php|discadmin/ticketing-door.*|tests/e2e/ticketing-door.spec.mjs)
         BRVTAL_SCOPE_RUN_WEBKIT=true ;;
     esac
 
