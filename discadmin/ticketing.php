@@ -39,6 +39,15 @@ $providers = brvtalTicketingProviderStatus();
  data-wompi-mode="<?= htmlspecialchars($providers['wompi'], ENT_QUOTES, 'UTF-8') ?>"
  data-resend-mode="<?= htmlspecialchars($providers['resend'], ENT_QUOTES, 'UTF-8') ?>">
   <output class="ticketing-notice">Preparación de Boletería. Sin ventas, emisión QR ni proveedores activos.</output>
+  <?php if (brvtalTicketingCan($role, 'mail') && brvtalTicketingCan($role, 'buyers')): ?>
+  <details class="ticketing-recovery" data-ticketing-recovery>
+    <summary>Recuperación de checkout · simulación</summary>
+    <p>Vista auxiliar del mismo shell DISCADMIN, sin envío comercial ni cobro real.</p>
+    <iframe title="Panel de recuperación de checkout" src="/discadmin/ticketing-recovery.php"
+      loading="lazy" referrerpolicy="no-referrer"
+      style="width:100%;min-height:365px;border:0" ></iframe>
+  </details>
+  <?php endif; ?>
   <div class="ticketing-tabs" role="tablist" aria-label="Secciones de Boletería">
     <?php foreach ($visible as $id => $tab): ?>
       <button type="button" id="ticketing-tab-<?= $id ?>" role="tab" data-ticketing-tab="<?= $id ?>"
