@@ -122,11 +122,36 @@ function brvtal_waitlist_unsubscribe(PDO $db, string $token): bool
     if (!preg_match('/^[A-Za-z0-9_-]{43}$/D', $token)) {
         throw new InvalidArgumentException('WAITLIST_INVALID_TOKEN');
     }
-    $q = $db->prepare("UPDATE ticket_waitlist_entries SET status='unsubscribed',
-        offer_hash=NULL,offer_expires_at_utc=NULL
-        WHERE unsubscribe_hash=? AND status<>'unsubscribed'");
-    $q->execute([hash('sha256',$token)]);
-    return $q->rowCount() === 1;
+    if ($db->inTransaction()) throw new LogicException('WAITLIST_TRANSACTION_OWNED');
+    $db->beginTransaction();
+    try {
+        $q = $db->prepare('SELECT id,status FROM ticket_waitlist_entries
+            WHERE unsubscribe_hash=? FOR UPDATE');
+        $q->execute([hash('sha256', $token)]);
+        $entry = $q->fetch(PDO::FETCH_ASSOC);
+        if (!$entry || $entry['status'] === 'unsubscribed') {
+            $db->commit();
+            return false;
+        }
+        $id = (int)$entry['id'];
+        $q = $db->prepare("UPDATE ticket_waitlist_entries
+            SET status='unsubscribed',offer_hash=NULL,offer_expires_at_utc=NULL
+            WHERE id=? AND status<>'unsubscribed'");
+        $q->execute([$id]);
+        if ($q->rowCount() !== 1) throw new DomainException('WAITLIST_UNSUBSCRIBE_CONFLICT');
+        // Revoke ALL undelivered/retryable messages in the same transaction.
+        // Already accepted provider messages cannot be recalled.
+        $cancel = $db->prepare("UPDATE ticket_mail_outbox
+            SET state='failed',last_error_code='consent_revoked',
+                locked_until=NULL,updated_at=UTC_TIMESTAMP()
+            WHERE related_ref=? AND state IN ('queued','retry','sending')");
+        $cancel->execute(['waitlist:'.$id]);
+        $db->commit();
+        return true;
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        throw $e;
+    }
 }
 
 /** One private invitation at a time, serialized by T05 Event row lock. */
