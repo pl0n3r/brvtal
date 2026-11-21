@@ -12,6 +12,45 @@ header('Content-Type: application/json; charset=utf-8');
 
 // GET only displays a confirmation form; mail-link prefetchers MUST NOT unsubscribe.
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'GET') {
+    // Public, read-only catalog. Never expose buyers, token hashes or waitlist
+    // status; anonymous reads do not create a subscription, hold or offer.
+    if (array_key_exists('catalog', $_GET)) {
+        $slug = $_GET['catalog'];
+        if (!is_string($slug) || preg_match('/^[a-z0-9-]{1,100}$/D', $slug) !== 1
+            || count($_GET) !== 1) {
+            json_response(['ok'=>false,'error'=>'INVALID_REQUEST'],422);
+        }
+        if (getenv('BRVTAL_WAITLIST_TESTING') !== '1'
+            && (empty($_SERVER['HTTPS']) || $_SERVER['HTTPS'] === 'off')) {
+            json_response(['ok'=>false,'error'=>'HTTPS_REQUIRED'],403);
+        }
+        try {
+            if (!brvtal_waitlist_enabled()) {
+                json_response(['ok'=>true,'types'=>[],'checkout'=>[]],200);
+            }
+            $db = db();
+            $q = $db->prepare("SELECT id FROM events WHERE slug=? AND
+                status IN ('published','sold_out','tickets_available','last_tickets')
+                LIMIT 1");
+            $q->execute([$slug]);
+            $eventId = (int)$q->fetchColumn();
+            if ($eventId < 1) {
+                json_response(['ok'=>true,'types'=>[],'checkout'=>[]],200);
+            }
+            $types = brvtal_waitlist_public_types($db, $eventId);
+            // The checkout adapter is separately disabled unless the Wompi
+            // mode and offer verification gate are both configured safely.
+            $checkout = [];
+            if ($types !== [] && brvtal_waitlist_offers_enabled()) {
+                require_once __DIR__.'/../../config/public_ticket_checkout.php';
+                $checkout = brvtal_public_ticket_checkout_offers($db,$eventId);
+            }
+            json_response(['ok'=>true,'event_id'=>$eventId,
+                'types'=>$types,'checkout'=>$checkout],200);
+        } catch (Throwable) {
+            json_response(['ok'=>true,'types'=>[],'checkout'=>[]],200);
+        }
+    }
     $opaque=(string)($_GET['token'] ?? '');
     if (!preg_match('/^[A-Za-z0-9_-]{43}$/D',$opaque)) {
         json_response(['ok'=>false,'error'=>'INVALID_REQUEST'],422);

@@ -58,45 +58,129 @@
     void refresh(record.order_id);
   }
 
-  // Consent is explicit and scoped to the exhausted ticket type. No token or
-  // buyer PII is embedded in the public page or transmitted through the URL.
-  async function mountWaitlists() {
-    const containers = Array.from(document.querySelectorAll('.brvtal-public-waitlist'));
-    if (!containers.length) return;
+  // T28 public discovery is read-only and independent of public_page.php.
+  // Avoid overlapping the buyer-account (#1821) V3 claim on that renderer.
+  const mountWaitlists = async () => {
+    const match = location.pathname.match(/^\/events\/([a-z0-9-]{1,100})\/?$/);
+    if (!match) return;
     try {
+      const catalog = await json(await fetch(
+        '/api/ticketing/waitlist.php?catalog=' + encodeURIComponent(match[1]),
+        { credentials:'same-origin',cache:'no-store' }));
+      const types = Array.isArray(catalog.types) ? catalog.types : [];
+      if (!types.length || !Number.isSafeInteger(catalog.event_id)
+          || catalog.event_id < 1) return;
+      const parent = panel?.parentElement;
+      if (!parent) return;
+
+      const section = document.createElement('section');
+      section.className = 'event-ticket-checkout';
+      section.id = 'lista-espera';
+      section.setAttribute('aria-label','Lista de espera');
+      const title = document.createElement('h2');
+      title.textContent = 'Lista de espera';
+      const notice = document.createElement('p');
+      notice.textContent = 'Inscripción con consentimiento. No reserva cupos ni confirma pagos.';
+      section.append(title,notice);
+      const containers = [];
+      for (const type of types.slice(0,30)) {
+        if (!Number.isSafeInteger(type.id) || type.id < 1
+            || typeof type.name !== 'string') continue;
+        const box = document.createElement('div');
+        box.className = 'brvtal-public-waitlist';
+        const h3 = document.createElement('h3');
+        h3.textContent = type.name;
+        box.append(h3);
+        section.append(box);
+        containers.push([box,type.id]);
+      }
+      if (!containers.length) return;
+      parent.insertBefore(section,panel.nextSibling);
+
+      // Sold-out pages have a status-only checkout. Create only an invite
+      // form using server-confirmed public prices and supported methods.
+      const checkout = catalog.checkout;
+      let newForm = false;
+      if (!document.getElementById('brvtal-ticket-checkout')
+          && checkout && checkout.invite_mode === true
+          && Array.isArray(checkout.offers) && Array.isArray(checkout.methods)) {
+        const offers = checkout.offers.filter(o => Number.isSafeInteger(o.id)
+          && o.id > 0 && Number.isSafeInteger(o.price_cop) && o.price_cop > 0
+          && Number.isSafeInteger(o.available) && o.available >= 0
+          && typeof o.title === 'string');
+        const methods = checkout.methods.filter(m =>
+          ['CARD','NEQUI','PSE'].includes(m));
+        if (offers.length && methods.length && panel) {
+          const form = document.createElement('form');
+          form.id = 'brvtal-ticket-checkout';
+          const field = (caption,name,tag) => {
+            const label = document.createElement('label');
+            label.append(document.createTextNode(caption));
+            const control = document.createElement(tag);
+            control.name = name;
+            label.append(control);
+            form.append(label);
+            return control;
+          };
+          const type = field('Tipo','ticket_type_id','select');
+          for (const offer of offers) {
+            const option = document.createElement('option');
+            option.value = String(offer.id);
+            option.textContent = offer.title + (offer.available === 0 ? ' · solo con invitación' : '');
+            option.dataset.price = String(offer.price_cop);
+            option.dataset.available = String(Math.min(20,offer.available));
+            option.dataset.inviteOnly = offer.invite_only ? '1' : '0';
+            type.append(option);
+          }
+          const quantity = field('Cantidad','quantity','input');
+          quantity.type='number';quantity.value='1';quantity.min='1';
+          quantity.max='20';quantity.step='1';
+          const method = field('Método','method','select');
+          for (const name of methods) {
+            const option = document.createElement('option');
+            option.value = name;option.textContent = name;method.append(option);
+          }
+          const code = field('Código de invitación','waitlist_token','input');
+          code.type='text';code.maxLength=43;code.autocomplete='off';code.spellcheck=false;
+          const total=document.createElement('output');
+          total.id='ticket-checkout-total';total.className='checkout-total';
+          total.setAttribute('aria-live','polite');
+          const button=document.createElement('button');
+          button.type='submit';button.textContent='Continuar al pago';
+          form.append(total,button);
+          panel.querySelector('h2')?.replaceChildren(
+            document.createTextNode('Escoge tus boletas'));
+          panel.insertBefore(form,status);
+          panel.hidden=false;
+          newForm=true;
+        }
+      }
       const auth = await json(await fetch('/api/buyer/auth.php', {
-        credentials: 'same-origin', cache: 'no-store',
-      }));
+        credentials:'same-origin',cache:'no-store' }));
       if (!auth.authenticated || typeof auth.csrf !== 'string' || !auth.csrf) {
-        for (const container of containers) {
+        for (const [container] of containers) {
           const link = document.createElement('a');
           link.href = '/mi-cuenta/acceso';
-          link.textContent = 'Inicia sesión con tu correo verificado para inscribirte';
+          link.textContent = 'Inicia sesión y verifica tu correo para inscribirte';
           container.append(link);
         }
-        return;
+      } else {
+        const { mountPublic } = await import('/discadmin/ticketing-waitlist.js');
+        for (const [container,typeId] of containers) {
+          mountPublic(container,{ eventId:catalog.event_id,typeId,csrf:auth.csrf });
+        }
       }
-      const { mountPublic } = await import('/discadmin/ticketing-waitlist.js');
-      for (const container of containers) {
-        mountPublic(container, {
-          eventId: Number(container.dataset.eventId),
-          typeId: Number(container.dataset.typeId),
-          csrf: auth.csrf,
-        });
-      }
+      if (newForm) initCheckout();
     } catch {
-      for (const container of containers) {
-        const note = document.createElement('p');
-        note.textContent = 'La lista de espera no está disponible.';
-        container.append(note);
-      }
+      // Fail closed: no signup or checkout UI without a verified catalog.
     }
-  }
-  void mountWaitlists();
+  };
 
   // No new tickets may be sold, yet a previously created order can still be queried.
+  const initCheckout = () => {
   const form = document.getElementById('brvtal-ticket-checkout');
-  if (!form) return;
+  if (!form || form.dataset.t28Initialized === '1') return;
+  form.dataset.t28Initialized = '1';
   const type = form.elements.namedItem('ticket_type_id');
   const quantity = form.elements.namedItem('quantity');
   const method = form.elements.namedItem('method');
@@ -223,4 +307,7 @@
     }
   });
   update();
+  };
+  initCheckout();
+  void mountWaitlists();
 })();

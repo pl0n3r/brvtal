@@ -72,8 +72,7 @@ test('T28: formulario público consentido y canje opaco sin URL ni sessionStorag
     "require_once 'config/public_seo.php'; require_once 'config/public_page.php';",
     "$e=['id'=>42,'route_type'=>'events','title'=>'Noche sintética','description'=>'Entradas','status'=>'tickets_available'];",
     "$page=['entity'=>$e,'facts'=>[],'links'=>[],'related'=>[],'record'=>['state'=>'active','status'=>'TICKETS AVAILABLE','year'=>'2026'],'degraded'=>false,",
-    "'checkout'=>['offers'=>[['id'=>10,'title'=>'General','price_cop'=>25000,'available'=>0,'invite_only'=>true]],'methods'=>['CARD'],'invite_mode'=>true],",
-    "'waitlist'=>[['id'=>10,'name'=>'General']]];",
+    "'checkout'=>[]];",
     "$seo=['title'=>'Noche','description'=>'Prueba','image'=>'','canonical'=>'https://www.brvtal.com.co/events/t28-offer','schema'=>[]];",
     "echo brvtal_public_entity_page($page,$seo);",
   ].join(' ')],{encoding:'utf8'})
@@ -85,6 +84,11 @@ test('T28: formulario público consentido y canje opaco sin URL ni sessionStorag
   await page.route('**/discadmin/ticketing-waitlist.js',route=>route.fulfill({
     contentType:'text/javascript',body:source}));
   const posted=[];
+  await page.route('**/api/ticketing/waitlist.php?catalog=t28-offer',route=>route.fulfill({
+    contentType:'application/json',body:JSON.stringify({ok:true,event_id:42,
+      types:[{id:10,name:'General'}],checkout:{invite_mode:true,
+        offers:[{id:10,title:'General',price_cop:25000,available:0,invite_only:true}],
+        methods:['CARD']}})}));
   await page.route('**/api/ticketing/waitlist.php',route=>{
     posted.push({kind:'optin',body:route.request().postDataJSON()});
     return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,status:'waiting'})});
