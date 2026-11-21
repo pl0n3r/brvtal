@@ -69,6 +69,10 @@ window.BRVTALTicketing = (() => {
         group.appendChild(button);
       }
       panel.appendChild(group);
+      import('/discadmin/ticketing-stages.js').then(m => {
+        if (panel.isConnected && panel.getAttribute('aria-labelledby') === active.id)
+          m.mount(panel, () => select(root, 'dashboard'));
+      }).catch(() => panel.appendChild(element('p', 'Etapas no disponibles.', 'ticketing-error')));
     }
     if (focus) active.focus();
     return true;
