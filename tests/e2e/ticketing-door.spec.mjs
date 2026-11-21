@@ -191,7 +191,16 @@ test('T16 lector es módulo del único shell, sin documento paralelo', async ({p
     body:JSON.stringify({ok:true,summary:{accepted:0,rejected:0},recent:[]})}));
   await page.goto('/discadmin/t16-shell-fixture.html');
   await page.waitForFunction(() => !!window.BRVTALTicketing);
-  await page.evaluate(() => window.BRVTALTicketing.mount());
+  // The shared shell's fragment loading is covered by discadmin-ticketing-shell.
+  // Here mount the synthetic role-filtered ticketing tab and exercise its real door selector.
+  await page.evaluate(markup => {
+    const host = document.getElementById('admin-module-host');
+    host.innerHTML = markup;
+    if (!window.BRVTALTicketing.select(host.firstElementChild, 'door')) {
+      throw new Error('Door tab is not available inside canonical shell');
+    }
+  }, fixtureTabs);
+  await expect(page.getByRole('button',{name:'Abrir lector móvil de puerta'})).toBeVisible();
   await page.getByRole('button',{name:'Abrir lector móvil de puerta'}).click();
   await expect(page.locator('#app .shell aside.side')).toHaveCount(1);
   await expect(page.locator('#app .shell main.main [data-door]')).toBeVisible();
