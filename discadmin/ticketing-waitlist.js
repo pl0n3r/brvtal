@@ -34,8 +34,9 @@ export function mount(container, csrf = '') {
       for (const name of ['ID', 'Tipo', 'Comprador', 'Estado', 'Alta', 'Vence']) {
         const th = el('th', name); th.scope = 'col'; head.append(th);
       }
+      const body = table.createTBody();
       for (const entry of payload.rows) {
-        const tr = table.insertRow();
+        const tr = body.insertRow();
         for (const value of [entry.id, entry.ticket_type_id, entry.buyer_id,
           entry.status, entry.created_at_utc, entry.offer_expires_at_utc || '—']) {
           tr.insertCell().textContent = String(value);
