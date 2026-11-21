@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/secrets.php';
 
 function brvtalAdminMailCapture(string $email, string $subject, string $body, string $purpose): ?bool
 {
@@ -34,12 +35,12 @@ function brvtalAdminMailSend(
     if ($capture !== null) {
         return $capture;
     }
-    $host = trim((string)getenv('BRVTAL_SMTP_HOST'));
-    $user = trim((string)getenv('BRVTAL_SMTP_USER'));
-    $password = (string)getenv('BRVTAL_SMTP_PASSWORD');
-    $from = trim((string)getenv('BRVTAL_MAIL_FROM'));
-    $port = (int)(getenv('BRVTAL_SMTP_PORT') ?: 587);
-    $encryption = strtolower(trim((string)(getenv('BRVTAL_SMTP_ENCRYPTION') ?: 'tls')));
+    $host = trim((string)brvtal_secret_value('BRVTAL_SMTP_HOST'));
+    $user = trim((string)brvtal_secret_value('BRVTAL_SMTP_USER'));
+    $password = (string)brvtal_secret_value('BRVTAL_SMTP_PASSWORD');
+    $from = trim((string)brvtal_secret_value('BRVTAL_MAIL_FROM'));
+    $port = (int)(brvtal_secret_value('BRVTAL_SMTP_PORT') ?: 587);
+    $encryption = strtolower(trim((string)(brvtal_secret_value('BRVTAL_SMTP_ENCRYPTION') ?: 'tls')));
     if ($host === '' || $user === '' || $password === '' || $from === ''
         || !filter_var($email, FILTER_VALIDATE_EMAIL)
         || !filter_var($from, FILTER_VALIDATE_EMAIL)
@@ -74,7 +75,7 @@ function brvtalAdminMailSend(
         $mail->Timelimit = 2;
         $mail->SMTPDebug = 0;
         $mail->CharSet = 'UTF-8';
-        $mail->setFrom($from, trim((string)(getenv('BRVTAL_MAIL_FROM_NAME') ?: 'BRVTAL')));
+        $mail->setFrom($from, trim((string)(brvtal_secret_value('BRVTAL_MAIL_FROM_NAME') ?: 'BRVTAL')));
         $mail->addAddress($email);
         $mail->isHTML(false);
         $mail->Subject = $subject;
