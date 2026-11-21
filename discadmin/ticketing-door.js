@@ -1,5 +1,6 @@
-const root = document.querySelector('[data-door]');
-if (root) {
+export function mount(root) {
+  if (!root || root.dataset.doorMounted === 'true') return () => {};
+  root.dataset.doorMounted = 'true';
   const event = root.querySelector('[data-door-event]');
   const form = root.querySelector('[data-door-form]');
   const qr = root.querySelector('[name="qr"]');
@@ -20,6 +21,7 @@ if (root) {
     }
   } catch { device = 'door-' + crypto.randomUUID(); }
   let stream = null, frameId = 0, pending = false, generation = 0;
+  let eventRevision = 0, cameraRevision = 0, cameraStarting = false, closed = false;
   const messages = {
     already_used: 'Entrada ya utilizada. No permitir acceso.',
     entry_revoked: 'Entrada anulada o reembolsada. Acceso denegado.',
@@ -35,6 +37,8 @@ if (root) {
     result.textContent = text;
   }
   function stopCamera() {
+    cameraRevision++;
+    cameraStarting = false;
     cancelAnimationFrame(frameId);
     if (stream) stream.getTracks().forEach(track => track.stop());
     stream = null;
@@ -45,6 +49,7 @@ if (root) {
     cameraButton.hidden = false;
   }
   async function refresh() {
+    if (closed) return;
     const id = event.value;
     const request = ++generation;
     audit.replaceChildren();
@@ -59,7 +64,7 @@ if (root) {
       });
       if (!response.ok) throw new Error('summary');
       const data = await response.json();
-      if (!data.ok || request !== generation || event.value !== id) return;
+      if (closed || !data.ok || request !== generation || event.value !== id) return;
       summary.textContent = 'Ingresos confirmados: ' + Number(data.summary.accepted || 0)
         + ' · Rechazos: ' + Number(data.summary.rejected || 0);
       for (const item of data.recent || []) {
@@ -70,17 +75,18 @@ if (root) {
         audit.appendChild(p);
       }
     } catch {
-      if (request === generation) summary.textContent = 'Asistencia no disponible. No asumir conteos actuales.';
+      if (!closed && request === generation) summary.textContent = 'Asistencia no disponible. No asumir conteos actuales.';
     }
   }
   async function submit(token) {
-    if (pending) return;
+    if (pending || closed) return;
     if (!event.value || !token || token.length > 256) {
       feedback('deny', 'Selecciona un evento y un código QR válido.');
       return;
     }
     pending = true;
     const selectedEvent = event.value;
+    const selectedRevision = eventRevision;
     stopCamera();
     feedback('pending', 'Validando con el servidor. Aún no se permite el acceso.');
     const controller = new AbortController();
@@ -92,7 +98,7 @@ if (root) {
         body: JSON.stringify({event_id: Number(selectedEvent), device_id: device, qr: token})
       });
       const data = await response.json();
-      if (event.value !== selectedEvent) {
+      if (closed || eventRevision !== selectedRevision || event.value !== selectedEvent) {
         feedback('deny', 'Se cambió el evento durante la validación. NO permitir acceso.');
       } else if (response.status === 200 && data.ok === true && data.reason === 'accepted') {
         feedback('allow', 'ENTRADA VÁLIDA · Acceso confirmado por el servidor.');
@@ -114,45 +120,74 @@ if (root) {
     void submit(qr.value.trim());
   });
   event.addEventListener('change', () => {
+    eventRevision++;
     stopCamera();
     feedback('idle', 'Esperando confirmación del servidor.');
     void refresh();
   });
   cameraButton.addEventListener('click', async () => {
+    if (closed || cameraStarting || stream || pending) return;
     if (!event.value) { feedback('deny', 'Selecciona primero un evento.'); return; }
     if (!navigator.mediaDevices?.getUserMedia || !window.BarcodeDetector) {
       cameraStatus.textContent = 'Cámara no compatible. Usa la entrada manual.';
       qr.focus(); return;
     }
+    const session = ++cameraRevision;
+    cameraStarting = true;
+    cameraButton.hidden = true;
+    stopButton.hidden = false;
+    let acquired = null;
     try {
       const detector = new BarcodeDetector({formats: ['qr_code']});
-      stream = await navigator.mediaDevices.getUserMedia({audio: false, video: {facingMode: {ideal: 'environment'}}});
+      acquired = await navigator.mediaDevices.getUserMedia({audio: false, video: {facingMode: {ideal: 'environment'}}});
+      if (closed || session !== cameraRevision) return;
+      stream = acquired;
+      acquired = null;
       video.srcObject = stream;
       video.hidden = false;
       await video.play();
-      cameraButton.hidden = true;
-      stopButton.hidden = false;
+      if (closed || session !== cameraRevision || !stream) return;
+      cameraStarting = false;
       cameraStatus.textContent = 'Cámara activa. Apunta al QR o detén para escribirlo.';
       const scan = async () => {
-        if (!stream || pending) return;
+        if (closed || session !== cameraRevision || !stream || pending) return;
         try {
           const codes = await detector.detect(video);
+          if (closed || session !== cameraRevision || !stream || pending) return;
           if (codes.length && typeof codes[0].rawValue === 'string') {
             const value = codes[0].rawValue;
             stopCamera();
             await submit(value);
             return;
           }
-        } catch { cameraStatus.textContent = 'No se pudo leer. Puedes usar el código manual.'; }
-        if (stream) frameId = requestAnimationFrame(scan);
+        } catch {
+          if (!closed && session === cameraRevision) {
+            cameraStatus.textContent = 'No se pudo leer. Puedes usar el código manual.';
+          }
+        }
+        if (!closed && session === cameraRevision && stream && !pending) frameId = requestAnimationFrame(scan);
       };
       frameId = requestAnimationFrame(scan);
     } catch {
-      stopCamera();
-      cameraStatus.textContent = 'Permiso de cámara denegado o cámara no disponible. Usa la entrada manual.';
-      qr.focus();
+      if (!closed && session === cameraRevision) {
+        stopCamera();
+        cameraStatus.textContent = 'Permiso de cámara denegado o cámara no disponible. Usa la entrada manual.';
+        qr.focus();
+      }
+    } finally {
+      if (acquired) acquired.getTracks().forEach(track => track.stop());
+      if (session === cameraRevision) cameraStarting = false;
     }
   });
   stopButton.addEventListener('click', stopCamera);
   window.addEventListener('pagehide', stopCamera);
+  return () => {
+    if (closed) return;
+    closed = true;
+    eventRevision++;
+    generation++;
+    stopCamera();
+    window.removeEventListener('pagehide', stopCamera);
+    delete root.dataset.doorMounted;
+  };
 }
