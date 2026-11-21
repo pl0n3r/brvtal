@@ -52,13 +52,16 @@ test('T16 móvil: solo respuesta exacta del servidor permite ingreso; duplicado,
   await expect(page.locator('[data-door-audit]')).not.toContainText('email');
 });
 test('T16 permiso de cámara denegado: fallback manual y ninguna entrada falsa', async ({page}) => {
-  await page.addInitScript(() => {
-    window.BarcodeDetector = class {};
-    Object.defineProperty(navigator,'mediaDevices',{value:{getUserMedia:async()=>{throw Error('denied');}}});
-  });
   await setup(page,route => route.fulfill({status:409,contentType:'application/json',
     body:JSON.stringify({ok:false,reason:'malformed_qr'})}));
-  await page.getByRole('button',{name:'Usar cámara'}).click();
+  await page.evaluate(() => {
+    window.BarcodeDetector = class {};
+    Object.defineProperty(navigator,'mediaDevices',{
+      configurable:true,value:{getUserMedia:async()=>{throw new Error('denied');}}
+    });
+  });
+  await expect(page.locator('[data-door-camera]')).toBeVisible();
+  await page.locator('[data-door-camera]').click();
   await expect(page.locator('[data-door-camera-status]')).toContainText('Permiso de cámara denegado');
   await expect(page.locator('[data-door-result]')).not.toHaveAttribute('data-state','allow');
   await page.locator('#door-qr').fill('invalid');
@@ -66,23 +69,27 @@ test('T16 permiso de cámara denegado: fallback manual y ninguna entrada falsa',
   await expect(page.locator('[data-door-result]')).toHaveAttribute('data-state','deny');
 });
 test('T16 cámara simulada: un QR leído inicia una única validación server-side', async ({page}) => {
-  await page.addInitScript(() => {
-    window.BarcodeDetector = class { async detect(){ return [{rawValue:'BRVTAL:T1:synthetic-camera'}]; } };
-    Object.defineProperty(navigator,'mediaDevices',{value:{getUserMedia:async()=>new MediaStream()}});
-    HTMLMediaElement.prototype.play = async function(){};
-  });
   let hits=0;
   await setup(page,route => { hits++; return route.fulfill({status:200,contentType:'application/json',
     body:JSON.stringify({ok:true,reason:'accepted'})}); });
-  await page.getByRole('button',{name:'Usar cámara'}).click();
+  await page.evaluate(() => {
+    window.BarcodeDetector = class { async detect(){ return [{rawValue:'BRVTAL:T1:synthetic-camera'}]; } };
+    Object.defineProperty(navigator,'mediaDevices',{
+      configurable:true,value:{getUserMedia:async()=>new MediaStream()}
+    });
+    HTMLMediaElement.prototype.play = async function(){};
+  });
+  await expect(page.locator('[data-door-camera]')).toBeVisible();
+  await page.locator('[data-door-camera]').click();
   await expect(page.locator('[data-door-result]')).toHaveAttribute('data-state','allow');
   expect(hits).toBe(1);
   await expect(page.locator('[data-door-video]')).toBeHidden();
 });
 test('T16 rutas PHP exigen staff door y no exponen finanzas ni compradores', async () => {
   expect(php).toContain('brvtal_admin_require();');
-  expect(php).toContain("brvtalTicketingCan((string)($role->fetchColumn()?:''),'door')");
+  expect(php).toContain("brvtalTicketingCan((string)($role->fetchColumn()?:''), 'door')");
   expect(php).toContain("WHERE status='published'");
   expect(php).not.toMatch(/SELECT.+email/i);
   expect(php).toContain("Cache-Control: no-store, private");
+  expect(readFileSync('discadmin/ticketing.js','utf8')).toContain('Abrir lector móvil de puerta');
 });

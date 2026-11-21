@@ -80,6 +80,7 @@ if (root) {
       return;
     }
     pending = true;
+    const selectedEvent = event.value;
     stopCamera();
     feedback('pending', 'Validando con el servidor. Aún no se permite el acceso.');
     const controller = new AbortController();
@@ -88,10 +89,12 @@ if (root) {
       const response = await fetch('/api/ticketing/checkin.php', {
         method: 'POST', credentials: 'same-origin', cache: 'no-store', signal: controller.signal,
         headers: {'Content-Type': 'application/json', 'X-CSRF-Token': root.dataset.csrf},
-        body: JSON.stringify({event_id: Number(event.value), device_id: device, qr: token})
+        body: JSON.stringify({event_id: Number(selectedEvent), device_id: device, qr: token})
       });
       const data = await response.json();
-      if (response.status === 200 && data.ok === true && data.reason === 'accepted') {
+      if (event.value !== selectedEvent) {
+        feedback('deny', 'Se cambió el evento durante la validación. NO permitir acceso.');
+      } else if (response.status === 200 && data.ok === true && data.reason === 'accepted') {
         feedback('allow', 'ENTRADA VÁLIDA · Acceso confirmado por el servidor.');
       } else {
         feedback('deny', messages[data.reason] || 'Acceso no autorizado. Verifica la entrada.');

@@ -33,6 +33,11 @@ window.BRVTALTicketing = (() => {
     if (!panel) return false;
     panel.setAttribute('aria-labelledby', active.id);
     panel.replaceChildren(element('h2', titles[key]), element('p', descriptions[key], 'ticketing-empty'));
+    if (key === 'door') {
+      const link = element('a', 'Abrir lector móvil de puerta', 'btn ghost');
+      link.href = '/discadmin/ticketing-door.php';
+      panel.appendChild(link);
+    }
     if (key === 'orders' || key === 'buyers') {
       import('/discadmin/ticketing-orders.js').then(mod => {
         if (panel.isConnected && panel.getAttribute('aria-labelledby') === active.id) {
