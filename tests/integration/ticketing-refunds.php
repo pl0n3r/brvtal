@@ -110,12 +110,141 @@ t21(!preg_match('/\bDROP\b|\bTRUNCATE\b|\bDELETE\s+FROM\b/i',$schema),'additive 
 if(getenv('BRVTAL_INTEGRATION_TESTS')!=='1') {
     echo "T21 refund contract checks OK; disposable database tests not enabled.\n"; exit(0);
 }
-$name=(string)getenv('BRVTAL_TEST_DB_NAME');
-t21((bool)preg_match('/^brvtal_test[a-zA-Z0-9_]*$/D',$name),'disposable DB namespace');
-$pdo=new PDO('mysql:host='.(getenv('BRVTAL_TEST_DB_HOST')?:'127.0.0.1').';port='.(getenv('BRVTAL_TEST_DB_PORT')?:'3306').';dbname='.$name,
-    getenv('BRVTAL_TEST_DB_USER')?:'root',getenv('BRVTAL_TEST_DB_PASS')?:'',
-    [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
-brvtalRefundGuard($pdo);
-putenv('BRVTAL_INTEGRATION_TESTS=0');
-t21Reject(static fn()=>brvtalRefundGuard($pdo),'REFUND_SANDBOX_ONLY');
-echo "T21 refund guard checks OK.\n";
+$base=(string)getenv('BRVTAL_TEST_DB_NAME');
+t21((bool)preg_match('/^brvtal_test[a-zA-Z0-9_]*$/D',$base),'disposable DB namespace');
+$dbName=$base.'_t21_'.bin2hex(random_bytes(4));
+$host=(string)(getenv('BRVTAL_TEST_DB_HOST')?:'127.0.0.1');
+$port=(int)(getenv('BRVTAL_TEST_DB_PORT')?:3306);
+$user=(string)(getenv('BRVTAL_TEST_DB_USER')?:'root');
+$pass=(string)(getenv('BRVTAL_TEST_DB_PASS')?:'');
+$opts=[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,
+    PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,PDO::ATTR_EMULATE_PREPARES=>false];
+$root=new PDO("mysql:host=$host;port=$port;charset=utf8mb4",$user,$pass,$opts);
+$root->exec("CREATE DATABASE $dbName CHARACTER SET utf8mb4");
+try {
+    $pdo=new PDO("mysql:host=$host;port=$port;dbname=$dbName;charset=utf8mb4",$user,$pass,$opts);
+    $statements=[
+        'CREATE TABLE events (id INT UNSIGNED PRIMARY KEY) ENGINE=InnoDB',
+        'CREATE TABLE ticket_buyers (id BIGINT UNSIGNED PRIMARY KEY) ENGINE=InnoDB',
+        "CREATE TABLE ticket_orders (
+            id BIGINT UNSIGNED PRIMARY KEY, public_id BINARY(16) NOT NULL,
+            buyer_id BIGINT UNSIGNED NOT NULL,event_id INT UNSIGNED NOT NULL,
+            total_cop BIGINT UNSIGNED NOT NULL,status ENUM('paid','refunded') NOT NULL,
+            currency CHAR(3) NOT NULL,updated_at_utc DATETIME(6) NULL
+          ) ENGINE=InnoDB",
+        'CREATE TABLE ticket_order_items (
+            id BIGINT UNSIGNED PRIMARY KEY,order_id BIGINT UNSIGNED NOT NULL,
+            unit_price_cop BIGINT UNSIGNED NOT NULL
+          ) ENGINE=InnoDB',
+        "CREATE TABLE ticket_entries (
+            id BIGINT UNSIGNED PRIMARY KEY,public_id BINARY(16) NOT NULL,
+            order_item_id BIGINT UNSIGNED NOT NULL,
+            status ENUM('issued','used','refunded') NOT NULL,
+            revoked_at_utc DATETIME(6) NULL
+          ) ENGINE=InnoDB",
+        "CREATE TABLE ticket_entry_credentials (
+            entry_id BIGINT UNSIGNED NOT NULL,
+            status ENUM('active','revoked') NOT NULL,
+            revoked_at_utc DATETIME(6) NULL
+          ) ENGINE=InnoDB",
+        "CREATE TABLE ticket_payment_attempts (
+            id BIGINT UNSIGNED PRIMARY KEY,order_id BIGINT UNSIGNED NOT NULL,
+            provider VARCHAR(24) NOT NULL,provider_transaction_id VARCHAR(190) NULL,
+            status ENUM('approved','refunded') NOT NULL,
+            gross_amount_cop BIGINT UNSIGNED NOT NULL
+          ) ENGINE=InnoDB",
+        "CREATE TABLE ticket_payment_webhook_events (
+            attempt_id BIGINT UNSIGNED NOT NULL,provider_transaction_id VARCHAR(190) NOT NULL,
+            signed_status ENUM('APPROVED') NOT NULL
+          ) ENGINE=InnoDB"
+    ];
+    foreach ($statements as $sql) $pdo->exec($sql);
+    $ddl=(string)file_get_contents(__DIR__.'/../../database/migration_ticketing_refunds_01.sql');
+    foreach (explode(';',$ddl) as $sql) {
+        if (trim($sql)!=='') $pdo->exec($sql);
+    }
+    foreach ([
+        "INSERT INTO events VALUES (1)",
+        "INSERT INTO ticket_buyers VALUES (3),(4)",
+        "INSERT INTO ticket_orders VALUES
+          (91,UNHEX('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'),3,1,12000,'paid','COP',UTC_TIMESTAMP(6)),
+          (92,UNHEX('ffffffffffffffffffffffffffffffff'),3,1,7000,'paid','COP',UTC_TIMESTAMP(6))",
+        "INSERT INTO ticket_order_items VALUES (100,91,5000),(101,91,4000),(102,91,3000),(103,92,7000)",
+        "INSERT INTO ticket_entries VALUES
+          (201,UNHEX('bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'),100,'issued',NULL),
+          (202,UNHEX('cccccccccccccccccccccccccccccccc'),101,'issued',NULL),
+          (203,UNHEX('dddddddddddddddddddddddddddddddd'),102,'used',NULL),
+          (204,UNHEX('eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'),103,'issued',NULL)",
+        "INSERT INTO ticket_entry_credentials VALUES (201,'active',NULL),(202,'active',NULL),(204,'active',NULL)",
+        "INSERT INTO ticket_payment_attempts VALUES
+          (601,91,'wompi','trx_test_91','approved',12000),
+          (602,92,'wompi','trx_test_92','approved',7000)",
+        "INSERT INTO ticket_payment_webhook_events VALUES
+          (601,'trx_test_91','APPROVED'),(602,'trx_test_92','APPROVED')"
+    ] as $sql) $pdo->exec($sql);
+    brvtalRefundGuard($pdo);
+    $request=['order_id'=>str_repeat('a',32),'entry_ids'=>[str_repeat('b',32)],
+        'reason'=>'Motivo de devolución sintética','idempotency_key'=>'t21-idempotent-key-001'];
+    $one=brvtalRefundRequest($pdo,3,$request);$id=(int)$one['id'];
+    t21($one['amount_cop']===5000 && $one['status']==='requested','partial COP request');
+    $replay=brvtalRefundRequest($pdo,3,$request);
+    t21($replay['replayed'] && (int)$replay['id']===$id,'same-key idempotency');
+    t21Reject(static fn()=>brvtalRefundRequest($pdo,3,array_merge(
+        $request,['entry_ids'=>[str_repeat('c',32)]])),'IDEMPOTENCY_CONFLICT');
+    t21Reject(static fn()=>brvtalRefundRequest($pdo,4,$request),'ORDER_NOT_REFUNDABLE');
+    t21Reject(static fn()=>brvtalRefundRequest($pdo,3,array_merge($request,[
+        'entry_ids'=>[str_repeat('d',32)],'idempotency_key'=>'t21-used-entry-key-001'
+    ])),'ENTRY_NOT_REFUNDABLE');
+    $approved=brvtalRefundStaff($pdo,7,'superadmin',$id,'approve');
+    t21($approved['status']==='approved','staff approval, no refund yet');
+    t21(brvtalRefundStaff($pdo,7,'superadmin',$id,'approve')['replayed'],'double staff approval');
+    t21($pdo->query('SELECT COUNT(*) FROM ticket_refund_adjustments')->fetchColumn()==0,
+        'approval never moves money or revokes credentials');
+    $receipt=static fn(int $refundId,string $status,int $amount,string $providerId):string=>
+        json_encode(['data'=>[
+            'status'=>$status,'transaction_id'=>'trx_test_91','amount_in_cents'=>$amount*100,
+            'reference'=>'BRVTAL-T21-'.$refundId,'v2_refund_id'=>$providerId
+        ]],JSON_THROW_ON_ERROR);
+    $settled=brvtalRefundSandboxApply($pdo,$id,201,$receipt($id,'APPROVED',5000,'v2_refund_t21_1'));
+    t21($settled['status']==='refunded','provider confirmed');
+    t21(brvtalRefundSandboxApply($pdo,$id,201,$receipt(
+        $id,'APPROVED',5000,'v2_refund_t21_1'))['replayed'],'provider duplicate idempotent');
+    t21((int)$pdo->query('SELECT COUNT(*) FROM ticket_refund_adjustments')->fetchColumn()===1,
+        'one immutable adjustment');
+    t21($pdo->query('SELECT status FROM ticket_entries WHERE id=201')->fetchColumn()==='refunded',
+        'selected entry revoked after verified receipt');
+    t21($pdo->query('SELECT status FROM ticket_entry_credentials WHERE entry_id=201')->fetchColumn()==='revoked',
+        'QR credential revoked');
+    t21($pdo->query('SELECT status FROM ticket_orders WHERE id=91')->fetchColumn()==='paid',
+        'remaining entries preserve paid order');
+    $other=brvtalRefundRequest($pdo,3,array_merge($request,[
+        'entry_ids'=>[str_repeat('c',32)],'idempotency_key'=>'t21-second-entry-key-01'
+    ]));$id2=(int)$other['id'];
+    brvtalRefundStaff($pdo,7,'superadmin',$id2,'approve');
+    $failed=brvtalRefundSandboxApply($pdo,$id2,201,$receipt($id2,'DECLINED',4000,'v2_refund_t21_2'));
+    t21($failed['status']==='failed','provider decline leaves refund failed');
+    t21(brvtalRefundSandboxApply($pdo,$id2,201,
+        $receipt($id2,'APPROVED',4000,'v2_refund_t21_2'))['status']==='failed',
+        'late contradictory approval cannot revoke failed refund');
+    t21($pdo->query('SELECT status FROM ticket_entry_credentials WHERE entry_id=202')->fetchColumn()==='active',
+        'declined refund never revokes remaining QR');
+    $manual=brvtalRefundRequest($pdo,3,[
+        'order_id'=>str_repeat('f',32),'entry_ids'=>[str_repeat('e',32)],
+        'reason'=>'Operación sintética manual','idempotency_key'=>'t21-manual-approval-01'
+    ]);
+    $id3=(int)$manual['id'];brvtalRefundStaff($pdo,7,'superadmin',$id3,'approve');
+    t21Reject(static fn()=>brvtalRefundStaff($pdo,7,'superadmin',$id3,'manual_confirm','',str_repeat('f',64)),
+        'REFUND_INVALID_STATE');
+    $confirmed=brvtalRefundStaff($pdo,8,'superadmin',$id3,'manual_confirm','',str_repeat('f',64));
+    t21($confirmed['status']==='refunded','second staff witness required');
+    t21($pdo->query('SELECT status FROM ticket_orders WHERE id=92')->fetchColumn()==='refunded',
+        'full refund closes order');
+    t21($pdo->query('SELECT status FROM ticket_entry_credentials WHERE entry_id=204')->fetchColumn()==='revoked',
+        'manual witness revokes QR only after confirmation');
+    putenv('BRVTAL_INTEGRATION_TESTS=0');
+    try { t21Reject(static fn()=>brvtalRefundGuard($pdo),'REFUND_SANDBOX_ONLY'); }
+    finally { putenv('BRVTAL_INTEGRATION_TESTS=1'); }
+} finally {
+    $root->exec("DROP DATABASE IF EXISTS $dbName");
+}
+echo "T21 synthetic MariaDB partial refunds, provider receipts, QR revocation, audit and idempotency passed.\n";
