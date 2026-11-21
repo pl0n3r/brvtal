@@ -61,5 +61,8 @@ jobs:
           php -l config/migration_reconcile.php
           php -l api/ticketing/admin-pos.php
           php -l tests/integration/ticketing-pos.php
-          php tests/migrations-contract.php
+          # Run the owned POS integration before the shared migration proof, so
+          # functional regressions remain visible even before T22 lands.
+          # Both remain mandatory: migration contracts must still pass.
           php tests/integration/ticketing-pos.php
+          php tests/migrations-contract.php
