@@ -38,7 +38,7 @@ try {
         json_response(['ok'=>false,'error'=>'METHOD_NOT_ALLOWED'],405,['Allow'=>'GET, POST']);
     }
     brvtal_admin_require_csrf();
-    if (!brvtalTicketingCan($role,'mail') || !brvtal_waitlist_enabled()) {
+    if (!brvtalTicketingCan($role,'mail') || !brvtal_waitlist_offers_enabled()) {
         json_response(['ok'=>false,'error'=>'FORBIDDEN'],403);
     }
     $body=input_json();
