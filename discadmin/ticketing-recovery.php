@@ -33,7 +33,7 @@ try {
     <button type="button" data-recovery-yes>Confirmar simulación</button>
     <button type="button" data-recovery-no>Cancelar</button>
   </div>
-  <p data-recovery-status role="status" aria-live="polite">Consultando métricas sintéticas…</p>
+  <output data-recovery-status role="status" aria-live="polite">Consultando métricas sintéticas…</output>
   <h3>Resumen por evento y campaña</h3>
   <table><thead><tr><th>Evento</th><th>Campaña</th><th>Etapa</th><th>Vistas previas elegibles</th></tr></thead>
   <tbody data-recovery-rows></tbody></table>

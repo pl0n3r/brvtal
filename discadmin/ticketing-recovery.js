@@ -35,8 +35,10 @@ if (root) {
   form.addEventListener('submit', e => {
     e.preventDefault();
     const formData = new FormData(form);
-    const order = Number(formData.get('order_id'));
-    const campaign = String(formData.get('campaign') || '');
+    const rawOrder = formData.get('order_id');
+    const rawCampaign = formData.get('campaign');
+    const order = typeof rawOrder === 'string' ? Number(rawOrder) : NaN;
+    const campaign = typeof rawCampaign === 'string' ? rawCampaign : '';
     if (!Number.isSafeInteger(order) || order < 1 || !/^[a-z0-9_-]{1,32}$/.test(campaign)) {
       say('Pedido o campaña inválidos.'); return;
     }
@@ -68,5 +70,5 @@ if (root) {
       say('Operación no disponible o no autorizada. No se envió correo.');
     }
   });
-  summary();
+  await summary();
 }

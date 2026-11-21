@@ -39,6 +39,7 @@ function brvtalRecoveryPlan(PDO $db, int $actor, string $role, array $input): ar
     if (!brvtalRecoverySynthetic($db)) throw new DomainException('SYNTHETIC_ONLY');
     $db->beginTransaction();
     try {
+        $nowUtc = (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format('Y-m-d H:i:s.u');
         $db->exec('DELETE FROM ticket_recovery_previews WHERE retention_until_utc<=UTC_TIMESTAMP(6)');
         $q = $db->prepare('SELECT o.id,o.buyer_id,o.event_id,o.status,o.expires_at_utc,
             b.status AS buyer_status,b.email_verified_at,
@@ -59,19 +60,19 @@ function brvtalRecoveryPlan(PDO $db, int $actor, string $role, array $input): ar
             || !is_string($row['policy_version'])
             || !preg_match('/^marketing-[a-z0-9._-]{1,30}$/D', $row['policy_version'])
             || empty($row['consented_at_utc'])
-            || (string)$row['consented_at_utc'] > gmdate('Y-m-d H:i:s')
+            || (string)$row['consented_at_utc'] > $nowUtc
             || !empty($row['revoked_at_utc'])
-            || (string)$row['consent_expires'] <= gmdate('Y-m-d H:i:s')) {
+            || (string)$row['consent_expires'] <= $nowUtc) {
             return $suppressed('consent_unavailable');
         }
         if (empty($row['expires_at_utc'])
-            || (string)$row['expires_at_utc'] <= gmdate('Y-m-d H:i:s')) return $suppressed('checkout_expired');
+            || (string)$row['expires_at_utc'] <= $nowUtc) return $suppressed('checkout_expired');
         $payment = $db->prepare("SELECT status FROM ticket_payment_attempts
             WHERE order_id=? AND status IN ('approved','pending','created') FOR UPDATE");
         $payment->execute([$input['order_id']]);
         $states = $payment->fetchAll(PDO::FETCH_COLUMN);
-        if (in_array('approved',$states,true)) return $suppressed('payment_confirmed');
-        $stage = in_array('pending',$states,true) || in_array('created',$states,true)
+        if (in_array('approved', $states, true)) return $suppressed('payment_confirmed');
+        $stage = in_array('pending', $states, true) || in_array('created', $states, true)
             ? 'payment_open' : 'cart';
         $items = $db->prepare('SELECT ticket_type_id,quantity FROM ticket_order_items
             WHERE order_id=? ORDER BY id LIMIT 30');
