@@ -41,6 +41,6 @@ test('T19 servidor exige CSRF, rol fuerte, firma de pago y no reconstituye secre
   expect(apiPhp).toContain("w.signed_status='APPROVED'");
   expect(apiPhp).toContain("hash_equals($hash,$parsed['hash'])");
   expect(apiPhp).toContain('IDEMPOTENCY_CONFLICT');
-  expect(apiPhp).toContain('BRVTAL_TICKET_MAIL_PRIVACY_APPROVED').toBe(false);
+  expect(apiPhp).not.toContain('BRVTAL_TICKET_MAIL_PRIVACY_APPROVED');
   expect(apiPhp).not.toContain("SET status='paid'");
 });
