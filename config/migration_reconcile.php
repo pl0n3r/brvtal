@@ -725,6 +725,14 @@ function brvtalMigrationReconcileHistorical(
             throw new RuntimeException('MIGRATION_RECONCILIATION_DRIFT');
         }
 
+        // Owner-only CLI breadcrumb: a validated filename, never SQL, error
+        // text, application rows or credentials. The SSH wrapper sanitizes it.
+        if (PHP_SAPI === 'cli' && (string)getenv('BRVTAL_MIGRATION_RECONCILE_DIAGNOSTIC') === '1') {
+            if (preg_match('/^migration_[a-z0-9_]+[.]sql$/D', $name) !== 1) {
+                throw new RuntimeException('MIGRATION_RECONCILIATION_DRIFT');
+            }
+            echo 'BRVTAL_RECONCILE_STEP:' . $name . PHP_EOL;
+        }
         if ($kind === 'baseline') {
             brvtal_migration_baseline_file($pdo, $path, $actor, $deploySha);
             $baselined[] = $name;
