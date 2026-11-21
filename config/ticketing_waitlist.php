@@ -129,7 +129,7 @@ function brvtal_waitlist_unsubscribe(PDO $db, string $token): bool
             WHERE unsubscribe_hash=? FOR UPDATE');
         $q->execute([hash('sha256', $token)]);
         $entry = $q->fetch(PDO::FETCH_ASSOC);
-        if (!$entry || $entry['status'] === 'unsubscribed') {
+        if (!$entry || in_array($entry['status'], ['unsubscribed','redeemed'], true)) {
             $db->commit();
             return false;
         }
@@ -152,6 +152,77 @@ function brvtal_waitlist_unsubscribe(PDO $db, string $token): bool
         if ($db->inTransaction()) $db->rollBack();
         throw $e;
     }
+}
+
+/**
+ * Convert exactly one still-valid invitation into a paid checkout hold.
+ * The caller owns the SAME checkout transaction and must roll it back on ANY
+ * exception. No payment, ticket, message or commit happens in this helper.
+ * The event mutex serializes competing checkout and admin offers across types.
+ * The checkout entrypoint may call this only after its T22 claims are released.
+ */
+function brvtal_waitlist_redeem_into_hold(
+    PDO $db, string $token, int $orderId, int $buyerId, int $typeId,
+    ?DateTimeImmutable $now = null
+): array {
+    if (!brvtal_waitlist_offers_enabled()) {
+        throw new DomainException('WAITLIST_OFFERS_DISABLED');
+    }
+    if (!preg_match('/^[A-Za-z0-9_-]{43}$/D', $token)
+        || $orderId < 1 || $buyerId < 1 || $typeId < 1) {
+        throw new InvalidArgumentException('WAITLIST_REDEMPTION_INVALID');
+    }
+    if (!$db->inTransaction()) {
+        throw new LogicException('WAITLIST_CHECKOUT_TRANSACTION_REQUIRED');
+    }
+
+    // Match inventory_hold's lock order: first resolve the immutable mapping,
+    // then lock the event BEFORE reading any mutable order or offer rows.
+    $lookup = $db->prepare('SELECT event_id FROM ticket_orders WHERE id=?');
+    $lookup->execute([$orderId]);
+    $eventId = (int)$lookup->fetchColumn();
+    if ($eventId < 1) throw new DomainException('WAITLIST_ORDER_NOT_ELIGIBLE');
+
+    $lock = $db->prepare('SELECT id FROM events WHERE id=? FOR UPDATE');
+    $lock->execute([$eventId]);
+    if (!$lock->fetchColumn()) throw new DomainException('WAITLIST_EVENT_CLOSED');
+    $order = $db->prepare('SELECT buyer_id,status FROM ticket_orders
+        WHERE id=? AND event_id=? FOR UPDATE');
+    $order->execute([$orderId, $eventId]);
+    $current = $order->fetch(PDO::FETCH_ASSOC);
+    if (!$current || (int)$current['buyer_id'] !== $buyerId
+        || !in_array($current['status'], ['draft','pending'], true)) {
+        throw new DomainException('WAITLIST_ORDER_NOT_ELIGIBLE');
+    }
+
+    $entry = $db->prepare("SELECT id,buyer_id,event_id,ticket_type_id,offer_expires_at_utc
+        FROM ticket_waitlist_entries WHERE offer_hash=? AND status='offered' FOR UPDATE");
+    $entry->execute([hash('sha256', $token)]);
+    $offer = $entry->fetch(PDO::FETCH_ASSOC);
+    $clock = brvtal_waitlist_clock($now);
+    if (!$offer || (int)$offer['buyer_id'] !== $buyerId
+        || (int)$offer['event_id'] !== $eventId
+        || (int)$offer['ticket_type_id'] !== $typeId
+        || (string)$offer['offer_expires_at_utc'] <= $clock->format('Y-m-d H:i:s.u')) {
+        throw new DomainException('WAITLIST_OFFER_NOT_ELIGIBLE');
+    }
+
+    $buyer = $db->prepare('SELECT status,email_verified_at FROM ticket_buyers
+        WHERE id=? FOR UPDATE');
+    $buyer->execute([$buyerId]);
+    $verified = $buyer->fetch(PDO::FETCH_ASSOC);
+    if (!$verified || $verified['status'] !== 'active' || !$verified['email_verified_at']) {
+        throw new DomainException('WAITLIST_VERIFIED_BUYER_REQUIRED');
+    }
+
+    // Release ONLY this offer's counted unit, then claim it in T05 within
+    // the caller-owned transaction. An unsuccessful hold MUST roll back both.
+    $mark = $db->prepare("UPDATE ticket_waitlist_entries
+        SET status='redeemed',offer_hash=NULL,offer_expires_at_utc=NULL
+        WHERE id=? AND status='offered'");
+    $mark->execute([(int)$offer['id']]);
+    if ($mark->rowCount() !== 1) throw new DomainException('WAITLIST_OFFER_COLLISION');
+    return brvtal_ticket_inventory_hold($db, $orderId, $typeId, 1, 'paid', 600, $clock);
 }
 
 /** One private invitation at a time, serialized by T05 Event row lock. */
