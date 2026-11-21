@@ -365,6 +365,44 @@ function brvtalMigrationProofSpecifications(): array
             true
         );
     }
+
+    // Serial proof registration for adjacent T24/T25/T29 PRs. Their respective
+    // SQL files and code remain owned by separate V3 leases. No DDL is run here.
+    if (is_file(__DIR__ . '/../database/migration_ticketing_pos_01.sql')) {
+        $specifications['migration_ticketing_pos_01.sql'] = array_merge(
+            brvtalMigrationObjectRequirements('ticket_pos_shifts',
+                ['id','event_id','operator_admin_id','status','opening_cash_cop',
+                 'expected_cash_cop','closing_cash_cop','cash_difference_cop',
+                 'opened_at_utc','closed_at_utc'],
+                ['PRIMARY','idx_pos_shift_operator_event'], true),
+            brvtalMigrationObjectRequirements('ticket_pos_sales',
+                ['id','shift_id','event_id','operator_admin_id','ticket_type_id',
+                 'order_id','quantity','unit_price_cop','amount_cop','method',
+                 'status','request_key_hash','request_hash','confirmation_hash',
+                 'expires_at_utc','created_at_utc','completed_at_utc'],
+                ['PRIMARY','uq_pos_sale_request','uq_pos_sale_order',
+                 'idx_pos_sale_shift_state'], true)
+        );
+    }
+    if (is_file(__DIR__ . '/../database/migration_ticketing_courtesy_01.sql')) {
+        $specifications['migration_ticketing_courtesy_01.sql'] = brvtalMigrationObjectRequirements(
+            'ticket_courtesy_invites',
+            ['event_id','ticket_type_id','order_id','entry_id','origin',
+             'recipient_digest','request_digest','authorized_by','status','resend_requests'],
+            ['uq_courtesy_event_recipient','uq_courtesy_request','uq_courtesy_entry'], true
+        );
+    }
+    if (is_file(__DIR__ . '/../database/migration_ticketing_recovery_01.sql')) {
+        $specifications['migration_ticketing_recovery_01.sql'] = array_merge(
+            brvtalMigrationObjectRequirements('ticket_recovery_consents',
+                ['buyer_id','event_id','policy_version','consented_at_utc','revoked_at_utc','expires_at_utc'],
+                ['PRIMARY'], true),
+            brvtalMigrationObjectRequirements('ticket_recovery_previews',
+                ['order_id','buyer_id','event_id','campaign_key','request_hash',
+                 'stage','outcome','created_at_utc','retention_until_utc'],
+                ['uq_recovery_request','idx_recovery_frequency','idx_recovery_reporting'], true)
+        );
+    }
     return $specifications;
 }
 
