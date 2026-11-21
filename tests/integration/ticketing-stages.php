@@ -37,4 +37,9 @@ stageAssert(str_contains($read,"'settings'"),'admin settings permission required
 stageAssert(str_contains((string)file_get_contents(__DIR__.'/../../config/ticketing_stages.php'),
     'BRVTAL_INTEGRATION_TESTS'),'writes must be synthetic only');
 stageAssert(!str_contains($read,'ticket_order_items'),'API must not rewrite order snapshots');
+$core = (string)file_get_contents(__DIR__.'/../../discadmin/content-core.js');
+stageAssert(str_contains($core,"import('/discadmin/ticketing-stages.js')"),
+    'stage editor mounted inside existing event ticket type shell');
+stageAssert(str_contains($core,'Number(currentEvent?.id)'),
+    'stage editor only for persisted event with valid identity');
 echo "T22 stage windows, quotas, snapshots and input guards OK (synthetic).".PHP_EOL;

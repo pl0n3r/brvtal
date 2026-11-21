@@ -15,8 +15,11 @@ test('T22 mobile: stage editor refuses 403 and Save and Close remains in shell',
   });
   await page.goto('https://www.brvtal.com.co/discadmin/t22.html');
   await page.evaluate(async()=>{const m=await import('/discadmin/ticketing-stages.js');
-    m.mount(document.querySelector('[data-ticketing-panel]'),()=>document.body.dataset.closed='true');
+    m.mount(document.querySelector('[data-ticketing-panel]'),()=>document.body.dataset.closed='true',
+      {eventId:6,typeId:3});
   });
+  await expect(page.getByLabel('Evento ID')).toHaveValue('6');
+  await expect(page.getByLabel('Tipo de boleta ID')).toHaveValue('3');
   await page.getByLabel('Evento ID').fill('6');
   await page.getByLabel('Tipo de boleta ID').fill('3');
   await page.getByLabel('Precio COP').fill('15000');

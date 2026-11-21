@@ -1,6 +1,6 @@
 /* T22: draft-only stage configuration in the existing DISCADMIN ticketing shell.
  * No public checkout pricing is activated by this editor. */
-export function mount(panel, close = () => {}) {
+export function mount(panel, close = () => {}, defaults = {}) {
   const section = document.createElement('section');
   const title = document.createElement('h3');
   title.textContent = 'Etapas de preventa (configuración no publicada)';
@@ -24,6 +24,8 @@ export function mount(panel, close = () => {}) {
   }
   const event = field('Evento ID','event_id','number');
   const ticket = field('Tipo de boleta ID','ticket_type_id','number');
+  if (Number.isSafeInteger(defaults.eventId) && defaults.eventId > 0) event.value = String(defaults.eventId);
+  if (Number.isSafeInteger(defaults.typeId) && defaults.typeId > 0) ticket.value = String(defaults.typeId);
   const codeLabel = document.createElement('label');
   codeLabel.textContent = 'Etapa ';
   const code = document.createElement('select');
