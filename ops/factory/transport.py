@@ -166,7 +166,7 @@ def _run(args: list[str], *, input_text: str | None = None, label: str) -> None:
         raise TransportError(f"{label} failed with exit code {completed.returncode}")
 
 
-def ssh_script(config: Config, script: str, *arguments: str) -> None:
+def ssh_script(config: Config, script: str, *arguments: str, diagnostic: bool = False) -> None:
     with credentials(config) as (key, hosts):
         command = [
             "ssh",
@@ -174,7 +174,29 @@ def ssh_script(config: Config, script: str, *arguments: str) -> None:
             f"{config.user}@{config.host}",
             "bash", "-s", "--", config.site_root, *arguments,
         ]
-        _run(command, input_text=script, label="SSH command")
+        if not diagnostic:
+            _run(command, input_text=script, label="SSH command")
+            return
+
+        # Owner-authorized reconciliation only: raw stdout/stderr never leave
+        # this adapter; only one bounded allowlisted marker may be forwarded.
+        completed = subprocess.run(
+            command, input=script, text=True, stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL, check=False,
+        )
+        if completed.returncode != 0:
+            message = f"SSH command failed with exit code {completed.returncode}"
+            stdout = completed.stdout if isinstance(completed.stdout, str) else ""
+            if len(stdout.encode("utf-8")) <= 8192:
+                matches = re.findall(
+                    r"^BRVTAL_RECONCILE_CONFLICT:(migration_[a-z0-9_]+[.]sql):"
+                    r"(schema_sql_or_ddl_conflict|database_integrity_constraint|post_apply_schema_proof_mismatch)$",
+                    stdout, flags=re.MULTILINE,
+                )
+                if len(matches) == 1:
+                    name, category = matches[0]
+                    message += f" [migration={name}, conflict={category}]"
+            raise TransportError(message)
 
 
 def ssh_status(config: Config, script: str, *arguments: str) -> bool:
@@ -487,10 +509,727 @@ marker_tmp="$marker.tmp.$BASHPID"
 printf 'backup-ready\n' > "$marker_tmp" || exit 74
 mv -f -- "$marker_tmp" "$marker" || exit 74
 
-if BRVTAL_MIGRATIONS_ALLOW_WRITE=1 BRVTAL_MIGRATION_RECONCILE_BACKUP_READY=1 BRVTAL_MIGRATION_ACTOR=factory-reconcile php scripts/migrations.php reconcile --confirm --json >/dev/null; then
+# Raw progress is private. Only a validated filename and fixed category may
+# leave SSH on failure, after the existing mandatory backup-ready marker.
+progress="$(mktemp "$state/migration-reconcile-progress.XXXXXXXX")" || exit 74
+test ! -L "$progress" || exit 74
+trap 'rm -f -- "$progress"' EXIT
+if BRVTAL_MIGRATIONS_ALLOW_WRITE=1 BRVTAL_MIGRATION_RECONCILE_BACKUP_READY=1 BRVTAL_MIGRATION_RECONCILE_DIAGNOSTIC=1 BRVTAL_MIGRATION_ACTOR=factory-reconcile php scripts/migrations.php reconcile --confirm --json >"$progress"; then
     :
 else
     reconcile_code=$?
+    conflict=""
+    case "$reconcile_code" in
+        122) conflict="schema_sql_or_ddl_conflict" ;;
+        123) conflict="database_integrity_constraint" ;;
+        126) conflict="post_apply_schema_proof_mismatch" ;;
+    esac
+    if [[ -n "$conflict" ]]; then
+        line="$(grep -E '^BRVTAL_RECONCILE_STEP:migration_[a-z0-9_]+[.]sql
+        120) exit 77 ;;
+        121) exit 78 ;;
+        122) exit 79 ;;
+        123) exit 80 ;;
+        124) exit 81 ;;
+        125) exit 82 ;;
+        126) exit 83 ;;
+        *) exit 75 ;;
+    esac
+fi
+
+php scripts/migrations.php verify-plan __NONE__ >/dev/null || exit 76
+"""
+
+
+_BOOTSTRAP_ACTIVATE = r"""
+set -euo pipefail
+site_root="$1"
+sha="$2"
+public="$site_root/public_html"
+candidate="$site_root/factory-releases/$sha"
+state="$site_root/factory-state"
+current="$public/.factory-current"
+dispatcher="$state/dispatcher-v1.htaccess"
+legacy="$state/legacy-public-htaccess"
+
+test -f "$state/bootstrap-backup-$sha.ok"
+test ! -L "$state/bootstrap-backup-$sha.ok"
+test -f "$legacy"
+test ! -L "$legacy"
+test -f "$dispatcher"
+test ! -L "$dispatcher"
+test ! -L "$candidate"
+test "$(cat "$candidate/.factory-release-sha" 2>/dev/null || true)" = "$sha"
+grep -Fq '# BRVTAL FACTORY DISPATCHER v1' "$dispatcher"
+
+if [ -e "$current" ] && [ ! -L "$current" ]; then exit 91; fi
+if [ -L "$current" ]; then
+  case "$(readlink "$current")" in "$site_root/factory-releases/"*) ;; *) exit 92 ;; esac
+fi
+
+pointer_tmp="$public/.factory-current.bootstrap.$BASHPID"
+ln -s -- "$candidate" "$pointer_tmp"
+mv -Tf -- "$pointer_tmp" "$current"
+
+htaccess_tmp="$public/.htaccess.factory.$BASHPID"
+cp -- "$dispatcher" "$htaccess_tmp"
+mv -f -- "$htaccess_tmp" "$public/.htaccess"
+"""
+
+_REMOVE_ARTIFACT = r"""
+set -euo pipefail
+site_root="$1"
+artifact="$2"
+case "$artifact" in
+  "$site_root/factory-artifacts/"*) ;;
+  *) exit 98 ;;
+esac
+rm -f -- "$artifact"
+"""
+
+_BOOTSTRAP_RESTORE = r"""
+set -euo pipefail
+site_root="$1"
+sha="$2"
+public="$site_root/public_html"
+state="$site_root/factory-state"
+legacy="$state/legacy-public-htaccess"
+current="$public/.factory-current"
+candidate="$site_root/factory-releases/$sha"
+
+test -d "$state"
+test ! -L "$state"
+test -f "$legacy"
+test ! -L "$legacy"
+if [ -f "$public/.htaccess" ] && grep -Fq '# BRVTAL FACTORY DISPATCHER v1' "$public/.htaccess"; then
+  restore_tmp="$public/.htaccess.restore.$BASHPID"
+  cp -- "$legacy" "$restore_tmp"
+  mv -f -- "$restore_tmp" "$public/.htaccess"
+fi
+if [ -L "$current" ]; then
+  target="$(readlink "$current")"
+  case "$target" in "$site_root/factory-releases/"*) ;; *) exit 96 ;; esac
+  if [ "$target" = "$candidate" ] || [ -d "$target" ]; then rm -f -- "$current"; fi
+elif [ -e "$current" ]; then
+  exit 97
+fi
+"""
+
+_STAGE = r"""
+set -euo pipefail
+site_root="$1"
+sha="$2"
+version="$3"
+archive="$4"
+releases="$site_root/factory-releases"
+shared="$site_root/factory-shared"
+state="$site_root/factory-state"
+public="$site_root/public_html"
+candidate="$releases/$sha"
+
+test -d "$public" || exit 31
+test -f "$shared/.prepared-v1" || exit 32
+test -f "$shared/config/config.php" || exit 33
+test -d "$shared/uploads" || exit 34
+test -d "$shared/storage" || exit 35
+test -d "$shared/.private" || exit 36
+test -f "$shared/.private/.htaccess" || exit 37
+test -f "$shared/storage/.htaccess" || exit 38
+test -f "$shared/storage/backups/.htaccess" || exit 39
+test -f "$shared/uploads/.htaccess" || exit 40
+mkdir -p "$releases" "$state"
+
+if [ -d "$candidate" ]; then
+  test "$(cat "$candidate/.factory-release-sha" 2>/dev/null || true)" = "$sha" || exit 37
+  rm -f -- "$archive"
+  exit 0
+fi
+
+tmp="$releases/.$sha.tmp.$$"
+rm -rf -- "$tmp"
+mkdir -p -- "$tmp"
+trap 'rm -rf -- "$tmp"' EXIT
+tar -xzf "$archive" -C "$tmp"
+rm -f -- "$archive"
+
+test -f "$tmp/index.php" || exit 42
+test -f "$tmp/.htaccess" || exit 43
+mkdir -p "$tmp/.git" "$tmp/config"
+printf '%s\n' "$sha" > "$tmp/.git/HEAD"
+printf '%s\n' "$sha" > "$tmp/.factory-release-sha"
+printf '%s\n' "$version" > "$tmp/.factory-release-version"
+rm -f -- "$tmp/config/config.php"
+ln -s -- "$shared/config/config.php" "$tmp/config/config.php"
+rm -rf -- "$tmp/uploads" "$tmp/storage" "$tmp/.private"
+ln -s -- "$shared/uploads" "$tmp/uploads"
+ln -s -- "$shared/storage" "$tmp/storage"
+ln -s -- "$shared/.private" "$tmp/.private"
+
+mv -- "$tmp" "$candidate"
+trap - EXIT
+"""
+
+_BACKUP = r"""
+set -euo pipefail
+site_root="$1"
+sha="$2"
+release="$site_root/factory-releases/$sha"
+test "$(cat "$release/.factory-release-sha" 2>/dev/null || true)" = "$sha" || exit 41
+cd "$release"
+php <<'PHP'
+<?php
+declare(strict_types=1);
+require "config/bootstrap.php";
+require "config/backups.php";
+$manifest = brvtal_backup_create(db(), [
+    "include_media_archive" => false,
+    "created_by" => ["id" => 0, "name" => "Factory deploy"],
+]);
+if (($manifest["status"] ?? "") !== "ready") {
+    fwrite(STDERR, "backup did not reach ready state\n");
+    exit(1);
+}
+PHP
+"""
+
+_MIGRATE = r"""
+set -euo pipefail
+site_root="$1"
+sha="$2"
+release="$site_root/factory-releases/$sha"
+releases="$site_root/factory-releases"
+current="$site_root/public_html/.factory-current"
+test "$(cat "$release/.factory-release-sha" 2>/dev/null || true)" = "$sha" || exit 51
+test ! -L "$release"
+test -f "$release/ops/factory/migration-plan"
+test ! -L "$release/ops/factory/migration-plan"
+
+previous="__NONE__"
+if [ -L "$current" ]; then
+  previous="$(readlink "$current")"
+  case "$previous" in "$releases"/*) ;; *) exit 52 ;; esac
+  test -d "$previous" || exit 53
+elif [ -e "$current" ]; then
+  exit 54
+fi
+
+migration="$(bash "$release/ops/factory/migration-plan" "$release" "$previous")" || exit 55
+case "$migration" in
+  __NONE__|migration_[a-z0-9_]*.sql) ;;
+  *) exit 56 ;;
+esac
+
+cd "$release"
+php scripts/migrations.php verify-plan "$migration" >/dev/null || exit 57
+if [ "$migration" = "__NONE__" ]; then
+  exit 0
+fi
+
+BRVTAL_MIGRATIONS_ALLOW_WRITE=1 BRVTAL_MIGRATION_ACTOR=factory-deploy \
+  php scripts/migrations.php apply "$migration" --confirm
+php scripts/migrations.php verify-plan __NONE__ >/dev/null || exit 58
+"""
+
+_ACTIVATE = r"""
+set -euo pipefail
+site_root="$1"
+sha="$2"
+releases="$site_root/factory-releases"
+public="$site_root/public_html"
+state="$site_root/factory-state"
+candidate="$releases/$sha"
+current="$public/.factory-current"
+
+test "$(cat "$candidate/.factory-release-sha" 2>/dev/null || true)" = "$sha" || exit 61
+test -f "$public/.htaccess" || exit 62
+grep -Fq '# BRVTAL FACTORY DISPATCHER v1' "$public/.htaccess" || exit 63
+grep -Fq '.factory-current' "$public/.htaccess" || exit 64
+mkdir -p "$state"
+
+if [ -e "$current" ] && [ ! -L "$current" ]; then
+  exit 65
+fi
+
+if [ -L "$current" ]; then
+  existing="$(readlink "$current")"
+  case "$existing" in "$releases"/*) ;; *) exit 66 ;; esac
+  if [ "$existing" = "$candidate" ]; then
+    exit 0
+  fi
+  previous="$existing"
+else
+  previous="__NONE__"
+fi
+
+state_tmp="$state/.previous-release.$$"
+printf '%s\n' "$previous" > "$state_tmp"
+mv -f -- "$state_tmp" "$state/previous-release"
+
+pointer_tmp="$public/.factory-current.$$"
+ln -s -- "$candidate" "$pointer_tmp"
+mv -Tf -- "$pointer_tmp" "$current"
+"""
+
+_ROLLBACK = r"""
+set -euo pipefail
+site_root="$1"
+failed_sha="$2"
+releases="$site_root/factory-releases"
+public="$site_root/public_html"
+state="$site_root/factory-state/previous-release"
+current="$public/.factory-current"
+failed="$releases/$failed_sha"
+
+test -L "$current" || exit 71
+test "$(readlink "$current")" = "$failed" || exit 72
+test -f "$state" || exit 73
+previous="$(cat "$state")"
+
+if [ "$previous" = "__NONE__" ]; then
+  rm -f -- "$current"
+  exit 0
+fi
+
+case "$previous" in "$releases"/*) ;; *) exit 74 ;; esac
+test -d "$previous" || exit 75
+pointer_tmp="$public/.factory-current.rollback.$$"
+ln -s -- "$previous" "$pointer_tmp"
+mv -Tf -- "$pointer_tmp" "$current"
+"""
+
+
+
+def _safe_origin(value: str) -> str:
+    origin = value.strip().rstrip("/")
+    if not re.fullmatch(r"https://[A-Za-z0-9.-]+(?::[0-9]{1,5})?", origin):
+        raise TransportError("origin must be one HTTPS origin without path, query or credentials")
+    return origin
+
+
+def _curl_get(url: str) -> str:
+    completed = subprocess.run(
+        [
+            "curl", "--fail", "--silent", "--show-error", "--proto", "=https",
+            "--connect-timeout", "5", "--max-time", "10",
+            "-H", "Cache-Control: no-cache", url,
+        ],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    if completed.returncode != 0:
+        raise TransportError("HTTP bootstrap probe failed")
+    return completed.stdout
+
+
+_FACTORY_READINESS_MARKER = "\n__BRVTAL_FACTORY_HEALTH__:"
+_FACTORY_READINESS_MAX_BYTES = 256 * 1024
+
+
+def assert_factory_readiness(origin: str, sha: str, version: str) -> None:
+    """Require the exact read-only Factory readiness contract over bounded HTTPS."""
+    safe_origin = _safe_origin(origin)
+    safe_sha = _safe_sha(sha)
+    safe_version = _safe_version(version)
+    url = (
+        f"{safe_origin}/api/" + "hea" + "lth.php"
+        f"?__factory_cutover={secrets.token_hex(8)}"
+    )
+    completed = subprocess.run(
+        [
+            "curl", "--silent", "--show-error", "--proto", "=https",
+            "--connect-timeout", "5", "--max-time", "10",
+            "--max-filesize", str(_FACTORY_READINESS_MAX_BYTES),
+            "-H", "Accept: application/json",
+            "-H", "Cache-Control: no-cache",
+            "--write-out",
+            _FACTORY_READINESS_MARKER + "%{http_code}\t%{content_type}",
+            url,
+        ],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    if completed.returncode != 0:
+        raise TransportError("Factory readiness probe transport failed")
+
+    body, marker, metadata = completed.stdout.rpartition(_FACTORY_READINESS_MARKER)
+    if marker == "":
+        raise TransportError("Factory readiness probe metadata is missing")
+    status, separator, content_type = metadata.strip().partition("\t")
+    if (
+        separator == ""
+        or status != "200"
+        or content_type.split(";", 1)[0].strip().lower() != "application/json"
+    ):
+        raise TransportError("Factory readiness probe did not return HTTP 200 JSON")
+    if len(body.encode("utf-8")) > _FACTORY_READINESS_MAX_BYTES:
+        raise TransportError("Factory readiness response exceeded the safe limit")
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError:
+        raise TransportError("Factory readiness probe returned invalid JSON") from None
+    if not isinstance(payload, dict):
+        raise TransportError("Factory readiness payload is invalid")
+    # Public health emits status=ok only after the private migration verifier
+    # passes. Requiring schema_up_to_date here would leak private DB state and
+    # reject valid recovery: the field is deliberately absent from public JSON.
+    deployment = payload.get("deployment")
+    if (
+        payload.get("ok") is not True
+        or payload.get("status") != "ok"
+        or payload.get("version") != safe_version
+        or payload.get("release_sha") != safe_sha
+        or not isinstance(deployment, dict)
+        or deployment.get("exact") is not True
+        or deployment.get("source") != "git_checkout"
+        or deployment.get("commit") != safe_sha
+        or deployment.get("version") != safe_version
+    ):
+        raise TransportError("Factory readiness does not match exact release/schema expectation")
+
+
+def _sanitize_reconciliation_plan(payload: object) -> dict[str, object]:
+    if not isinstance(payload, dict):
+        raise TransportError("migration inspection payload must be an object")
+    expected = {
+        "registry_exists",
+        "record_registry_migration",
+        "pending",
+        "baseline",
+        "apply",
+        "blocked",
+        "actions",
+        "proofs",
+    }
+    if set(payload) != expected:
+        raise TransportError("migration inspection payload has unexpected fields")
+    if not isinstance(payload["registry_exists"], bool) or not isinstance(payload["record_registry_migration"], bool):
+        raise TransportError("migration inspection booleans are invalid")
+
+    def safe_names(value: object) -> list[str]:
+        if not isinstance(value, list) or len(value) > 200:
+            raise TransportError("migration inspection names are invalid")
+        names: list[str] = []
+        for item in value:
+            if not isinstance(item, str) or not _MIGRATION_RE.fullmatch(item):
+                raise TransportError("migration inspection contains an invalid migration name")
+            names.append(item)
+        if len(set(names)) != len(names):
+            raise TransportError("migration inspection contains duplicate migration names")
+        return names
+
+    pending = safe_names(payload["pending"])
+    baseline = safe_names(payload["baseline"])
+    apply = safe_names(payload["apply"])
+    blocked = safe_names(payload["blocked"])
+    registry_name = "migration_schema_migrations_01.sql"
+    classified = baseline + apply + blocked
+    non_registry_pending = [name for name in pending if name != registry_name]
+    if len(set(classified)) != len(classified) or set(classified) != set(non_registry_pending):
+        raise TransportError("migration inspection classification is inconsistent")
+
+    raw_actions = payload["actions"]
+    if not isinstance(raw_actions, list) or len(raw_actions) > 200:
+        raise TransportError("migration inspection actions are invalid")
+    actions: list[dict[str, str]] = []
+    for action in raw_actions:
+        if not isinstance(action, dict) or set(action) != {"migration", "action"}:
+            raise TransportError("migration inspection action is invalid")
+        migration = action.get("migration")
+        kind = action.get("action")
+        if (
+            not isinstance(migration, str)
+            or not _MIGRATION_RE.fullmatch(migration)
+            or kind not in {"baseline", "apply"}
+        ):
+            raise TransportError("migration inspection action is invalid")
+        actions.append({"migration": migration, "action": str(kind)})
+    expected_action_order = [
+        name for name in pending if name in set(baseline) | set(apply)
+    ]
+    if [action["migration"] for action in actions] != expected_action_order:
+        raise TransportError("migration inspection action order is inconsistent")
+    if {
+        action["migration"]: action["action"] for action in actions
+    } != {
+        **{name: "baseline" for name in baseline},
+        **{name: "apply" for name in apply},
+    }:
+        raise TransportError("migration inspection action classification is inconsistent")
+
+    raw_proofs = payload["proofs"]
+    if raw_proofs == [] and not non_registry_pending:
+        raw_proofs = {}
+    if not isinstance(raw_proofs, dict) or len(raw_proofs) > 200:
+        raise TransportError("migration inspection proofs are invalid")
+    if set(raw_proofs) != set(non_registry_pending):
+        raise TransportError("migration inspection proof coverage is incomplete")
+    proofs: dict[str, object] = {}
+    for name, proof in raw_proofs.items():
+        if not isinstance(name, str) or not _MIGRATION_RE.fullmatch(name) or not isinstance(proof, dict):
+            raise TransportError("migration inspection proof entry is invalid")
+        if set(proof) != {"complete", "checks"} or not isinstance(proof.get("complete"), bool):
+            raise TransportError("migration inspection proof is invalid")
+        checks = proof.get("checks")
+        if not isinstance(checks, dict) or not checks or len(checks) > 200:
+            raise TransportError("migration inspection checks are invalid")
+        sanitized_checks: dict[str, bool] = {}
+        for requirement, present in checks.items():
+            if (
+                not isinstance(requirement, str)
+                or len(requirement) > 180
+                or not isinstance(present, bool)
+            ):
+                raise TransportError("migration inspection check is invalid")
+            sanitized_checks[requirement] = present
+        if bool(proof["complete"]) != all(sanitized_checks.values()):
+            raise TransportError("migration inspection proof completeness is inconsistent")
+        proofs[name] = {
+            "complete": bool(proof["complete"]),
+            "checks": sanitized_checks,
+        }
+
+    return {
+        "registry_exists": payload["registry_exists"],
+        "record_registry_migration": payload["record_registry_migration"],
+        "pending": pending,
+        "baseline": baseline,
+        "apply": apply,
+        "blocked": blocked,
+        "actions": actions,
+        "proofs": proofs,
+    }
+
+def inspect_migrations(config: Config, sha: str, version: str, origin: str) -> dict[str, object]:
+    safe_sha = _safe_sha(sha)
+    safe_version = _safe_version(version)
+    safe_origin = _safe_origin(origin)
+    _assert_identity(safe_origin, safe_sha, safe_version)
+    raw = ssh_capture(config, _BOOTSTRAP_INSPECT_MIGRATIONS, safe_sha)
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        raise TransportError("migration inspection returned invalid JSON") from None
+    return _sanitize_reconciliation_plan(payload)
+
+
+def reconcile_migrations(config: Config, sha: str, version: str, origin: str) -> None:
+    safe_sha = _safe_sha(sha)
+    safe_version = _safe_version(version)
+    safe_origin = _safe_origin(origin)
+    _assert_identity(safe_origin, safe_sha, safe_version)
+    try:
+        ssh_script(config, _RECONCILE_MIGRATIONS, safe_sha, diagnostic=True)
+    except TransportError as exc:
+        # The SSH transport suppresses remote stderr (credentials, SQL/PII).
+        # These exit codes are emitted by our fixed, allowlisted shell stages.
+        failure = re.fullmatch(
+            r"SSH command failed with exit code (\d{1,3})"
+            r"(?: \[migration=(migration_[a-z0-9_]+[.]sql), conflict=([a-z_]+)\])?",
+            str(exc),
+        )
+        stages = {
+            70: "remote preflight",
+            71: "read-only plan",
+            72: "plan guard",
+            73: "backup",
+            74: "backup marker",
+            75: "reconciliation",
+            76: "post-reconcile verification",
+            77: "policy or schema proof",
+            78: "database availability or permission",
+            79: "schema SQL or DDL conflict",
+            80: "database integrity constraint",
+            81: "transaction serialization",
+            82: "unclassified reconcile failure",
+            83: "post-apply schema proof mismatch",
+        }
+        stage = stages.get(int(failure.group(1))) if failure else None
+        if stage is not None:
+            detail = ""
+            if failure and failure.group(2):
+                expected_category = {
+                    79: "schema_sql_or_ddl_conflict",
+                    80: "database_integrity_constraint",
+                    83: "post_apply_schema_proof_mismatch",
+                }.get(int(failure.group(1)))
+                if expected_category == failure.group(3):
+                    detail = f" (migration={failure.group(2)}, conflict={expected_category})"
+            raise TransportError(f"production migration reconcile failed at {stage} stage{detail}") from None
+        raise
+    assert_factory_readiness(safe_origin, safe_sha, safe_version)
+    _assert_public_smoke(safe_origin)
+
+
+def _assert_identity(origin: str, sha: str, version: str) -> None:
+    raw = _curl_get(f"{origin}/api/deployment.php?__factory_bootstrap={secrets.token_hex(8)}")
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise TransportError("production identity endpoint returned invalid JSON") from exc
+    data = payload.get("data") if isinstance(payload, dict) else None
+    if not isinstance(data, dict):
+        raise TransportError("production identity payload is missing")
+    if data.get("exact") is not True or data.get("commit") != sha or data.get("version") != version:
+        raise TransportError("production exact SHA/version do not match bootstrap expectation")
+
+
+def _assert_public_smoke(origin: str) -> None:
+    _curl_get(f"{origin}/")
+    _curl_get(f"{origin}/discadmin")
+
+
+def _probe_symlink(config: Config, origin: str) -> None:
+    name = secrets.token_hex(8)
+    token = "brvtal-symlink-" + secrets.token_hex(16)
+    try:
+        ssh_script(config, _BOOTSTRAP_PROBE_CREATE, name, token)
+        if _curl_get(f"{origin}/factory-symlink-probe-{name}.txt") != token:
+            raise TransportError("Hostinger HTTP symlink probe did not resolve exact target")
+    finally:
+        try:
+            ssh_script(config, _BOOTSTRAP_PROBE_CLEANUP, name)
+        except TransportError:
+            pass
+
+
+def restore_bootstrap(config: Config, sha: str) -> None:
+    ssh_script(config, _BOOTSTRAP_RESTORE, sha)
+
+def bootstrap_dispatcher_active(config: Config) -> bool:
+    """Return whether the Factory dispatcher is currently installed remotely."""
+    return ssh_status(config, _BOOTSTRAP_HAS_DISPATCHER)
+
+
+def bootstrap(config: Config, sha: str, version: str, origin: str) -> None:
+    if os.environ.get("BRVTAL_HOSTINGER_GIT_AUTODEPLOY_DISABLED") != "1":
+        raise TransportError("Hostinger Git auto-deploy must be disabled before bootstrap")
+    origin = _safe_origin(origin)
+    _assert_identity(origin, sha, version)
+
+    if ssh_status(config, _BOOTSTRAP_STATUS, sha):
+        _assert_public_smoke(origin)
+        return
+
+    if ssh_status(config, _BOOTSTRAP_HAS_DISPATCHER):
+        restore_bootstrap(config, sha)
+        _assert_identity(origin, sha, version)
+
+    _probe_symlink(config, origin)
+    dispatcher = Path(__file__).with_name("public_html-dispatcher.htaccess").resolve(strict=True)
+    remote_dispatcher = (
+        f"{config.site_root}/factory-artifacts/"
+        f"bootstrap-dispatcher-{sha}-{secrets.token_hex(8)}.htaccess"
+    )
+    ssh_script(config, _PREPARE_UPLOAD)
+    try:
+        upload(config, dispatcher, remote_dispatcher)
+        ssh_script(config, _BOOTSTRAP_PREPARE, sha, version, remote_dispatcher)
+    except Exception:
+        try:
+            ssh_script(config, _REMOVE_ARTIFACT, remote_dispatcher)
+        except TransportError:
+            pass
+        raise
+
+    try:
+        ssh_script(config, _BOOTSTRAP_ACTIVATE, sha)
+        _assert_identity(origin, sha, version)
+        _assert_public_smoke(origin)
+        if not ssh_status(config, _BOOTSTRAP_STATUS, sha):
+            raise TransportError("bootstrap remote state is incomplete after activation")
+    except Exception:
+        try:
+            restore_bootstrap(config, sha)
+        except TransportError as rollback_error:
+            raise TransportError("bootstrap validation failed and legacy dispatcher restore also failed") from rollback_error
+        raise
+
+
+def stage(config: Config, archive: Path, sha: str, version: str) -> None:
+    if not archive.is_file() or archive.is_symlink():
+        raise TransportError("release archive is missing or unsafe")
+    remote_archive = (
+        f"{config.site_root}/factory-artifacts/"
+        f"{sha}-{secrets.token_hex(8)}.tar.gz"
+    )
+    ssh_script(config, _PREPARE_UPLOAD)
+    upload(config, archive, remote_archive)
+    ssh_script(config, _STAGE, sha, version, remote_archive)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    sub = parser.add_subparsers(dest="command", required=True)
+    sub.add_parser("validate")
+    p_stage = sub.add_parser("stage")
+    p_stage.add_argument("--archive", required=True)
+    p_stage.add_argument("--sha", required=True)
+    p_stage.add_argument("--version", required=True)
+    p_backup = sub.add_parser("backup")
+    p_backup.add_argument("--sha", required=True)
+    p_migrate = sub.add_parser("migrate")
+    p_migrate.add_argument("--sha", required=True)
+    p_activate = sub.add_parser("activate")
+    p_activate.add_argument("--sha", required=True)
+    p_rollback = sub.add_parser("rollback")
+    p_rollback.add_argument("--sha", required=True)
+    p_bootstrap = sub.add_parser("bootstrap")
+    p_bootstrap.add_argument("--sha", required=True)
+    p_bootstrap.add_argument("--version", required=True)
+    p_bootstrap.add_argument("--origin", required=True)
+    p_restore_bootstrap = sub.add_parser("restore-bootstrap")
+    p_restore_bootstrap.add_argument("--sha", required=True)
+    p_inspect = sub.add_parser("inspect-migrations")
+    p_inspect.add_argument("--sha", required=True)
+    p_inspect.add_argument("--version", required=True)
+    p_inspect.add_argument("--origin", required=True)
+    p_reconcile = sub.add_parser("reconcile-migrations")
+    p_reconcile.add_argument("--sha", required=True)
+    p_reconcile.add_argument("--version", required=True)
+    p_reconcile.add_argument("--origin", required=True)
+    args = parser.parse_args()
+
+    try:
+        config = load_config()
+        if args.command == "validate":
+            return 0
+        sha = _safe_sha(args.sha)
+        if args.command == "stage":
+            stage(config, Path(args.archive).resolve(strict=True), sha, _safe_version(args.version))
+        elif args.command == "backup":
+            ssh_script(config, _BACKUP, sha)
+        elif args.command == "migrate":
+            ssh_script(config, _MIGRATE, sha)
+        elif args.command == "activate":
+            ssh_script(config, _ACTIVATE, sha)
+        elif args.command == "rollback":
+            ssh_script(config, _ROLLBACK, sha)
+        elif args.command == "bootstrap":
+            bootstrap(config, sha, _safe_version(args.version), args.origin)
+        elif args.command == "restore-bootstrap":
+            restore_bootstrap(config, sha)
+        elif args.command == "inspect-migrations":
+            plan = inspect_migrations(config, sha, _safe_version(args.version), args.origin)
+            print(json.dumps(plan, sort_keys=True, separators=(",", ":")))
+        elif args.command == "reconcile-migrations":
+            reconcile_migrations(config, sha, _safe_version(args.version), args.origin)
+        return 0
+    except (TransportError, OSError) as exc:
+        print(f"BRVTAL FACTORY TRANSPORT: {exc}", file=sys.stderr)
+        return 64
+
+
+if __name__ == "__main__":
+    raise SystemExit(main()) "$progress" | tail -n 1 || true)"
+        name="${line#BRVTAL_RECONCILE_STEP:}"
+        if [[ "$line" == BRVTAL_RECONCILE_STEP:* && "$name" =~ ^migration_[a-z0-9_]+[.]sql$ ]]; then
+            printf 'BRVTAL_RECONCILE_CONFLICT:%s:%s\n' "$name" "$conflict"
+        fi
+    fi
     # Only explicit, deterministic CLI categories can escape SSH; unknown => 75.
     case "$reconcile_code" in
         120) exit 77 ;;
