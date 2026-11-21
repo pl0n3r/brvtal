@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/rate_limit_store.php';
+require_once __DIR__ . '/ticketing_courtesy.php';
 
 /** Parse strictly typed scanner input; never trust order, cost or ownership from clients. */
 function brvtalTicketCheckinInput(array $body): array
@@ -140,9 +141,27 @@ function brvtalTicketCheckinConsume(PDO $pdo,int $eventId,int $operator,string $
                                 WHERE i.id=? AND i.event_id=? AND i.ticket_type_id=?");
                             $paid->execute([(int)$entry['order_item_id'],$eventId,(int)$entry['ticket_type_id']]);
                             $order=$paid->fetch(PDO::FETCH_ASSOC);
-                            if (!is_array($order)||$order['status']!=='paid'
-                                ||(int)$order['event_id']!==$eventId
-                                ||(int)$order['issued']!==1||(int)$order['verified']!==1) {
+                            $paidValid=is_array($order)&&$order['status']==='paid'
+                                &&(int)$order['event_id']===$eventId
+                                &&(int)$order['issued']===1&&(int)$order['verified']===1;
+                            $courtesyValid=false;
+                            // T25 is disabled by default. Existing paid QR scans never
+                            // depend on a pending courtesy migration or a fabricated payment.
+                            if (!$paidValid && brvtalCourtesyEnabled($pdo)) {
+                                $proof=$pdo->prepare("SELECT c.id FROM ticket_courtesy_invites c
+                                    JOIN ticket_orders o ON o.id=c.order_id
+                                    JOIN ticket_inventory_holds h ON h.order_id=o.id
+                                      AND h.event_id=c.event_id AND h.ticket_type_id=c.ticket_type_id
+                                    WHERE c.entry_id=? AND c.event_id=? AND c.ticket_type_id=?
+                                      AND c.status='issued' AND c.origin='courtesy'
+                                      AND o.status='draft' AND o.total_cop=0
+                                      AND h.kind='courtesy' AND h.status='consumed'
+                                      AND NOT EXISTS(SELECT 1 FROM ticket_payment_attempts a
+                                        WHERE a.order_id=o.id) LIMIT 1");
+                                $proof->execute([(int)$entry['id'],$eventId,(int)$entry['ticket_type_id']]);
+                                $courtesyValid=$proof->fetchColumn()!==false;
+                            }
+                            if (!$paidValid && !$courtesyValid) {
                                 $reason='payment_unverified';
                             } else {
                                 $up=$pdo->prepare("UPDATE ticket_entries
@@ -150,6 +169,11 @@ function brvtalTicketCheckinConsume(PDO $pdo,int $eventId,int $operator,string $
                                     WHERE id=? AND status='issued'");
                                 $up->execute([(int)$entry['id']]);
                                 if ($up->rowCount()!==1) throw new RuntimeException('CHECKIN_CONFLICT');
+                                if ($courtesyValid) {
+                                    $pdo->prepare("UPDATE ticket_courtesy_invites
+                                        SET status='used' WHERE entry_id=? AND status='issued'")
+                                        ->execute([(int)$entry['id']]);
+                                }
                                 $entryId=(int)$entry['id'];
                                 $version=(int)$credential['version'];
                                 $reason='accepted';

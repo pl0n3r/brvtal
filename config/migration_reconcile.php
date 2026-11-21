@@ -182,6 +182,12 @@ function brvtalMigrationProofSpecifications(): array
                 ['PRIMARY','uq_inventory_hold_order_type','idx_inventory_event_expiry',
                  'idx_inventory_type_expiry'], true)
         ),
+        'migration_ticketing_courtesy_01.sql' => brvtalMigrationObjectRequirements(
+            'ticket_courtesy_invites',
+            ['event_id','ticket_type_id','order_id','entry_id','origin',
+             'recipient_digest','request_digest','authorized_by','status','resend_requests'],
+            ['uq_courtesy_event_recipient','uq_courtesy_request','uq_courtesy_entry'], true
+        ),
         'migration_ticketing_admin_notes_01.sql' => brvtalMigrationObjectRequirements(
             'ticket_admin_actions',
             ['order_id','actor_admin_id','action','request_key_hash','request_hash',
@@ -686,6 +692,16 @@ function brvtalMigrationOrderDependencyActions(array $actions): array
         $parentAction = $actions[$parentIndex];
         array_splice($actions, $parentIndex, 1);
         array_splice($actions, $firstDependentIndex, 0, [$parentAction]);
+    }
+    // T25 depends on T03 orders, T04 credentials and T05 inventory;
+    // a brand-new courtesy table must be installed after all three.
+    foreach ($actions as $index => $action) {
+        if (($action['migration'] ?? null) === 'migration_ticketing_courtesy_01.sql') {
+            $courtesy = $action;
+            array_splice($actions, $index, 1);
+            $actions[] = $courtesy;
+            break;
+        }
     }
     return $actions;
 }
