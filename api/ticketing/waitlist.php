@@ -6,6 +6,9 @@ require_once __DIR__ . '/../../config/buyer_auth.php';
 require_once __DIR__ . '/../../config/ticketing_waitlist.php';
 require_once __DIR__ . '/../../config/public_abuse_guard.php';
 
+// The required bootstrap loads and validates this configuration.
+/** @var array<string, mixed> $config */
+
 header('Cache-Control: no-store, private');
 header('Referrer-Policy: no-referrer');
 header('X-Content-Type-Options: nosniff');

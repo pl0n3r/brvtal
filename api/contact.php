@@ -5,6 +5,9 @@ require_once __DIR__ . '/../config/bootstrap.php';
 require_once __DIR__ . '/../config/public_contact.php';
 require_once __DIR__ . '/../config/public_abuse_guard.php';
 
+// The required bootstrap loads and validates this configuration.
+/** @var array<string, mixed> $config */
+
 if (!headers_sent()) {
     header('Cache-Control: no-store');
     header('Pragma: no-cache');
