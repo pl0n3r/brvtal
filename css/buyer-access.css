@@ -1,0 +1,230 @@
+/* BRVTAL / MI CUENTA — public Cromo identity, not the administration shell. */
+@font-face{
+  font-family:"Broken Glass";
+  src:url("/assets/fonts/BrokenGlass.ttf") format("truetype");
+  font-style:normal;
+  font-weight:400;
+  font-display:swap;
+}
+:root{
+  color-scheme:dark;
+  --access-black:var(--bg,#050505);
+  --access-bone:var(--fg,#f4f1e8);
+  --access-muted:#b6b2ab;
+  --access-line:rgba(244,241,232,.24);
+  --access-red:var(--red,#e12e34);
+  --access-plate:#0c0c0c;
+}
+*{box-sizing:border-box}
+html{min-width:0;scroll-behavior:auto}
+body.buyer-access{
+  margin:0;
+  min-width:0;
+  min-height:100svh;
+  color:var(--access-bone);
+  background:var(--access-black);
+  font:500 18px/1.32 "Barlow Condensed","Arial Narrow",Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:clip;
+}
+body.buyer-access::before{
+  content:"";
+  position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:
+    radial-gradient(circle at 50% 33%,rgba(198,19,29,.17),transparent 27rem),
+    linear-gradient(90deg,transparent 0 49.9%,rgba(255,255,255,.025) 50%,transparent 50.1%),
+    repeating-linear-gradient(0deg,transparent 0 73px,rgba(244,241,232,.023) 74px 75px),
+    #050505;
+}
+body.buyer-access::after{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+  opacity:.13;
+  background:repeating-linear-gradient(0deg,transparent 0 3px,rgba(255,255,255,.055) 4px 5px);
+}
+.buyer-access a{color:inherit;text-underline-offset:.2em}
+.buyer-access :focus-visible{
+  outline:3px solid #f4f1e8;
+  outline-offset:4px;
+}
+.buyer-access button,.buyer-access input{font:inherit}
+.buyer-access button{cursor:pointer}
+.buyer-access button:disabled{cursor:wait;opacity:.58}
+.buyer-access [hidden]{display:none!important}
+.access-topbar,.access-main,.access-footer{position:relative;z-index:1}
+.access-topbar{
+  display:flex;align-items:center;justify-content:space-between;gap:16px;
+  min-height:88px;padding:20px clamp(20px,4vw,56px);
+  border-bottom:1px solid var(--access-line);
+  background:rgba(5,5,5,.68);
+}
+.access-brand{
+  display:flex;flex-direction:column;width:max-content;
+  text-decoration:none;font-size:31px;letter-spacing:-.065em;
+  line-height:.79;font-weight:900;
+}
+.access-brand span{
+  display:block;margin-top:11px;
+  color:var(--access-muted);
+  font:600 11px/1 "Space Mono",monospace;
+  letter-spacing:.18em;
+}
+.access-brand:hover{color:#fff}
+.access-topnote,.access-overline,.access-meta,.access-bottom,.access-footer,
+.access-hint,.access-password .access-toggle,.access-submit{
+  font-family:"Space Mono",ui-monospace,SFMono-Regular,Consolas,monospace;
+}
+.access-topnote{
+  color:var(--access-muted);
+  font-size:11px;line-height:1.4;letter-spacing:.12em;text-align:right;
+}
+.access-main{
+  display:flex;justify-content:center;align-items:center;
+  padding:clamp(35px,7vh,92px) 16px;
+  min-height:calc(100svh - 148px);
+}
+.access-shell{width:min(100%,26rem);min-width:0}
+.access-overline{
+  display:flex;align-items:center;gap:10px;
+  font-size:10px;font-weight:700;letter-spacing:.08em;
+  color:#d0ccc4;margin-bottom:15px;white-space:normal;
+}
+.access-overline span:last-child{margin-left:auto;color:#96918a}
+.access-dot{
+  display:inline-block;flex:0 0 6px;height:6px;width:6px;
+  background:#ec3741;box-shadow:0 0 0 3px rgba(236,55,65,.18);
+}
+.access-card{
+  position:relative;width:100%;min-width:0;
+  border:1px solid var(--access-line);
+  border-top:3px solid var(--access-red);
+  background:linear-gradient(152deg,#111 0%,#0b0b0b 52%,#090909 100%);
+  box-shadow:12px 12px 0 rgba(0,0,0,.38),0 24px 100px rgba(0,0,0,.4);
+  padding:clamp(21px,5vw,36px);
+}
+.access-card::after{
+  content:"";position:absolute;right:-1px;bottom:-1px;width:24px;height:24px;
+  border-right:2px solid var(--access-red);border-bottom:2px solid var(--access-red);
+  pointer-events:none;
+}
+.access-meta{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  margin-bottom:24px;color:#d6d2c9;
+  font-size:10px;font-weight:600;letter-spacing:.11em;
+}
+.access-meta span:last-child{font-size:20px;color:var(--access-red);line-height:1}
+.access-view h1,.buyer-reset h1{
+  max-width:100%;margin:0;
+  color:var(--access-bone);
+  font:400 clamp(39px,8vw,58px)/.94 "Broken Glass","Barlow Condensed",Impact,sans-serif;
+  text-transform:uppercase;letter-spacing:-.035em;
+  text-wrap:balance;overflow-wrap:normal;
+}
+.access-view h1 em,.buyer-reset h1 em{
+  color:#f6f1e8;font-style:normal;
+  text-shadow:2px 2px 0 rgba(225,46,52,.6);
+}
+.access-lead{
+  margin:15px 0 26px;max-width:33ch;
+  color:#d1ccc4;font-size:18px;line-height:1.38;
+}
+.access-field{margin-top:19px;min-width:0}
+.access-field label{
+  display:block;color:#f4f1e8;margin-bottom:8px;
+  font-size:15px;font-weight:700;letter-spacing:.015em;
+}
+.access-field-row{
+  display:flex;gap:9px;justify-content:space-between;align-items:baseline;
+  flex-wrap:wrap;
+}
+.access-field-row a{margin:0 0 8px;font-size:14px;color:#f19ca0}
+.access-field input{
+  display:block;width:100%;min-width:0;min-height:50px;
+  border:1px solid rgba(244,241,232,.42);
+  border-radius:0;background:#141414;color:#fff;
+  padding:12px 14px;
+  font:500 17px/1.2 "Barlow Condensed",Arial,sans-serif;
+  transition:border-color 150ms ease,background-color 150ms ease;
+}
+.access-field input::placeholder{color:#99968f}
+.access-field input:hover{border-color:rgba(244,241,232,.72)}
+.access-field input:focus{border-color:#f19ca0;background:#1a1616}
+.access-field input:focus-visible{outline-offset:2px}
+.access-password{position:relative;min-width:0}
+.access-password input{padding-right:95px}
+.access-password .access-toggle{
+  position:absolute;top:0;right:0;
+  height:100%;min-width:85px;padding:0 9px;
+  background:transparent;color:#faf1e9;
+  border:0;border-left:1px solid var(--access-line);
+  font-size:11px;font-weight:700;
+}
+.access-password .access-toggle:focus-visible{outline-offset:-4px}
+.access-hint{font-size:11px;line-height:1.55;color:#c3bfb6;margin:7px 0 0}
+.access-consent{
+  display:flex;gap:12px;align-items:flex-start;
+  margin:23px 0 4px;color:#dbd6ce;font-size:15px;line-height:1.34;
+}
+.access-consent input{
+  appearance:auto;flex:0 0 auto;width:19px;height:19px;
+  margin:1px 0 0;accent-color:#e12e34;
+}
+.access-consent a{color:#fff;text-decoration-thickness:1px}
+.access-submit{
+  display:flex;align-items:center;justify-content:space-between;
+  width:100%;min-height:54px;margin:25px 0 0;
+  padding:0 17px;border:0;border-radius:0;
+  background:#e12e34;color:#fff;
+  font-size:12px;font-weight:700;letter-spacing:.045em;
+  text-align:left;
+  transition:background-color 160ms ease,transform 160ms ease;
+}
+.access-submit span{font-size:20px}
+.access-submit:hover:not(:disabled){background:#ba1924;transform:translateY(-1px)}
+.access-submit:focus-visible{outline-color:#fff}
+.access-footnote{
+  border-top:1px solid var(--access-line);
+  padding-top:20px;margin:25px 0 0;color:#c9c5bd;
+  font-size:16px;line-height:1.4;
+}
+.access-footnote a{color:#fff;font-weight:700}
+.access-mail-note{margin-top:15px}
+.access-message{
+  margin:18px 0 0;border-left:3px solid #aaa;
+  background:rgba(244,241,232,.06);padding:12px 14px;
+  color:#ede9e2;font-size:16px;line-height:1.4;
+  overflow-wrap:anywhere;
+}
+.access-message:empty{margin:0;padding:0;border:0;background:transparent}
+.access-message[data-tone="error"]{border-color:#e12e34;background:rgba(225,46,52,.12)}
+.access-message[data-tone="success"]{border-color:#c7e2ad;background:rgba(148,196,126,.10)}
+.access-bottom{
+  display:flex;flex-wrap:wrap;gap:8px 16px;justify-content:space-between;
+  margin-top:20px;color:#a7a198;font-size:10px;line-height:1.5;
+  letter-spacing:.04em;
+}
+.access-footer{
+  display:flex;justify-content:space-between;align-items:center;gap:14px;
+  border-top:1px solid var(--access-line);
+  min-height:60px;padding:15px clamp(20px,4vw,56px);
+  font-size:11px;letter-spacing:.08em;
+  color:#bfbab1;
+}
+.access-footer span{font-family:"Space Mono",monospace}
+.access-footer a{text-decoration:none;font-size:14px}
+.access-footer a:hover{text-decoration:underline}
+@media(max-width:460px){
+  .access-topbar{min-height:72px;padding:15px 17px}
+  .access-brand{font-size:26px}
+  .access-brand span{font-size:9px;letter-spacing:.1em;margin-top:9px}
+  .access-topnote{font-size:9px;max-width:135px}
+  .access-main{padding:31px 16px 42px;min-height:calc(100svh - 120px)}
+  .access-card{padding:24px 20px;box-shadow:6px 6px 0 rgba(0,0,0,.38)}
+  .access-view h1,.buyer-reset h1{font-size:clamp(39px,10vw,50px)}
+  .access-field-row a{font-size:14px}
+  .access-footer{padding:16px;font-size:10px}
+  .access-bottom{font-size:9px}
+}
+@media(prefers-reduced-motion:reduce){
+  .access-submit,.access-field input{transition:none}
+  .access-submit:hover:not(:disabled){transform:none}
+}
