@@ -276,6 +276,12 @@
        <div class="sv2-secret-card-meta"><span class="sv2-secret-badge ${state==="Falta"?"is-missing":"is-configured"}" data-provider-state>${esc(state)}</span><small data-provider-updated>${esc(updated)}</small></div>
      </header>
      <div class="sv2-secret-fields">${provider.fields.map(field=>integrationField(field,items,writable)).join("")}</div>
+     ${provider.id==="resend"?`<div class="sv2-secret-field">
+       <label class="sv2-secret-label" for="sv2-mail-test-to">Enviar prueba a</label>
+       <input id="sv2-mail-test-to" type="email" data-mail-test-to autocomplete="email" inputmode="email"
+         autocapitalize="off" spellcheck="false" placeholder="tu@correo.co" ${writable?"":"disabled"}>
+       <small class="sv2-secret-help">Envía un correo real marcado «[PRUEBA]» con la configuración guardada. Funciona en cualquier modo.</small>
+     </div>`:""}
      ${mailAllowlistField(provider,items,writable)}
      <footer class="sv2-secret-card-footer">
        <p role="status" aria-live="polite" data-secret-feedback>Los campos vacíos no se modificarán.</p>
@@ -304,10 +310,11 @@
      SECRET_FORMAT_INVALID:"El formato no es válido. Revisa el ejemplo del campo.",
      SECRET_KEY_NOT_ALLOWED:"Esta clave no se puede configurar.",
      SECRET_STORE_UNAVAILABLE:"El almacenamiento no está disponible. Inténtalo de nuevo.",
-     TEST_MODE_REQUIRED:"Activa el modo test en la configuración privada antes de enviar.",
-     TEST_RECIPIENTS_EMPTY:"Configura al menos un destinatario permitido de prueba.",
-     MAIL_TEST_RATE_LIMITED:"Ya se solicitó un correo de prueba. Vuelve a intentarlo más tarde.",
-     MAIL_TEST_NOT_ACCEPTED:"El proveedor no confirmó el correo de prueba.",
+     TEST_RECIPIENT_REQUIRED:"Escribe el correo al que quieres enviar la prueba.",
+     TEST_RECIPIENT_INVALID:"Ese correo no es válido. Revísalo e inténtalo de nuevo.",
+     MAIL_NOT_CONFIGURED:"Guarda primero la clave de API, el dominio y el remitente de Resend.",
+     MAIL_TEST_RATE_LIMITED:"Solo se puede enviar un correo de prueba por minuto.",
+     MAIL_TEST_NOT_ACCEPTED:"Resend no aceptó el correo. Revisa la clave, el dominio verificado y el remitente.",
      MAIL_TEST_UNAVAILABLE:"El correo de prueba no está disponible. Revisa la configuración.",
      HTTP_401:"Debes iniciar sesión como administrador.",
      HTTP_403:"No tienes autorización para esta operación."
@@ -435,13 +442,13 @@
       const response=await fetch("/api/admin-integration-test-mail.php",{
         method:"POST",credentials:"same-origin",cache:"no-store",
         headers:{"Content-Type":"application/json","X-CSRF-Token":csrf},
-        body:"{}"
+        body:JSON.stringify({email:String(card.querySelector("[data-mail-test-to]")?.value||"").trim()})
       });
       const payload=await response.json().catch(()=>({}));
       if(!response.ok || payload.ok!==true || payload.state!=="accepted"){
         throw new Error(String(payload.error||"MAIL_TEST_NOT_ACCEPTED"));
       }
-      feedback.textContent="Correo de prueba aceptado para el primer destinatario permitido.";
+      feedback.textContent="Correo de prueba enviado. Revisa la bandeja de entrada (y el spam).";
     }catch(error){
       feedback.textContent=integrationError(error);
     }finally{
