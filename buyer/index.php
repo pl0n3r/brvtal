@@ -101,10 +101,10 @@
     if([...eventSelect.options].some(option=>option.value===selected))eventSelect.value=selected;
   }
   function emptyState(filtered){
-    const box=el('div');box.className='account-empty';box.setAttribute('role','status');box.setAttribute('aria-live','polite');
-    box.append(el('h2',filtered?'No encontramos compras con esos filtros':'Todavía no tienes compras'),
-      el('p',filtered?'Prueba con otro evento o cambia las fechas para encontrar tu pedido.':
-        'Cuando consigas tu primera entrada, podrás verla aquí.'));
+    const box=el('div');box.className='account-empty';
+    const title=el('h2',filtered?'No encontramos compras con esos filtros':'Todavía no tienes compras');title.setAttribute('aria-live','polite');
+    box.append(title,el('p',filtered?'Prueba con otro evento o cambia las fechas para encontrar tu pedido.':
+      'Cuando consigas tu primera entrada, podrás verla aquí.'));
     const link=el('a','Ver la cartelera');link.href='/';link.className='account-action';
     box.append(link);return box;
   }

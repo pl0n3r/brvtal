@@ -48,6 +48,7 @@ test('mobile: empty orders and filters are clear and do not reveal a QR', async 
   await expect(page.getByRole('heading',{name:'Mis compras'})).toBeVisible();
   await expect(page.getByRole('status').first()).toHaveText('');
   await expect(page.getByRole('heading',{name:'Todavía no tienes compras'})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Todavía no tienes compras'})).toHaveAttribute('aria-live','polite');
   await expect(page.getByRole('region',{name:'Entrada QR'})).toBeHidden();
   await page.getByLabel('Desde').fill('2026-11-01');
   await page.getByRole('button',{name:'Aplicar filtros'}).click();
