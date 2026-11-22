@@ -43,7 +43,7 @@ $draft = brvtalMailAdminParsePost(['action'=>'save_draft','key'=>'order_pending'
 $preview = brvtalMailAdminParsePost(['action'=>'preview','key'=>'order_pending',
     'scope'=>'ticketing','template_copy'=>$copy]);
 $synthetic = brvtalMailAdminPreview(brvtal_mail_template_validate('order_pending','ticketing',$preview['template_copy']));
-admin_mail_check($synthetic['document']['message']==='Hola Evento de prueba'
+admin_mail_check($synthetic['template_copy']['message']==='Hola Evento de prueba'
     && $synthetic['mail_sent']===false && $synthetic['synthetic']===true,
     'synthetic preview without sender or token');
 admin_mail_reject(static fn()=>brvtalMailAdminParsePost($draft+['recipient'=>'x@test.invalid']),
