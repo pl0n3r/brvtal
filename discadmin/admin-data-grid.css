@@ -139,3 +139,89 @@
   .admin-data-grid-shell [data-order-item] > .content-order-handle,
   .admin-soundcloud-meta-status { transition:none!important; }
 }
+
+/* #1866 mobile event cards: original CSS above is the visual baseline. */
+.admin-data-grid-shell[data-grid-module="events"] .admin-grid-select-hit{display:contents}
+@media (max-width:599px){
+  .admin-data-grid-shell[data-grid-module="events"] .admin-grid-view-control>[data-grid-columns-toggle]{min-height:44px}
+  .admin-data-grid-shell[data-grid-module="events"] .admin-data-grid-scroll{
+    box-sizing:border-box;overflow:visible;border:0;background:transparent;max-width:100%
+  }
+  .admin-data-grid-shell[data-grid-module="events"] .admin-data-grid{
+    min-width:0;width:100%;max-width:100%
+  }
+  .admin-data-grid-shell[data-grid-module="events"] .admin-data-grid-head{
+    display:flex;flex-wrap:wrap;gap:2px 7px;align-items:center;
+    min-width:0;padding:6px;background:var(--panel-strong,#111416)
+  }
+  .admin-data-grid-shell[data-grid-module="events"] .admin-data-grid-head>div{
+    flex:0 1 auto;min-width:0;padding:0
+  }
+  .admin-data-grid-shell[data-grid-module="events"] .admin-data-grid-head .admin-grid-sort{
+    min-height:44px;padding:4px 7px
+  }
+  .admin-data-grid-shell[data-grid-module="events"] .admin-data-grid-head .admin-grid-actions-head{display:none}
+  .admin-data-grid-shell[data-grid-module="events"] .admin-grid-select-hit{
+    display:grid;place-items:center;box-sizing:border-box;width:44px;height:44px;cursor:pointer
+  }
+  .admin-data-grid-shell[data-grid-module="events"] .admin-grid-select-hit input{
+    width:20px;height:20px;accent-color:#ff2038;cursor:pointer
+  }
+  .admin-data-grid-shell[data-grid-module="events"] .admin-data-grid-row{
+    box-sizing:border-box;display:grid;grid-template-columns:44px minmax(0,1fr);
+    align-items:start;column-gap:9px;row-gap:3px;min-width:0;width:100%;
+    padding:11px 12px 13px;margin:10px 0;min-height:0;
+    border:1px solid var(--line,#30353a);border-radius:4px;
+    background:var(--panel-strong,#111416)
+  }
+  .admin-data-grid-shell[data-grid-module="events"] .admin-data-grid-row:first-child{
+    border-top:1px solid var(--line,#30353a)
+  }
+  .admin-data-grid-shell[data-grid-module="events"] .admin-data-grid-row>[role="cell"]{
+    box-sizing:border-box;min-width:0;padding:3px 0
+  }
+  .admin-data-grid-shell[data-grid-module="events"] .admin-data-grid-row>.admin-grid-select-cell{
+    grid-column:1;grid-row:1;padding:0
+  }
+  .admin-data-grid-shell[data-grid-module="events"] .admin-data-grid-row>.admin-grid-cell{
+    grid-column:2;overflow:visible;text-overflow:clip;overflow-wrap:anywhere
+  }
+  .admin-data-grid-shell[data-grid-module="events"] .admin-grid-cell:not(.admin-grid-cell-primary)::before{
+    content:attr(data-grid-label);flex:none;display:inline-block;
+    color:var(--muted,#aeb4b9);font:800 11px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;
+    letter-spacing:.05em
+  }
+  .admin-data-grid-shell[data-grid-module="events"] .admin-grid-cell:not(.admin-grid-cell-primary){
+    display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 9px;
+    min-height:26px;font-size:12px;line-height:1.45
+  }
+  .admin-data-grid-shell[data-grid-module="events"] .admin-grid-primary{
+    display:flex;min-width:0;align-items:flex-start;gap:10px
+  }
+  .admin-data-grid-shell[data-grid-module="events"] .admin-grid-primary>span:last-child{
+    flex:1;min-width:0
+  }
+  .admin-data-grid-shell[data-grid-module="events"] .admin-grid-primary strong{
+    white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:break-word;
+    font-size:14px;line-height:1.4
+  }
+  .admin-data-grid-shell[data-grid-module="events"] .admin-grid-primary small{
+    white-space:normal;overflow-wrap:anywhere
+  }
+  .admin-data-grid-shell[data-grid-module="events"] .admin-data-grid-row>.admin-grid-row-actions{
+    grid-column:1 / -1;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+    gap:8px;justify-content:stretch;padding:12px 0 0!important
+  }
+  .admin-data-grid-shell[data-grid-module="events"] .admin-grid-row-actions .admin-grid-action{
+    box-sizing:border-box;min-width:0;min-height:44px;padding:8px 11px;
+    border:1px solid var(--line,#34383d);white-space:nowrap
+  }
+  .admin-data-grid-shell[data-grid-module="events"] .admin-grid-action[data-grid-action="lineup"]{
+    background:var(--accent,#ff2038);border-color:var(--accent,#ff2038);color:#fff;
+    font-weight:800
+  }
+  .admin-data-grid-shell[data-grid-module="events"] .admin-grid-action[data-grid-action="delete"]{
+    grid-column:1 / -1;margin-top:10px;background:transparent;
+    border-color:rgba(255,96,117,.36);color:#f3a6ad
+  }
+}
