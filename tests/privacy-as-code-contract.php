@@ -110,7 +110,7 @@ privacy_expect(
     $buyerAccount['category'] === 'contact'
         && $buyerAccount['purpose'] === 'ticket_buyer_account'
         && $buyerAccount['fields'] === [
-            'public_id','email','email_verified_at','consent_version',
+            'public_id','email','full_name','email_verified_at','consent_version',
             'consent_recorded_at','status','created_at','updated_at',
         ]
         && $buyerAccount['providers'] === []

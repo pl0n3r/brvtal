@@ -330,6 +330,7 @@
       "fields": [
         "public_id",
         "email",
+        "full_name",
         "email_verified_at",
         "consent_version",
         "consent_recorded_at",
