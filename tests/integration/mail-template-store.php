@@ -111,4 +111,46 @@ mail_store_assert((int)$pdo->query("SELECT COUNT(*) FROM information_schema.COLU
     'no PII/secret columns');
 mail_store_assert((int)$pdo->query('SELECT COUNT(*) FROM mail_template_versions')->fetchColumn()===3,
     'no duplicate side effects or sends');
+// CRUD: read draft and update via immutable new revision, delete via audited
+// soft discard; all while the published version remains unchanged.
+$third=brvtal_mail_template_save_draft($pdo,'order_pending','ticketing',$mail,9,5);
+$read=brvtal_mail_template_read_draft($pdo,'order_pending','ticketing',$third['version_id']);
+mail_store_assert($read!==null
+    && $read['document']['message']==='Otro texto editorial seguro'
+    && $read['author_admin_id']===9, 'read latest draft');
+mail_store_assert(brvtal_mail_template_read_draft($pdo,'order_rejected','ticketing',$third['version_id'])===null,
+    'draft scoped to correct template');
+$discard=brvtal_mail_template_discard_draft($pdo,'order_pending','ticketing',$third['version_id'],8,6);
+mail_store_assert($discard['state']==='discarded' && $discard['revision']===7,
+    'soft-delete new CAS generation');
+mail_store_assert(brvtal_mail_template_read_draft($pdo,'order_pending','ticketing',$third['version_id'])===null,
+    'discarded drafts no longer readable');
+mail_store_assert(brvtal_mail_template_resolve($pdo,'order_pending','ticketing')['source']==='published',
+    'discard leaves published snapshot unchanged');
+mail_store_reject(static fn()=>brvtal_mail_template_publish(
+    $pdo,'order_pending','ticketing',$third['version_id'],8,7), 'discarded draft cannot publish');
+mail_store_reject(static fn()=>brvtal_mail_template_discard_draft(
+    $pdo,'order_pending','ticketing',$first['version_id'],8,7), 'published cannot discard');
+mail_store_assert((int)$pdo->query('SELECT COUNT(*) FROM mail_template_versions')->fetchColumn()===4,
+    'discard does not delete audit versions');
+$discarded=$pdo->query('SELECT discarded_by_admin_id FROM mail_template_versions
+    WHERE id='.(int)$third['version_id'])->fetchColumn();
+mail_store_assert((int)$discarded===8,'discard actor recorded');
+// An asset can be deleted/revoked between save and publish; revalidate
+// on the publication transaction instead of trusting an old approval.
+$assetCopy=$catalog['order_rejected']['defaults'];
+$assetCopy['theme']['logo_media_id']=55;
+$withAsset=brvtal_mail_template_save_draft($pdo,'order_rejected','ticketing',$assetCopy,4,0,
+    static fn(int $id): bool=>$id===55);
+mail_store_reject(static fn()=>brvtal_mail_template_publish(
+    $pdo,'order_rejected','ticketing',$withAsset['version_id'],4,1),
+    'media access revoked before publication');
+mail_store_assert(brvtal_mail_template_resolve($pdo,'order_rejected','ticketing')['source']==='catalog',
+    'denied publish keeps default');
+brvtal_mail_template_publish($pdo,'order_rejected','ticketing',$withAsset['version_id'],4,1,
+    static fn(int $id): bool=>$id===55);
+mail_store_assert(brvtal_mail_template_resolve($pdo,'order_rejected','ticketing')['source']==='published',
+    'allowlisted existing media can publish');
+mail_store_assert((int)$pdo->query('SELECT COUNT(*) FROM mail_template_versions')->fetchColumn()===5,
+    'no repeated publish side effect');
 echo "BRVTAL mail-template store synthetic MariaDB integration passed.\n";

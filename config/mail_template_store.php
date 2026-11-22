@@ -78,17 +78,25 @@ function brvtal_mail_template_save_draft(
 
 function brvtal_mail_template_publish(
     PDO $pdo, string $key, string $scope,
-    int $versionId, int $actorAdminId, int $expectedRevision
+    int $versionId, int $actorAdminId, int $expectedRevision,
+    ?callable $mediaAuthorized = null
 ): array {
     if ($actorAdminId < 1 || $versionId < 1) throw new InvalidArgumentException('MAIL_TEMPLATE_ACTOR_INVALID');
     return brvtal_mail_template_transaction($pdo, static function () use (
-        $pdo,$key,$scope,$versionId,$actorAdminId,$expectedRevision
+        $pdo,$key,$scope,$versionId,$actorAdminId,$expectedRevision,$mediaAuthorized
     ): array {
         $row = brvtal_mail_template_lock($pdo,$key,$scope);
         brvtal_mail_template_expect_revision($row,$expectedRevision);
-        $find = $pdo->prepare('SELECT id,document_json FROM mail_template_versions WHERE id=? AND template_id=? FOR UPDATE');
+        $find = $pdo->prepare('SELECT id,document_json FROM mail_template_versions
+            WHERE id=? AND template_id=? AND discarded_at IS NULL FOR UPDATE');
         $find->execute([$versionId,(int)$row['id']]);
-        if (!is_array($find->fetch(PDO::FETCH_ASSOC))) throw new DomainException('MAIL_TEMPLATE_VERSION_UNKNOWN');
+        $candidate = $find->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($candidate)) throw new DomainException('MAIL_TEMPLATE_VERSION_UNKNOWN');
+        // Reauthorize referenced Media at publication time, not just when the
+        // draft was saved: the referenced asset may have been removed meanwhile.
+        $decoded = json_decode((string)$candidate['document_json'], true, 64, JSON_THROW_ON_ERROR);
+        if (!is_array($decoded)) throw new DomainException('MAIL_TEMPLATE_VERSION_INVALID');
+        brvtal_mail_template_validate($key,$scope,$decoded,$mediaAuthorized);
         $pdo->prepare('UPDATE mail_template_versions SET first_published_at=COALESCE(first_published_at,UTC_TIMESTAMP(6))
             WHERE id=?')->execute([$versionId]);
         $revision = $expectedRevision + 1;
@@ -104,21 +112,26 @@ function brvtal_mail_template_publish(
 /** Roll back by creating a new immutable version from a previously published one. */
 function brvtal_mail_template_rollback(
     PDO $pdo, string $key, string $scope,
-    int $previousVersionId, int $actorAdminId, int $expectedRevision
+    int $previousVersionId, int $actorAdminId, int $expectedRevision,
+    ?callable $mediaAuthorized = null
 ): array {
     if ($actorAdminId < 1 || $previousVersionId < 1) {
         throw new InvalidArgumentException('MAIL_TEMPLATE_ACTOR_INVALID');
     }
     return brvtal_mail_template_transaction($pdo, static function () use (
-        $pdo,$key,$scope,$previousVersionId,$actorAdminId,$expectedRevision
+        $pdo,$key,$scope,$previousVersionId,$actorAdminId,$expectedRevision,$mediaAuthorized
     ): array {
         $row = brvtal_mail_template_lock($pdo,$key,$scope);
         brvtal_mail_template_expect_revision($row,$expectedRevision);
         $find = $pdo->prepare('SELECT document_json FROM mail_template_versions
-            WHERE id=? AND template_id=? AND first_published_at IS NOT NULL FOR UPDATE');
+            WHERE id=? AND template_id=? AND first_published_at IS NOT NULL
+              AND discarded_at IS NULL FOR UPDATE');
         $find->execute([$previousVersionId,(int)$row['id']]);
         $copy = $find->fetchColumn();
         if (!is_string($copy)) throw new DomainException('MAIL_TEMPLATE_VERSION_UNKNOWN');
+        $decoded = json_decode($copy,true,64,JSON_THROW_ON_ERROR);
+        if (!is_array($decoded)) throw new DomainException('MAIL_TEMPLATE_VERSION_INVALID');
+        brvtal_mail_template_validate($key,$scope,$decoded,$mediaAuthorized);
         $revision = $expectedRevision + 1;
         $insert = $pdo->prepare("INSERT INTO mail_template_versions
             (template_id,version_number,kind,document_json,author_admin_id,first_published_at)
@@ -161,12 +174,68 @@ function brvtal_mail_template_resolve(PDO $pdo, string $key, string $scope): arr
     return ['source'=>'published','document'=>$decoded];
 }
 
+
+/**
+ * Read an unpublished, non-discarded draft belonging to the requested scope.
+ * The API leaf adds authentication and RBAC; this primitive never sends mail.
+ */
+function brvtal_mail_template_read_draft(
+    PDO $pdo, string $key, string $scope, int $versionId
+): ?array {
+    brvtal_mail_template_definition($key,$scope);
+    if ($versionId < 1) throw new InvalidArgumentException('MAIL_TEMPLATE_VERSION_INVALID');
+    $q = $pdo->prepare("SELECT v.id,v.version_number,v.document_json,v.author_admin_id
+        FROM mail_template_registry r JOIN mail_template_versions v ON v.template_id=r.id
+        WHERE r.template_key=? AND r.scope=? AND v.id=? AND v.kind='draft'
+          AND v.first_published_at IS NULL AND v.discarded_at IS NULL LIMIT 1");
+    $q->execute([$key,$scope,$versionId]);
+    $row = $q->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($row)) return null;
+    $data = json_decode((string)$row['document_json'],true,64,JSON_THROW_ON_ERROR);
+    if (!is_array($data)) throw new DomainException('MAIL_TEMPLATE_VERSION_INVALID');
+    return ['version_id'=>(int)$row['id'],'version_number'=>(int)$row['version_number'],
+        'author_admin_id'=>(int)$row['author_admin_id'],'document'=>$data];
+}
+
+/**
+ * Delete means an auditable soft discard, never hard removal of immutable
+ * content or withdrawal of a currently published snapshot.
+ */
+function brvtal_mail_template_discard_draft(
+    PDO $pdo, string $key, string $scope, int $versionId,
+    int $actorAdminId, int $expectedRevision
+): array {
+    if ($versionId < 1 || $actorAdminId < 1) {
+        throw new InvalidArgumentException('MAIL_TEMPLATE_ACTOR_INVALID');
+    }
+    return brvtal_mail_template_transaction($pdo, static function () use (
+        $pdo,$key,$scope,$versionId,$actorAdminId,$expectedRevision
+    ): array {
+        $row = brvtal_mail_template_lock($pdo,$key,$scope);
+        brvtal_mail_template_expect_revision($row,$expectedRevision);
+        $update = $pdo->prepare("UPDATE mail_template_versions
+            SET discarded_at=UTC_TIMESTAMP(6),discarded_by_admin_id=?
+            WHERE id=? AND template_id=? AND kind='draft'
+              AND first_published_at IS NULL AND discarded_at IS NULL");
+        $update->execute([$actorAdminId,$versionId,(int)$row['id']]);
+        if ($update->rowCount() !== 1) {
+            throw new DomainException('MAIL_TEMPLATE_VERSION_UNKNOWN');
+        }
+        $revision=$expectedRevision+1;
+        $cas=$pdo->prepare('UPDATE mail_template_registry SET revision=?,
+            updated_at=UTC_TIMESTAMP(6) WHERE id=? AND revision=?');
+        $cas->execute([$revision,(int)$row['id'],$expectedRevision]);
+        if ($cas->rowCount() !== 1) throw new DomainException('MAIL_TEMPLATE_CONFLICT');
+        return ['version_id'=>$versionId,'revision'=>$revision,'state'=>'discarded'];
+    });
+}
+
 /** Metadata only, never recipient or rendered tokens. */
 function brvtal_mail_template_versions(PDO $pdo, string $key, string $scope): array
 {
     brvtal_mail_template_definition($key,$scope);
     $q = $pdo->prepare('SELECT v.id,v.version_number,v.kind,v.author_admin_id,
-            v.first_published_at,v.created_at
+            v.first_published_at,v.discarded_at,v.discarded_by_admin_id,v.created_at
         FROM mail_template_registry r
         JOIN mail_template_versions v ON v.template_id=r.id
         WHERE r.template_key=? AND r.scope=?

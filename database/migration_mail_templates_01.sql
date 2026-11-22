@@ -22,6 +22,8 @@ CREATE TABLE IF NOT EXISTS mail_template_versions (
   document_json LONGTEXT NOT NULL,
   author_admin_id INT UNSIGNED NOT NULL,
   first_published_at DATETIME(6) NULL,
+  discarded_at DATETIME(6) NULL,
+  discarded_by_admin_id INT UNSIGNED NULL,
   created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
   PRIMARY KEY (id),
   UNIQUE KEY uq_mail_template_version (template_id, version_number),

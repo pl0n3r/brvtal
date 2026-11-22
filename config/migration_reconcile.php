@@ -221,7 +221,8 @@ function brvtalMigrationProofSpecifications(): array
             brvtalMigrationObjectRequirements(
                 'mail_template_versions',
                 ['id','template_id','version_number','kind','document_json',
-                 'author_admin_id','first_published_at','created_at'],
+                 'author_admin_id','first_published_at','discarded_at',
+                 'discarded_by_admin_id','created_at'],
                 ['PRIMARY','uq_mail_template_version','idx_mail_template_version_created'],
                 true
             )
