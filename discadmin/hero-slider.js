@@ -118,18 +118,15 @@
 
   function mediaReferenceError(value, expectedType, required, label) {
     const reference = String(value || '').trim();
-    if (!reference) return required ? `${label} is required for an enabled slide.` : '';
+    if (!reference) return required ? `${label}: selecciona un archivo para activar esta diapositiva.` : '';
     if (/^https:\/\//i.test(reference)) return '';
     if (!reference.startsWith('/uploads/') || reference.includes('..')) {
-      return `${label} must use a Media Library asset or an external HTTPS URL.`;
+      return `${label}: usa un medio de la Biblioteca o un enlace HTTPS válido.`;
     }
     const item = mediaRecordForPath(reference);
     if (!item) return ''; // Picker reads are bounded; the server remains authoritative at save time.
-    if (String(item.status || 'published') !== 'published') {
-      return `${label} must use a published Media Library asset.`;
-    }
     if (String(item.type || '') !== expectedType) {
-      return `${label} must use a ${expectedType} asset.`;
+      return `${label}: tipo incorrecto (se requiere ${expectedType === 'video' ? 'vídeo' : 'imagen'}).`;
     }
     return '';
   }
@@ -148,10 +145,10 @@
       const layer = layers[layerIndex];
       if (!['image','logo'].includes(layer.type)) continue;
       const layerName = layer.name || `Layer ${layerIndex + 1}`;
-      const layerLabel = `${label} · ${layerName}`;
+      const layerLabel = `${label} · capa ${layerIndex + 1} (${layerName})`;
       const error = firstMediaError([
-        [layer.src, 'image', false, `${layerLabel}: Desktop asset`],
-        [layer.mobileSrc, 'image', false, `${layerLabel}: Mobile asset`],
+        [layer.src, 'image', false, `${layerLabel}: archivo de escritorio`],
+        [layer.mobileSrc, 'image', false, `${layerLabel}: archivo móvil`],
       ]);
       if (error) return error;
     }
@@ -160,14 +157,14 @@
 
   function slideMediaError(slide, slideIndex) {
     if (slide.enabled === false) return '';
-    const label = slide.name || `Slide ${slideIndex + 1}`;
+    const label = `Diapositiva ${slideIndex + 1} (${slide.name || 'sin nombre'})`;
     const expectedType = slide.mediaType === 'video' ? 'video' : 'image';
     const checks = [
-      [slide.desktopSrc, expectedType, true, `${label}: Desktop media`],
-      [slide.mobileSrc, expectedType, false, `${label}: Mobile media`],
+      [slide.desktopSrc, expectedType, true, `${label}: archivo de escritorio`],
+      [slide.mobileSrc, expectedType, false, `${label}: archivo móvil`],
     ];
     if (expectedType === 'video') {
-      checks.push([slide.poster, 'image', false, `${label}: Video poster`]);
+      checks.push([slide.poster, 'image', false, `${label}: póster de vídeo`]);
     }
     return firstMediaError(checks) || layerMediaError(slide, label);
   }
@@ -1075,13 +1072,36 @@
     renderManager();
   }
 
+  function humanMediaSaveError(error) {
+    const raw = String(error?.message || 'No fue posible guardar');
+    const code = String(error?.code || raw.split(' · ')[0]).trim();
+    const field = String(error?.field || (raw.includes(' · ') ? raw.slice(raw.lastIndexOf(' · ') + 3) : ''));
+    const match = /^slides\.(\d+)\.(desktopSrc|mobileSrc|poster|layers\.(\d+)\.(src|mobileSrc))$/.exec(field);
+    if (!match) return raw; // Do not hide unrelated HTTP, CSRF or permission errors.
+    const number = Number(match[1]) + 1;
+    const slide = config.slides[Number(match[1])] || {};
+    const prefix = `Diapositiva ${number} (${slide.name || 'sin nombre'})`;
+    const fieldName = match[3] === undefined
+      ? ({desktopSrc:'imagen de escritorio',mobileSrc:'imagen móvil',poster:'póster del vídeo'}[match[2]] || 'archivo')
+      : `capa ${Number(match[3]) + 1}, ${match[4] === 'src' ? 'imagen de escritorio' : 'imagen móvil'}`;
+    const reasons = {
+      HERO_SLIDER_MEDIA_NOT_REGISTERED:'no está registrada en la Biblioteca de medios',
+      HERO_SLIDER_MEDIA_FILE_MISSING:'el archivo ya no existe; vuelve a subirlo o elige otro',
+      HERO_SLIDER_MEDIA_TYPE_MISMATCH:'el tipo de archivo no coincide con el campo',
+      HERO_SLIDER_MEDIA_REFERENCE_INVALID:'la ruta no es válida; elige un archivo o enlace HTTPS',
+      HERO_SLIDER_MEDIA_REQUIRED:'selecciona una imagen antes de guardar',
+    };
+    return `${prefix} · ${fieldName}: ${reasons[code] || raw}`;
+  }
+
   async function failHeroSave(error, button) {
     const persisted = await persistHeroDraft();
+    const detail = humanMediaSaveError(error);
     setHeroDraftState(
-      persisted ? 'Save failed · draft kept locally' : 'Save failed · latest changes not stored locally; keep this workspace open',
+      `Save failed · ${detail} · ${persisted ? 'borrador guardado localmente' : 'mantén abierto el editor'}`,
       'error'
     );
-    window.BRVTALFeedback?.error?.('Hero Slider save failed: '+error.message,'hero-slider-save');
+    window.BRVTALFeedback?.error?.('No se pudo guardar Banners: ' + detail,'hero-slider-save');
     if (button) {
       button.disabled = false;
       button.textContent = mediaSaveLabel();
