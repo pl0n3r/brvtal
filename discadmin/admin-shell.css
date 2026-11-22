@@ -103,3 +103,29 @@ html[data-discadmin-appearance] #app :is(.btn.red,.dashboard-v2-button.accent):f
   outline:3px solid var(--admin-focus,#fff);
   outline-offset:3px;
 }
+
+/* Personal appearance preference lives in Settings, not the navigation rail. */
+html[data-discadmin-appearance] #app .settings-v2 .discadmin-appearance-preferences{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(200px,350px);
+  align-items:center;
+  gap:16px;
+  margin:18px 0;
+  padding:16px 18px;
+  border:1px solid var(--admin-border);
+  border-radius:10px;
+  background:var(--admin-surface-raised);
+}
+html[data-discadmin-appearance] #app .settings-v2 .discadmin-appearance-preferences .discadmin-appearance-label{
+  margin:0;
+  color:var(--admin-text);
+  font-weight:700;
+  letter-spacing:.02em;
+}
+@media(max-width:640px){
+  html[data-discadmin-appearance] #app .settings-v2 .discadmin-appearance-preferences{
+    grid-template-columns:minmax(0,1fr);
+    gap:12px;
+    padding:14px;
+  }
+}
