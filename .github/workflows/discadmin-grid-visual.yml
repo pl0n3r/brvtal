@@ -1,0 +1,94 @@
+name: DISCADMIN grid mobile visual evidence
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - 'discadmin/admin-data-grid.css'
+      - 'discadmin/admin-data-grid.js'
+      - 'tests/e2e/discadmin-grid-mobile.spec.mjs'
+      - '.github/workflows/discadmin-grid-visual.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: discadmin-grid-evidence-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  capture:
+    name: Capturas reales 390/1440
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact PR HEAD
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify exact HEAD
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+      - name: Install pinned Playwright
+        run: npm install --prefer-offline --no-audit --no-fund
+      - name: Ensure Chromium runtime
+        shell: bash
+        run: |
+          npx playwright install chromium
+          if ! node --input-type=module - <<'JS'
+          import { chromium } from '@playwright/test';
+          const browser = await chromium.launch();
+          await browser.close();
+          JS
+          then
+            npx playwright install-deps chromium
+          fi
+      - name: Render and verify original/final visual states
+        run: npx playwright test tests/e2e/discadmin-grid-mobile.spec.mjs --project=chromium --reporter=list
+      - name: Verify PNG artifacts and write exact-SHA manifest
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          node <<'JS'
+          const fs=require('node:fs'), path=require('node:path'), crypto=require('node:crypto');
+          const files=[];
+          const walk=dir=>{
+            if(!fs.existsSync(dir))return;
+            for(const e of fs.readdirSync(dir,{withFileTypes:true})){
+              const p=path.join(dir,e.name);
+              if(e.isDirectory())walk(p);
+              else if(e.name.endsWith('.png'))files.push(p);
+            }
+          };
+          walk('test-results');
+          const expected=['before-390','after-390','before-1440','after-1440'];
+          const captures=expected.map(name=>{
+            const matches=files.filter(f=>path.basename(f).startsWith(name)&&f.endsWith('.png'));
+            if(matches.length!==1)throw Error(name+': expected one real Playwright PNG, found '+matches.length);
+            const bytes=fs.readFileSync(matches[0]);
+            if(!bytes.subarray(0,8).equals(Buffer.from('89504e470d0a1a0a','hex')))throw Error(name+': not PNG');
+            const width=bytes.readUInt32BE(16),height=bytes.readUInt32BE(20);
+            if(width!==Number(name.split('-')[1])||height<200)throw Error(name+': viewport dimensions invalid');
+            return {name,path:matches[0],width,height,sha256:crypto.createHash('sha256').update(bytes).digest('hex')};
+          });
+          fs.mkdirSync('artifacts/discadmin-grid-visual',{recursive:true});
+          fs.writeFileSync('artifacts/discadmin-grid-visual/manifest.json',JSON.stringify({
+            version:1,source:'Playwright Chromium synthetic fixture',
+            head:process.env.EXPECTED_HEAD,captures
+          },null,2));
+          JS
+      - name: Publish before/after screenshots and manifest
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: discadmin-grid-visual-${{ github.event.pull_request.head.sha }}-${{ github.run_id }}
+          path: |
+            test-results/**/*
+            artifacts/discadmin-grid-visual/manifest.json
+          if-no-files-found: error
+          retention-days: 14
