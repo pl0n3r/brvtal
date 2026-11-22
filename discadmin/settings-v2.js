@@ -227,16 +227,18 @@
   
   function integrationState(provider,items){
    const stored=provider.fields.some(field=>items.some(item=>item.key===field.key && item.stored===true));
-   return provider.id==="wompi" && stored ? "Modo pruebas" : stored ? "Configurado" : "Falta";
+   if(!stored)return "Falta";
+   return provider.id==="wompi" ? "Modo pruebas" : "Configurado";
   }
   
   function integrationField(field,items,writable){
    const item=items.find(row=>row.key===field.key);
    const stored=item?.stored===true;
    const id="sv2-secret-"+field.key.toLowerCase().replaceAll("_","-");
+   const disabled=writable?"":"disabled";
    const input=field.kind==="multiline"
-     ? `<textarea id="${id}" rows="5" data-secret-input data-secret-key="${esc(field.key)}" autocomplete="off" spellcheck="false" placeholder="${esc(field.example)}" ${writable?"":"disabled"}></textarea>`
-     : `<input id="${id}" data-secret-input data-secret-key="${esc(field.key)}" type="${esc(field.kind)}" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(field.example)}" ${writable?"":"disabled"}>`;
+     ? `<textarea id="${id}" rows="5" data-secret-input data-secret-key="${esc(field.key)}" autocomplete="off" spellcheck="false" placeholder="${esc(field.example)}" ${disabled}></textarea>`
+     : `<input id="${id}" data-secret-input data-secret-key="${esc(field.key)}" type="${esc(field.kind)}" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(field.example)}" ${disabled}>`;
    const updated=item?.updated_at ? "Actualizado: "+esc(item.updated_at) : "Sin valor guardado";
    return `<div class="sv2-secret-field" data-secret-row="${esc(field.key)}">
        <label class="sv2-secret-label" for="${id}">${esc(field.label)}</label>
@@ -251,7 +253,7 @@
   
   function integrationCard(provider,items,writable){
    const state=integrationState(provider,items);
-   const timestamps=provider.fields.map(field=>items.find(item=>item.key===field.key)?.updated_at).filter(Boolean).sort();
+   const timestamps=provider.fields.map(field=>items.find(item=>item.key===field.key)?.updated_at).filter(Boolean).sort((a,b)=>a.localeCompare(b));
    const updated=timestamps.length?"Actualizado: "+timestamps.at(-1):"Sin actualizaciones";
    return `<article class="sv2-secret-card" data-integration-provider="${esc(provider.id)}">
      <header class="sv2-secret-card-head">
@@ -353,7 +355,7 @@
    const state=integrationState(provider,items);
    const badge=card.querySelector("[data-provider-state]");
    if(badge){badge.textContent=state;badge.classList.toggle("is-missing",state==="Falta");badge.classList.toggle("is-configured",state!=="Falta");}
-   const times=provider.fields.map(f=>items.find(x=>x.key===f.key)?.updated_at).filter(Boolean).sort();
+   const times=provider.fields.map(f=>items.find(x=>x.key===f.key)?.updated_at).filter(Boolean).sort((a,b)=>a.localeCompare(b));
    const meta=card.querySelector("[data-provider-updated]");
    if(meta)meta.textContent=times.length?"Actualizado: "+times.at(-1):"Sin actualizaciones";
    provider.fields.forEach(field=>{
@@ -759,13 +761,18 @@
     if (input) { input.value = ''; delete input.dataset.mediaId; }
   }
 
+  function handleIntegrationClick(event) {
+    const save=event.target.closest('[data-secret-provider-save]');
+    if(save){void saveIntegrationProvider(save.dataset.secretProviderSave);return true;}
+    const remove=event.target.closest('[data-secret-delete]');
+    if(remove){void deleteIntegrationField(remove.dataset.secretDelete);return true;}
+    if(event.target.closest('[data-secret-retry]')){void loadIntegrations(true);return true;}
+    return false;
+  }
+
   function bind() {
     document.addEventListener('click', event => {
-      const secretSave=event.target.closest('[data-secret-provider-save]');
-      if (secretSave) { void saveIntegrationProvider(secretSave.dataset.secretProviderSave); return; }
-      const secretDelete=event.target.closest('[data-secret-delete]');
-      if (secretDelete) { void deleteIntegrationField(secretDelete.dataset.secretDelete); return; }
-      if (event.target.closest('[data-secret-retry]')) { void loadIntegrations(true); return; }
+      if(handleIntegrationClick(event))return;
       const tab = event.target.closest('[data-settings-tab]');
       if (tab) { activate(tab.dataset.settingsTab); return; }
       const saveButton = event.target.closest('[data-settings-save]');

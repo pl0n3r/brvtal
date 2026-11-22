@@ -61,6 +61,25 @@
     return payload;
   }
 
+  async function csrfToken() {
+    if (globalThis.csrf) {
+      return globalThis.csrf;
+    }
+    const auth = await fetchJson(AUTH);
+    if (!auth.authenticated || !auth.csrf) {
+      throw new Error('AUTH_REQUIRED');
+    }
+    globalThis.csrf = auth.csrf;
+    return auth.csrf;
+  }
+
+  function invalidateCachedCsrf(error) {
+    const code = String(error?.message ?? '');
+    if (['CSRF','AUTH_REQUIRED','HTTP_419','HTTP_401'].includes(code)) {
+      delete globalThis.csrf;
+    }
+  }
+
   function renderLogPayload(root, payload) {
     const output = root.querySelector('#ssv2-logs');
     const meta = root.querySelector('#ssv2-log-meta');
