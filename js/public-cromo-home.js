@@ -42,6 +42,14 @@
     return max && clean.length > max ? clean.slice(0, max - 1).trimEnd() + '…' : clean;
   };
 
+  // CMS Markdown in short cards becomes plain text, never arbitrary HTML.
+  const plain = (value, max) => text(String(value ?? '')
+    .replace(/\[([^\]\r\n]+)\]\([^\)\r\n]+\)/g, '$1')
+    .replace(/^\s{0,3}#{1,3}[ \t]+/gm, '')
+    .replace(/^\s*[-*][ \t]+/gm, '')
+    .replace(/[*#]/g, '')
+    .replace(/(?<![\p{L}\p{N}])_([^_]+)_(?![\p{L}\p{N}])/gu, '$1'), max);
+
   const safeUrl = (value) => {
     const raw = String(value || '').trim();
     if (!raw) return '';
@@ -483,14 +491,14 @@
     const details = [lineup, place].filter(Boolean).join(' · ');
     const attrs = {
       class: href ? 'next next-link' : 'next',
-      'aria-label': href ? 'Ver evento ' + text(next.title, 90) + '. ' + k : 'Próxima noche',
+      'aria-label': href ? 'Ver evento ' + plain(next.title, 90) + '. ' + k : 'Próxima noche',
       ...(href ? { href } : {}),
     };
     return el(href ? 'a' : 'aside', attrs,
       el('span', { class: 'next-tag', text: 'PRÓXIMA NOCHE' }),
       el('b', { class: 'next-count', text: k }),
       el('span', { class: 'next-date', text: when.getDate() + ' ' + MONTHS[when.getMonth()] }),
-      el('strong', { class: 'next-event', text: text(next.title, 90) }),
+      el('strong', { class: 'next-event', text: plain(next.title, 90) }),
       details ? el('small', { class: 'next-details', text: details }) : null,
       href ? el('span', { class: 'next-action' },
         el('span', { text: 'VER EVENTO' }), el('span', { class: 'next-arrow', 'aria-hidden': 'true', text: '↗' })) : null
@@ -506,7 +514,7 @@
       hasSets ? el('a', { class: 'btn', href: '#discos', text: 'Escuchar sets' }) : null,
     ].filter(Boolean);
     const hero = el('section', { class: 'hero' },
-      el('div', { class: 'core' }, word, el('p', { text: text(site?.description, 240) || 'Más que fiestas. Una cultura en movimiento.' })),
+      el('div', { class: 'core' }, word, el('p', { text: plain(site?.description, 240) || 'Más que fiestas. Una cultura en movimiento.' })),
       nextCard,
       heroActions.length ? el('div', { class: 'cta' }, heroActions) : null);
     const bandItems = ['Rave till grave', 'Pereira, Colombia', 'Más que fiestas'];
@@ -525,7 +533,7 @@
       const line = [meta, place + ', ' + formatPublicTime(when)].filter(Boolean).join('. ') + '.';
       nights.append(el('a', { class: 'night', href: '/events/' + encodeURIComponent(event.slug) },
         el('span', { class: 'u n', text: two(when.getDate()) + '.' + two(when.getMonth() + 1) }),
-        el('span', {}, el('span', { class: 't', text: text(event.title) }), el('span', { class: 'm', text: line })),
+        el('span', {}, el('span', { class: 't', text: plain(event.title) }), el('span', { class: 'm', text: line })),
         el('span', { class: 'go', text: safeUrl(event.ticket_url) ? 'Comprar tickets' : 'Ver noche' })));
     });
     nights.append(el('a', { class: 'night', href: '#contacto' },
@@ -544,7 +552,7 @@
         const meta = [two(when.getDate()) + ' ' + MONTHS[when.getMonth()] + ' ' + when.getFullYear(), text(event.city)].filter(Boolean).join(' · ');
         const card = el('a', { class: 'pst chrome-b', href: '/events/' + encodeURIComponent(event.slug) },
           cover ? el('img', { src: cover, alt: '', loading: 'lazy', decoding: 'async' }) : el('i', { class: 'orb', 'aria-hidden': 'true' }),
-          el('span', { class: 'pst-t u', text: text(event.title, 40) }), el('span', { class: 'pst-m', text: meta }));
+          el('span', { class: 'pst-t u', text: plain(event.title, 40) }), el('span', { class: 'pst-m', text: meta }));
         if (i >= LIMIT_PAST) card.classList.add('cr-is-extra');
         return card;
       });
@@ -617,8 +625,8 @@
     const cards = [];
     if (post) {
       cards.push(el('article', { class: 'jn plate chrome-b' },
-        el('div', {}, el('p', { class: 'k', text: 'Crónica' }), el('h3', { style: 'margin-top:10px', text: text(post.title) })),
-        el('p', { text: text(post.excerpt, 180) }),
+        el('div', {}, el('p', { class: 'k', text: 'Crónica' }), el('h3', { style: 'margin-top:10px', text: plain(post.title) })),
+        el('p', { text: plain(post.excerpt, 180) }),
         el('div', {}, el('a', { class: 'btn', href: '/blog/' + encodeURIComponent(post.slug), text: 'Leer la crónica' }))));
     }
     cards.push(el('article', { class: 'jn plate chrome-b' },
@@ -641,17 +649,17 @@
     const fact = (k, v) => el('div', {}, el('dt', { text: k }), el('dd', { text: v }));
     const body = el('div', { class: 'xp-body plate chrome-b' },
       el('p', { class: 'k', text: 'Próxima experiencia' }),
-      el('h3', { class: 'u', text: text(next.title) }),
+      el('h3', { class: 'u', text: plain(next.title) }),
       el('dl', { class: 'xp-facts' },
         fact('Fecha', two(when.getDate()) + ' ' + MONTHS[when.getMonth()] + ' ' + when.getFullYear()),
         fact('Hora', formatPublicTime(when)),
         fact('Lugar', [text(next.venue), text(next.city)].filter(Boolean).join(', '))),
-      next.description ? el('p', { class: 'xp-desc', text: text(next.description, 240) }) : null,
+      next.description ? el('p', { class: 'xp-desc', text: plain(next.description, 240) }) : null,
       names.length ? el('p', { class: 'xp-line' }, el('span', { text: 'Cartel' }), ' ' + joinNames(names)) : null,
       el('div', { class: 'xp-cta' },
         tickets ? el('a', { class: 'btn r', href: tickets, rel: 'noopener noreferrer', text: 'Comprar tickets' }) : null,
         el('a', { class: 'btn', href: '/events/' + encodeURIComponent(next.slug), text: 'Ver la noche' })));
-    const fly = cover ? el('a', { class: 'xp-fly chrome-b', href: '/events/' + encodeURIComponent(next.slug), 'aria-label': text(next.title) },
+    const fly = cover ? el('a', { class: 'xp-fly chrome-b', href: '/events/' + encodeURIComponent(next.slug), 'aria-label': plain(next.title) },
       el('img', { src: cover, alt: '', loading: 'lazy', decoding: 'async' })) : null;
     return el('section', { class: 'sec', id: 'experiencia' }, el('h2', { class: 'u', text: 'Experiencia' }),
       el('div', { class: fly ? 'xp' : 'xp xp-solo' }, fly, body));

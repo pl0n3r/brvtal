@@ -2,9 +2,16 @@
 declare(strict_types=1);
 
 /** Safe, intentionally small Markdown subset for public entity descriptions. */
+/** Normalize padded Markdown emphasis while preserving HTML escaping. */
+function brvtalPublicTextNormalizeEmphasis(string $text): string
+{
+    $text = preg_replace('/(?<!\*)\*\*[ \t]+(?=\S)([^\r\n]*?)(?<=\S)[ \t]*\*\*(?!\*)/u', '**$1**', $text) ?? $text;
+    return preg_replace('/(?<!\*)\*[ \t]+(?=\S)([^\r\n]*?)(?<=\S)[ \t]*\*(?!\*)/u', '*$1*', $text) ?? $text;
+}
+
 function brvtalPublicTextEmphasis(string $text): string
 {
-    $html = htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $html = htmlspecialchars(brvtalPublicTextNormalizeEmphasis($text), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     $html = preg_replace('/\*\*(?=\S)(.+?)(?<=\S)\*\*/u', '<strong>$1</strong>', $html) ?? $html;
     $html = preg_replace('/(?<!\*)\*(?=\S)(.+?)(?<=\S)\*(?!\*)/u', '<em>$1</em>', $html) ?? $html;
     return preg_replace('/(?<![\pL\pN])_(?=\S)(.+?)(?<=\S)_(?![\pL\pN])/u', '<em>$1</em>', $html) ?? $html;
@@ -81,6 +88,7 @@ function brvtalPublicTextFormat(string $text): string
 /** SEO and JSON-LD use readable text, never literal Markdown markup. */
 function brvtalPublicTextPlain(string $text): string
 {
+    $text = brvtalPublicTextNormalizeEmphasis($text);
     $plain = preg_replace('/\[([^\]\r\n]+)\]\([^)]+\)/u', '$1', $text) ?? $text;
     $plain = preg_replace('/^\s{0,3}#{1,3}[ \t]+/mu', '', $plain) ?? $plain;
     $plain = preg_replace('/^\s*-[ \t]+/mu', '', $plain) ?? $plain;
