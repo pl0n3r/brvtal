@@ -8,7 +8,6 @@ require_once __DIR__ . '/public_cromo_chrome.php';
  * No legal SLA or responsible-party identity is invented.
  */
 const BRVTAL_PRIVACY_OWNER_PLACEHOLDER = '[COMPLETAR POR EL DUEÑO]';
-const BRVTAL_PRIVACY_LEGAL_STATUS = 'Texto legal pendiente de aprobación profesional (Condor #974).';
 
 /**
  * @return array{
@@ -74,9 +73,10 @@ function brvtalPublicPrivacyRightsDocument(
         'consultation' => 'Consultation response period',
         'claim' => 'Claim response period',
         'rights' => 'Request access, correction or erasure',
-        'instructions' => 'Contact the controller by the email indicated above. Specify the right you want to exercise. Do not post sensitive data on this public page.',
+        'instructions' => 'Describe the right you want to exercise and use the contact channels available on this page or site. Do not include sensitive information on this public page.',
         'time' => 'Response period indicated by the controller',
-        'pending' => 'Legal text pending professional approval (Condor #974).',
+        'update' => 'Some contact details and response periods are being updated. For inquiries, use',
+        'contact_link' => 'Contact',
         'home' => 'Return to home',
     ] : [
         'title' => 'Privacidad y mis derechos',
@@ -90,16 +90,37 @@ function brvtalPublicPrivacyRightsDocument(
         'consultation' => 'Plazo para consultas',
         'claim' => 'Plazo para reclamos',
         'rights' => 'Solicitar acceso, corrección o borrado',
-        'instructions' => 'Escribe al correo indicado arriba e identifica el derecho que deseas ejercer. No publiques datos sensibles en esta página.',
+        'instructions' => 'Identifica el derecho que deseas ejercer y utiliza los canales de contacto disponibles en esta página o en el sitio. No compartas datos sensibles aquí.',
         'time' => 'Plazo de respuesta informado por el responsable',
-        'pending' => BRVTAL_PRIVACY_LEGAL_STATUS,
+        'update' => 'Algunos datos de contacto del responsable y plazos están en actualización. Para consultas, utiliza',
+        'contact_link' => 'Contacto',
         'home' => 'Volver al inicio',
     ];
-    $email = $values['controller_email'];
-    $emailHtml = $escape($email);
-    if ($email !== BRVTAL_PRIVACY_OWNER_PLACEHOLDER) {
-        $emailHtml = '<a href="mailto:' . $escape($email) . '">' . $emailHtml . '</a>';
-    }
+    // Private configuration can retain owner placeholders; public HTML cannot.
+    $isUnresolved = static fn(string $value): bool =>
+        trim($value) === '' || preg_match('/\[\s*COMPLETAR\b/iu', $value) === 1;
+    $renderField = static function (
+        string $key, string $label, string $attribute
+    ) use ($values, $escape, $isUnresolved): string {
+        $value = $values[$key];
+        if ($isUnresolved($value)) {
+            return '';
+        }
+        $visible = $escape($value);
+        if ($key === 'controller_email') {
+            $visible = '<a href="mailto:' . $escape($value) . '">' . $visible . '</a>';
+        }
+        return '<h3>' . $escape($label) . '</h3><p ' . $attribute . '>'
+            . $visible . '</p>';
+    };
+    $ownerRow = $isUnresolved($values['controller_name'])
+        ? '' : '<p data-privacy-controller>' . $escape($values['controller_name']) . '</p>';
+    $hasMissing = count(array_filter($values, $isUnresolved)) > 0;
+    $contactNote = $hasMissing
+        ? '<p role="note" data-privacy-contact-update>' . $escape($labels['update'])
+            . ' <a href="/contact">' . $escape($labels['contact_link']) . '</a>.</p>'
+        : '';
+
     $template = <<<'HTML'
 <!doctype html>
 <html lang="{{LANG}}">
@@ -123,29 +144,21 @@ function brvtalPublicPrivacyRightsDocument(
 <p>{{SUBTITLE}}</p>
 <section aria-labelledby="controller-heading">
 <h2 id="controller-heading">{{OWNER_LABEL}}</h2>
-<p data-privacy-controller>{{OWNER_VALUE}}</p>
-<h3>{{CONTACT_LABEL}}</h3>
-<p data-privacy-email>{{EMAIL_VALUE}}</p>
-<h3>{{PHONE_LABEL}}</h3>
-<p data-privacy-phone>{{PHONE_VALUE}}</p>
-<h3>{{DOMICILE_LABEL}}</h3>
-<p data-privacy-domicile>{{DOMICILE_VALUE}}</p>
-<h3>{{ADDRESS_LABEL}}</h3>
-<p data-privacy-address>{{ADDRESS_VALUE}}</p>
+{{OWNER_ROW}}
+{{CONTACT_ROW}}
+{{PHONE_ROW}}
+{{DOMICILE_ROW}}
+{{ADDRESS_ROW}}
+{{CONTACT_NOTE}}
 </section>
 <section aria-labelledby="rights-heading">
 <h2 id="rights-heading">{{RIGHTS_LABEL}}</h2>
 <p>{{INSTRUCTIONS}}</p>
-<h3>{{AREA_LABEL}}</h3>
-<p data-privacy-contact-area>{{AREA_VALUE}}</p>
-<h3>{{CONSULTATION_LABEL}}</h3>
-<p data-privacy-consultation-time>{{CONSULTATION_VALUE}}</p>
-<h3>{{CLAIM_LABEL}}</h3>
-<p data-privacy-claim-time>{{CLAIM_VALUE}}</p>
-<h3>{{TIME_LABEL}}</h3>
-<p data-privacy-response-time>{{TIME_VALUE}}</p>
+{{AREA_ROW}}
+{{CONSULTATION_ROW}}
+{{CLAIM_ROW}}
+{{TIME_ROW}}
 </section>
-<p role="note" data-privacy-legal-pending>{{PENDING}}</p>
 </main>
 <footer aria-label="BRVTAL"><span>© BRVTAL</span></footer>
 {{ANALYTICS}}
@@ -163,27 +176,27 @@ HTML;
         '{{HOME}}' => $escape($labels['home']),
         '{{TOPBAR}}' => brvtalPublicCromoTopbar('/', '← ' . $escape($labels['home'])),
         '{{OWNER_LABEL}}' => $escape($labels['owner']),
-        '{{OWNER_VALUE}}' => $escape($values['controller_name']),
+        '{{OWNER_ROW}}' => $ownerRow,
         '{{CONTACT_LABEL}}' => $escape($labels['contact']),
-        '{{EMAIL_VALUE}}' => $emailHtml,
+        '{{CONTACT_ROW}}' => $renderField('controller_email', $labels['contact'], 'data-privacy-email'),
         '{{PHONE_LABEL}}' => $escape($labels['phone']),
-        '{{PHONE_VALUE}}' => $escape($values['controller_phone']),
+        '{{PHONE_ROW}}' => $renderField('controller_phone', $labels['phone'], 'data-privacy-phone'),
         '{{DOMICILE_LABEL}}' => $escape($labels['domicile']),
-        '{{DOMICILE_VALUE}}' => $escape($values['controller_domicile']),
+        '{{DOMICILE_ROW}}' => $renderField('controller_domicile', $labels['domicile'], 'data-privacy-domicile'),
         '{{ADDRESS_LABEL}}' => $escape($labels['address']),
-        '{{ADDRESS_VALUE}}' => $escape($values['controller_address']),
+        '{{ADDRESS_ROW}}' => $renderField('controller_address', $labels['address'], 'data-privacy-address'),
+        '{{CONTACT_NOTE}}' => $contactNote,
         '{{AREA_LABEL}}' => $escape($labels['area']),
-        '{{AREA_VALUE}}' => $escape($values['rights_contact_area']),
+        '{{AREA_ROW}}' => $renderField('rights_contact_area', $labels['area'], 'data-privacy-contact-area'),
         '{{CONSULTATION_LABEL}}' => $escape($labels['consultation']),
-        '{{CONSULTATION_VALUE}}' => $escape($values['consultation_time']),
+        '{{CONSULTATION_ROW}}' => $renderField('consultation_time', $labels['consultation'], 'data-privacy-consultation-time'),
         '{{CLAIM_LABEL}}' => $escape($labels['claim']),
-        '{{CLAIM_VALUE}}' => $escape($values['claim_time']),
+        '{{CLAIM_ROW}}' => $renderField('claim_time', $labels['claim'], 'data-privacy-claim-time'),
         '{{RIGHTS_LABEL}}' => $escape($labels['rights']),
         '{{INSTRUCTIONS}}' => $escape($labels['instructions']),
         '{{TIME_LABEL}}' => $escape($labels['time']),
-        '{{TIME_VALUE}}' => $escape($values['response_time']),
-        '{{PENDING}}' => $escape($labels['pending']),
-        '{{ANALYTICS}}' => $analytics,
+        '{{TIME_ROW}}' => $renderField('response_time', $labels['time'], 'data-privacy-response-time'),
+                '{{ANALYTICS}}' => $analytics,
     ]);
 }
 

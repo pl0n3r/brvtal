@@ -39,7 +39,7 @@ echo json_encode(['page' => $html, 'footer' => $footer]);
         self.assertIn("mailto:example@example.invalid", page)
         self.assertIn("acceso, corrección o borrado", page)
         self.assertIn("Plazo pendiente de revisión", page)
-        self.assertIn("pendiente de aprobación profesional", page)
+        self.assertNotIn("pendiente de aprobación", page)
         self.assertIn('<meta name="robots" content="noindex,follow">', page)
         self.assertIn('href="/privacy"', data["footer"])
         self.assertEqual(data["footer"].count("data-privacy-rights-link"), 1)
@@ -67,7 +67,9 @@ echo json_encode(['blank' => $x, 'invalid' => $y, 'html' => $html]);
         marker = "[COMPLETAR POR EL DUEÑO]"
         self.assertEqual(set(data["blank"].values()), {marker})
         self.assertEqual(data["invalid"]["controller_email"], marker)
-        self.assertGreaterEqual(data["html"].count(marker), 3)
+        self.assertNotIn(marker, data["html"])
+        self.assertIn('data-privacy-contact-update', data["html"])
+        self.assertIn('href="/contact"', data["html"])
         self.assertNotIn("mailto:", data["html"])
 
     def test_escaping_and_footer_fallback(self) -> None:
@@ -101,15 +103,15 @@ $filled = brvtalPublicPrivacyRightsDocument([
 ]);
 echo json_encode(['empty'=>$empty,'filled'=>$filled]);
 """)
-        self.assertIn('data-privacy-consultation-time', data['empty'])
-        self.assertIn('data-privacy-claim-time', data['empty'])
+        self.assertNotIn('data-privacy-consultation-time', data['empty'])
+        self.assertNotIn('data-privacy-claim-time', data['empty'])
         self.assertIn('Synthetic consultation deadline', data['filled'])
         self.assertIn('Synthetic claim deadline', data['filled'])
         self.assertIn('Synthetic city, Colombia', data['filled'])
         self.assertIn('&lt;script&gt;unsafe&lt;/script&gt;', data['filled'])
         self.assertNotIn('<script>unsafe</script>', data['filled'])
-        self.assertIn('pendiente de aprobación profesional', data['filled'])
-        self.assertGreaterEqual(data['empty'].count('[COMPLETAR POR EL DUEÑO]'), 8)
+        self.assertNotIn('pendiente de aprobación', data['filled'])
+        self.assertNotIn('[COMPLETAR POR EL DUEÑO]', data['empty'])
 
     def test_controller_phone_validation_is_public_and_fail_closed(self) -> None:
         data = invoke_php(r"""
@@ -125,13 +127,13 @@ echo json_encode(['blank'=>$blank,'short'=>$short,'valid'=>$valid,'unsafe'=>$uns
         self.assertEqual(data['short']['controller_phone'], marker)
         self.assertIn('data-privacy-phone', data['valid'])
         self.assertIn('+57 (601) 123-4567', data['valid'])
-        self.assertIn('data-privacy-legal-pending', data['valid'])
-        self.assertIn(marker, data['unsafe'])
+        self.assertNotIn('data-privacy-legal-pending', data['valid'])
+        self.assertNotIn(marker, data['unsafe'])
         self.assertNotIn('<script>bad</script>', data['unsafe'])
 
     def test_no_unapproved_legal_text(self) -> None:
         source = CONFIG.read_text(encoding="utf-8")
-        self.assertIn("Condor #974", source)
+        self.assertNotIn("Texto legal pendiente de aprobación profesional", source)
         self.assertIn("[COMPLETAR POR EL DUEÑO]", source)
         self.assertNotIn("contact@brvtal.com.co", source)
         self.assertNotIn("30 días hábiles", source)
