@@ -107,7 +107,7 @@
     head.append(title, close);
     panel.appendChild(head);
 
-    const copy = element('p', '', 'Solo se usan cookies esenciales hasta que aceptes las opcionales. Texto legal pendiente de aprobación profesional.');
+    const copy = element('p', '', 'Las cookies opcionales solo se activan si las aceptas. Puedes cambiar tu elección desde Preferencias de cookies.');
     copy.id = 'brvtal-cookie-description';
     panel.appendChild(copy);
 
