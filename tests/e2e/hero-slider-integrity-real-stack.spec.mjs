@@ -50,11 +50,12 @@ test('Banners uses bounded bootstrap reads on the authenticated real stack', asy
   });
 
   await page.goto(`${baseUrl}/discadmin/`);
-  const appearance = page.locator('[data-admin-nav="appearance"][data-ia-key="appearance"]');
-  await expect(appearance).toBeVisible();
-  await appearance.click();
-  await expect(appearance).toHaveAttribute('aria-expanded','true');
-  await page.getByRole('button', {name:'BANNERS'}).click();
+  // #1892: Banners vive dentro del desplegable «Sitio web» del menú V3.
+  const site = page.locator('[data-ia-toggle="site"]');
+  await expect(site).toBeVisible();
+  await site.click();
+  await expect(site).toHaveAttribute('aria-expanded','true');
+  await page.locator('[data-ia-key="hero-slider"]').click();
   await expect(page.locator('.hero-manager')).toBeVisible();
 
   expect(observed).toContain('/api/index.php/settings?key=home.hero.slider');

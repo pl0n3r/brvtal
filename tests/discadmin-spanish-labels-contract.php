@@ -14,18 +14,19 @@ $banners = (string) file_get_contents(__DIR__ . '/../discadmin/hero-slider.js');
 $navigation = (string) file_get_contents(__DIR__ . '/../discadmin/admin-information-architecture.js');
 brvtal_spanish_labels_assert($core !== '' && $banners !== '' && $navigation !== '', 'missing source');
 brvtal_spanish_labels_assert(str_contains($navigation, 'buttonKey(button) === section'), 'route restore must reuse the real user-visible Spanish navigation label');
+foreach (["label:'MÚSICA'", "label:'CORREOS'", "label:'SITIO WEB'", "label:'CONTROL DE ACCESO'",
+    "label:'COPIAS DE SEGURIDAD'", "const SOON = 'Próximamente'"] as $fragment) {
+    brvtal_spanish_labels_assert(str_contains($navigation, $fragment), 'missing Spanish V3 navigation label: ' . $fragment);
+}
 foreach ([
-    "['dashboard','INICIO']",
-    "['pages','PÁGINAS']",
-    "['events','EVENTOS']",
-    "['ticketing','BOLETERÍA']",
+    "['dashboard','ESCRITORIO'",
+    "['events','EVENTOS'",
+    "['ticketing','BOLETERÍA'",
+    "['settings','CONFIGURACIÓN'",
     "ticketing:'BOLETERÍA'",
-    "'hero-slider':'BANNERS DE PORTADA'",
+    "'hero-slider':'BANNERS'",
+    "theme:'APARIENCIA'",
     "system:'ESTADO DEL SISTEMA'",
-    '>APARIENCIA</button>',
-    '>CONFIGURACIÓN</button>',
-    '>ESTADO DEL SISTEMA</button>',
-    '>TEMA VISUAL</button>',
     'aria-label="Cerrar navegación"',
     'aria-label="Navegación principal"',
     '+ NUEVO EVENTO',

@@ -156,7 +156,7 @@ window.BRVTALTicketing = (() => {
     if (!list) return;
     list.addEventListener('click', e => {
       const tab = e.target.closest('[data-ticketing-tab]');
-      if (tab && list.contains(tab)) select(root, tab.dataset.ticketingTab);
+      if (tab && list.contains(tab) && select(root, tab.dataset.ticketingTab)) rememberTab(tab.dataset.ticketingTab);
     });
     list.addEventListener('keydown', e => {
       if (!['ArrowRight','ArrowLeft','Home','End'].includes(e.key)) return;
@@ -171,10 +171,30 @@ window.BRVTALTicketing = (() => {
         case 'ArrowRight': next = (current + 1) % tabs.length; break;
         case 'ArrowLeft': next = (current - 1 + tabs.length) % tabs.length; break;
       }
-      select(root, tabs[next].dataset.ticketingTab, true);
+      if (select(root, tabs[next].dataset.ticketingTab, true)) rememberTab(tabs[next].dataset.ticketingTab);
     });
-    const first = list.querySelector('[aria-selected="true"]') || list.querySelector('[data-ticketing-tab]');
+    // #1892: el menú abre una pestaña concreta con ?module=ticketing&tab=…; solo
+    // se aceptan pestañas que el servidor ya filtró por rol.
+    const requested = new URLSearchParams(location.search).get('tab') || '';
+    const tabs = [...list.querySelectorAll('[data-ticketing-tab]')];
+    const first = tabs.find(tab => tab.dataset.ticketingTab === requested)
+      || list.querySelector('[aria-selected="true"]') || tabs[0];
     if (first) select(root, first.dataset.ticketingTab);
+    document.dispatchEvent(new CustomEvent('brvtal:ticketing-tabs', {
+      detail:{tabs:tabs.map(tab => tab.dataset.ticketingTab)}
+    }));
+  }
+  function rememberTab(key) {
+    const url = new URL(location.href);
+    if (url.searchParams.get('module') !== 'ticketing') return;
+    url.searchParams.set('tab', key);
+    history.replaceState(history.state, '', url);
+  }
+  function selectTab(key) {
+    const root = document.querySelector('#admin-module-host [data-admin-module="ticketing"]');
+    if (!root || !select(root, key)) return false;
+    rememberTab(key);
+    return true;
   }
   async function mount() {
     const host = document.getElementById('admin-module-host');
@@ -231,5 +251,5 @@ window.BRVTALTicketing = (() => {
     e.stopImmediatePropagation();
     open({replace:true}).catch(() => {});
   }, true);
-  return {mount, open, select};
+  return {mount, open, select, selectTab};
 })();

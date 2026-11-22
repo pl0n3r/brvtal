@@ -76,16 +76,16 @@ quick_win_assert(
 
 $indexCore = (string)file_get_contents(__DIR__ . '/../discadmin/index-core.php');
 $navItems = [
-    "['dashboard','INICIO']",
-    "['pages','PÁGINAS']",
-    "['blog','BLOG']",
-    "['media','MEDIOS']",
-    "['events','EVENTOS']",
-    "['artists','ARTISTAS']",
-    "['releases','LANZAMIENTOS']",
-    "['sets','SESIONES']",
+    "['dashboard','ESCRITORIO'",
+    "['events','EVENTOS'",
+    "['artists','ARTISTAS'",
+    "['sets','MÚSICA'",
+    "['ticketing','BOLETERÍA'",
+    "['mail','CORREOS'",
+    "['pages','SITIO WEB'",
+    "['settings','CONFIGURACIÓN'",
 ];
-$navStart = strpos($indexCore, ' const editorialSections=[');
+$navStart = strpos($indexCore, ' const primaryNav=[');
 $navEnd = strpos($indexCore, ' const moduleTitles={');
 $navSource = $navStart !== false && $navEnd !== false && $navEnd > $navStart
     ? substr($indexCore, $navStart, $navEnd - $navStart)
@@ -100,32 +100,28 @@ foreach ($navItems as $item) {
     }
     $lastPosition = $position;
 }
-$appearance = strpos($navSource, '>APARIENCIA</button>');
-$banners = strpos($navSource, '>BANNERS DE PORTADA</button>');
-$theme = strpos($navSource, '>TEMA VISUAL</button>');
-$seo = strpos($navSource, '>SEO</button>');
-$settings = strpos($navSource, 'data-admin-nav="settings"');
-$system = strpos($navSource, 'data-admin-nav="system"');
 quick_win_assert(
     $orderedNavigation
         && !str_contains($navSource, 'SITE / EDITORIAL')
         && !str_contains($navSource, 'CONFIGURATION / TECHNICAL')
-        && $appearance !== false
-        && $banners !== false
-        && $theme !== false
-        && $seo !== false
-        && $settings !== false
-        && $system !== false
-        && $appearance < $banners
-        && $banners < $theme
-        && $theme < $seo
-        && $seo < $settings
-        && $settings < $system
-        && str_contains($navSource, 'data-admin-nav="appearance"')
-        && str_contains($navSource, 'data-admin-nav="hero-slider"')
-        && str_contains($navSource, 'data-admin-nav="theme"'),
-    'canonical shell must render the approved WordPress-like navigation before enhancements boot'
+        && !str_contains($navSource, 'APARIENCIA')
+        && substr_count($navSource, '],') + 1 === count($navItems),
+    'canonical shell must render the approved V3 roots (#1892) before enhancements boot'
 );
+$iaSource = (string)file_get_contents(__DIR__ . '/../discadmin/admin-information-architecture.js');
+$treeStart = strpos($iaSource, 'const NAV_TREE = [');
+$treeEnd = strpos($iaSource, 'const expandedMenus');
+$treeSource = $treeStart !== false && $treeEnd !== false ? substr($iaSource, $treeStart, $treeEnd - $treeStart) : '';
+$lastPosition = -1;
+$orderedTree = $treeSource !== '';
+foreach (["key:'dashboard', label:'ESCRITORIO'", "key:'events', label:'EVENTOS'", "key:'artists', label:'ARTISTAS'",
+    "key:'music', label:'MÚSICA'", "key:'ticketing', label:'BOLETERÍA'", "key:'mail', label:'CORREOS'",
+    "key:'site', label:'SITIO WEB'", "key:'config', label:'CONFIGURACIÓN'"] as $root) {
+    $position = strpos($treeSource, $root);
+    if ($position === false || $position <= $lastPosition) { $orderedTree = false; break; }
+    $lastPosition = $position;
+}
+quick_win_assert($orderedTree, 'navigation layer must declare exactly the approved V3 tree order (#1892)');
 quick_win_assert(
     preg_match('/<div class="nav">\\s*\\$\\{navHtml\\}\\s*<\\/div>/', $indexCore) === 1,
     'canonical sidebar must render approved links inside the .nav container'
