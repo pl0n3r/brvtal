@@ -60,7 +60,9 @@ function brvtalMediaReuseUpload(PDO $pdo, array $row, string $contentHash, strin
     $pdo->beginTransaction();
     try {
         $fresh = brvtal_media_find($pdo, (int)($row['id'] ?? 0), true);
-        if (!is_array($fresh)) throw new RuntimeException('MEDIA_DUPLICATE_NOT_FOUND');
+        if (!is_array($fresh)) {
+            throw new RuntimeException('MEDIA_DUPLICATE_NOT_FOUND');
+        }
         if (($fresh['status'] ?? '') === 'draft') {
             $pdo->prepare("UPDATE media SET status='published' WHERE id=? AND status='draft'")
                 ->execute([(int)$fresh['id']]);
@@ -76,7 +78,7 @@ function brvtalMediaReuseUpload(PDO $pdo, array $row, string $contentHash, strin
         throw $error;
     }
     brvtal_media_json_response([
-        'ok'=>true, 'duplicate'=>true, 'reused'=>true,
+        'ok' => true, 'duplicate' => true, 'reused' => true,
         'dedupe_source'=>$source, 'content_hash'=>$contentHash,
         'data'=>brvtal_media_asset_payload($fresh),
     ]);
