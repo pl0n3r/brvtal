@@ -4,28 +4,72 @@ require_once __DIR__ . '/secrets.php';
 require_once __DIR__ . '/buyer_auth_mail_templates.php';
 
 /**
- * Isolated Resend adapter. Disabled unless the operator explicitly configures
- * verified sender and the protected live gate. Never logs recipient or API key.
+ * Isolated Resend adapter. Live requires the protected production gates; test
+ * sends only to an explicit recipient allowlist. Never logs recipient or API key.
  * The caller supplies the stable outbox message_key as Idempotency-Key.
  *
  * Resend retains idempotency keys for 24h:
  * https://resend.com/changelog/idempotency-keys
  */
+/**
+ * Read a bounded allowlist from private ticketing.mail.test_recipients or the
+ * encrypted Settings integration key. Invalid lists fail closed (no sending).
+ * Values are never returned to a browser or written to logs.
+ *
+ * @return list<string>
+ */
+function brvtal_ticket_test_recipients(): array
+{
+    try {
+        $raw = brvtal_secret_value('BRVTAL_TICKET_MAIL_TEST_RECIPIENTS');
+    } catch (Throwable) {
+        return [];
+    }
+    if ($raw === '' || strlen($raw) > 4096) {
+        return [];
+    }
+    $parts = preg_split('/[\r\n,;]+/', $raw, -1, PREG_SPLIT_NO_EMPTY);
+    if (!is_array($parts) || !$parts || count($parts) > 25) {
+        return [];
+    }
+    $recipients = [];
+    foreach ($parts as $item) {
+        $email = strtolower(trim($item));
+        if ($email === '' || strlen($email) > 254 || filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+            return [];
+        }
+        $recipients[$email] = true;
+    }
+    return array_keys($recipients);
+}
+
+/** An unauthorized address is never handed to Resend, even with a callback. */
+function brvtal_ticket_test_recipient_allowed(string $recipient): bool
+{
+    $recipient = strtolower(trim($recipient));
+    return filter_var($recipient, FILTER_VALIDATE_EMAIL) !== false
+        && in_array($recipient, brvtal_ticket_test_recipients(), true);
+}
+
 function brvtal_ticket_resend_send(array $job, ?callable $request = null): array
 {
     $mode = (string)(brvtal_secret_value('BRVTAL_TICKET_MAIL_MODE') ?: 'disabled');
-    $test = $mode === 'mock' && brvtal_secret_value('BRVTAL_TICKET_MAIL_TESTING') === '1';
+    $email = (string)($job['recipient_email'] ?? '');
+    $mock = $mode === 'mock' && brvtal_secret_value('BRVTAL_TICKET_MAIL_TESTING') === '1';
+    $testMode = $mode === 'test';
     $live = $mode === 'live'
         && brvtal_secret_value('BRVTAL_TICKET_MAIL_ALLOW_LIVE') === '1'
         && brvtal_secret_value('BRVTAL_TICKET_MAIL_PRIVACY_APPROVED') === '1'
         && brvtal_secret_value('BRVTAL_TICKET_MAIL_DNS_VERIFIED') === '1';
-    if (!$test && !$live) {
+    if ($testMode && !brvtal_ticket_test_recipient_allowed($email)) {
+        return ['state' => 'suppressed_test', 'code' => 'recipient_not_allowlisted'];
+    }
+    if (!$mock && !$testMode && !$live) {
         return ['state' => 'failed', 'code' => 'transport_disabled'];
     }
 
-    $email = (string)($job['recipient_email'] ?? '');
     $key = (string)($job['message_key'] ?? '');
-    $subject = (string)($job['subject'] ?? '');
+    $subject = ($testMode ? '[PRUEBA] ' : '') . (string)($job['subject'] ?? '');
     $body = (string)($job['body_text'] ?? '');
     if (str_starts_with($body, BRVTAL_BUYER_MAIL_SEAL_PREFIX)) {
         $revealed = brvtalBuyerMailUnseal($body);
@@ -38,7 +82,7 @@ function brvtal_ticket_resend_send(array $job, ?callable $request = null): array
     $domain = strtolower(trim((string)brvtal_secret_value('BRVTAL_TICKET_MAIL_DOMAIN')));
     $from = trim((string)brvtal_secret_value('BRVTAL_TICKET_MAIL_FROM'));
     $apiKey = (string)brvtal_secret_value('BRVTAL_TICKET_MAIL_API_KEY');
-    if ($test) {
+    if ($mock) {
         // A mock must never pass a configured production secret to callbacks.
         $apiKey = '';
         $domain = 'brvtal.invalid';
@@ -53,13 +97,13 @@ function brvtal_ticket_resend_send(array $job, ?callable $request = null): array
         || !filter_var($fromEmail, FILTER_VALIDATE_EMAIL)
         || !filter_var($domain, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME)
         || strtolower((string)substr(strrchr($fromEmail, '@') ?: '', 1)) !== $domain
-        || ($live && $apiKey === '')) {
+        || (($live || $testMode) && $apiKey === '')) {
         return ['state' => 'failed', 'code' => 'invalid_configuration'];
     }
     $payload = ['from' => $from, 'to' => [$email], 'subject' => $subject, 'text' => $body];
     $headers = ['Authorization: Bearer ' . $apiKey, 'Content-Type: application/json',
         'Idempotency-Key: ' . $key];
-    if ($test && $request === null) {
+    if ($mock && $request === null) {
         return ['state' => 'accepted', 'id' => 'mock-' . hash('sha256', $key)];
     }
     if ($request !== null) {
