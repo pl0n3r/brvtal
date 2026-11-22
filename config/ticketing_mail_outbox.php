@@ -13,8 +13,9 @@ function brvtal_ticket_mail_enqueue(
     PDO $pdo, string $key, string $reference, string $recipient, string $subject, string $body
 ): int {
     // No personal-data persistence without explicit privacy gate (or test fixture).
-    if (getenv('BRVTAL_TICKET_MAIL_TESTING') !== '1'
-        && getenv('BRVTAL_TICKET_MAIL_PRIVACY_APPROVED') !== '1') {
+    // Private config wins over env. Only explicit "1" may bypass privacy.
+    $testing = brvtal_secret_value('BRVTAL_TICKET_MAIL_TESTING') === '1';
+    if (!$testing && brvtal_secret_value('BRVTAL_TICKET_MAIL_PRIVACY_APPROVED') !== '1') {
         throw new RuntimeException('MAIL_PRIVACY_NOT_APPROVED');
     }
     if (!$pdo->inTransaction()) {
@@ -38,7 +39,7 @@ function brvtal_ticket_mail_enqueue(
         }
         return (int)$row['id'];
     }
-    if (getenv('BRVTAL_TICKET_MAIL_TESTING') !== '1') {
+    if (!$testing) {
         $rate = brvtal_public_abuse_mail_limit($recipient);
         if (!$rate['allowed']) {
             throw new DomainException('MAIL_RATE_LIMITED');

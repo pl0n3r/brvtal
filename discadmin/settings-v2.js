@@ -2,6 +2,8 @@
   'use strict';
 
   const V2 = { tab:'general', pickerTarget:null, lastFocus:null, securityLoadToken:0, integrationLoadToken:0, integrationWritable:false, integrationItems:[] };
+  // Provider-scoped in-flight lock survives replacement of the DOM card.
+  const integrationOperations = new Map();
   const INDEXNOW_ENDPOINTS = [
     ['https://api.indexnow.org/indexnow','IndexNow Global'],
     ['https://indexnow.amazonbot.amazon/indexnow','Amazon'],
@@ -276,6 +278,12 @@
        <div class="sv2-secret-card-meta"><span class="sv2-secret-badge ${state==="Falta"?"is-missing":"is-configured"}" data-provider-state>${esc(state)}</span><small data-provider-updated>${esc(updated)}</small></div>
      </header>
      <div class="sv2-secret-fields">${provider.fields.map(field=>integrationField(field,items,writable)).join("")}</div>
+     ${provider.id==="resend"?`<div class="sv2-secret-field">
+       <label class="sv2-secret-label" for="sv2-mail-test-to">Enviar prueba a</label>
+       <input id="sv2-mail-test-to" type="email" data-mail-test-to autocomplete="email" inputmode="email"
+         autocapitalize="off" spellcheck="false" placeholder="tu@correo.co" ${writable?"":"disabled"}>
+       <small class="sv2-secret-help">Envía un correo real marcado «[PRUEBA]» con la configuración guardada. Funciona en cualquier modo.</small>
+     </div>`:""}
      ${mailAllowlistField(provider,items,writable)}
      <footer class="sv2-secret-card-footer">
        <p role="status" aria-live="polite" data-secret-feedback>Los campos vacíos no se modificarán.</p>
@@ -304,10 +312,11 @@
      SECRET_FORMAT_INVALID:"El formato no es válido. Revisa el ejemplo del campo.",
      SECRET_KEY_NOT_ALLOWED:"Esta clave no se puede configurar.",
      SECRET_STORE_UNAVAILABLE:"El almacenamiento no está disponible. Inténtalo de nuevo.",
-     TEST_MODE_REQUIRED:"Activa el modo test en la configuración privada antes de enviar.",
-     TEST_RECIPIENTS_EMPTY:"Configura al menos un destinatario permitido de prueba.",
-     MAIL_TEST_RATE_LIMITED:"Ya se solicitó un correo de prueba. Vuelve a intentarlo más tarde.",
-     MAIL_TEST_NOT_ACCEPTED:"El proveedor no confirmó el correo de prueba.",
+     TEST_RECIPIENT_REQUIRED:"Escribe el correo al que quieres enviar la prueba.",
+     TEST_RECIPIENT_INVALID:"Ese correo no es válido. Revísalo e inténtalo de nuevo.",
+     MAIL_NOT_CONFIGURED:"Guarda primero la clave de API, el dominio y el remitente de Resend.",
+     MAIL_TEST_RATE_LIMITED:"Solo se puede enviar un correo de prueba por minuto.",
+     MAIL_TEST_NOT_ACCEPTED:"Resend no aceptó el correo. Revisa la clave, el dominio verificado y el remitente.",
      MAIL_TEST_UNAVAILABLE:"El correo de prueba no está disponible. Revisa la configuración.",
      HTTP_401:"Debes iniciar sesión como administrador.",
      HTTP_403:"No tienes autorización para esta operación."
@@ -338,6 +347,7 @@
        '<div class="sv2-secret-cards">'+INTEGRATION_PROVIDERS.map(provider=>integrationCard(provider,V2.integrationItems,writable)).join("")+"</div>"+
        '<p class="sv2-secret-disclaimer">Guardar una clave no activa envíos, cobros reales ni publicación del sitio.</p>';
      host.dataset.integrationLoaded="1";
+     restoreIntegrationBusy();
    }catch(error){
      if(token!==V2.integrationLoadToken || !host.isConnected)return;
      host.innerHTML='<div class="sv2-secret-error"><p>'+esc(integrationError(error))+'</p><button type="button" class="btn ghost" data-secret-retry>Reintentar</button></div>';
@@ -395,76 +405,115 @@
    });
   }
   
+  function restoreIntegrationBusy(){
+    // New cards inherit the lock of a mutation started before SPA navigation.
+    for(const [id,status] of integrationOperations){
+      const card=integrationCardFor(id);
+      if(!card)continue;
+      integrationBusy(card,true);
+      const feedback=card.querySelector('[data-secret-feedback]');
+      if(feedback)feedback.textContent=status;
+    }
+  }
+
+  function integrationCardFor(id){
+    return Array.from(document.querySelectorAll('[data-integration-provider]'))
+      .find(card=>card.dataset.integrationProvider===id) || null;
+  }
+
   function integrationBusy(card,busy){
-   card.querySelectorAll("button, input, textarea").forEach(el=>{el.disabled=busy || !V2.integrationWritable;});
-   card.setAttribute("aria-busy",busy?"true":"false");
+    card.querySelectorAll("button, input, textarea").forEach(el=>{el.disabled=busy || !V2.integrationWritable;});
+    card.setAttribute("aria-busy",busy?"true":"false");
   }
-  
+
+  function integrationFinished(id,message,items=null){
+    integrationOperations.delete(id);
+    if(items)V2.integrationItems=items;
+    const card=integrationCardFor(id);
+    if(!card)return; // A committed operation finishes even if Settings is no longer mounted.
+    if(items)updateIntegrationCard(card,items);
+    integrationBusy(card,false);
+    const feedback=card.querySelector('[data-secret-feedback]');
+    if(feedback)feedback.textContent=message;
+  }
+
   async function saveIntegrationProvider(id){
-   const card=Array.from(document.querySelectorAll("[data-integration-provider]")).find(el=>el.dataset.integrationProvider===id);
-   if(!card || !V2.integrationWritable || card.getAttribute("aria-busy")==="true")return;
-   const fields=Array.from(card.querySelectorAll("[data-secret-input], [data-mail-allowlist]")).filter(x=>x.value.trim().length>0);
-   const feedback=card.querySelector("[data-secret-feedback]");
-   if(!feedback)return;
-   if(!fields.length){feedback.textContent="Escribe al menos un valor. Los campos vacíos se conservan.";return;}
-   integrationBusy(card,true);
-   feedback.textContent="Guardando…";
-   let saved=0;
-   try{
-     for(const field of fields){
-       const result=await integrationMutation("POST",field.dataset.secretKey,field.value);
-       field.value="";
-       updateIntegrationCard(card,result);
-       saved++;
-     }
-     feedback.textContent=saved===1?"Clave guardada. Los demás valores no se modificaron.":`${saved} claves guardadas. Los demás valores no se modificaron.`;
-   }catch(error){
-     feedback.textContent=(saved?`${saved} claves guardadas. `:"")+integrationError(error);
-   }finally{integrationBusy(card,false);}
-  }
-  
-  async function sendIntegrationTestMail(){
-    const card=document.querySelector('[data-integration-provider="resend"]');
-    if(!card || !V2.integrationWritable || card.getAttribute("aria-busy")==="true")return;
-    const feedback=card.querySelector("[data-secret-feedback]");
+    const card=integrationCardFor(id);
+    if(!card || !V2.integrationWritable || integrationOperations.has(id))return;
+    const fields=Array.from(card.querySelectorAll('[data-secret-input], [data-mail-allowlist]'))
+      .filter(field=>field.value.trim().length>0)
+      .map(field=>({element:field,key:field.dataset.secretKey,value:field.value}));
+    const feedback=card.querySelector('[data-secret-feedback]');
     if(!feedback)return;
+    if(!fields.length){feedback.textContent="Escribe al menos un valor. Los campos vacíos se conservan.";return;}
+    // Lock synchronously, even while CSRF negotiation is awaiting network.
+    integrationOperations.set(id,"Guardando…");
+    integrationBusy(card,true);
+    feedback.textContent="Guardando…";
+    let saved=0, latestItems=null, message="";
+    try{
+      for(const field of fields){
+        latestItems=await integrationMutation("POST",field.key,field.value);
+        field.element.value="";
+        saved++;
+      }
+      message=saved===1?"Clave guardada. Los demás valores no se modificaron.":`${saved} claves guardadas. Los demás valores no se modificaron.`;
+    }catch(error){
+      message=(saved?`${saved} claves guardadas. `:"")+integrationError(error);
+    }finally{
+      integrationFinished(id,message,latestItems);
+    }
+  }
+
+  async function sendIntegrationTestMail(){
+    const id="resend",card=integrationCardFor(id);
+    const email=String(card?.querySelector("[data-mail-test-to]")?.value||"").trim();
+    if(!card || !V2.integrationWritable || integrationOperations.has(id))return;
+    const feedback=card.querySelector('[data-secret-feedback]');
+    if(!feedback)return;
+    integrationOperations.set(id,"Solicitando correo de prueba…");
     integrationBusy(card,true);
     feedback.textContent="Solicitando correo de prueba…";
+    let message="";
     try{
       const csrf=await integrationCsrf();
       const response=await fetch("/api/admin-integration-test-mail.php",{
         method:"POST",credentials:"same-origin",cache:"no-store",
         headers:{"Content-Type":"application/json","X-CSRF-Token":csrf},
-        body:"{}"
+        body:JSON.stringify({email})
       });
       const payload=await response.json().catch(()=>({}));
       if(!response.ok || payload.ok!==true || payload.state!=="accepted"){
         throw new Error(String(payload.error||"MAIL_TEST_NOT_ACCEPTED"));
       }
-      feedback.textContent="Correo de prueba aceptado para el primer destinatario permitido.";
+      message="Correo de prueba enviado. Revisa la bandeja de entrada (y el spam).";
     }catch(error){
-      feedback.textContent=integrationError(error);
+      message=integrationError(error);
     }finally{
-      integrationBusy(card,false);
+      integrationFinished(id,message);
     }
   }
 
   async function deleteIntegrationField(key){
-   const row=Array.from(document.querySelectorAll("[data-secret-row]")).find(el=>el.dataset.secretRow===key);
-   const card=row?.closest("[data-integration-provider]");
-   if(!row || !card || !V2.integrationWritable || card.getAttribute("aria-busy")==="true")return;
-   const field=INTEGRATION_PROVIDERS.flatMap(p=>p.fields).find(f=>f.key===key);
-   const label=field?.label||"este valor";
-   if(!window.confirm(`¿Eliminar ${label}? Tendrás que introducirlo de nuevo para recuperarlo.`))return;
-   const feedback=card.querySelector("[data-secret-feedback]");
-   integrationBusy(card,true);
-   if(feedback)feedback.textContent="Eliminando…";
-   try{
-     const items=await integrationMutation("DELETE",key);
-     updateIntegrationCard(card,items);
-     if(feedback)feedback.textContent=`${label}: valor eliminado.`;
-   }catch(error){if(feedback)feedback.textContent=integrationError(error);}
-   finally{integrationBusy(card,false);}
+    const row=Array.from(document.querySelectorAll('[data-secret-row]')).find(el=>el.dataset.secretRow===key);
+    const card=row?.closest('[data-integration-provider]'),id=card?.dataset.integrationProvider;
+    if(!row || !card || !id || !V2.integrationWritable || integrationOperations.has(id))return;
+    const field=INTEGRATION_PROVIDERS.flatMap(p=>p.fields).find(f=>f.key===key);
+    const label=field?.label||"este valor";
+    if(!window.confirm(`¿Eliminar ${label}? Tendrás que introducirlo de nuevo para recuperarlo.`))return;
+    integrationOperations.set(id,"Eliminando…");
+    const feedback=card.querySelector('[data-secret-feedback]');
+    integrationBusy(card,true);
+    if(feedback)feedback.textContent="Eliminando…";
+    let latestItems=null,message="";
+    try{
+      latestItems=await integrationMutation("DELETE",key);
+      message=`${label}: valor eliminado.`;
+    }catch(error){
+      message=integrationError(error);
+    }finally{
+      integrationFinished(id,message,latestItems);
+    }
   }
 
   function securityHost() {

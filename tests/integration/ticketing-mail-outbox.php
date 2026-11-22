@@ -54,6 +54,66 @@ register_shutdown_function(static function () use ($server, $dbName): void {
 });
 $pdo = new PDO("mysql:host={$host};port={$port};dbname={$dbName};charset=utf8mb4", $user, $pass, $opts);
 $pdo->exec((string)file_get_contents(__DIR__ . '/../../database/migration_ticketing_mail_outbox_01.sql'));
+
+// #1884: gate matrix uses synthetic config and rollback-only outbox probes.
+$hadPrivateConfig = array_key_exists('config', $GLOBALS);
+$oldPrivateConfig = $GLOBALS['config'] ?? null;
+$oldTesting = getenv('BRVTAL_TICKET_MAIL_TESTING');
+$oldApproval = getenv('BRVTAL_TICKET_MAIL_PRIVACY_APPROVED');
+$probe = static function (string $case) use ($pdo): int {
+    $pdo->beginTransaction();
+    try {
+        $id = brvtal_ticket_mail_enqueue($pdo, 'ticket:privacy:' . $case,
+            'entry:privacy', 'privacy-' . $case . '@example.test',
+            'Correo sintético', 'Contenido sintético seguro');
+        $pdo->rollBack();
+        return $id;
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $error;
+    }
+};
+$expectPrivacyDeny = static function (string $case) use ($probe): void {
+    try {
+        $probe($case);
+        mail_assert(false, 'privacy check unexpectedly accepted ' . $case);
+    } catch (RuntimeException $error) {
+        mail_assert($error->getMessage() === 'MAIL_PRIVACY_NOT_APPROVED',
+            'privacy check rejects ' . $case . ' without leaking private values');
+    }
+};
+try {
+    putenv('BRVTAL_TICKET_MAIL_TESTING');
+    putenv('BRVTAL_TICKET_MAIL_PRIVACY_APPROVED');
+    $GLOBALS['config'] = ['ticketing'=>['mail'=>[
+        'testing'=>'0','privacy_approved'=>'0',
+    ]]];
+    $expectPrivacyDeny('no-approval');
+    $GLOBALS['config']['ticketing']['mail']['privacy_approved'] = '1';
+    mail_assert($probe('private-approved') > 0,
+        'private approval permits enqueue without env');
+    putenv('BRVTAL_TICKET_MAIL_PRIVACY_APPROVED=1');
+    $GLOBALS['config']['ticketing']['mail']['privacy_approved'] = '0';
+    $expectPrivacyDeny('private-deny');
+    putenv('BRVTAL_TICKET_MAIL_TESTING=1');
+    $expectPrivacyDeny('private-testing-deny');
+    putenv('BRVTAL_TICKET_MAIL_TESTING');
+    $GLOBALS['config']['ticketing']['mail']['testing'] = '1';
+    mail_assert($probe('private-testing') > 0,
+        'private testing flag permits synthetic enqueue');
+    $GLOBALS['config']['ticketing']['mail'] = [];
+    mail_assert($probe('env-fallback') > 0,
+        'environment approval is fallback when private config is absent');
+    mail_assert((int)$pdo->query('SELECT COUNT(*) FROM ticket_mail_outbox')->fetchColumn() === 0,
+        'all privacy probes rolled back with no persisted personal data');
+} finally {
+    if ($hadPrivateConfig) $GLOBALS['config'] = $oldPrivateConfig;
+    else unset($GLOBALS['config']);
+    putenv($oldTesting === false ? 'BRVTAL_TICKET_MAIL_TESTING'
+        : 'BRVTAL_TICKET_MAIL_TESTING=' . $oldTesting);
+    putenv($oldApproval === false ? 'BRVTAL_TICKET_MAIL_PRIVACY_APPROVED'
+        : 'BRVTAL_TICKET_MAIL_PRIVACY_APPROVED=' . $oldApproval);
+}
 $pdo->exec("CREATE TABLE synthetic_paid_ticket (id INT PRIMARY KEY,status VARCHAR(20) NOT NULL)");
 $pdo->exec("INSERT INTO synthetic_paid_ticket VALUES (1,'paid')");
 
