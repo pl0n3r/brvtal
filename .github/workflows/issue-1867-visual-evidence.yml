@@ -1,0 +1,53 @@
+name: BRVTAL #1867 Settings labels A/B visual evidence
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [main]
+    paths:
+      - 'discadmin/settings-v2.css'
+      - 'tests/e2e/discadmin-settings-labels.spec.mjs'
+      - '.github/workflows/issue-1867-visual-evidence.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  captures:
+    if: github.repository == 'pl0n3r/brvtal' && github.event.pull_request.number == 1915
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Install test dependencies
+        run: npm install --prefer-offline --no-audit --no-fund
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Check actual Settings CSS geometry and preserve EN data with synthetic site payloads
+        run: npx playwright test tests/e2e/discadmin-settings-labels.spec.mjs --project=chromium --reporter=list
+      - name: Verify all four before/after captures
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in before-390.png after-390.png before-1440.png after-1440.png; do
+            count="$(find test-results -type f -name "$file" | wc -l)"
+            if [[ "$count" -ne 1 ]]; then
+              echo "::error title=Missing Settings evidence::$file expected once, observed $count"
+              exit 1
+            fi
+          done
+      - name: Publish four verified captures on exact PR HEAD
+        if: success()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: settings-labels-1867-ab-${{ github.event.pull_request.head.sha }}-${{ github.run_id }}
+          path: |
+            test-results/**/before-390.png
+            test-results/**/after-390.png
+            test-results/**/before-1440.png
+            test-results/**/after-1440.png
+          if-no-files-found: error
+          retention-days: 14
