@@ -7,7 +7,7 @@ const source = readFileSync('discadmin/content-core.js', 'utf8');
 const workflow = readFileSync('discadmin/event-workflow.js', 'utf8');
 const url = 'http://127.0.0.1:4173/discadmin/e2e-event-editor-stepper.html';
 
-async function openEditor(page) {
+async function openEditor(page, stylesheet = css) {
   const state = {
     events: [{id:42,title:'Noche de prueba',slug:'noche-de-prueba',status:'draft',event_date:'2026-12-05 21:00:00',city:'Pereira'}],
     ticketTypes: [], timetable: [], writes: []
@@ -15,7 +15,7 @@ async function openEditor(page) {
   await page.route(url, route => route.fulfill({
     contentType: 'text/html; charset=utf-8',
     body: '<!doctype html><html lang="es"><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>'
-      + css + '</style></head><body>' + html + '</body></html>'
+      + stylesheet + '</style></head><body>' + html + '</body></html>'
   }));
   await page.goto(url);
   await page.evaluate(data => {
@@ -130,4 +130,27 @@ test('keyboard and Next/Back navigation preserve event fields and SAVE DRAFT', a
   const [saved] = await page.evaluate(() => window.__stepperFixture.writes);
   expect(saved.event).toMatchObject({title:'Noche guardada',city:'Pereira',status:'draft'});
   expect(saved.event.description).toBe('Descripción temporal que debe conservarse');
+});
+
+
+test('visual evidence before/after at 390px and 1440px', async ({browser}, testInfo) => {
+  // Same synthetic event and real module source; only the scoped #1850 CSS differs.
+  const cutoff = css.indexOf('/* #1850: Event editor only;');
+  expect(cutoff).toBeGreaterThan(0);
+  const originalCss = css.slice(0, cutoff);
+  for (const width of [390, 1440]) {
+    for (const [stage, stylesheet] of [['antes', originalCss], ['despues', css]]) {
+      const browserPage = await browser.newPage({viewport: {width, height: 900}});
+      try {
+        await openEditor(browserPage, stylesheet);
+        await browserPage.locator('.event-sales-wizard .steps').scrollIntoViewIfNeeded();
+        await browserPage.screenshot({
+          path: testInfo.outputPath(stage + '-wizard-' + width + '.png'),
+          animations: 'disabled'
+        });
+      } finally {
+        await browserPage.close();
+      }
+    }
+  }
 });

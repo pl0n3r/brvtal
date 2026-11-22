@@ -7,6 +7,7 @@ if (PHP_SAPI !== 'cli') {
     exit;
 }
 
+
 $root = dirname(__DIR__);
 $configPath = $root . '/config/config.php';
 if (!is_file($configPath)) {
@@ -14,6 +15,7 @@ if (!is_file($configPath)) {
     exit(2);
 }
 $config = require $configPath;
+$GLOBALS['config'] = $config;
 $db = $config['db'] ?? [];
 $dsn = sprintf(
     'mysql:host=%s;port=%d;dbname=%s;charset=%s',
@@ -26,6 +28,8 @@ $pdo = new PDO($dsn, (string)($db['user'] ?? ''), (string)($db['pass'] ?? ''), [
     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
 ]);
+// admin_password_security loads the canonical bootstrap (and its db() helper).
+// Do not redeclare db() here: it would collide with that bootstrap.
 require_once $root . '/config/admin_password_security.php';
 
 $baseUrl = (string)($config['app']['base_url'] ?? 'https://www.brvtal.com.co');

@@ -1,0 +1,44 @@
+name: BRVTAL #1883 synthetic visual evidence
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [main]
+    paths:
+      - 'discadmin/settings-v2.js'
+      - 'discadmin/settings-v2.css'
+      - 'tests/e2e/discadmin-settings-integrations.spec.mjs'
+      - '.github/workflows/issue-1883-visual-evidence.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  captures:
+    if: github.repository == 'pl0n3r/brvtal' && github.event.pull_request.number == 1907
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install Node test dependencies
+        run: npm install --prefer-offline --no-audit --no-fund
+      - name: Install Chromium with dependencies
+        run: npx playwright install --with-deps chromium
+      - name: Capture actual Chromium screenshots on synthetic fixtures
+        run: npx playwright test tests/e2e/discadmin-settings-integrations.spec.mjs --project=chromium --reporter=list
+      - name: Publish four exact-SHA before/after captures
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: brvtal-1883-visual-${{ github.event.pull_request.head.sha }}-${{ github.run_id }}
+          path: |
+            test-results/public-concept05-fidelity-discadmin-integrations/antes-serializacion-390.png
+            test-results/public-concept05-fidelity-discadmin-integrations/despues-serializacion-390.png
+            test-results/public-concept05-fidelity-discadmin-integrations/antes-serializacion-1440.png
+            test-results/public-concept05-fidelity-discadmin-integrations/despues-serializacion-1440.png
+          if-no-files-found: error
+          retention-days: 14
