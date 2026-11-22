@@ -2,6 +2,8 @@
   'use strict';
 
   const V2 = { tab:'general', pickerTarget:null, lastFocus:null, securityLoadToken:0, integrationLoadToken:0, integrationWritable:false, integrationItems:[] };
+  // Provider-scoped in-flight lock survives replacement of the DOM card.
+  const integrationOperations = new Map();
   const INDEXNOW_ENDPOINTS = [
     ['https://api.indexnow.org/indexnow','IndexNow Global'],
     ['https://indexnow.amazonbot.amazon/indexnow','Amazon'],
@@ -345,6 +347,7 @@
        '<div class="sv2-secret-cards">'+INTEGRATION_PROVIDERS.map(provider=>integrationCard(provider,V2.integrationItems,writable)).join("")+"</div>"+
        '<p class="sv2-secret-disclaimer">Guardar una clave no activa envíos, cobros reales ni publicación del sitio.</p>';
      host.dataset.integrationLoaded="1";
+     restoreIntegrationBusy();
    }catch(error){
      if(token!==V2.integrationLoadToken || !host.isConnected)return;
      host.innerHTML='<div class="sv2-secret-error"><p>'+esc(integrationError(error))+'</p><button type="button" class="btn ghost" data-secret-retry>Reintentar</button></div>';
@@ -402,76 +405,115 @@
    });
   }
   
+  function restoreIntegrationBusy(){
+    // New cards inherit the lock of a mutation started before SPA navigation.
+    for(const [id,status] of integrationOperations){
+      const card=integrationCardFor(id);
+      if(!card)continue;
+      integrationBusy(card,true);
+      const feedback=card.querySelector('[data-secret-feedback]');
+      if(feedback)feedback.textContent=status;
+    }
+  }
+
+  function integrationCardFor(id){
+    return Array.from(document.querySelectorAll('[data-integration-provider]'))
+      .find(card=>card.dataset.integrationProvider===id) || null;
+  }
+
   function integrationBusy(card,busy){
-   card.querySelectorAll("button, input, textarea").forEach(el=>{el.disabled=busy || !V2.integrationWritable;});
-   card.setAttribute("aria-busy",busy?"true":"false");
+    card.querySelectorAll("button, input, textarea").forEach(el=>{el.disabled=busy || !V2.integrationWritable;});
+    card.setAttribute("aria-busy",busy?"true":"false");
   }
-  
+
+  function integrationFinished(id,message,items=null){
+    integrationOperations.delete(id);
+    if(items)V2.integrationItems=items;
+    const card=integrationCardFor(id);
+    if(!card)return; // A committed operation finishes even if Settings is no longer mounted.
+    if(items)updateIntegrationCard(card,items);
+    integrationBusy(card,false);
+    const feedback=card.querySelector('[data-secret-feedback]');
+    if(feedback)feedback.textContent=message;
+  }
+
   async function saveIntegrationProvider(id){
-   const card=Array.from(document.querySelectorAll("[data-integration-provider]")).find(el=>el.dataset.integrationProvider===id);
-   if(!card || !V2.integrationWritable || card.getAttribute("aria-busy")==="true")return;
-   const fields=Array.from(card.querySelectorAll("[data-secret-input], [data-mail-allowlist]")).filter(x=>x.value.trim().length>0);
-   const feedback=card.querySelector("[data-secret-feedback]");
-   if(!feedback)return;
-   if(!fields.length){feedback.textContent="Escribe al menos un valor. Los campos vacíos se conservan.";return;}
-   integrationBusy(card,true);
-   feedback.textContent="Guardando…";
-   let saved=0;
-   try{
-     for(const field of fields){
-       const result=await integrationMutation("POST",field.dataset.secretKey,field.value);
-       field.value="";
-       updateIntegrationCard(card,result);
-       saved++;
-     }
-     feedback.textContent=saved===1?"Clave guardada. Los demás valores no se modificaron.":`${saved} claves guardadas. Los demás valores no se modificaron.`;
-   }catch(error){
-     feedback.textContent=(saved?`${saved} claves guardadas. `:"")+integrationError(error);
-   }finally{integrationBusy(card,false);}
-  }
-  
-  async function sendIntegrationTestMail(){
-    const card=document.querySelector('[data-integration-provider="resend"]');
-    if(!card || !V2.integrationWritable || card.getAttribute("aria-busy")==="true")return;
-    const feedback=card.querySelector("[data-secret-feedback]");
+    const card=integrationCardFor(id);
+    if(!card || !V2.integrationWritable || integrationOperations.has(id))return;
+    const fields=Array.from(card.querySelectorAll('[data-secret-input], [data-mail-allowlist]'))
+      .filter(field=>field.value.trim().length>0)
+      .map(field=>({element:field,key:field.dataset.secretKey,value:field.value}));
+    const feedback=card.querySelector('[data-secret-feedback]');
     if(!feedback)return;
+    if(!fields.length){feedback.textContent="Escribe al menos un valor. Los campos vacíos se conservan.";return;}
+    // Lock synchronously, even while CSRF negotiation is awaiting network.
+    integrationOperations.set(id,"Guardando…");
+    integrationBusy(card,true);
+    feedback.textContent="Guardando…";
+    let saved=0, latestItems=null, message="";
+    try{
+      for(const field of fields){
+        latestItems=await integrationMutation("POST",field.key,field.value);
+        field.element.value="";
+        saved++;
+      }
+      message=saved===1?"Clave guardada. Los demás valores no se modificaron.":`${saved} claves guardadas. Los demás valores no se modificaron.`;
+    }catch(error){
+      message=(saved?`${saved} claves guardadas. `:"")+integrationError(error);
+    }finally{
+      integrationFinished(id,message,latestItems);
+    }
+  }
+
+  async function sendIntegrationTestMail(){
+    const id="resend",card=integrationCardFor(id);
+    const email=String(card?.querySelector("[data-mail-test-to]")?.value||"").trim();
+    if(!card || !V2.integrationWritable || integrationOperations.has(id))return;
+    const feedback=card.querySelector('[data-secret-feedback]');
+    if(!feedback)return;
+    integrationOperations.set(id,"Solicitando correo de prueba…");
     integrationBusy(card,true);
     feedback.textContent="Solicitando correo de prueba…";
+    let message="";
     try{
       const csrf=await integrationCsrf();
       const response=await fetch("/api/admin-integration-test-mail.php",{
         method:"POST",credentials:"same-origin",cache:"no-store",
         headers:{"Content-Type":"application/json","X-CSRF-Token":csrf},
-        body:JSON.stringify({email:String(card.querySelector("[data-mail-test-to]")?.value||"").trim()})
+        body:JSON.stringify({email})
       });
       const payload=await response.json().catch(()=>({}));
       if(!response.ok || payload.ok!==true || payload.state!=="accepted"){
         throw new Error(String(payload.error||"MAIL_TEST_NOT_ACCEPTED"));
       }
-      feedback.textContent="Correo de prueba enviado. Revisa la bandeja de entrada (y el spam).";
+      message="Correo de prueba enviado. Revisa la bandeja de entrada (y el spam).";
     }catch(error){
-      feedback.textContent=integrationError(error);
+      message=integrationError(error);
     }finally{
-      integrationBusy(card,false);
+      integrationFinished(id,message);
     }
   }
 
   async function deleteIntegrationField(key){
-   const row=Array.from(document.querySelectorAll("[data-secret-row]")).find(el=>el.dataset.secretRow===key);
-   const card=row?.closest("[data-integration-provider]");
-   if(!row || !card || !V2.integrationWritable || card.getAttribute("aria-busy")==="true")return;
-   const field=INTEGRATION_PROVIDERS.flatMap(p=>p.fields).find(f=>f.key===key);
-   const label=field?.label||"este valor";
-   if(!window.confirm(`¿Eliminar ${label}? Tendrás que introducirlo de nuevo para recuperarlo.`))return;
-   const feedback=card.querySelector("[data-secret-feedback]");
-   integrationBusy(card,true);
-   if(feedback)feedback.textContent="Eliminando…";
-   try{
-     const items=await integrationMutation("DELETE",key);
-     updateIntegrationCard(card,items);
-     if(feedback)feedback.textContent=`${label}: valor eliminado.`;
-   }catch(error){if(feedback)feedback.textContent=integrationError(error);}
-   finally{integrationBusy(card,false);}
+    const row=Array.from(document.querySelectorAll('[data-secret-row]')).find(el=>el.dataset.secretRow===key);
+    const card=row?.closest('[data-integration-provider]'),id=card?.dataset.integrationProvider;
+    if(!row || !card || !id || !V2.integrationWritable || integrationOperations.has(id))return;
+    const field=INTEGRATION_PROVIDERS.flatMap(p=>p.fields).find(f=>f.key===key);
+    const label=field?.label||"este valor";
+    if(!window.confirm(`¿Eliminar ${label}? Tendrás que introducirlo de nuevo para recuperarlo.`))return;
+    integrationOperations.set(id,"Eliminando…");
+    const feedback=card.querySelector('[data-secret-feedback]');
+    integrationBusy(card,true);
+    if(feedback)feedback.textContent="Eliminando…";
+    let latestItems=null,message="";
+    try{
+      latestItems=await integrationMutation("DELETE",key);
+      message=`${label}: valor eliminado.`;
+    }catch(error){
+      message=integrationError(error);
+    }finally{
+      integrationFinished(id,message,latestItems);
+    }
   }
 
   function securityHost() {
