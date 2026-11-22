@@ -16,7 +16,7 @@ function brvtal_mail_delivery_media(PDO $pdo, ?int $id): ?string
     }
     if (!is_string($path) || !str_starts_with($path, '/uploads/')
         || str_contains($path, '..') || str_contains($path, '//')
-        || preg_match('~[\x00-\x20?#<>"\\]~', $path)) return null;
+        || preg_match('~[^/A-Za-z0-9_.-]~', $path)) return null;
     return 'https://www.brvtal.com.co' . $path;
 }
 

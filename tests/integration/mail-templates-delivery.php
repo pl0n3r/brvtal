@@ -32,6 +32,14 @@ register_shutdown_function(static function()use($server,$name):void{
 });
 $db=new PDO("mysql:host=".$host.";port=".$port.";dbname=".$name.";charset=utf8mb4",$user,$pass,$options);
 $db->exec((string)file_get_contents(__DIR__.'/../../database/migration_ticketing_mail_outbox_01.sql'));
+// Safe text-only fallback before the additive HTML columns exist.
+$legacy=brvtal_mail_delivery_render($db,'order_pending',
+    ['event'=>'Legacy event','link'=>'https://brvtal.invalid/buyer/orders']);
+$db->beginTransaction();
+$legacyId=brvtal_ticket_mail_enqueue($db,'test:legacy','order:0',
+    'legacy@example.test',$legacy['subject'],$legacy['text'],$legacy['html'],'order_pending',null);
+$db->commit();
+mail_delivery_assert($legacyId>0,'safe text-only enqueue before migration');
 $db->exec((string)file_get_contents(__DIR__.'/../../database/migration_ticket_mail_html_01.sql'));
 $db->exec((string)file_get_contents(__DIR__.'/../../database/migration_ticket_mail_html_01.sql'));
 mail_delivery_assert((int)$db->query("SELECT COUNT(*) FROM information_schema.COLUMNS
@@ -55,6 +63,43 @@ try {
             $snapshot['subject'],$snapshot['text'],$snapshot['html'],$kind,$snapshot['template_version']);
         $db->commit();
         mail_delivery_assert($id>0,'enqueued '.$kind);
+    }
+    // Published snapshot must survive later editor changes, and reject corruption.
+    require_once __DIR__.'/../../config/mail_template_store.php';
+    $schemaCopy=(string)file_get_contents(__DIR__.'/../../database/migration_mail_templates_01.sql');
+    foreach(preg_split('/;\s*(?=CREATE|$)/i',$schemaCopy)?:[] as $stmt) {
+        if(trim($stmt)!=='')$db->exec($stmt);
+    }
+    $doc=brvtal_mail_template_catalog()['order_pending']['defaults'];
+    $doc['message']='Publicado para {{event_name}}';
+    $doc['theme']['accent']='#aabbcc';
+    $draft=brvtal_mail_template_save_draft($db,'order_pending','ticketing',$doc,1,0);
+    $pub=brvtal_mail_template_publish($db,'order_pending','ticketing',$draft['version_id'],1,1);
+    $snapshot=brvtal_mail_delivery_render($db,'order_pending',$event);
+    mail_delivery_assert($snapshot['template_source']==='published'
+        && $snapshot['template_version']===$pub['version_id']
+        && str_contains($snapshot['html'],'#aabbcc')
+        && str_contains($snapshot['text'],'Publicado para Noche de prueba'),
+        'published theme rendered with allowlisted variable');
+    $db->beginTransaction();
+    $snapshotId=brvtal_ticket_mail_enqueue($db,'test:published','order:2','buyer@example.test',
+        $snapshot['subject'],$snapshot['text'],$snapshot['html'],
+        'order_pending',$snapshot['template_version']);
+    $db->commit();
+    $unchanged=$db->prepare('SELECT body_text,body_html,template_version FROM ticket_mail_outbox WHERE id=?');
+    $unchanged->execute([$snapshotId]);$before=$unchanged->fetch(PDO::FETCH_ASSOC);
+    $doc['message']='Se actualizó la plantilla posteriormente';
+    $rev=brvtal_mail_template_save_draft($db,'order_pending','ticketing',$doc,2,2);
+    brvtal_mail_template_publish($db,'order_pending','ticketing',$rev['version_id'],2,3);
+    $unchanged->execute([$snapshotId]);$after=$unchanged->fetch(PDO::FETCH_ASSOC);
+    mail_delivery_assert($after===$before,'queued snapshot immutable across publishes');
+    $db->prepare('UPDATE mail_template_versions SET document_json=? WHERE id=?')
+        ->execute(['{"invalid":"document"}',$rev['version_id']]);
+    try {
+        brvtal_mail_delivery_render($db,'order_pending',$event);
+        mail_delivery_assert(false,'corrupt published document must fail closed');
+    } catch(RuntimeException $error) {
+        mail_delivery_assert($error->getMessage()==='MAIL_TEMPLATE_DOCUMENT_CORRUPTED','opaque corrupt failure');
     }
     $token=str_repeat('A',43);
     foreach(['verify_account','reset_password'] as $kind) {

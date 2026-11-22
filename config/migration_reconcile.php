@@ -251,6 +251,13 @@ function brvtalMigrationProofSpecifications(): array
             [],
             false
         ),
+        // #1889: added columns on an existing outbox (column-only proof).
+        'migration_ticket_mail_html_01.sql' => brvtalMigrationObjectRequirements(
+            'ticket_mail_outbox',
+            ['body_html','template_key','template_version'],
+            [],
+            false
+        ),
         'migration_ticketing_mail_outbox_01.sql' => brvtalMigrationObjectRequirements(
             'ticket_mail_outbox',
             [
