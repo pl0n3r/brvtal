@@ -31,12 +31,12 @@ test('future event has real purchase options without internal jargon or sold-out
   expect(await page.locator('.entity-image img').evaluate(el => getComputedStyle(el).objectFit)).toBe('contain');
 });
 
-test('mobile poster is above the copy, title has no glitch and sticky purchase respects footer', async ({ page }) => {
+test('mobile first-view copy comes before poster, title has no glitch and sticky purchase respects footer', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.setContent(render({ title: 'Activación lujuria' }));
   const image = await page.locator('.entity-image').boundingBox();
   const copy = await page.locator('.entity-copy').boundingBox();
-  expect(image && copy && image.y + image.height <= copy.y + 1).toBeTruthy();
+  expect(image && copy && copy.y + copy.height <= image.y + 1).toBeTruthy();
   const title = page.locator('main h1');
   expect(await title.evaluate(el => getComputedStyle(el, '::before').content)).toBe('none');
   expect(await title.evaluate(el => getComputedStyle(el, '::after').content)).toBe('none');

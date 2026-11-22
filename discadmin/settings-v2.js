@@ -251,6 +251,21 @@
      </div>`;
   }
   
+  function mailAllowlistField(provider,items,writable){
+    if(provider.id!=="resend")return "";
+    const item=items.find(row=>row.key==="BRVTAL_TICKET_MAIL_TEST_RECIPIENTS");
+    const configured=item?.stored===true;
+    return `<div class="sv2-secret-field">
+      <label class="sv2-secret-label" for="sv2-mail-test-recipients">Destinatarios permitidos para pruebas</label>
+      <textarea id="sv2-mail-test-recipients" rows="2" data-mail-allowlist
+        data-secret-key="BRVTAL_TICKET_MAIL_TEST_RECIPIENTS" autocomplete="off"
+        autocapitalize="off" spellcheck="false"
+        placeholder="qa@ejemplo.co, pruebas@ejemplo.co" ${writable?"":"disabled"}></textarea>
+      <small class="sv2-secret-help">Correos separados por comas. La lista se guarda cifrada y nunca se vuelve a mostrar.</small>
+      <small data-mail-allowlist-status>${configured?"Lista guardada":"Lista no configurada"}</small>
+    </div>`;
+  }
+
   function integrationCard(provider,items,writable){
    const state=integrationState(provider,items);
    const timestamps=provider.fields.map(field=>items.find(item=>item.key===field.key)?.updated_at).filter(Boolean).sort((a,b)=>a.localeCompare(b));
@@ -261,8 +276,10 @@
        <div class="sv2-secret-card-meta"><span class="sv2-secret-badge ${state==="Falta"?"is-missing":"is-configured"}" data-provider-state>${esc(state)}</span><small data-provider-updated>${esc(updated)}</small></div>
      </header>
      <div class="sv2-secret-fields">${provider.fields.map(field=>integrationField(field,items,writable)).join("")}</div>
+     ${mailAllowlistField(provider,items,writable)}
      <footer class="sv2-secret-card-footer">
        <p role="status" aria-live="polite" data-secret-feedback>Los campos vacíos no se modificarán.</p>
+       ${provider.id==="resend"?`<button type="button" class="btn ghost" data-mail-test-send ${writable?"":"disabled"}>Enviar correo de prueba</button>`:""}
        <button type="button" class="btn red sv2-secret-save" data-secret-provider-save="${esc(provider.id)}" ${writable?"":"disabled"}>Guardar</button>
      </footer>
    </article>`;
@@ -287,6 +304,11 @@
      SECRET_FORMAT_INVALID:"El formato no es válido. Revisa el ejemplo del campo.",
      SECRET_KEY_NOT_ALLOWED:"Esta clave no se puede configurar.",
      SECRET_STORE_UNAVAILABLE:"El almacenamiento no está disponible. Inténtalo de nuevo.",
+     TEST_MODE_REQUIRED:"Activa el modo test en la configuración privada antes de enviar.",
+     TEST_RECIPIENTS_EMPTY:"Configura al menos un destinatario permitido de prueba.",
+     MAIL_TEST_RATE_LIMITED:"Ya se solicitó un correo de prueba. Vuelve a intentarlo más tarde.",
+     MAIL_TEST_NOT_ACCEPTED:"El proveedor no confirmó el correo de prueba.",
+     MAIL_TEST_UNAVAILABLE:"El correo de prueba no está disponible. Revisa la configuración.",
      HTTP_401:"Debes iniciar sesión como administrador.",
      HTTP_403:"No tienes autorización para esta operación."
    };
@@ -358,6 +380,9 @@
    const times=provider.fields.map(f=>items.find(x=>x.key===f.key)?.updated_at).filter(Boolean).sort((a,b)=>a.localeCompare(b));
    const meta=card.querySelector("[data-provider-updated]");
    if(meta)meta.textContent=times.length?"Actualizado: "+times.at(-1):"Sin actualizaciones";
+   const allowlist=items.find(item=>item.key==="BRVTAL_TICKET_MAIL_TEST_RECIPIENTS");
+   const allowStatus=card.querySelector("[data-mail-allowlist-status]");
+   if(allowStatus)allowStatus.textContent=allowlist?.stored===true?"Lista guardada":"Lista no configurada";
    provider.fields.forEach(field=>{
      const row=Array.from(card.querySelectorAll("[data-secret-row]")).find(el=>el.dataset.secretRow===field.key);
      if(!row)return;
@@ -378,7 +403,7 @@
   async function saveIntegrationProvider(id){
    const card=Array.from(document.querySelectorAll("[data-integration-provider]")).find(el=>el.dataset.integrationProvider===id);
    if(!card || !V2.integrationWritable || card.getAttribute("aria-busy")==="true")return;
-   const fields=Array.from(card.querySelectorAll("[data-secret-input]")).filter(x=>x.value.trim().length>0);
+   const fields=Array.from(card.querySelectorAll("[data-secret-input], [data-mail-allowlist]")).filter(x=>x.value.trim().length>0);
    const feedback=card.querySelector("[data-secret-feedback]");
    if(!feedback)return;
    if(!fields.length){feedback.textContent="Escribe al menos un valor. Los campos vacíos se conservan.";return;}
@@ -398,6 +423,32 @@
    }finally{integrationBusy(card,false);}
   }
   
+  async function sendIntegrationTestMail(){
+    const card=document.querySelector('[data-integration-provider="resend"]');
+    if(!card || !V2.integrationWritable || card.getAttribute("aria-busy")==="true")return;
+    const feedback=card.querySelector("[data-secret-feedback]");
+    if(!feedback)return;
+    integrationBusy(card,true);
+    feedback.textContent="Solicitando correo de prueba…";
+    try{
+      const csrf=await integrationCsrf();
+      const response=await fetch("/api/admin-integration-test-mail.php",{
+        method:"POST",credentials:"same-origin",cache:"no-store",
+        headers:{"Content-Type":"application/json","X-CSRF-Token":csrf},
+        body:"{}"
+      });
+      const payload=await response.json().catch(()=>({}));
+      if(!response.ok || payload.ok!==true || payload.state!=="accepted"){
+        throw new Error(String(payload.error||"MAIL_TEST_NOT_ACCEPTED"));
+      }
+      feedback.textContent="Correo de prueba aceptado para el primer destinatario permitido.";
+    }catch(error){
+      feedback.textContent=integrationError(error);
+    }finally{
+      integrationBusy(card,false);
+    }
+  }
+
   async function deleteIntegrationField(key){
    const row=Array.from(document.querySelectorAll("[data-secret-row]")).find(el=>el.dataset.secretRow===key);
    const card=row?.closest("[data-integration-provider]");
@@ -762,6 +813,7 @@
   }
 
   function handleIntegrationClick(event) {
+    if(event.target.closest('[data-mail-test-send]')){void sendIntegrationTestMail();return true;}
     const save=event.target.closest('[data-secret-provider-save]');
     if(save){void saveIntegrationProvider(save.dataset.secretProviderSave);return true;}
     const remove=event.target.closest('[data-secret-delete]');

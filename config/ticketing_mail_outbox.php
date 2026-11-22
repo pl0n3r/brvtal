@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/ticketing_resend.php';
+require_once __DIR__ . '/public_abuse_guard.php';
 
 /**
  * Enqueue INSIDE the caller's existing order/payment transaction. This does
@@ -27,6 +28,22 @@ function brvtal_ticket_mail_enqueue(
         throw new InvalidArgumentException('MAIL_INVALID_INPUT');
     }
     $fingerprint = hash('sha256', json_encode([$reference, $recipient, $subject, $body], JSON_THROW_ON_ERROR));
+    // An idempotent replay must not spend the budget or enqueue a second email.
+    $existing = $pdo->prepare('SELECT id,payload_hash FROM ticket_mail_outbox WHERE message_key=? LIMIT 1');
+    $existing->execute([$key]);
+    $row = $existing->fetch(PDO::FETCH_ASSOC);
+    if (is_array($row)) {
+        if (!hash_equals($fingerprint, (string)$row['payload_hash'])) {
+            throw new DomainException('MAIL_KEY_CONFLICT');
+        }
+        return (int)$row['id'];
+    }
+    if (getenv('BRVTAL_TICKET_MAIL_TESTING') !== '1') {
+        $rate = brvtal_public_abuse_mail_limit($recipient);
+        if (!$rate['allowed']) {
+            throw new DomainException('MAIL_RATE_LIMITED');
+        }
+    }
     $stmt = $pdo->prepare('INSERT INTO ticket_mail_outbox
         (message_key,payload_hash,related_ref,recipient_email,subject,body_text,next_attempt_at,created_at,updated_at)
         VALUES (?,?,?,?,?,?,UTC_TIMESTAMP(),UTC_TIMESTAMP(),UTC_TIMESTAMP())
