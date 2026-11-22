@@ -15,12 +15,46 @@ const BRVTALRelatedContent = (() => {
     emptyGraph: 'TODAVÍA NO HAY CONTENIDO CONECTADO',
     publicLinks: 'VÍNCULOS PÚBLICOS',
   });
-  const plain = value => String(value ?? '')
-    .replace(/\[([^\]\r\n]+)\]\([^\)\r\n]+\)/g, '$1')
-    .replace(/^\s{0,3}#{1,3}[ \t]+/gm, '')
-    .replace(/^\s*[-*][ \t]+/gm, '')
-    .replace(/[*#]/g, '')
-    .replace(/\s+/g, ' ').trim();
+  // Read balanced Markdown destinations without consuming editorial parentheses.
+  const stripLinks = source => {
+    const chunks = [];
+    let start = 0, cursor = 0;
+    while (cursor < source.length) {
+      const open = source.indexOf('[', cursor);
+      if (open === -1) break;
+      const close = source.indexOf(']', open + 1);
+      if (close === -1) break;
+      const label = source.slice(open + 1, close);
+      if (!label || /[\[\r\n]/.test(label) || source[close + 1] !== '(') {
+        cursor = close + 1;
+        continue;
+      }
+      let level = 1, i = close + 2;
+      while (i < source.length && level && source[i] !== '\n' && source[i] !== '\r') {
+        if (source[i] === '(') level++;
+        else if (source[i] === ')') level--;
+        i++;
+      }
+      if (level === 0 && i > close + 3) {
+        chunks.push(source.slice(start, open), label);
+        start = i;
+        cursor = i;
+      } else cursor = close + 1;
+    }
+    chunks.push(source.slice(start));
+    return chunks.join('');
+  };
+
+  // Remove recognized Markdown delimiters, not literal C#, #1, or unpaired *.
+  const stripPlainMarkdown = value => stripLinks(String(value ?? ''))
+    .replace(/(?<!\*)\*\*[ \t]*([^*\r\n]*?\S)[ \t]*\*\*(?!\*)/g, '$1')
+    .replace(/(?<!\*)\*[ \t]*([^*\r\n]*?\S)[ \t]*\*(?!\*)/g, '$1')
+    .replace(/(?<![\p{L}\p{N}_])__[ \t]*([^_\r\n]*?\S)[ \t]*__(?![\p{L}\p{N}_])/gu, '$1')
+    .replace(/(?<![\p{L}\p{N}_])_[ \t]*([^_\r\n]*?\S)[ \t]*_(?![\p{L}\p{N}_])/gu, '$1')
+    .replace(/^[ \t]{0,3}#{1,3}[ \t]+/gm, '')
+    .replace(/^[ \t]*[-*][ \t]+/gm, '');
+
+  const plain = value => stripPlainMarkdown(value).replace(/\s+/g, ' ').trim();
   const cleanUrl = value => {
     const raw = String(value ?? '').trim();
     if (!raw) return '';

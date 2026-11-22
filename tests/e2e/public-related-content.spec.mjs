@@ -183,3 +183,29 @@ test('Release detail remains inside the graph and links back to its artist', asy
   await expect(page.getByRole('tab', { name: 'ARTISTAS' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('[data-related-detail] h3')).toHaveText('PL0N3R');
 });
+
+
+test('Public graph preserves literal # and * while stripping valid Markdown links and emphasis', async ({ page }) => {
+  const fixture = {
+    artists: [
+      { id:1, name:'C# #1 *', slug:'c-hash' },
+      { id:2, name:'** ZEBTS** __Noche__', slug:'zebts' },
+      { id:3, name:'[Conexión](https://example.org/a_(b(c)))', slug:'conexion' },
+    ],
+    events: [], archive: { events: [] }, sets: [], releases: [],
+    relations: { artists:{'1':{},'2':{},'3':{}}, counts:{} },
+  };
+  const payload=JSON.stringify(fixture).replace(/</g,'\\u003c');
+  await page.route(harnessUrl, route => route.fulfill({
+    contentType:'text/html; charset=utf-8',
+    body: '<!doctype html><html lang="es"><body><main><section id="media"></section></main>' +
+      '<script>' + relatedJs + '</script><script>window.BRVTALRelatedContent.init(' +
+      payload + ');</script></body></html>',
+  }));
+  await page.goto(harnessUrl);
+  await expect(page.locator('[data-related-detail] h3')).toHaveText('C# #1 *');
+  await page.getByRole('button', { name:/ZEBTS Noche/ }).first().click();
+  await expect(page.locator('[data-related-detail] h3')).toHaveText('ZEBTS Noche');
+  await page.getByRole('button', { name:/Conexión/ }).first().click();
+  await expect(page.locator('[data-related-detail] h3')).toHaveText('Conexión');
+});

@@ -12,6 +12,8 @@ $html = brvtalPublicTextFormat('** ZEBTS**' . PHP_EOL . "* CRIXXES'T B2B DNL5*")
 public_markdown_es_expect(str_contains($html, '<strong>ZEBTS</strong>'), 'negrita sin asteriscos');
 public_markdown_es_expect(str_contains($html, '<em>CRIXXES&#039;T B2B DNL5</em>'), 'cursiva sin asteriscos');
 public_markdown_es_expect(!str_contains($html, '** ZEBTS**') && !str_contains($html, '* CRIXXES'), 'Markdown renderizado');
+public_markdown_es_expect(brvtalPublicTextPlain('**A** and **B**') === 'A and B', 'los espacios entre énfasis consecutivos se conservan');
+public_markdown_es_expect(str_contains(brvtalPublicTextFormat('** A** y ** B**'), '<strong>A</strong> y <strong>B</strong>'), 'énfasis acolchado separado');
 public_markdown_es_expect(brvtalPublicTextPlain('# SAVØR 001' . PHP_EOL . "** ZEBTS** y * CRIXXES'T B2B DNL5*") === "SAVØR 001 ZEBTS y CRIXXES'T B2B DNL5", 'resúmenes sin # ni *');
 public_markdown_es_expect(str_contains(brvtalPublicTextFormat('** <script>alert(1)</script>**'), '&lt;script&gt;'), 'HTML externo escapado');
 $home = (string) file_get_contents(__DIR__ . '/../js/public-home-visual.js');
