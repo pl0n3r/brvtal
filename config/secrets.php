@@ -64,10 +64,7 @@ function brvtal_secret_value(string $envName, ?array $override = null, ?array $p
 function brvtal_provisioning_snapshot(?array $config = null): array
 {
     $value = static fn(string $key): string => brvtal_secret_value($key, null, $config);
-    $all = static function(array $keys) use ($value): bool {
-        foreach ($keys as $key) if (trim($value($key)) === '') return false;
-        return true;
-    };
+    $all = (static fn(array $keys): bool => array_all($keys, fn($key) => !(trim($value($key)) === '')));
     $wompi = $all([
         'BRVTAL_TICKET_WOMPI_PUBLIC_KEY','BRVTAL_TICKET_WOMPI_PRIVATE_KEY',
         'BRVTAL_TICKET_WOMPI_INTEGRITY_SECRET','BRVTAL_TICKET_WOMPI_EVENTS_SECRET',

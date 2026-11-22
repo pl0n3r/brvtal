@@ -284,7 +284,7 @@ function brvtalSentryExceptionEvent(Throwable $exception): array
     $event = brvtalSentryBaseEvent(bin2hex(random_bytes(16)), 'error');
     $event['exception'] = [
         'values' => [[
-            'type' => brvtalSentrySymbol(get_class($exception)),
+            'type' => brvtalSentrySymbol($exception::class),
             'value' => 'Unhandled exception',
             'stacktrace' => ['frames' => brvtalSentryExceptionFrames($exception)],
             'mechanism' => ['type' => 'generic', 'handled' => false],
@@ -395,9 +395,7 @@ function brvtalSentryDefaultSender(
             CURLOPT_POSTFIELDS => $body,
             CURLOPT_HTTPHEADER => $headers,
             CURLOPT_RETURNTRANSFER => false,
-            CURLOPT_WRITEFUNCTION => static function ($handle, string $chunk): int {
-                return strlen($chunk);
-            },
+            CURLOPT_WRITEFUNCTION => static fn($handle, string $chunk): int => strlen($chunk),
             CURLOPT_FOLLOWLOCATION => false,
             CURLOPT_CONNECTTIMEOUT_MS => 400,
             CURLOPT_TIMEOUT_MS => (int)round($timeoutSeconds * 1000),
