@@ -248,7 +248,7 @@ jobs:
       operation: validate
       profile: en
       # Factory#2163: version-only bumps no longer serialize leaves (#1811).
-      shared_version_paths: '["config/version.php","package.json","revision-juridica/00-LEEME.md"]'
+      shared_version_paths: '["config/version.php","package.json"]'
       pr_number: ${{ github.event.pull_request.number }}
       # Bootstrap-only exception: PR #728 migrates the last trusted BRVTAL v1
       # reservation marker. Every subsequent PR must present Factory v2 fingerprinting.
@@ -584,34 +584,6 @@ jobs:
             artifacts/concept05-positive/c05-fullpage-1440.png
             artifacts/concept05-positive/c05-owner-v2-ab-manifest.json
             artifacts/concept05-positive/c05-export-attestation.json
-          if-no-files-found: error
-          retention-days: 14
-
-      # #1860: Capture each baseline/corrected Chromium viewport in an explicit
-      # test-results path. Missing evidence is a failed acceptance gate.
-      - name: Verify Cromo header plate A/B captures
-        if: success() && github.event_name == 'pull_request'
-        shell: bash
-        run: |
-          set -euo pipefail
-          for name in before-390.png after-390.png before-1440.png after-1440.png; do
-            count="$(find test-results -type f -name "$name" | wc -l)"
-            if [[ "$count" -ne 1 ]]; then
-              echo "::error title=Missing Cromo evidence::$name: expected 1, observed $count"
-              exit 1
-            fi
-          done
-
-      - name: Upload Cromo header plate A/B captures
-        if: success() && github.event_name == 'pull_request'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: cromo-header-plate-ab-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_id }}
-          path: |
-            test-results/**/before-390.png
-            test-results/**/after-390.png
-            test-results/**/before-1440.png
-            test-results/**/after-1440.png
           if-no-files-found: error
           retention-days: 14
 

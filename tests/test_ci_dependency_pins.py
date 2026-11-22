@@ -19,7 +19,7 @@ EXPECTED_COUNTS = {
     "production-authenticated-smoke.yml": (1, 0, 1, 1, 0),
     "production-page-write-smoke.yml": (2, 0, 1, 1, 0),
     "production-performance.yml": (1, 0, 1, 1, 0),
-    "update-release-metadata.yml": (9, 0, 4, 0, 4),
+    "update-release-metadata.yml": (9, 0, 3, 0, 4),
     "factory-hostinger-cutover.yml": (1, 0, 0, 0, 0),
     "production-health-inspect.yml": (1, 0, 0, 0, 0),
     "production-migration-reconcile.yml": (1, 0, 0, 0, 0),

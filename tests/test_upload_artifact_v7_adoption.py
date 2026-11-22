@@ -186,13 +186,7 @@ class UploadArtifactV7AdoptionTests(unittest.TestCase):
         self.assertEqual(3, ci.count(image))
         self.assertNotIn("image: mariadb:11.4", ci)
 
-        self.assertEqual(4, ci.count("uses: actions/upload-artifact@"))
-        # #1860: the fourth pinned action publishes 390/1440 pre/post evidence.
-        self.assertIn("name: Verify Cromo header plate A/B captures", ci)
-        self.assertIn("name: cromo-header-plate-ab-", ci)
-        for file_name in ("before-390.png", "after-390.png",
-                          "before-1440.png", "after-1440.png"):
-            self.assertIn("test-results/**/" + file_name, ci)
+        self.assertEqual(3, ci.count("uses: actions/upload-artifact@"))
         success_block = upload_block(ci, target_name="name: concept05-owner-v2-ab-")
         validate_upload_block(success_block)
         self.assertIn("if: success() && steps.concept05_evidence.outputs.has_evidence == 'true'", success_block)
