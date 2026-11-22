@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/buyer_auth.php';
+require_once __DIR__ . '/version.php';
 require_once __DIR__ . '/admin_password_security.php';
 require_once __DIR__ . '/ticketing_mail_outbox.php';
 require_once __DIR__ . '/buyer_auth_mail_templates.php';
@@ -80,10 +81,13 @@ function brvtalBuyerAuthRegister(PDO $pdo, array $input): array
     $name = is_string($input['name'] ?? null) ? trim($input['name']) : '';
     $email = brvtalBuyerEmail($input['email'] ?? null);
     $consent = $input['terms_accepted'] ?? $input['accepted_terms'] ?? false;
-    $version = is_string($input['consent_version'] ?? null) ? trim($input['consent_version']) : '';
+    // Provenance comes from server release metadata, never a browser-controlled version.
+    $version = BRVTAL_APP_VERSION;
+    $privacy = $input['privacy_accepted'] ?? $consent;
     if ($email === null || mb_strlen($name) < 2 || mb_strlen($name) > 120
         || preg_match('/[\x00-\x1f\x7f]/u', $name)
-        || $consent !== true || preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/D', $version) !== 1) {
+        || $consent !== true || $privacy !== true
+        || preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/D', $version) !== 1) {
         throw new InvalidArgumentException('BUYER_PROFILE_INVALID');
     }
     $hash = brvtalBuyerAuthPassword($input['password'] ?? null);

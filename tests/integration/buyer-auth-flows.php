@@ -60,6 +60,10 @@ buyerAuthAssert($row['full_name'] === $input['name']
     && $row['password_hash'] !== $input['password']
     && password_verify($input['password'], $row['password_hash'])
     && $row['email_verified_at'] === null, 'unverified hashed buyer and profile');
+buyerAuthAssert($db->query('SELECT consent_version FROM ticket_buyers')->fetchColumn()
+    === BRVTAL_APP_VERSION, 'recorded consent version is canonical server value');
+buyerAuthAssert($db->query('SELECT consent_recorded_at FROM ticket_buyers')->fetchColumn() !== null,
+    'consent timestamp is server generated');
 buyerAuthAssert((int)$db->query('SELECT COUNT(*) FROM ticket_mail_outbox')->fetchColumn() === 1,
     'one queued verification only');
 $sealed = (string)$db->query('SELECT body_text FROM ticket_mail_outbox LIMIT 1')->fetchColumn();
