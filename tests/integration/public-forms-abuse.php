@@ -8,6 +8,7 @@ function abuseAssert(bool $value, string $why): void {
 
 $config = ['security' => ['csrf_key' => str_repeat('test-antibot-hmac-key!', 3)]];
 $now = 1800000000;
+$previousRemote = $_SERVER['REMOTE_ADDR'] ?? null;
 $_SERVER['REMOTE_ADDR'] = '203.0.113.77';
 $dirs = [];
 register_shutdown_function(static function () use (&$dirs): void {
@@ -70,8 +71,10 @@ $fastInput['captcha_answer'] = (string)($decoded['a']+$decoded['b']);
 abuseAssert(brvtal_public_abuse_check('register',$fastInput,$config,$now,$newDir())['status']===422,
     'under two seconds denied');
 $invalidDir = $newDir();
+$invalidRoot = $invalidDir . '/not-a-directory';
+file_put_contents($invalidRoot, 'occupied');
 $unavailable = brvtal_public_abuse_check('register',$human,$config,$now,
-    $invalidDir.'/does-not-exist/secret');
+    $invalidRoot.'/secret');
 abuseAssert(!$unavailable['allowed'] && $unavailable['status']===429,
     'unwritable rate store fails closed');
 
@@ -136,4 +139,6 @@ abuseAssert(in_array('api/buyer/auth.php',$found,true)
     && in_array('api/contact.php',$found,true), 'core public endpoints indexed');
 sort($found);
 echo 'BRVTAL public POST inventory: '.implode(', ',$found)."\n";
+if ($previousRemote === null) unset($_SERVER['REMOTE_ADDR']);
+else $_SERVER['REMOTE_ADDR'] = $previousRemote;
 echo "BRVTAL public forms anti-bot synthetic burst tests OK.\n";
