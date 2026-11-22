@@ -113,3 +113,37 @@
   .sv2-secret-card-footer{flex-direction:column;align-items:stretch}
   .sv2-secret-save{width:100%}
 }
+
+
+/* #1867: Settings (Operate) — vertical rhythm for labels, controls and help.
+   Only direct editor grids are changed; Integration cards retain their layout. */
+.settings-v2 .sv2-pane:not([data-settings-pane="integrations"]) > .sv2-grid{
+  column-gap:22px;
+  row-gap:20px;
+  margin-block-end:24px;
+}
+.settings-v2 .sv2-pane:not([data-settings-pane="integrations"]) > .sv2-grid > .sv2-field:has(> small){
+  display:flex;
+  flex-direction:column;
+  align-self:start;
+  gap:8px;
+}
+.settings-v2 .sv2-pane:not([data-settings-pane="integrations"]) > .sv2-grid > .sv2-field:has(> small) > span{
+  margin-bottom:0;
+  line-height:1.5;
+}
+.settings-v2 .sv2-pane:not([data-settings-pane="integrations"]) > .sv2-grid > .sv2-field:has(> small) > small{
+  margin-top:0;
+  line-height:1.6;
+  overflow-wrap:anywhere;
+}
+/* The authenticated DISCADMIN document declares lang=es. English variants are
+   preserved in the DOM and settings.site payload but not offered as UI fields.
+   An explicitly non-Spanish/unspecified document retains its legacy controls. */
+html:lang(es) .settings-v2 [data-settings-pane="general"] .sv2-field:has(> input:is(
+  #sv2_site_hero_manifesto_en,
+  #sv2_site_hero_cta_en,
+  #sv2_site_hero_eyebrow_en
+)){display:none}
+html:lang(es) .settings-v2 [data-settings-pane="general"] .sv2-grid:has(> .sv2-field > #sv2_site_hero_manifesto_en){display:none}
+/* End #1867. */
