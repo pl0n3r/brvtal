@@ -57,6 +57,11 @@ try {
     if (!brvtalBuyerSchemaReady($pdo)) {
         json_response(['ok' => false, 'error' => 'BUYER_SCHEMA_PENDING'], 503);
     }
+    // #1877: irreversible PII anonymization requires explicit operator opt-in.
+    // The test runner invokes the purge directly against disposable schemas only.
+    if (getenv('BRVTAL_BUYER_RETENTION_PURGE_APPROVED') === '1') {
+        brvtalBuyerPurgeUnverified($pdo);
+    }
 } catch (Throwable) {
     json_response(['ok' => false, 'error' => 'BUYER_SCHEMA_PENDING'], 503);
 }
