@@ -78,6 +78,18 @@ test('admin release metadata preserves diagnostics without showing internal jarg
  */
 test('visual evidence #1864 source-driven shell and banners at 390 and 1440',async({page},testInfo)=>{
   const baseline='9b3a0421f247d8e3eb9038a1721be44d7165dbdf';
+  // CI's canonical Chromium checkout is shallow. Fetch only the pinned original
+  // commit when necessary; never replace it with an unverified local snapshot.
+  try{
+    execFileSync('git',['cat-file','-e',baseline+':discadmin/index-core.php'],
+      {cwd:process.cwd(),stdio:'ignore'});
+  }catch{
+    execFileSync('git',['-c','protocol.version=2','fetch','--no-tags','--depth=1','origin',baseline],
+      {cwd:process.cwd(),stdio:'pipe',timeout:30000,maxBuffer:4*1024*1024});
+    const fetched=execFileSync('git',['rev-parse','FETCH_HEAD'],
+      {cwd:process.cwd(),encoding:'utf8'}).trim();
+    if(fetched!==baseline)throw Error('Visual baseline SHA did not match pinned commit');
+  }
   const loadOriginal=path=>execFileSync('git',['show',baseline+':'+path],
     {cwd:process.cwd(),encoding:'utf8',maxBuffer:4*1024*1024});
   const originalCore=loadOriginal('discadmin/index-core.php');
