@@ -57,11 +57,19 @@ function brvtal_ticket_resend_send(array $job, ?callable $request = null): array
     $email = (string)($job['recipient_email'] ?? '');
     $mock = $mode === 'mock' && brvtal_secret_value('BRVTAL_TICKET_MAIL_TESTING') === '1';
     $testMode = $mode === 'test';
+    // Correo de prueba pedido por un administrador desde DISCADMIN: sale con la
+    // configuración guardada sin depender del modo live/test (decisión del dueño,
+    // #1904). Solo el endpoint autenticado y con CSRF fija este indicador.
+    $adminTest = ($job['admin_test'] ?? false) === true;
     $live = $mode === 'live'
         && brvtal_secret_value('BRVTAL_TICKET_MAIL_ALLOW_LIVE') === '1'
         && brvtal_secret_value('BRVTAL_TICKET_MAIL_PRIVACY_APPROVED') === '1'
         && brvtal_secret_value('BRVTAL_TICKET_MAIL_DNS_VERIFIED') === '1';
-    if ($testMode && !brvtal_ticket_test_recipient_allowed($email)) {
+    if ($adminTest) {
+        $mock = false;
+        $testMode = false;
+        $live = true;
+    } elseif ($testMode && !brvtal_ticket_test_recipient_allowed($email)) {
         return ['state' => 'suppressed_test', 'code' => 'recipient_not_allowlisted'];
     }
     if (!$mock && !$testMode && !$live) {
@@ -69,7 +77,7 @@ function brvtal_ticket_resend_send(array $job, ?callable $request = null): array
     }
 
     $key = (string)($job['message_key'] ?? '');
-    $subject = ($testMode ? '[PRUEBA] ' : '') . (string)($job['subject'] ?? '');
+    $subject = (($testMode || $adminTest) ? '[PRUEBA] ' : '') . (string)($job['subject'] ?? '');
     $body = (string)($job['body_text'] ?? '');
     if (str_starts_with($body, BRVTAL_BUYER_MAIL_SEAL_PREFIX)) {
         $revealed = brvtalBuyerMailUnseal($body);
