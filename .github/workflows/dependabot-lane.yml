@@ -39,11 +39,17 @@ jobs:
           # The protected tag must be a descendant of the audited #2184 merge.
           # This prevents any write-capable call before the authorized v1 release.
           status="$(gh api 'repos/pl0n3r/Factory/compare/bedb8377f6ce1855845fbb579adbc3fb5b23835a...v1' --jq '.status')"
-          if [[ "$status" == 'ahead' || "$status" == 'identical' ]]; then
-            echo 'published=true' >> "$GITHUB_OUTPUT"
-          else
+          if [[ "$status" != 'ahead' && "$status" != 'identical' ]]; then
             echo 'Factory@v1 has not incorporated #2184; Dependabot writes remain disabled.'
+            exit 0
           fi
+          # Never grant automatic merge in live: re-read the canonical main phase.
+          main_phase="$(gh api "repos/$GITHUB_REPOSITORY/contents/datos.yml?ref=main" --jq '.content' | tr -d '\n' | base64 -d | jq -r '.phase // empty')"
+          if [[ "$main_phase" != 'construccion' ]]; then
+            echo 'BRVTAL is not in construccion; automatic dependency writes remain disabled.'
+            exit 0
+          fi
+          echo 'published=true' >> "$GITHUB_OUTPUT"
 
   verificar-dependabot:
     name: Validar identidad del bot y HEAD mediante API de solo lectura
