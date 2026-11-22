@@ -12,6 +12,7 @@ function brvtalIntegrationSecretCatalog(): array
         'BRVTAL_TICKET_MAIL_DOMAIN' => ['provider'=>'resend','field'=>'domain'],
         'BRVTAL_TICKET_MAIL_FROM' => ['provider'=>'resend','field'=>'from'],
         'BRVTAL_TICKET_MAIL_WEBHOOK_SECRET' => ['provider'=>'resend','field'=>'webhook_secret'],
+        'BRVTAL_TICKET_MAIL_TEST_RECIPIENTS' => ['provider'=>'resend','field'=>'test_recipients'],
         'BRVTAL_SMTP_HOST' => ['provider'=>'smtp','field'=>'host'],
         'BRVTAL_SMTP_USER' => ['provider'=>'smtp','field'=>'user'],
         'BRVTAL_SMTP_PASSWORD' => ['provider'=>'smtp','field'=>'password'],
@@ -78,6 +79,21 @@ function brvtalIntegrationSecretValidGa4Key(string $value): bool
     return is_array($details) && ($details['type'] ?? null) === OPENSSL_KEYTYPE_RSA;
 }
 
+/** Encrypted, strictly bounded allowlist; never permit wildcard destinations. */
+function brvtalIntegrationSecretValidTestRecipients(string $value): bool
+{
+    if ($value === '' || strlen($value) > 4096) return false;
+    $parts = preg_split('/[\r\n,;]+/', $value, -1, PREG_SPLIT_NO_EMPTY);
+    if (!is_array($parts) || $parts === [] || count($parts) > 25) return false;
+    foreach ($parts as $part) {
+        $mail = strtolower(trim($part));
+        if ($mail === '' || strlen($mail) > 254 || filter_var($mail, FILTER_VALIDATE_EMAIL) === false) {
+            return false;
+        }
+    }
+    return true;
+}
+
 function brvtalIntegrationSecretValidate(string $name, string $value): void
 {
     if (!isset(brvtalIntegrationSecretCatalog()[$name])) {
@@ -89,6 +105,7 @@ function brvtalIntegrationSecretValidate(string $name, string $value): void
     $ok = match ($name) {
         'BRVTAL_TICKET_MAIL_API_KEY' => preg_match('/^re_[A-Za-z0-9_-]{8,}$/D', $value) === 1,
         'BRVTAL_TICKET_MAIL_WEBHOOK_SECRET' => brvtalIntegrationSecretValidWebhook($value),
+        'BRVTAL_TICKET_MAIL_TEST_RECIPIENTS' => brvtalIntegrationSecretValidTestRecipients($value),
         'BRVTAL_TICKET_WOMPI_PUBLIC_KEY' => preg_match('/^pub_test_[A-Za-z0-9_-]{8,}$/D', $value) === 1,
         'BRVTAL_TICKET_WOMPI_PRIVATE_KEY' => preg_match('/^prv_test_[A-Za-z0-9_-]{8,}$/D', $value) === 1,
         'BRVTAL_TICKET_MAIL_FROM','BRVTAL_MAIL_FROM','BRVTAL_GA4_CLIENT_EMAIL' =>
