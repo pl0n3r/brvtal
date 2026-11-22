@@ -28,6 +28,15 @@ function brvtalPublicCromoTopbar(string $backHref = '/', string $backLabel = 'â†
         . '<nav class="cp-nav" aria-label="Secciones">' . $menu . '</nav>'
         . '<div class="cp-tools">'
         . brvtalPublicCromoSoundButton()
+        . '<a class="cp-back" href="/mi-cuenta/acceso" data-buyer-account-link>Mi cuenta</a>'
         . '<a class="cp-back" href="' . $backHref . '">' . $backLabel . '</a>'
-        . '</div></header>';
+        . '</div></header>'
+        // Public HTML may be cached. Resolve buyer state in the browser,
+        // using the buyer-only session API (never cookie presence or admin session).
+        . '<script>(async()=>{try{const response=await fetch("/api/buyer/auth.php",'
+        . '{credentials:"same-origin",cache:"no-store"});'
+        . 'if(!response.ok)return;const session=await response.json();'
+        . 'if(session?.ok!==true||session.authenticated!==true)return;'
+        . 'document.querySelectorAll("a[data-buyer-account-link]").forEach(a=>a.href="/mi-cuenta");'
+        . '}catch(_){}})();</script>';
 }
