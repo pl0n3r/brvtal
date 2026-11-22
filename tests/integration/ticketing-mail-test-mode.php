@@ -65,4 +65,26 @@ $GLOBALS['config']['ticketing']['mail']['mode'] = 'disabled';
 mail_test_assert(brvtal_ticket_resend_send($job, $request)['code'] === 'transport_disabled',
     'disabled remains disabled');
 mail_test_assert(count($calls) === 1, 'no accidental external calls');
+// #1904: the DISCADMIN test button works in any mode, to any typed address,
+// with the saved credentials, and never relaxes ordinary buyer mail gates.
+$adminJob = [...$job, 'recipient_email'=>'owner@example.test', 'admin_test'=>true];
+foreach (['disabled', 'live', 'test'] as $adminMode) {
+    $GLOBALS['config']['ticketing']['mail']['mode'] = $adminMode;
+    $before = count($calls);
+    $sent = brvtal_ticket_resend_send($adminJob, $request);
+    mail_test_assert($sent['state'] === 'accepted', "admin test accepted in $adminMode");
+    mail_test_assert(count($calls) === $before + 1, "admin test reaches provider in $adminMode");
+    mail_test_assert($calls[$before][0]['to'] === ['owner@example.test'], "admin target in $adminMode");
+    mail_test_assert($calls[$before][0]['subject'] === '[PRUEBA] Confirmación', "admin prefix in $adminMode");
+}
+$GLOBALS['config']['ticketing']['mail']['mode'] = 'live';
+$before = count($calls);
+mail_test_assert(brvtal_ticket_resend_send([...$adminJob, 'admin_test'=>'1'], $request)['code'] === 'transport_disabled',
+    'only a strict boolean flag enables the admin test path');
+mail_test_assert(brvtal_ticket_resend_send([...$job, 'recipient_email'=>'owner@example.test'], $request)['code'] === 'transport_disabled',
+    'buyer mail still needs every live gate');
+$GLOBALS['config']['ticketing']['mail']['api_key'] = '';
+mail_test_assert(brvtal_ticket_resend_send($adminJob, $request)['code'] === 'invalid_configuration',
+    'admin test still needs the saved key');
+mail_test_assert(count($calls) === $before, 'rejected admin tests never call the provider');
 echo "BRVTAL test mail allowlist, prefix, strict suppression and live isolation passed.\n";

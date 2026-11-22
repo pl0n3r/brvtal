@@ -39,7 +39,7 @@ async function setup(page,{writable=true,denyTest=false}={}){
       }
       if(pathname==='/api/admin-integration-test-mail.php'){
         window.mailFixture.requests.push({method,csrf:options.headers?.['X-CSRF-Token'],body:options.body});
-        if(window.mailFixture.denyTest)return json({ok:false,error:'TEST_MODE_REQUIRED'},409);
+        if(window.mailFixture.denyTest)return json({ok:false,error:'MAIL_NOT_CONFIGURED'},409);
         return json({ok:true,state:'accepted'});
       }
       if(pathname==='/api/index.php/auth')return json({authenticated:true,csrf:'synthetic-csrf-1875'});
@@ -62,11 +62,11 @@ test('AC-02: solo administrador con controles activos configura allowlist cifrad
   await expect(card.locator('[data-mail-allowlist-status]')).toHaveText('Lista guardada');
   await expect(recipients).toHaveValue('');
   await card.getByRole('button',{name:'Enviar correo de prueba'}).click();
-  await expect(card.locator('[data-secret-feedback]')).toContainText('Correo de prueba aceptado');
+  await expect(card.locator('[data-secret-feedback]')).toContainText('Correo de prueba enviado');
   const fixture=await page.evaluate(()=>window.mailFixture);
   expect(fixture.writes).toHaveLength(1);
   expect(fixture.writes[0]).toMatchObject({key:'BRVTAL_TICKET_MAIL_TEST_RECIPIENTS',csrf:'synthetic-csrf-1875'});
-  expect(fixture.requests).toEqual([{method:'POST',csrf:'synthetic-csrf-1875',body:'{}'}]);
+  expect(fixture.requests).toEqual([{method:'POST',csrf:'synthetic-csrf-1875',body:'{"email":""}'}]);
   expect(fixture.responses.every(s=>!s.includes('qa@example.test'))).toBe(true);
   expect((await page.locator('body').innerText())).not.toContain('qa@example.test');
 });
@@ -82,7 +82,7 @@ test('AC-02: fallo de modo y diseño móvil sin destinatarios visibles',async({p
   await page.setViewportSize({width:390,height:844});
   const card=await setup(page,{denyTest:true});
   await card.getByRole('button',{name:'Enviar correo de prueba'}).click();
-  await expect(card.locator('[data-secret-feedback]')).toContainText('Activa el modo test');
+  await expect(card.locator('[data-secret-feedback]')).toContainText('Guarda primero la clave');
   expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(391);
 });
 
@@ -92,4 +92,22 @@ test('AC-01: contrato PHP ejecutado offline con configuración privada sintétic
     cwd:process.cwd(),timeout:20000,encoding:'utf8',env:{...process.env,BRVTAL_TICKET_MAIL_MODE:'disabled'}
   });
   expect(output).toContain('BRVTAL test mail allowlist, prefix, strict suppression and live isolation passed.');
+});
+
+test('#1904: se escribe el destino y se envía sin modo test ni lista',async({page})=>{
+  const card=await setup(page);
+  await card.getByRole('textbox',{name:'Enviar prueba a'}).fill('  duena@example.test ');
+  await card.getByRole('button',{name:'Enviar correo de prueba'}).click();
+  await expect(card.locator('[data-secret-feedback]')).toContainText('Correo de prueba enviado');
+  const fixture=await page.evaluate(()=>window.mailFixture);
+  expect(fixture.writes).toHaveLength(0);
+  expect(fixture.requests).toEqual([{method:'POST',csrf:'synthetic-csrf-1875',body:'{"email":"duena@example.test"}'}]);
+});
+
+test('#1904: los errores se explican en español sin pedir tocar el servidor',async({page})=>{
+  const card=await setup(page,{denyTest:true});
+  await card.getByRole('button',{name:'Enviar correo de prueba'}).click();
+  const text=await card.locator('[data-secret-feedback]').innerText();
+  expect(text).not.toContain('configuración privada');
+  expect(source).not.toContain('Activa el modo test');
 });
