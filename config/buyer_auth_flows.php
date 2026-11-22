@@ -191,3 +191,63 @@ function brvtalBuyerAuthRequest(PDO $pdo, mixed $emailInput, string $kind,
     });
     return ['ok' => true]; // Never disclose account presence or mail delivery.
 }
+
+/**
+ * #1877: privacy-preserving 72h expiration for still-unverified buyer signups.
+ * Bounded, transactional anonymization preserves FK and paid-order history.
+ * No production mutation without an explicit operator retention authorization.
+ * Synthetic tests may run only on isolated brvtal_test* databases.
+ */
+function brvtalBuyerPurgeUnverified(PDO $pdo, int $limit = 25): int
+{
+    if ($limit < 1 || $limit > 100) {
+        throw new InvalidArgumentException('BUYER_PURGE_LIMIT_INVALID');
+    }
+    $testing = getenv('BRVTAL_INTEGRATION_TESTS') === '1';
+    if (!$testing && getenv('BRVTAL_BUYER_RETENTION_PURGE_APPROVED') !== '1') {
+        return 0;
+    }
+    if ($testing) {
+        $name = $pdo->query('SELECT DATABASE()')->fetchColumn();
+        if (!is_string($name) || preg_match('/^brvtal_test[A-Za-z0-9_]*$/D', $name) !== 1) {
+            throw new RuntimeException('BUYER_PURGE_TEST_DATABASE_REQUIRED');
+        }
+    }
+    return brvtalBuyerAuthTransaction($pdo, static function (PDO $pdo) use ($limit): int {
+        $stmt = $pdo->query('SELECT b.id FROM ticket_buyers b
+            WHERE b.status=\'active\' AND b.email_verified_at IS NULL
+              AND b.created_at<DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 72 HOUR)
+              AND NOT EXISTS (SELECT 1 FROM ticket_orders o WHERE o.buyer_id=b.id)
+            ORDER BY b.id LIMIT ' . $limit . ' FOR UPDATE');
+        $ids = array_map(intval(...), $stmt->fetchAll(PDO::FETCH_COLUMN));
+        if (!$ids) return 0;
+        $tokens = $pdo->prepare('UPDATE ticket_buyer_tokens
+            SET revoked_at_utc=UTC_TIMESTAMP(6) WHERE buyer_id=?
+            AND consumed_at_utc IS NULL AND revoked_at_utc IS NULL');
+        $sessions = $pdo->prepare('UPDATE ticket_buyer_sessions
+            SET revoked_at_utc=UTC_TIMESTAMP(6) WHERE buyer_id=?
+            AND revoked_at_utc IS NULL');
+        $outbox = $pdo->prepare("UPDATE ticket_mail_outbox
+            SET recipient_email='purged@invalid.example',subject='Aviso caducado',
+                body_text='Aviso descartado por caducidad de verificación',
+                state='failed',last_error_code='consent_revoked',locked_until=NULL,
+                updated_at=UTC_TIMESTAMP()
+            WHERE related_ref=? AND state IN ('queued','retry')");
+        $buyer = $pdo->prepare("UPDATE ticket_buyers
+            SET email=NULL,full_name=NULL,password_hash=NULL,status='blocked',
+                security_epoch=security_epoch+1
+            WHERE id=? AND status='active' AND email_verified_at IS NULL");
+        $count = 0;
+        foreach ($ids as $id) {
+            $tokens->execute([$id]);
+            $sessions->execute([$id]);
+            $outbox->execute(['buyer:' . $id]);
+            $buyer->execute([$id]);
+            if ($buyer->rowCount() !== 1) {
+                throw new RuntimeException('BUYER_PURGE_RACE');
+            }
+            $count++;
+        }
+        return $count;
+    });
+}

@@ -4,6 +4,44 @@ const BRVTALRelatedContent = (() => {
   const state = { data: null, mode: 'artists', selectedType: null, selectedId: 0, root: null };
   const qs = (selector, root = document) => root.querySelector(selector);
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
+  // Single source of Spanish public graph UI copy.
+  const UI = Object.freeze({
+    graph: 'CONTENIDO RELACIONADO / RED PÚBLICA',
+    title: 'CONEXIONES', browse: 'Explorar contenido relacionado de BRVTAL',
+    contentType: 'Tipo de contenido',
+    artists: 'ARTISTAS', events: 'NOCHES', sets: 'SETS', releases: 'LANZAMIENTOS',
+    emptyLayer: 'NO HAY CONTENIDO PÚBLICO EN ESTA CATEGORÍA',
+    emptyRelations: 'NO HAY VÍNCULOS PÚBLICOS',
+    emptyGraph: 'TODAVÍA NO HAY CONTENIDO CONECTADO',
+    publicLinks: 'VÍNCULOS PÚBLICOS',
+  });
+  // Only extract the display label of balanced Markdown links.
+  // Reverse offsets keep the earlier label positions stable.
+  const visibleLinks = value => {
+    let result = String(value ?? '');
+    for (const match of [...result.matchAll(/\[([^\]\r\n]+)\]\(/g)].reverse()) {
+      let depth = 1, end = match.index + match[0].length;
+      while (end < result.length && depth && result[end] !== '\n' && result[end] !== '\r') {
+        const ch = result[end++];
+        if (ch === '(') depth++;
+        else if (ch === ')') depth--;
+      }
+      if (depth === 0 && end > match.index + match[0].length + 1) {
+        result = result.slice(0, match.index) + match[1] + result.slice(end);
+      }
+    }
+    return result;
+  };
+  const plain = value => visibleLinks(value)
+    // Each pair is bounded by its delimiter; unmatched editorial marks survive.
+    .replace(/(?<!\*)\*\*([^*\r\n]+)\*\*(?!\*)/g, (_, inner) => inner.trim())
+    .replace(/(?<!\*)\*([^*\r\n]+)\*(?!\*)/g, (_, inner) => inner.trim())
+    .replace(/(?<![\p{L}\p{N}_])__([^_\r\n]+)__(?![\p{L}\p{N}_])/gu, (_, inner) => inner.trim())
+    .replace(/(?<![\p{L}\p{N}_])_([^_\r\n]+)_(?![\p{L}\p{N}_])/gu, (_, inner) => inner.trim())
+    .replace(/^[ \t]{0,3}#{1,3}[ \t]+/gm, '')
+    .replace(/^[ \t]*[-*][ \t]+/gm, '')
+    .replace(/\s+/g, ' ').trim();
+
   const cleanUrl = value => {
     const raw = String(value ?? '').trim();
     if (!raw) return '';
@@ -132,6 +170,13 @@ const BRVTALRelatedContent = (() => {
 
   function mount() {
     if (state.root?.isConnected) return state.root;
+    // Keep mount self-contained for isolated DOM verification while using the
+    // shared Spanish copy in the normal public application runtime.
+    const labels = typeof UI === 'undefined' ? {
+      graph: 'CONTENIDO RELACIONADO / RED PÚBLICA', title: 'CONEXIONES',
+      browse: 'Explorar contenido relacionado de BRVTAL', contentType: 'Tipo de contenido',
+      artists: 'ARTISTAS', events: 'NOCHES', sets: 'SETS', releases: 'LANZAMIENTOS',
+    } : UI;
     ensureStyles();
     const host = qs('main') || document.body;
     const before = qs('#media', host);
@@ -142,16 +187,16 @@ const BRVTALRelatedContent = (() => {
     section.innerHTML = `
       <div class="related-network-noise" aria-hidden="true"></div>
       <div class="related-network-head">
-        <div><div class="mono related-network-kicker">RELATED CONTENT / PUBLIC GRAPH</div><h2>CONNECTED</h2></div>
+        <div><div class="mono related-network-kicker">${labels.graph}</div><h2>${labels.title}</h2></div>
         <div class="mono related-network-summary" data-related-summary></div>
       </div>
       <div class="related-network-layout">
-        <aside class="related-network-browser" aria-label="Explore related BRVTAL content">
-          <div class="related-network-tabs" role="tablist" aria-label="Content type">
-            <button type="button" id="related-tab-artists" role="tab" aria-selected="true" aria-controls="related-network-panel" tabindex="0" data-related-mode="artists">ARTISTS</button>
-            <button type="button" id="related-tab-events" role="tab" aria-selected="false" aria-controls="related-network-panel" tabindex="-1" data-related-mode="events">EVENTS</button>
-            <button type="button" id="related-tab-sets" role="tab" aria-selected="false" aria-controls="related-network-panel" tabindex="-1" data-related-mode="sets">SETS</button>
-            <button type="button" id="related-tab-releases" role="tab" aria-selected="false" aria-controls="related-network-panel" tabindex="-1" data-related-mode="releases">RELEASES</button>
+        <aside class="related-network-browser" aria-label="${labels.browse}">
+          <div class="related-network-tabs" role="tablist" aria-label="${labels.contentType}">
+            <button type="button" id="related-tab-artists" role="tab" aria-selected="true" aria-controls="related-network-panel" tabindex="0" data-related-mode="artists">${labels.artists}</button>
+            <button type="button" id="related-tab-events" role="tab" aria-selected="false" aria-controls="related-network-panel" tabindex="-1" data-related-mode="events">${labels.events}</button>
+            <button type="button" id="related-tab-sets" role="tab" aria-selected="false" aria-controls="related-network-panel" tabindex="-1" data-related-mode="sets">${labels.sets}</button>
+            <button type="button" id="related-tab-releases" role="tab" aria-selected="false" aria-controls="related-network-panel" tabindex="-1" data-related-mode="releases">${labels.releases}</button>
           </div>
           <div class="related-network-list" id="related-network-panel" role="tabpanel" aria-labelledby="related-tab-artists" tabindex="0" data-related-list></div>
         </aside>
@@ -184,30 +229,30 @@ const BRVTALRelatedContent = (() => {
   }
 
   function entityLabel(type, entity) {
-    if (type === 'artists') return String(entity?.name || 'UNKNOWN ARTIST');
-    if (type === 'events') return String(entity?.title || 'UNTITLED EVENT');
-    if (type === 'sets') return String(entity?.title || 'UNTITLED SET');
-    if (type === 'releases') return String(entity?.title || 'UNTITLED RELEASE');
-    return 'UNTITLED';
+    if (type === 'artists') return plain(entity?.name || 'ARTISTA SIN NOMBRE');
+    if (type === 'events') return plain(entity?.title || 'NOCHE SIN TÍTULO');
+    if (type === 'sets') return plain(entity?.title || 'SET SIN TÍTULO');
+    if (type === 'releases') return plain(entity?.title || 'LANZAMIENTO SIN TÍTULO');
+    return 'SIN TÍTULO';
   }
 
   function entityMeta(type, entity, id) {
     const rel = relation(type, id) || {};
     if (type === 'artists') {
-      return `${rel.events?.length || 0} EVENTS / ${rel.sets?.length || 0} SETS / ${rel.releases?.length || 0} RELEASES / ${rel.memories?.length || 0} MEMORIES`;
+      return `${rel.events?.length || 0} NOCHES / ${rel.sets?.length || 0} SETS / ${rel.releases?.length || 0} LANZAMIENTOS / ${rel.memories?.length || 0} MEMORIAS`;
     }
     if (type === 'events') {
       const status = String(entity?.status || 'published').toUpperCase().replaceAll('_', ' ');
-      return `${status} / ${rel.artists?.length || 0} ARTISTS / ${rel.sets?.length || 0} SETS / ${rel.memories?.length || 0} MEMORIES`;
+      return `${status} / ${rel.artists?.length || 0} ARTISTAS / ${rel.sets?.length || 0} SETS / ${rel.memories?.length || 0} MEMORIAS`;
     }
     if (type === 'sets') {
       const platform = String(entity?.platform || 'SET').toUpperCase();
-      return `${platform} / ${Number(rel.artist) > 0 ? '1 ARTIST' : 'NO ARTIST'} / ${Number(rel.event) > 0 ? '1 EVENT' : 'NO EVENT'} / ${rel.memories?.length || 0} MEMORIES`;
+      return `${platform} / ${Number(rel.artist) > 0 ? '1 ARTISTA' : 'SIN ARTISTA'} / ${Number(rel.event) > 0 ? '1 NOCHE' : 'SIN NOCHE'} / ${rel.memories?.length || 0} MEMORIAS`;
     }
     if (type === 'releases') {
-      const releaseType = String(entity?.release_type || 'RELEASE').toUpperCase();
+      const releaseType = String(entity?.release_type || 'LANZAMIENTO').toUpperCase();
       const date = formatDate(entity?.release_date);
-      return [releaseType, `${rel.artists?.length || 0} ARTISTS`, `${rel.memories?.length || 0} MEMORIES`, date].filter(Boolean).join(' / ');
+      return [releaseType, `${rel.artists?.length || 0} ARTISTAS`, `${rel.memories?.length || 0} MEMORIAS`, date].filter(Boolean).join(' / ');
     }
     return '';
   }
@@ -247,7 +292,7 @@ const BRVTALRelatedContent = (() => {
         <small class="mono">${esc(entityMeta(state.mode, entity, id))}</small>
       </button>`).join('');
 
-    if (!entries.length) list.innerHTML = '<div class="related-network-empty mono">NO PUBLIC CONTENT IN THIS LAYER</div>';
+    if (!entries.length) list.innerHTML = `<div class="related-network-empty mono">${UI.emptyLayer}</div>`;
     return entries;
   }
 
@@ -259,7 +304,7 @@ const BRVTALRelatedContent = (() => {
     const navigable = ['artists','events','sets','releases'].includes(selectType) && Number(entity?.id) > 0;
     const href = entityUrl(selectType, entity?.slug) || (options.href ? cleanUrl(options.href) : '');
     const inner = `${image ? `<span class="related-item-image"><img src="${esc(image)}" alt="" loading="lazy" decoding="async"></span>` : '<span class="related-item-image related-item-placeholder"></span>'}
-      <span class="related-item-copy"><strong>${esc(title || 'UNTITLED')}</strong><small class="mono">${esc(meta)}</small></span><span class="related-item-arrow">${navigable || href ? '↗' : '—'}</span>`;
+      <span class="related-item-copy"><strong>${esc(plain(title || 'SIN TÍTULO'))}</strong><small class="mono">${esc(plain(meta))}</small></span><span class="related-item-arrow">${navigable || href ? '↗' : '—'}</span>`;
 
     if (navigable) {
       return `<button type="button" class="related-item" data-related-select data-related-type="${selectType}" data-related-id="${Number(entity?.id)||0}">${inner}</button>`;
@@ -271,18 +316,21 @@ const BRVTALRelatedContent = (() => {
   function memoryItem(memory) {
     const type = String(memory?.type || 'media').toUpperCase();
     const image = String(memory?.type || '').toLowerCase() === 'image' ? imgUrl(memory?.file_path) : '';
-    const title = String(memory?.title || memory?.alt_text || 'BRVTAL MEMORY');
+    const title = String(memory?.title || memory?.alt_text || 'MEMORIA BRVTAL');
     const imageMarkup = image
       ? '<span class="related-item-image"><img src="' + esc(image) + '" alt="" loading="lazy" decoding="async"></span>'
       : '<span class="related-item-image related-item-placeholder"></span>';
     const inner = `${imageMarkup}
-      <span class="related-item-copy"><strong>${esc(title)}</strong><small class="mono">MEMORY / ${esc(type)}</small></span><span class="related-item-arrow">↗</span>`;
+      <span class="related-item-copy"><strong>${esc(plain(title))}</strong><small class="mono">MEMORIA / ${esc(type)}</small></span><span class="related-item-arrow">↗</span>`;
     return `<a class="related-item" href="/#media">${inner}</a>`;
   }
 
   function group(title, items, renderItem) {
     const list = Array.isArray(items) ? items.filter(Boolean) : [];
-    return `<section class="related-group"><div class="related-group-head"><h4>${esc(title)}</h4><span class="mono">${list.length}</span></div><div class="related-group-list">${list.length ? list.map(item => renderItem(item)).join('') : '<div class="related-group-empty mono">NO PUBLIC RELATIONS</div>'}</div></section>`;
+    // The internal relation discriminator stays compatible with the existing
+    // memory contract; the visible group heading remains Spanish.
+    title = title === 'MEMORIES' ? 'MEMORIAS' : title;
+    return `<section class="related-group"><div class="related-group-head"><h4>${esc(plain(title))}</h4><span class="mono">${list.length}</span></div><div class="related-group-list">${list.length ? list.map(item => renderItem(item)).join('') : `<div class="related-group-empty mono">${UI.emptyRelations}</div>`}</div></section>`;
   }
 
   function releaseHref(release) {
@@ -303,13 +351,13 @@ const BRVTALRelatedContent = (() => {
     const photo = imgUrl(artist.photo);
     const canonical = entityUrl('artists', artist.slug);
     return `<div class="related-detail-hero">
-      <div class="related-detail-image">${photo ? `<img src="${esc(photo)}" alt="${esc(artist.name || 'Artist')}" loading="lazy" decoding="async">` : '<div class="related-detail-placeholder mono">BRVTAL / ARTIST</div>'}</div>
-      <div class="related-detail-copy"><div class="mono">ARTIST / CONTENT PATH</div><h3>${esc(artist.name || 'UNKNOWN')}</h3><p>${esc(artist.bio || 'BRVTAL ARTIST')}</p>${detailLinks([{href:canonical,label:'VIEW ARTIST'}])}</div>
+      <div class="related-detail-image">${photo ? `<img src="${esc(photo)}" alt="${esc(plain(artist.name || 'Artista'))}" loading="lazy" decoding="async">` : '<div class="related-detail-placeholder mono">BRVTAL / ARTISTA</div>'}</div>
+      <div class="related-detail-copy"><div class="mono">ARTISTA / RUTA DE CONTENIDO</div><h3>${esc(plain(artist.name || 'UNKNOWN'))}</h3><p>${esc(plain(artist.bio || 'ARTISTA BRVTAL'))}</p>${detailLinks([{href:canonical,label:'VER ARTISTA'}])}</div>
     </div>
     <div class="related-groups">
-      ${group('EVENTS', eventItems, event => relationItem('event', event, { meta: [formatDate(event.event_date), event.city].filter(Boolean).join(' / ') }))}
+      ${group('NOCHES', eventItems, event => relationItem('event', event, { meta: [formatDate(event.event_date), event.city].filter(Boolean).join(' / ') }))}
       ${group('SETS', setItems, set => relationItem('set', set, { meta: [String(set.platform || '').toUpperCase(), set.event_title].filter(Boolean).join(' / '), href: set.external_url }))}
-      ${group('RELEASES', releaseItems, release => relationItem('release', release, { meta: [String(release.release_type || '').toUpperCase(), formatDate(release.release_date)].filter(Boolean).join(' / '), href: releaseHref(release) }))}
+      ${group('LANZAMIENTOS', releaseItems, release => relationItem('release', release, { meta: [String(release.release_type || '').toUpperCase(), formatDate(release.release_date)].filter(Boolean).join(' / '), href: releaseHref(release) }))}
       ${group('MEMORIES', memoryItems, memoryItem)}
     </div>`;
   }
@@ -323,11 +371,11 @@ const BRVTALRelatedContent = (() => {
     const canonical = entityUrl('events', event.slug);
     const archive = archiveEventUrl(event);
     return `<div class="related-detail-hero">
-      <div class="related-detail-image">${image ? `<img src="${esc(image)}" alt="${esc(event.title || 'Event')}" loading="lazy" decoding="async">` : '<div class="related-detail-placeholder mono">BRVTAL / EVENT</div>'}</div>
-      <div class="related-detail-copy"><div class="mono">EVENT / ${esc(status)}</div><h3>${esc(event.title || 'UNTITLED EVENT')}</h3><p>${esc([formatDate(event.event_date), event.venue, event.city].filter(Boolean).join(' / '))}</p>${detailLinks([{href:canonical,label:'VIEW EVENT'},{href:archive,label:'VIEW IN ARCHIVE'}])}</div>
+      <div class="related-detail-image">${image ? `<img src="${esc(image)}" alt="${esc(event.title || 'Event')}" loading="lazy" decoding="async">` : '<div class="related-detail-placeholder mono">BRVTAL / NOCHE</div>'}</div>
+      <div class="related-detail-copy"><div class="mono">NOCHE / ${esc(status)}</div><h3>${esc(plain(event.title || 'NOCHE SIN TÍTULO'))}</h3><p>${esc([formatDate(event.event_date), event.venue, event.city].filter(Boolean).join(' / '))}</p>${detailLinks([{href:canonical,label:'VER NOCHE'},{href:archive,label:'VER EN ARCHIVO'}])}</div>
     </div>
     <div class="related-groups">
-      ${group('ARTISTS', artistItems, artist => relationItem('artist', artist, { meta: artist.bio || 'BRVTAL ARTIST' }))}
+      ${group('ARTISTAS', artistItems, artist => relationItem('artist', artist, { meta: artist.bio || 'ARTISTA BRVTAL' }))}
       ${group('SETS', setItems, set => relationItem('set', set, { meta: [String(set.platform || '').toUpperCase(), set.artist_name].filter(Boolean).join(' / '), href: set.external_url }))}
       ${group('MEMORIES', memoryItems, memoryItem)}
     </div>`;
@@ -344,11 +392,11 @@ const BRVTALRelatedContent = (() => {
     const description = set.description || [set.artist_name, set.event_title].filter(Boolean).join(' / ') || 'BRVTAL SET';
     return `<div class="related-detail-hero">
       <div class="related-detail-image">${image ? `<img src="${esc(image)}" alt="${esc(set.title || 'Set')}" loading="lazy" decoding="async">` : '<div class="related-detail-placeholder mono">BRVTAL / SET</div>'}</div>
-      <div class="related-detail-copy"><div class="mono">SET / ${esc(platform)}</div><h3>${esc(set.title || 'UNTITLED SET')}</h3><p>${esc(description)}</p>${detailLinks([{href:canonical,label:'VIEW SET'},{href:external,label:'OPEN PLATFORM',external:true}])}</div>
+      <div class="related-detail-copy"><div class="mono">SET / ${esc(platform)}</div><h3>${esc(plain(set.title || 'SET SIN TÍTULO'))}</h3><p>${esc(plain(description))}</p>${detailLinks([{href:canonical,label:'VER SET'},{href:external,label:'ABRIR PLATAFORMA',external:true}])}</div>
     </div>
     <div class="related-groups">
-      ${group('ARTIST', artist ? [artist] : [], item => relationItem('artist', item, { meta: item.bio || 'BRVTAL ARTIST' }))}
-      ${group('EVENT', event ? [event] : [], item => relationItem('event', item, { meta: [formatDate(item.event_date), item.city].filter(Boolean).join(' / ') }))}
+      ${group('ARTISTA', artist ? [artist] : [], item => relationItem('artist', item, { meta: item.bio || 'ARTISTA BRVTAL' }))}
+      ${group('NOCHE', event ? [event] : [], item => relationItem('event', item, { meta: [formatDate(item.event_date), item.city].filter(Boolean).join(' / ') }))}
       ${group('MEMORIES', memoryItems, memoryItem)}
     </div>`;
   }
@@ -357,16 +405,16 @@ const BRVTALRelatedContent = (() => {
     const artistItems = (rel.artists || []).map(id => maps.artists.get(Number(id))).filter(Boolean);
     const memoryItems = (rel.memories || []).map(id => maps.memories.get(Number(id))).filter(Boolean);
     const image = imgUrl(release.artwork);
-    const releaseType = String(release.release_type || 'RELEASE').toUpperCase();
+    const releaseType = String(release.release_type || 'LANZAMIENTO').toUpperCase();
     const canonical = entityUrl('releases', release.slug);
     const external = cleanUrl(releaseHref(release));
     const meta = [formatDate(release.release_date), release.catalog_number].filter(Boolean).join(' / ');
     return `<div class="related-detail-hero">
-      <div class="related-detail-image">${image ? `<img src="${esc(image)}" alt="${esc(release.title || 'Release')}" loading="lazy" decoding="async">` : '<div class="related-detail-placeholder mono">BRVTAL / RELEASE</div>'}</div>
-      <div class="related-detail-copy"><div class="mono">${esc(releaseType)} / CATALOG</div><h3>${esc(release.title || 'UNTITLED RELEASE')}</h3><p>${esc(release.description || meta || 'BRVTAL RELEASE')}</p>${detailLinks([{href:canonical,label:'VIEW RELEASE'},{href:external,label:'LISTEN',external:true}])}</div>
+      <div class="related-detail-image">${image ? `<img src="${esc(image)}" alt="${esc(release.title || 'Release')}" loading="lazy" decoding="async">` : '<div class="related-detail-placeholder mono">BRVTAL / LANZAMIENTO</div>'}</div>
+      <div class="related-detail-copy"><div class="mono">${esc(releaseType)} / CATÁLOGO</div><h3>${esc(plain(release.title || 'LANZAMIENTO SIN TÍTULO'))}</h3><p>${esc(release.description || meta || 'BRVTAL LANZAMIENTO')}</p>${detailLinks([{href:canonical,label:'VER LANZAMIENTO'},{href:external,label:'ESCUCHAR',external:true}])}</div>
     </div>
     <div class="related-groups">
-      ${group('ARTISTS', artistItems, artist => relationItem('artist', artist, { meta: artist.bio || 'BRVTAL ARTIST' }))}
+      ${group('ARTISTAS', artistItems, artist => relationItem('artist', artist, { meta: artist.bio || 'ARTISTA BRVTAL' }))}
       ${group('MEMORIES', memoryItems, memoryItem)}
     </div>`;
   }
@@ -406,7 +454,7 @@ const BRVTALRelatedContent = (() => {
     const counts = state.data?.relations?.counts || {};
     const total = Object.values(counts).reduce((sum, value) => sum + (Number(value) || 0), 0);
     const memoryLinks = Number(counts.event_memory || 0) + Number(counts.artist_memory || 0) + Number(counts.set_memory || 0) + Number(counts.release_memory || 0);
-    summary.textContent = `${total} PUBLIC LINKS / ${Number(counts.event_artist || 0)} EVENT↔ARTIST / ${Number(counts.event_set || 0)} EVENT↔SET / ${Number(counts.artist_set || 0)} ARTIST↔SET / ${Number(counts.artist_release || 0)} ARTIST↔RELEASE / ${memoryLinks} MEMORY LINKS`;
+    summary.textContent = `${total} ${UI.publicLinks} / ${Number(counts.event_artist || 0)} NOCHE↔ARTISTA / ${Number(counts.event_set || 0)} NOCHE↔SET / ${Number(counts.artist_set || 0)} ARTISTA↔SET / ${Number(counts.artist_release || 0)} ARTISTA↔LANZAMIENTO / ${memoryLinks} VÍNCULOS DE MEMORIA`;
   }
 
   function render() {
@@ -423,7 +471,7 @@ const BRVTALRelatedContent = (() => {
     if (!state.selectedType || state.selectedType !== state.mode || !state.selectedId) {
       const first = entries[0];
       if (first) select(state.mode, first[0]);
-      else qs('[data-related-detail]', root).innerHTML = '<div class="related-network-empty mono">NO CONNECTED CONTENT YET</div>';
+      else qs('[data-related-detail]', root).innerHTML = `<div class="related-network-empty mono">${UI.emptyGraph}</div>`;
     }
     if (window.ScrollTrigger) window.ScrollTrigger.refresh();
   }

@@ -105,3 +105,6 @@ migrations_it_assert(
 
 $cleanup();
 echo "BRVTAL migration-state MariaDB integration passed.\n";
+
+// #1886: synthetic, isolated mail-template schema and transactional store tests.
+require __DIR__ . '/mail-template-store.php';

@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const V2 = { tab:'general', pickerTarget:null, lastFocus:null, securityLoadToken:0 };
+  const V2 = { tab:'general', pickerTarget:null, lastFocus:null, securityLoadToken:0, integrationLoadToken:0, integrationWritable:false, integrationItems:[] };
   const INDEXNOW_ENDPOINTS = [
     ['https://api.indexnow.org/indexnow','IndexNow Global'],
     ['https://indexnow.amazonbot.amazon/indexnow','Amazon'],
@@ -84,6 +84,7 @@
       ['social','SOCIAL & CONTACT'],
       ['seo','SEO'],
       ['analytics','ANALYTICS & PRIVACY'],
+      ['integrations','INTEGRACIONES'],
       ['advanced','ADVANCED'],
     ];
     return defs.map(([id,label],index) => `<button type="button" class="${V2.tab===id?'active':''}" data-settings-tab="${id}" data-testid="settings-tab-${id}"><span>0${index+1}</span>${label}</button>`).join('');
@@ -219,7 +220,251 @@
 
   function requestedSettingsTab() {
     const requested = new URLSearchParams(location.search).get('settings');
-    return ['general','social','seo','analytics','advanced'].includes(requested) ? requested : '';
+    return ['general','social','seo','analytics','integrations','advanced'].includes(requested) ? requested : '';
+  }
+
+    const INTEGRATION_PROVIDERS = [{"id":"resend","name":"Resend","description":"Envío de correos y confirmaciones de entradas.","fields":[{"key":"BRVTAL_TICKET_MAIL_API_KEY","label":"Clave de API","help":"Empieza por re_…","example":"re_…","kind":"password"},{"key":"BRVTAL_TICKET_MAIL_DOMAIN","label":"Dominio de envío","help":"Dominio verificado para enviar correos.","example":"correo.ejemplo.co","kind":"text"},{"key":"BRVTAL_TICKET_MAIL_FROM","label":"Remitente","help":"Correo que verán las personas al recibir un mensaje.","example":"entradas@ejemplo.co","kind":"email"},{"key":"BRVTAL_TICKET_MAIL_WEBHOOK_SECRET","label":"Secreto del webhook","help":"Clave de firma para verificar los eventos recibidos.","example":"whsec_…","kind":"password"}]},{"id":"wompi","name":"Wompi sandbox","description":"Pagos de prueba; estas claves no activan cobros reales.","fields":[{"key":"BRVTAL_TICKET_WOMPI_PUBLIC_KEY","label":"Clave pública","help":"Clave de pruebas para la integración.","example":"pub_test_…","kind":"password"},{"key":"BRVTAL_TICKET_WOMPI_PRIVATE_KEY","label":"Clave privada","help":"Guárdala de forma privada. No se mostrará otra vez.","example":"prv_test_…","kind":"password"}]},{"id":"smtp","name":"SMTP","description":"Servidor alternativo para el envío de correos.","fields":[{"key":"BRVTAL_SMTP_HOST","label":"Servidor","help":"Dirección del servidor de correo.","example":"smtp.ejemplo.co","kind":"text"},{"key":"BRVTAL_SMTP_USER","label":"Usuario","help":"Identificador de la cuenta de correo.","example":"cuenta@ejemplo.co","kind":"text"},{"key":"BRVTAL_SMTP_PASSWORD","label":"Contraseña","help":"Contraseña del servidor. No se mostrará después.","example":"Introduce una nueva contraseña","kind":"password"},{"key":"BRVTAL_MAIL_FROM","label":"Remitente","help":"Correo desde el que se envían los mensajes.","example":"hola@ejemplo.co","kind":"email"}]},{"id":"ga4","name":"Google Analytics 4","description":"Identidad de servicio para consultar métricas.","fields":[{"key":"BRVTAL_GA4_PROPERTY_ID","label":"ID de propiedad","help":"Solo los números del identificador de GA4.","example":"123456789","kind":"text"},{"key":"BRVTAL_GA4_CLIENT_EMAIL","label":"Correo de servicio","help":"Dirección de la cuenta de servicio.","example":"cuenta@proyecto.iam.gserviceaccount.com","kind":"email"},{"key":"BRVTAL_GA4_PRIVATE_KEY","label":"Clave privada (PEM)","help":"Pega el bloque PEM completo, con saltos de línea.","example":"-----BEGIN PRIVATE KEY-----","kind":"multiline"}]},{"id":"sentry","name":"Sentry","description":"Diagnóstico de errores del servidor.","fields":[{"key":"BRVTAL_SENTRY_DSN","label":"Dirección de conexión (DSN)","help":"Dirección HTTPS de tu proyecto.","example":"https://…@sentry.io/…","kind":"password"}]}];
+  
+  function integrationState(provider,items){
+   const stored=provider.fields.some(field=>items.some(item=>item.key===field.key && item.stored===true));
+   if(!stored)return "Falta";
+   return provider.id==="wompi" ? "Modo pruebas" : "Configurado";
+  }
+  
+  function integrationField(field,items,writable){
+   const item=items.find(row=>row.key===field.key);
+   const stored=item?.stored===true;
+   const id="sv2-secret-"+field.key.toLowerCase().replaceAll("_","-");
+   const disabled=writable?"":"disabled";
+   const input=field.kind==="multiline"
+     ? `<textarea id="${id}" rows="5" data-secret-input data-secret-key="${esc(field.key)}" autocomplete="off" spellcheck="false" placeholder="${esc(field.example)}" ${disabled}></textarea>`
+     : `<input id="${id}" data-secret-input data-secret-key="${esc(field.key)}" type="${esc(field.kind)}" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(field.example)}" ${disabled}>`;
+   const updated=item?.updated_at ? "Actualizado: "+esc(item.updated_at) : "Sin valor guardado";
+   return `<div class="sv2-secret-field" data-secret-row="${esc(field.key)}">
+       <label class="sv2-secret-label" for="${id}">${esc(field.label)}</label>
+       ${input}
+       <small class="sv2-secret-help">${esc(field.help)}</small>
+       <div class="sv2-secret-field-meta">
+         <small data-secret-stored>${stored?"Guardada · "+updated:updated}</small>
+         <button type="button" class="sv2-secret-delete" data-secret-delete="${esc(field.key)}" aria-label="Eliminar ${esc(field.label)}" ${stored?"":"hidden"} ${writable?"":"disabled"}>Eliminar</button>
+       </div>
+     </div>`;
+  }
+  
+  function mailAllowlistField(provider,items,writable){
+    if(provider.id!=="resend")return "";
+    const item=items.find(row=>row.key==="BRVTAL_TICKET_MAIL_TEST_RECIPIENTS");
+    const configured=item?.stored===true;
+    return `<div class="sv2-secret-field">
+      <label class="sv2-secret-label" for="sv2-mail-test-recipients">Destinatarios permitidos para pruebas</label>
+      <textarea id="sv2-mail-test-recipients" rows="2" data-mail-allowlist
+        data-secret-key="BRVTAL_TICKET_MAIL_TEST_RECIPIENTS" autocomplete="off"
+        autocapitalize="off" spellcheck="false"
+        placeholder="qa@ejemplo.co, pruebas@ejemplo.co" ${writable?"":"disabled"}></textarea>
+      <small class="sv2-secret-help">Correos separados por comas. La lista se guarda cifrada y nunca se vuelve a mostrar.</small>
+      <small data-mail-allowlist-status>${configured?"Lista guardada":"Lista no configurada"}</small>
+    </div>`;
+  }
+
+  function integrationCard(provider,items,writable){
+   const state=integrationState(provider,items);
+   const timestamps=provider.fields.map(field=>items.find(item=>item.key===field.key)?.updated_at).filter(Boolean).sort((a,b)=>a.localeCompare(b));
+   const updated=timestamps.length?"Actualizado: "+timestamps.at(-1):"Sin actualizaciones";
+   return `<article class="sv2-secret-card" data-integration-provider="${esc(provider.id)}">
+     <header class="sv2-secret-card-head">
+       <div class="sv2-secret-card-info"><h4>${esc(provider.name)}</h4><p>${esc(provider.description)}</p></div>
+       <div class="sv2-secret-card-meta"><span class="sv2-secret-badge ${state==="Falta"?"is-missing":"is-configured"}" data-provider-state>${esc(state)}</span><small data-provider-updated>${esc(updated)}</small></div>
+     </header>
+     <div class="sv2-secret-fields">${provider.fields.map(field=>integrationField(field,items,writable)).join("")}</div>
+     ${mailAllowlistField(provider,items,writable)}
+     <footer class="sv2-secret-card-footer">
+       <p role="status" aria-live="polite" data-secret-feedback>Los campos vacíos no se modificarán.</p>
+       ${provider.id==="resend"?`<button type="button" class="btn ghost" data-mail-test-send ${writable?"":"disabled"}>Enviar correo de prueba</button>`:""}
+       <button type="button" class="btn red sv2-secret-save" data-secret-provider-save="${esc(provider.id)}" ${writable?"":"disabled"}>Guardar</button>
+     </footer>
+   </article>`;
+  }
+  
+  function integrationsPane(){
+   return `<section class="sv2-pane ${V2.tab==="integrations"?"active":""}" data-settings-pane="integrations">
+     <header class="sv2-section-head"><div><h3>Integraciones</h3></div><p>Guarda y administra las credenciales sin mostrar las claves existentes. Cada proveedor se configura por separado.</p></header>
+     <div class="sv2-integrations-host" data-settings-integrations aria-live="polite">
+       <p class="sv2-secret-loading">Cargando integraciones…</p>
+     </div>
+   </section>`;
+  }
+  
+  function integrationError(error){
+   const raw=String(error?.message||"");
+   const known={
+     AUTH_REQUIRED:"La sesión de administrador venció. Vuelve a iniciar sesión.",
+     FORBIDDEN:"Tu cuenta no tiene permiso para cambiar estas claves.",
+     CSRF:"La sesión cambió. Actualiza Settings e inténtalo de nuevo.",
+     SECRET_WRITE_DISABLED:"La escritura está desactivada en el servidor.",
+     SECRET_FORMAT_INVALID:"El formato no es válido. Revisa el ejemplo del campo.",
+     SECRET_KEY_NOT_ALLOWED:"Esta clave no se puede configurar.",
+     SECRET_STORE_UNAVAILABLE:"El almacenamiento no está disponible. Inténtalo de nuevo.",
+     TEST_MODE_REQUIRED:"Activa el modo test en la configuración privada antes de enviar.",
+     TEST_RECIPIENTS_EMPTY:"Configura al menos un destinatario permitido de prueba.",
+     MAIL_TEST_RATE_LIMITED:"Ya se solicitó un correo de prueba. Vuelve a intentarlo más tarde.",
+     MAIL_TEST_NOT_ACCEPTED:"El proveedor no confirmó el correo de prueba.",
+     MAIL_TEST_UNAVAILABLE:"El correo de prueba no está disponible. Revisa la configuración.",
+     HTTP_401:"Debes iniciar sesión como administrador.",
+     HTTP_403:"No tienes autorización para esta operación."
+   };
+   return known[raw]||"No se pudo completar la operación. Inténtalo de nuevo.";
+  }
+  
+  async function loadIntegrations(force=false){
+   const host=document.querySelector("[data-settings-integrations]");
+   if(!host || V2.tab!=="integrations")return;
+   if(!force && host.dataset.integrationLoaded==="1")return;
+   const token=++V2.integrationLoadToken;
+   delete host.dataset.integrationLoaded;
+   host.innerHTML='<p class="sv2-secret-loading">Cargando integraciones…</p>';
+   try{
+     const response=await fetch("/api/admin-integration-secrets.php",{credentials:"same-origin",cache:"no-store"});
+     const payload=await response.json().catch(()=>({}));
+     if(!response.ok || payload.ok!==true || !Array.isArray(payload.items)){
+       throw new Error(String(payload.error||"HTTP_"+response.status));
+     }
+     if(token!==V2.integrationLoadToken || !host.isConnected)return;
+     const writable=payload.write_enabled===true && payload.master_key_configured===true;
+     V2.integrationWritable=writable;
+     V2.integrationItems=payload.items.map(item=>({
+       key:String(item.key||""),stored:item.stored===true,updated_at:String(item.updated_at||"")
+     }));
+     host.innerHTML=(writable?"":'<p class="sv2-secret-locked" role="note">La escritura de claves está bloqueada en el servidor. Puedes consultar el estado, pero no modificarlas.</p>')+
+       '<div class="sv2-secret-cards">'+INTEGRATION_PROVIDERS.map(provider=>integrationCard(provider,V2.integrationItems,writable)).join("")+"</div>"+
+       '<p class="sv2-secret-disclaimer">Guardar una clave no activa envíos, cobros reales ni publicación del sitio.</p>';
+     host.dataset.integrationLoaded="1";
+   }catch(error){
+     if(token!==V2.integrationLoadToken || !host.isConnected)return;
+     host.innerHTML='<div class="sv2-secret-error"><p>'+esc(integrationError(error))+'</p><button type="button" class="btn ghost" data-secret-retry>Reintentar</button></div>';
+   }
+  }
+  
+  async function integrationCsrf(){
+   if(window.csrf)return String(window.csrf);
+   const response=await fetch("/api/index.php/auth",{credentials:"same-origin",cache:"no-store"});
+   const data=await response.json().catch(()=>({}));
+   if(!response.ok || !data.authenticated || !data.csrf)throw new Error("AUTH_REQUIRED");
+   window.csrf=data.csrf;
+   return String(data.csrf);
+  }
+  
+  async function integrationMutation(method,key,value){
+   const csrf=await integrationCsrf();
+   const response=await fetch("/api/admin-integration-secrets.php",{
+     method,credentials:"same-origin",cache:"no-store",
+     headers:{"Content-Type":"application/json","X-CSRF-Token":csrf},
+     body:JSON.stringify(method==="POST"?{key,value}:{key})
+   });
+   const payload=await response.json().catch(()=>({}));
+   if(!response.ok || payload.ok!==true || !Array.isArray(payload.items)){
+     const error=String(payload.error||"HTTP_"+response.status);
+     if(["CSRF","AUTH_REQUIRED","HTTP_401","HTTP_403"].includes(error))delete window.csrf;
+     throw new Error(error);
+   }
+   // Only status metadata, never values or ciphertext, may leave this function.
+   return payload.items.map(item=>({key:String(item.key||""),stored:item.stored===true,updated_at:String(item.updated_at||"")}));
+  }
+  
+  function updateIntegrationCard(card,items){
+   const provider=INTEGRATION_PROVIDERS.find(p=>p.id===card.dataset.integrationProvider);
+   if(!provider)return;
+   V2.integrationItems=items;
+   const state=integrationState(provider,items);
+   const badge=card.querySelector("[data-provider-state]");
+   if(badge){badge.textContent=state;badge.classList.toggle("is-missing",state==="Falta");badge.classList.toggle("is-configured",state!=="Falta");}
+   const times=provider.fields.map(f=>items.find(x=>x.key===f.key)?.updated_at).filter(Boolean).sort((a,b)=>a.localeCompare(b));
+   const meta=card.querySelector("[data-provider-updated]");
+   if(meta)meta.textContent=times.length?"Actualizado: "+times.at(-1):"Sin actualizaciones";
+   const allowlist=items.find(item=>item.key==="BRVTAL_TICKET_MAIL_TEST_RECIPIENTS");
+   const allowStatus=card.querySelector("[data-mail-allowlist-status]");
+   if(allowStatus)allowStatus.textContent=allowlist?.stored===true?"Lista guardada":"Lista no configurada";
+   provider.fields.forEach(field=>{
+     const row=Array.from(card.querySelectorAll("[data-secret-row]")).find(el=>el.dataset.secretRow===field.key);
+     if(!row)return;
+     const item=items.find(x=>x.key===field.key);
+     const saved=item?.stored===true;
+     const small=row.querySelector("[data-secret-stored]");
+     if(small)small.textContent=saved?("Guardada · Actualizado: "+String(item.updated_at||"fecha no disponible")):"Sin valor guardado";
+     const del=row.querySelector("[data-secret-delete]");
+     if(del){del.hidden=!saved;del.disabled=!V2.integrationWritable;}
+   });
+  }
+  
+  function integrationBusy(card,busy){
+   card.querySelectorAll("button, input, textarea").forEach(el=>{el.disabled=busy || !V2.integrationWritable;});
+   card.setAttribute("aria-busy",busy?"true":"false");
+  }
+  
+  async function saveIntegrationProvider(id){
+   const card=Array.from(document.querySelectorAll("[data-integration-provider]")).find(el=>el.dataset.integrationProvider===id);
+   if(!card || !V2.integrationWritable || card.getAttribute("aria-busy")==="true")return;
+   const fields=Array.from(card.querySelectorAll("[data-secret-input], [data-mail-allowlist]")).filter(x=>x.value.trim().length>0);
+   const feedback=card.querySelector("[data-secret-feedback]");
+   if(!feedback)return;
+   if(!fields.length){feedback.textContent="Escribe al menos un valor. Los campos vacíos se conservan.";return;}
+   integrationBusy(card,true);
+   feedback.textContent="Guardando…";
+   let saved=0;
+   try{
+     for(const field of fields){
+       const result=await integrationMutation("POST",field.dataset.secretKey,field.value);
+       field.value="";
+       updateIntegrationCard(card,result);
+       saved++;
+     }
+     feedback.textContent=saved===1?"Clave guardada. Los demás valores no se modificaron.":`${saved} claves guardadas. Los demás valores no se modificaron.`;
+   }catch(error){
+     feedback.textContent=(saved?`${saved} claves guardadas. `:"")+integrationError(error);
+   }finally{integrationBusy(card,false);}
+  }
+  
+  async function sendIntegrationTestMail(){
+    const card=document.querySelector('[data-integration-provider="resend"]');
+    if(!card || !V2.integrationWritable || card.getAttribute("aria-busy")==="true")return;
+    const feedback=card.querySelector("[data-secret-feedback]");
+    if(!feedback)return;
+    integrationBusy(card,true);
+    feedback.textContent="Solicitando correo de prueba…";
+    try{
+      const csrf=await integrationCsrf();
+      const response=await fetch("/api/admin-integration-test-mail.php",{
+        method:"POST",credentials:"same-origin",cache:"no-store",
+        headers:{"Content-Type":"application/json","X-CSRF-Token":csrf},
+        body:"{}"
+      });
+      const payload=await response.json().catch(()=>({}));
+      if(!response.ok || payload.ok!==true || payload.state!=="accepted"){
+        throw new Error(String(payload.error||"MAIL_TEST_NOT_ACCEPTED"));
+      }
+      feedback.textContent="Correo de prueba aceptado para el primer destinatario permitido.";
+    }catch(error){
+      feedback.textContent=integrationError(error);
+    }finally{
+      integrationBusy(card,false);
+    }
+  }
+
+  async function deleteIntegrationField(key){
+   const row=Array.from(document.querySelectorAll("[data-secret-row]")).find(el=>el.dataset.secretRow===key);
+   const card=row?.closest("[data-integration-provider]");
+   if(!row || !card || !V2.integrationWritable || card.getAttribute("aria-busy")==="true")return;
+   const field=INTEGRATION_PROVIDERS.flatMap(p=>p.fields).find(f=>f.key===key);
+   const label=field?.label||"este valor";
+   if(!window.confirm(`¿Eliminar ${label}? Tendrás que introducirlo de nuevo para recuperarlo.`))return;
+   const feedback=card.querySelector("[data-secret-feedback]");
+   integrationBusy(card,true);
+   if(feedback)feedback.textContent="Eliminando…";
+   try{
+     const items=await integrationMutation("DELETE",key);
+     updateIntegrationCard(card,items);
+     if(feedback)feedback.textContent=`${label}: valor eliminado.`;
+   }catch(error){if(feedback)feedback.textContent=integrationError(error);}
+   finally{integrationBusy(card,false);}
   }
 
   function securityHost() {
@@ -283,7 +528,7 @@
 
   function advancedPane() {
     return `<section class="sv2-pane ${V2.tab==='advanced'?'active':''}" data-settings-pane="advanced">
-      <header class="sv2-section-head"><div><span>05 / ADVANCED</span><h3>Security & technical tools</h3></div><p>Real configuration only. Internal settings records stay behind validated interfaces instead of being exposed as a raw editor.</p></header>
+      <header class="sv2-section-head"><div><span>06 / ADVANCED</span><h3>Security & technical tools</h3></div><p>Real configuration only. Internal settings records stay behind validated interfaces instead of being exposed as a raw editor.</p></header>
       <div class="sv2-context-grid sv2-advanced-tools">
         <article class="sv2-tool-card"><span>VISUAL SYSTEM</span><strong>THEME STUDIO</strong><p>Public palette, typography, navigation and effects.</p><button type="button" class="btn ghost" data-settings-open="theme">OPEN THEME STUDIO</button></article>
         <article class="sv2-tool-card"><span>OPERATIONS</span><strong>SYSTEM STATUS</strong><p>Runtime, database, storage, backups and operational diagnostics.</p><button type="button" class="btn ghost" data-settings-open="system">OPEN SYSTEM STATUS</button></article>
@@ -299,9 +544,10 @@
     if (requested) V2.tab = requested;
     const markup = `<div class="settings-v2" data-settings-v2 data-testid="settings-v2-root">
       <header class="sv2-hero"><div><span>BRVTAL CMS / CONFIGURATION</span><h2>SETTINGS</h2><p>Global behavior, integrations and access to specialized configuration tools.</p></div></header>
-      <div class="sv2-layout"><aside class="sv2-tabs" aria-label="Settings sections">${tabs()}</aside><div class="sv2-editor">${generalPane()}${socialPane()}${seoPane()}${analyticsPane()}${advancedPane()}</div></div>
+      <div class="sv2-layout"><aside class="sv2-tabs" aria-label="Settings sections">${tabs()}</aside><div class="sv2-editor">${generalPane()}${socialPane()}${seoPane()}${analyticsPane()}${integrationsPane()}${advancedPane()}</div></div>
     </div>`;
     queueMicrotask(() => { if (V2.tab === 'advanced') loadSecurity().catch(() => {}); });
+    queueMicrotask(() => { if (V2.tab === 'integrations') loadIntegrations().catch(() => {}); });
     return markup;
   }
 
@@ -498,12 +744,13 @@
   }
 
   function activate(id) {
-    V2.tab = ['general','social','seo','analytics','advanced'].includes(id) ? id : 'general';
+    V2.tab = ['general','social','seo','analytics','integrations','advanced'].includes(id) ? id : 'general';
     const root = document.querySelector('[data-settings-v2]');
     if (!root) return;
     root.querySelectorAll('[data-settings-tab]').forEach(button => button.classList.toggle('active',button.dataset.settingsTab===V2.tab));
     root.querySelectorAll('[data-settings-pane]').forEach(pane => pane.classList.toggle('active',pane.dataset.settingsPane===V2.tab));
     if (V2.tab === 'advanced') loadSecurity().catch(() => {});
+    if (V2.tab === 'integrations') loadIntegrations().catch(() => {});
   }
 
   function updateAsset(path) {
@@ -565,8 +812,19 @@
     if (input) { input.value = ''; delete input.dataset.mediaId; }
   }
 
+  function handleIntegrationClick(event) {
+    if(event.target.closest('[data-mail-test-send]')){void sendIntegrationTestMail();return true;}
+    const save=event.target.closest('[data-secret-provider-save]');
+    if(save){void saveIntegrationProvider(save.dataset.secretProviderSave);return true;}
+    const remove=event.target.closest('[data-secret-delete]');
+    if(remove){void deleteIntegrationField(remove.dataset.secretDelete);return true;}
+    if(event.target.closest('[data-secret-retry]')){void loadIntegrations(true);return true;}
+    return false;
+  }
+
   function bind() {
     document.addEventListener('click', event => {
+      if(handleIntegrationClick(event))return;
       const tab = event.target.closest('[data-settings-tab]');
       if (tab) { activate(tab.dataset.settingsTab); return; }
       const saveButton = event.target.closest('[data-settings-save]');
@@ -595,10 +853,10 @@
       globalThis.go?.('seo');
       return;
     }
-    const map = {site:'general',social:'social',indexnow:'seo',analytics:'analytics'};
+    const map = {site:'general',social:'social',indexnow:'seo',analytics:'analytics',integrations:'integrations'};
     if (map[key]) activate(map[key]);
     else legacyOpenSettingByKey?.(key);
   };
-  window.BRVTALSettingsV2 = { activate, openRaw:key=>legacyOpenSettingByKey?.(key), jsonValue, reloadSecurity:()=>loadSecurity(true) };
+  window.BRVTALSettingsV2 = { activate, openRaw:key=>legacyOpenSettingByKey?.(key), jsonValue, reloadSecurity:()=>loadSecurity(true), reloadIntegrations:()=>loadIntegrations(true) };
   bind();
 })();

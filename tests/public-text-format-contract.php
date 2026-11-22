@@ -32,4 +32,9 @@ $empty = brvtalPublicEventPalette('');
 public_text_expect($light['signal'] === '#96d35f' && $light['ink'] === '#030303', 'light accent and ink');
 public_text_expect($dark['signal'] === '#101020' && $dark['ink'] !== '#030303', 'dark accent and ink');
 public_text_expect($empty['signal'] === '#e12e34', 'Cromo red fallback');
+
+public_text_expect(str_contains(brvtalPublicTextFormat("** ZEBTS** y * CRIXXES'T B2B DNL5*"), '<strong>ZEBTS</strong>'), 'padded bold');
+public_text_expect(str_contains(brvtalPublicTextFormat("** ZEBTS** y * CRIXXES'T B2B DNL5*"), '<em>CRIXXES&#039;T B2B DNL5</em>'), 'padded italic');
+public_text_expect(brvtalPublicTextPlain("# SAVØR 001\n** ZEBTS** y [Entradas](https://example.org)") === 'SAVØR 001 ZEBTS y Entradas', 'plain text from padded emphasis');
+public_text_expect(str_contains(brvtalPublicTextFormat('** <img src=x onerror=alert(1)>**'), '&lt;img src=x onerror=alert(1)&gt;'), 'padded XSS escaped');
 echo "Public text format and event palette: OK\n";
