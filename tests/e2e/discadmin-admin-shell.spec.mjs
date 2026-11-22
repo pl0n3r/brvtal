@@ -8,6 +8,7 @@ const css = readFileSync(join(process.cwd(), 'discadmin/admin-shell.css'), 'utf8
 const js = readFileSync(join(process.cwd(), 'discadmin/admin-shell.js'), 'utf8');
 const indexPhp = readFileSync(join(process.cwd(), 'discadmin/index.php'), 'utf8');
 const indexCore = readFileSync(join(process.cwd(), 'discadmin/index-core.php'), 'utf8');
+const iaCss = readFileSync(join(process.cwd(), 'discadmin/admin-information-architecture.css'), 'utf8');
 
 async function mount(page) {
   await page.setContent(`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style></head><body>
@@ -108,10 +109,14 @@ test('visual evidence #1864 source-driven shell and banners at 390 and 1440',asy
     {key:'after',core:finalCore,banners:finalBanners}
   ];
   function renderFixture(source,width){
-    const navText=(/const editorialSections=\[([\s\S]*?)\];/.exec(source.core)||[])[1];
+    // The #1864 baseline uses editorialSections; approved V3 uses 8 roots.
+    const legacyNav=(/const editorialSections=\[([\s\S]*?)\];/.exec(source.core)||null);
+    const v3Nav=(/const adminMenuRoots=\[([\s\S]*?)\];/.exec(source.core)||null);
+    const navText=(v3Nav||legacyNav||[])[1];
     const nav=[...(navText||'').matchAll(/\['([^']+)','([^']+)'\]/g)]
       .map(match=>({key:match[1],label:match[2]}));
-    if(nav.length<9)throw Error('Canonical navigation labels unavailable');
+    if(!navText || (v3Nav ? nav.length!==8 : nav.length<9))
+      throw Error('Canonical navigation labels unavailable or wrong root count');
     const bannerTitle=(/<h2>(SLIDER MANAGER V2|Banners de portada)<\/h2>/.exec(source.banners)||[])[1];
     if(!bannerTitle)throw Error('Canonical banner heading unavailable');
     const spanish=source.key==='after';
@@ -124,11 +129,16 @@ test('visual evidence #1864 source-driven shell and banners at 390 and 1440',asy
     const mobile=spanish?'MÓVIL':'MOBILE';
     const intro=spanish?'Organiza banners y capas con ajustes independientes para móvil.'
       :'LayerSlider-inspired visual layers with safe mobile overrides.';
-    const navHtml=nav.map(item=>'<button type="button" data-admin-nav="'+safe(item.key)+'">'+safe(item.label)+'</button>').join('');
+    const navHtml=nav.map(item => v3Nav
+      ? '<div class="ia-root" data-ia-root="'+safe(item.key)+'"><div class="ia-root-row">'
+        +'<button type="button" class="ia-root-button" data-admin-nav="'+safe(item.key)+'">'
+        +safe(item.label)+'</button></div></div>'
+      : '<button type="button" data-admin-nav="'+safe(item.key)+'">'+safe(item.label)+'</button>'
+    ).join('');
     // Source-driven labels with real repository CSS, synthetic zero-data editor state.
     // The fixture is explicitly marked, so no one can mistake it for production.
     return '<!doctype html><html lang="es"><head><meta name="viewport" content="width=device-width,initial-scale=1">'
-      +'<style>'+skin+'\n'+shellCss+'\n'+bannerCss+'</style>'
+      +'<style>'+skin+'\n'+shellCss+'\n'+bannerCss+(v3Nav?'\n'+iaCss:'')+'</style>'
       +'<style>.fixture-label{font-size:12px;letter-spacing:0.05em;color:#e4e4e4;margin-bottom:16px}'
       +'.fixture-editor{display:grid;gap:14px;margin-top:24px;padding:18px;border:1px solid #35383d;background:#080909}'
       +'.fixture-editor button{min-height:44px;cursor:pointer;padding:9px 14px}'
@@ -136,7 +146,7 @@ test('visual evidence #1864 source-driven shell and banners at 390 and 1440',asy
       +'@media(max-width:650px){.shell{display:block}.side{display:none}.main{padding:18px;min-width:0}.hero-manager{padding:16px}}'
       +'</style></head><body><div class="shell"><aside class="side"><div class="logo">BRVTAL</div>'
       +'<div class="sub">DISCADMIN</div><nav class="nav" aria-label="Navegación de prueba">'+navHtml
-      +'<button>'+appearance+'</button></nav></aside><main class="main">'
+      +(v3Nav?'':'<button>'+appearance+'</button>')+'</nav></aside><main class="main">'
       +'<p class="fixture-label">PRUEBA VISUAL LOCAL · DATOS SINTÉTICOS · '+source.key+' · '+width+' PX</p>'
       +'<div class="top"><h1>'+safe(firstLabel)+'</h1></div><section class="hero-manager">'
       +'<div class="hero-manager-toolbar"><div><h2>'+safe(bannerTitle)+'</h2><p>'+safe(intro)+'</p></div>'
