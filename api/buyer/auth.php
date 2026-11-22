@@ -70,8 +70,7 @@ if ($action === 'verify' || $action === 'confirm-reset') {
 }
 if ($action === 'request-reset' || $action === 'resend-verification') {
     try {
-        brvtalBuyerAuthRequest($pdo, $body['email'] ?? null,
-            $action === 'request-reset' ? 'reset_password' : 'verify_email');
+        brvtalBuyerAuthRequestForAction($pdo, $body['email'] ?? null, $action);
     } catch (Throwable) {
         // All responses remain neutral, including unknown addresses and delivery failures.
     }

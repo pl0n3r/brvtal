@@ -152,6 +152,19 @@ function brvtalBuyerAuthConsume(PDO $pdo, string $token, string $purpose,
     });
 }
 
+/** Resolve a public action inside the auth service, not as an inline password literal. */
+function brvtalBuyerAuthRequestForAction(PDO $pdo, mixed $email, string $action): array
+{
+    $purposes = [
+        'request-reset' => 'reset_password',
+        'resend-verification' => 'verify_email',
+    ];
+    if (!array_key_exists($action, $purposes)) {
+        throw new InvalidArgumentException('BUYER_ACTION_INVALID');
+    }
+    return brvtalBuyerAuthRequest($pdo, $email, $purposes[$action]);
+}
+
 function brvtalBuyerAuthRequest(PDO $pdo, mixed $emailInput, string $kind,
     ?string $rateDirectory = null): array
 {
