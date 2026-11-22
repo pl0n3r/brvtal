@@ -1,0 +1,74 @@
+name: T19 Ticketing Entries CI
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - api/ticketing/admin-entries.php
+      - discadmin/ticketing-entries.php
+      - discadmin/ticketing-entries.js
+      - tests/e2e/discadmin-ticketing-entries.spec.mjs
+      - tests/integration/ticketing-admin-entries.php
+      - .github/workflows/ticketing-entries-ci.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+
+jobs:
+  t19-fast:
+    name: T19 / fast
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: '8.5'
+          extensions: pdo_mysql
+          coverage: none
+      - name: Lint API and disposable fixture
+        run: |
+          php -l api/ticketing/admin-entries.php
+          php -l discadmin/ticketing-entries.php
+          php -l tests/integration/ticketing-admin-entries.php
+          node --check discadmin/ticketing-entries.js
+          node --check tests/e2e/discadmin-ticketing-entries.spec.mjs
+      - name: Verify typed roles and offline contract
+        run: php tests/integration/ticketing-admin-entries.php
+
+  t19-database:
+    name: T19 / database
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      mariadb:
+        image: ghcr.io/mariadb/mariadb:11.4.13-noble@sha256:3cff57293253c640483e8a19ce506cf68bf8e4529385e64aeec700c02038e7ed
+        env:
+          MARIADB_ROOT_PASSWORD: brvtal_root
+          MARIADB_DATABASE: brvtal_test_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=15
+    env:
+      BRVTAL_INTEGRATION_TESTS: '1'
+      BRVTAL_TEST_DB_HOST: 127.0.0.1
+      BRVTAL_TEST_DB_PORT: '3306'
+      BRVTAL_TEST_DB_NAME: brvtal_test_ci
+      BRVTAL_TEST_DB_USER: root
+      BRVTAL_TEST_DB_PASS: brvtal_root
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: '8.5'
+          extensions: pdo_mysql
+          coverage: none
+      - name: Exercise QR revoke/reissue/one-use, Wompi and audit in disposable MariaDB
+        run: php tests/integration/ticketing-admin-entries.php
