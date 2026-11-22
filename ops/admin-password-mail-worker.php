@@ -7,6 +7,18 @@ if (PHP_SAPI !== 'cli') {
     exit;
 }
 
+
+// The CLI worker owns the database connection. Reuse it for encrypted secrets:
+// the web bootstrap's db() is not otherwise available in a standalone process.
+if (!function_exists('db')) {
+    function db(): PDO
+    {
+        $pdo = $GLOBALS['brvtal_mail_worker_pdo'] ?? null;
+        if (!$pdo instanceof PDO) throw new RuntimeException('MAIL_WORKER_DB_UNAVAILABLE');
+        return $pdo;
+    }
+}
+
 $root = dirname(__DIR__);
 $configPath = $root . '/config/config.php';
 if (!is_file($configPath)) {
@@ -14,6 +26,7 @@ if (!is_file($configPath)) {
     exit(2);
 }
 $config = require $configPath;
+$GLOBALS['config'] = $config;
 $db = $config['db'] ?? [];
 $dsn = sprintf(
     'mysql:host=%s;port=%d;dbname=%s;charset=%s',
@@ -26,6 +39,7 @@ $pdo = new PDO($dsn, (string)($db['user'] ?? ''), (string)($db['pass'] ?? ''), [
     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
 ]);
+$GLOBALS['brvtal_mail_worker_pdo'] = $pdo;
 require_once $root . '/config/admin_password_security.php';
 
 $baseUrl = (string)($config['app']['base_url'] ?? 'https://www.brvtal.com.co');
