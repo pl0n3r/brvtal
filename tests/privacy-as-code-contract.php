@@ -74,6 +74,7 @@ $expectedIds = [
     'legacy_admin_activity_ip',
     'privacy_controller_contact',
     'public_gtm_measurement',
+    'sentry_php_error_telemetry',
     'staff_access_metadata',
     'staff_contact',
     'staff_identity',
@@ -95,6 +96,21 @@ foreach ($data['treatments'] as $row) {
 $controllerPhone = privacy_treatment($data, 'privacy_controller_contact');
 privacy_expect($controllerPhone['category'] === 'contact' && $controllerPhone['fields'] === ['phone'], 'controller phone must be mapped to its actual contact treatment');
 privacy_expect($controllerPhone['purpose'] === 'privacy_rights_contact_publication' && $controllerPhone['retention'] === 'review_required' && $controllerPhone['providers'] === [], 'public legal contact cannot inherit staff/mail delivery treatment or presume approved retention');
+
+// Existing Sentry PHP fatal/exception telemetry: provider disclosure is
+// documented, but does not grant legal approval or activate data collection.
+$sentry = privacy_treatment($data, 'sentry_php_error_telemetry');
+privacy_expect(
+    $sentry['category'] === 'usage'
+        && $sentry['purpose'] === 'php_runtime_error_monitoring'
+        && $sentry['fields'] === [
+            'event_id','timestamp','platform','level','environment','release',
+            'php_version','sapi','release_sha','exception_type','stack_frame',
+        ]
+        && $sentry['providers'] === ['sentry']
+        && $sentry['retention'] === 'review_required',
+    'Sentry PHP telemetry must remain strictly scoped and legally unapproved'
+);
 
 $staffIdentity = privacy_treatment($data, 'staff_identity');
 privacy_expect($staffIdentity['fields'] === ['staff_id','name','role','status'], 'staff identity fields drifted');
