@@ -69,6 +69,28 @@ $mail = brvtalBuyerMailUnseal($sealed);
 preg_match('/token=([A-Za-z0-9_-]{43})/', (string)$mail, $matches);
 $verifyToken = $matches[1] ?? '';
 buyerAuthAssert($verifyToken !== '' && !str_contains($sealed, $verifyToken), 'secure 43-char token in memory');
+// The worker unwraps only at the delivery boundary; ciphertext stays in DB.
+putenv('BRVTAL_TICKET_MAIL_MODE=mock');
+$captured = null;
+$delivery = brvtal_ticket_resend_send([
+    'recipient_email'=>'buyer@example.test','message_key'=>'buyer:1:verify_account:1',
+    'subject'=>'Correo de verificación','body_text'=>$sealed,
+], static function (array $payload, array $headers) use (&$captured): array {
+    $captured = ['payload'=>$payload,'headers'=>$headers];
+    return ['status'=>200,'body'=>'{"id":"buyer-auth-synthetic-1"}'];
+});
+buyerAuthAssert($delivery['state'] === 'accepted'
+    && is_array($captured) && str_contains($captured['payload']['text'], $verifyToken)
+    && $captured['headers'][0] === 'Authorization: Bearer ',
+    'only synthetic provider receives decoded link in memory');
+$corrupt = substr($sealed, 0, -4) . 'AAAA';
+$invalid = brvtal_ticket_resend_send([
+    'recipient_email'=>'buyer@example.test','message_key'=>'buyer:1:verify_account:1',
+    'subject'=>'Correo','body_text'=>$corrupt,
+], static fn(): array => ['status'=>200,'body'=>'{"id":"should-not-send"}']);
+buyerAuthAssert($invalid['code'] === 'invalid_configuration',
+    'tampered sealed message fails closed before provider');
+putenv('BRVTAL_TICKET_MAIL_MODE=disabled');
 buyerAuthAssert((string)$db->query('SELECT token_hash FROM ticket_buyer_tokens LIMIT 1')->fetchColumn()
     === hash('sha256', $verifyToken), 'only token digest persisted');
 $db->prepare('UPDATE ticket_buyer_tokens SET expires_at_utc=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND)
@@ -123,8 +145,8 @@ for ($i=0;$i<8;$i++) {
 }
 buyerAuthAssert((int)$db->query("SELECT COUNT(*) FROM ticket_mail_outbox WHERE subject
     LIKE '%Restablece%'")->fetchColumn() <= 6, 'IP and email rate limit bounds mail volume');
-buyerAuthAssert($db->query("SELECT COUNT(*) FROM ticket_buyer_tokens WHERE token_hash
-    LIKE '%SynthETIC%'")->fetchColumn() === '0', 'raw password never stored as token');
+buyerAuthAssert((int)$db->query("SELECT COUNT(*) FROM ticket_buyer_tokens WHERE token_hash
+    LIKE '%SynthETIC%'")->fetchColumn() === 0, 'raw password never stored as token');
 putenv('BRVTAL_TICKET_MAIL_TESTING');
 $GLOBALS['config'] = $originalConfig;
 echo "BRVTAL buyer-auth MariaDB integration passed.\n";

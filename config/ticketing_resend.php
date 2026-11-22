@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/secrets.php';
+require_once __DIR__ . '/buyer_auth_mail_templates.php';
 
 /**
  * Isolated Resend adapter. Disabled unless the operator explicitly configures
@@ -26,6 +27,14 @@ function brvtal_ticket_resend_send(array $job, ?callable $request = null): array
     $key = (string)($job['message_key'] ?? '');
     $subject = (string)($job['subject'] ?? '');
     $body = (string)($job['body_text'] ?? '');
+    if (str_starts_with($body, BRVTAL_BUYER_MAIL_SEAL_PREFIX)) {
+        $revealed = brvtalBuyerMailUnseal($body);
+        if (!is_string($revealed)) {
+            return ['state' => 'failed', 'code' => 'invalid_configuration'];
+        }
+        // The bearer exists only in memory for this provider request; never log.
+        $body = $revealed;
+    }
     $domain = strtolower(trim((string)brvtal_secret_value('BRVTAL_TICKET_MAIL_DOMAIN')));
     $from = trim((string)brvtal_secret_value('BRVTAL_TICKET_MAIL_FROM'));
     $apiKey = (string)brvtal_secret_value('BRVTAL_TICKET_MAIL_API_KEY');
