@@ -348,11 +348,17 @@
   const observer = new MutationObserver(() => {
     if (typeof state === 'undefined' || !state.authed || state.section !== 'dashboard' || document.getElementById('brvtal-dashboard-v2') || document.getElementById('brvtal-admin-activity')) return;
     clearTimeout(observer._activityTimer);
-    observer._activityTimer = setTimeout(() => mount(''), 25);
+    observer._activityTimer = setTimeout(() => {
+      // Do not overwrite a filter or pagination result mounted in the meantime.
+      if (!document.getElementById('brvtal-admin-activity')) mount('');
+    }, 25);
   });
   observer.observe(document.documentElement,{childList:true,subtree:true});
 
   ensureStyle();
-  setTimeout(() => mount(''), 80);
+  setTimeout(() => {
+    // The observer can mount before the fallback timer; never reset user selection.
+    if (!document.getElementById('brvtal-admin-activity')) mount('');
+  }, 80);
   window.BRVTALAdminActivity = {mount,openDetail,openHistory,closeDetail};
 })();
