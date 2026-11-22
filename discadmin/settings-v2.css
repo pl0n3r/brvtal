@@ -24,3 +24,92 @@
 .sv2-raw-row code,.sv2-context-grid strong{font-variant-numeric:tabular-nums}
 
 /* #1364: muted text meets WCAG AA against the dark admin surfaces. */
+
+
+/* #1856 — Credenciales de integraciones: la vista Settings es la única editable. */
+.sv2-integrations-host{min-width:0}
+.sv2-secret-loading,.sv2-secret-error,.sv2-secret-locked{
+  margin:0 0 16px;padding:16px;border:1px solid var(--admin-border,#303539);
+  background:#0d1011;color:#d4d7d8;font-size:13px;line-height:1.6;
+}
+.sv2-secret-error .btn{margin-top:12px}
+.sv2-secret-cards{display:grid;gap:18px;min-width:0}
+.sv2-secret-card{
+  min-width:0;overflow-wrap:anywhere;border:1px solid var(--admin-border,#32373b);
+  background:#0d0f10;padding:24px;
+}
+.sv2-secret-card-head{
+  display:flex;align-items:flex-start;justify-content:space-between;gap:20px;
+  padding-bottom:20px;border-bottom:1px solid var(--admin-border-subtle,#25292d);
+}
+.sv2-secret-card-info{min-width:0}
+.sv2-secret-card-info h4{margin:0;color:#f6f6f4;font-size:19px;font-weight:700;letter-spacing:-.02em;line-height:1.3}
+.sv2-secret-card-info p{margin:7px 0 0;color:#bcc2c5;font-size:13px;line-height:1.6;max-width:54ch;text-wrap:pretty}
+.sv2-secret-card-meta{
+  min-width:140px;display:flex;flex-direction:column;align-items:flex-end;gap:9px;
+  text-align:right;
+}
+.sv2-secret-card-meta small{color:#c0c5c7;font-size:12px;line-height:1.4;font-variant-numeric:tabular-nums}
+.sv2-secret-badge{
+  display:inline-flex;justify-content:center;align-items:center;min-height:28px;
+  padding:4px 10px;border:1px solid #58635d;background:#1d2923;
+  color:#d7e9df;font-size:12px;font-weight:700;line-height:1.2;white-space:nowrap;
+}
+.sv2-secret-badge.is-missing{background:#272324;border-color:#625456;color:#f1d4d3}
+.sv2-secret-fields{
+  display:grid;grid-template-columns:repeat(2,minmax(0,28rem));
+  gap:22px 22px;margin-top:22px;min-width:0;
+}
+.sv2-secret-field{min-width:0;display:flex;flex-direction:column}
+.sv2-secret-label{display:block;margin-bottom:8px;color:#f1f1ef;font-size:13px;font-weight:650;line-height:1.4}
+.sv2-secret-field :is(input,textarea){
+  box-sizing:border-box;width:100%;min-width:0;max-width:28rem;min-height:46px;
+  border:1px solid #4c5358;border-radius:2px;padding:12px 13px;
+  background:#070809;color:#f8f8f5;font:inherit;font-size:14px;
+  box-shadow:inset 0 1px 2px rgba(0,0,0,.28);
+}
+.sv2-secret-field textarea{min-height:132px;resize:vertical;line-height:1.5}
+.sv2-secret-field :is(input,textarea)::placeholder{color:#aeb5b9;opacity:1}
+.sv2-secret-field :is(input,textarea):disabled{opacity:.65;cursor:not-allowed}
+.sv2-secret-field input::-ms-reveal{display:none}
+.sv2-secret-field input::-webkit-credentials-auto-fill-button{visibility:hidden;display:none!important}
+.sv2-secret-help{display:block;margin-top:7px;min-height:17px;color:#c0c5c7;font-size:12px;line-height:1.45}
+.sv2-secret-field-meta{
+  display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;
+  gap:8px;margin-top:8px;min-height:44px;
+}
+.sv2-secret-field-meta small{font-size:12px;line-height:1.45;color:#d3d8d9}
+.sv2-secret-delete{
+  min-height:44px;min-width:80px;border:1px solid #4e5559;background:transparent;
+  padding:9px 12px;color:#e4e6e7;font-size:12px;font-weight:650;cursor:pointer;
+  transition:background-color .16s ease,border-color .16s ease;
+}
+.sv2-secret-delete:hover{background:#202426;border-color:#9ba6aa}
+.sv2-secret-delete[hidden]{display:none}
+.sv2-secret-card-footer{
+  margin-top:20px;padding-top:18px;border-top:1px solid var(--admin-border-subtle,#25292d);
+  display:flex;gap:18px;align-items:center;justify-content:space-between;
+}
+.sv2-secret-card-footer [data-secret-feedback]{
+  margin:0;min-width:0;flex:1;font-size:13px;line-height:1.5;
+  color:#d8dddf;overflow-wrap:anywhere;
+}
+.sv2-secret-save{min-width:132px;min-height:44px;flex-shrink:0}
+.sv2-secret-card :where(input,textarea,button):focus-visible{
+  outline:2px solid #fff;outline-offset:3px;
+}
+.sv2-secret-card :where(button):disabled{cursor:not-allowed;opacity:.6}
+.sv2-secret-disclaimer{
+  margin:17px 0 0;max-width:65ch;font-size:12px;color:#c0c5c7;line-height:1.65;
+}
+@media(max-width:1050px){
+  .sv2-secret-fields{grid-template-columns:minmax(0,28rem)}
+}
+@media(max-width:600px){
+  .sv2-secret-card{padding:18px}
+  .sv2-secret-card-head{flex-direction:column;gap:12px}
+  .sv2-secret-card-meta{min-width:0;width:100%;flex-direction:row;align-items:center;justify-content:space-between;text-align:left;flex-wrap:wrap}
+  .sv2-secret-fields{grid-template-columns:minmax(0,1fr);gap:14px}
+  .sv2-secret-card-footer{flex-direction:column;align-items:stretch}
+  .sv2-secret-save{width:100%}
+}
