@@ -558,9 +558,15 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
         . number_format($minimumPrice, 0, ',', '.');
     $buyText = 'Comprar boletas' . $buyPrice;
     $buyButton = $canBuy ? '<a class="event-buy-button" href="' . $buyHref . '"' . $buyTarget . ' data-ticket-type="' . $escape($primaryTicketType) . '">' . $escape($buyText) . ' <span aria-hidden="true">→</span></a>' : '';
+    // Una consulta voluntaria sustituye a una compra cuando todavía no hay
+    // enlace/checkout habilitado; nunca se presenta como venta efectiva.
+    $notifyButton = $isEvent && $recordState === 'active' && !$canBuy
+        && !in_array(strtoupper($recordStatus), ['CANCELLED', 'CANCELED', 'FINISHED'], true)
+        ? '<a class="event-notify" href="/contact">Avísame <span aria-hidden="true">→</span></a>'
+        : '';
     $links = '';
     if ($isEvent) {
-        $links = $buyButton;
+        $links = $canBuy ? $buyButton : $notifyButton;
         if ($recordState === 'active' && !empty($page['related']['LINEUP'])) {
             $links .= '<a class="event-secondary" href="#lineup">Ver line-up <span aria-hidden="true">→</span></a>';
         }
@@ -783,6 +789,16 @@ JS;
     }
 
     $topbar = brvtalPublicCromoTopbar($backHref, $backLabel);
+    // La navegación móvil del evento reutiliza los enlaces públicos canónicos.
+    // <details> funciona sin JS, mantiene una sola fila en la cabecera y no
+    // altera el chrome compartido por otras fichas.
+    if ($isEvent && preg_match('~<nav class="cp-nav" aria-label="Secciones">(.*?)</nav>~s', $topbar, $parts)) {
+        $mobileMenu = '<details class="event-mobile-menu"><summary>Menú</summary>'
+            . '<nav aria-label="Navegación del evento">' . $parts[1]
+            . '<a href="/mi-cuenta/acceso" data-buyer-account-link>Mi cuenta</a>'
+            . '<a href="' . $backHref . '">' . $backLabel . '</a></nav></details>';
+        $topbar = str_replace('<div class="cp-tools">', $mobileMenu . '<div class="cp-tools">', $topbar);
+    }
 
     return <<<HTML
 <!doctype html>
