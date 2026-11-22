@@ -143,8 +143,10 @@ mail_assert(brvtal_ticket_mail_deliver_one($pdo, static fn() => ['status' => 503
 mail_assert(!brvtal_ticket_mail_redrive($pdo, $id3), 'uncertain cannot redrive blindly');
 mail_assert(brvtal_ticket_mail_deliver_one($pdo) === 'idle', 'uncertain not automatically replayed');
 echo "BRVTAL ticket-mail outbox integration OK.\n";
-// #1874: run real CLI workers against encrypted credentials in disposable MariaDB.
-require __DIR__ . '/ticketing-mail-worker-secrets.php';
+// #1874: isolate fixture locals from T11 history's PDO and globals.
+(static function (): void {
+    require __DIR__ . '/ticketing-mail-worker-secrets.php';
+})();
 
 
 // T11: run signed webhook and durable history tests in the existing canonical mail integration suite.
