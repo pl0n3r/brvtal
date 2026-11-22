@@ -478,4 +478,17 @@ migrations_assert(
     'mixed proof must remain fail-closed'
 );
 
+
+// #1846: column-only migration on an existing table must be applicable, not blocked.
+$buyerSpec = brvtalMigrationProofSpecifications()['migration_buyer_auth_tokens_01.sql'] ?? null;
+migrations_assert($buyerSpec === ['column:ticket_buyers.full_name'], 'buyer auth tokens proof must check only the new column');
+migrations_assert(
+    brvtalMigrationProofDisposition('migration_buyer_auth_tokens_01.sql', ['complete' => false, 'checks' => ['column:ticket_buyers.full_name' => false]]) === 'apply',
+    'missing full_name column must be an additive apply candidate'
+);
+migrations_assert(
+    brvtalMigrationProofDisposition('migration_buyer_auth_tokens_01.sql', ['complete' => true, 'checks' => ['column:ticket_buyers.full_name' => true]]) === 'baseline',
+    'existing full_name column must baseline'
+);
+
 echo "BRVTAL migration-state contract tests passed.\n";
