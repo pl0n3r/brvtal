@@ -13,6 +13,9 @@ test('T28 opt-in explícito, anti-bot y ninguna boleta/cobro al suscribirse',asy
   const received=[];
   await setup(page);
   await page.route('**/api/ticketing/waitlist.php',route=>{
+    if (route.request().method()==='GET') return route.fulfill({
+      contentType:'application/json',body:JSON.stringify({ok:true,
+        challenge:{question:'2 + 3 = ?',captcha_token:'synthetic-waitlist-token'}})});
     received.push(route.request().postDataJSON());
     route.fulfill({contentType:'application/json',body:JSON.stringify({
       ok:true,status:'waiting',payment_created:false,ticket_created:false})});
@@ -23,13 +26,16 @@ test('T28 opt-in explícito, anti-bot y ninguna boleta/cobro al suscribirse',asy
       {eventId:5,typeId:10,csrf:'synthetic-csrf'});
   });
   await expect(page.getByRole('checkbox')).not.toBeChecked();
+  await expect(page.getByRole('button',{name:'Entrar en lista de espera'})).toBeEnabled();
   await page.getByRole('button',{name:'Entrar en lista de espera'}).click();
   expect(received).toHaveLength(0);
   await page.getByRole('checkbox').check();
+  await page.locator('#panel [name=captcha_answer]').fill('5');
   await page.getByRole('button',{name:'Entrar en lista de espera'}).click();
   await expect(page.getByRole('status')).toContainText('No es una reserva ni una compra');
   expect(received).toEqual([{action:'subscribe',event_id:5,ticket_type_id:10,
-    consent:'waitlist-v1',website:''}]);
+    consent:'waitlist-v1',website:'',captcha_token:'synthetic-waitlist-token',
+    captcha_answer:'5'}]);
   expect(JSON.stringify(received)).not.toMatch(/payment|ticket_created|card|charge/);
 });
 test('T28 DISCADMIN dentro del shell, FIFO y permiso CSRF para ofertar',async ({page})=>{
@@ -90,6 +96,9 @@ test('T28: formulario público consentido y canje opaco sin URL ni sessionStorag
         offers:[{id:10,title:'General',price_cop:25000,available:0,invite_only:true}],
         methods:['CARD']}})}));
   await page.route('**/api/ticketing/waitlist.php',route=>{
+    if (route.request().method()==='GET') return route.fulfill({
+      contentType:'application/json',body:JSON.stringify({ok:true,
+        challenge:{question:'2 + 3 = ?',captcha_token:'synthetic-waitlist-token'}})});
     posted.push({kind:'optin',body:route.request().postDataJSON()});
     return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,status:'waiting'})});
   });
@@ -106,10 +115,12 @@ test('T28: formulario público consentido y canje opaco sin URL ni sessionStorag
   const join=page.locator('#lista-espera');
   await expect(join).toContainText('No reserva cupos ni confirma pagos');
   await join.getByRole('checkbox').check();
+  await expect(join.getByRole('button',{name:'Entrar en lista de espera'})).toBeEnabled();
+  await join.locator('[name=captcha_answer]').fill('5');
   await join.getByRole('button',{name:'Entrar en lista de espera'}).click();
   await expect(join.getByRole('status')).toContainText('No es una reserva');
   expect(posted[0].body).toMatchObject({action:'subscribe',event_id:42,ticket_type_id:10,
-    consent:'waitlist-v1'});
+    consent:'waitlist-v1',captcha_token:'synthetic-waitlist-token',captcha_answer:'5'});
   const button=page.getByRole('button',{name:'Continuar al pago'});
   await expect(button).toBeDisabled();
   const code='T'.repeat(43);
