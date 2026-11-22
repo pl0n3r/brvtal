@@ -29,6 +29,8 @@
     }
   });
   document.addEventListener('click', function (event) {
+    // #1892: desplegar un grupo o tocar «Próximamente» no navega; el panel sigue abierto.
+    if (event.target.closest('#app .side .nav [data-ia-toggle], #app .side .nav [aria-disabled="true"]')) return;
     if (event.target.closest('#app .side .nav button, #app .sidefoot button')) toggle(false, false);
   }, true);
   matchMedia('(max-width: 850px)').addEventListener('change', function () {

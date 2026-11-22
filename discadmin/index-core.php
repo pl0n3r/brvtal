@@ -1292,20 +1292,29 @@ function render(){
  const previousSide=root.querySelector('.side');
  document.body.classList.remove('admin-nav-open');
  const visibleSection=state.section==='security'?'settings':state.section;
- // Respaldo declarativo mínimo, reemplazado por el árbol canónico V3 de IA.
- // Los destinos se gestionan en el workspace, nunca como acciones duplicadas.
+ // #1892: menú V3 de 8 raíces. admin-information-architecture.js construye el árbol
+ // con sus desplegables; este listado plano solo es la reserva si ese script no carga.
  const adminMenuRoots=[
-  ['dashboard','ESCRITORIO'],['events','EVENTOS'],['artists','ARTISTAS'],
-  ['music','MÚSICA'],['ticketing','BOLETERÍA'],['mail','CORREOS'],
-  ['website','SITIO WEB'],['settings','CONFIGURACIÓN']
+  ['dashboard','ESCRITORIO'],
+  ['events','EVENTOS'],
+  ['artists','ARTISTAS'],
+  ['music','MÚSICA'],
+  ['ticketing','BOLETERÍA'],
+  ['mail','CORREOS'],
+  ['website','SITIO WEB'],
+  ['settings','CONFIGURACIÓN']
  ];
- const navHtml=adminMenuRoots.map(([key,label])=>'<button type="button" data-admin-nav="'+key+'" data-ia-root-button="'+key+'"'+
-  (['dashboard','events','artists'].includes(key)?' onclick="go(\''+key+'\')"':'')+'>'+label+'</button>').join('');
-  const moduleTitles={
-  dashboard:'INICIO',pages:'PÁGINAS',blog:'BLOG',media:'MEDIOS',
-  events:'EVENTOS',artists:'ARTISTAS',releases:'LANZAMIENTOS',
-  sets:'SESIONES',ticketing:'BOLETERÍA','hero-slider':'BANNERS DE PORTADA',
-  theme:'TEMA VISUAL',settings:'CONFIGURACIÓN',system:'ESTADO DEL SISTEMA',
+ const rootDestination={music:'sets',mail:'ticketing',website:'pages'};
+ const navHtml=adminMenuRoots.map(([key,label])=>{
+  const target=rootDestination[key]||key;
+  const active=visibleSection===target?'active':'';
+  return `<button class="${active}" data-admin-nav="${key}" onclick="go('${target}')">${label}</button>`;
+ }).join('');
+ const moduleTitles={
+  dashboard:'ESCRITORIO',pages:'PÁGINAS',blog:'BLOG',media:'MULTIMEDIA',
+  events:'EVENTOS',artists:'ARTISTAS',releases:'RELEASES',
+  sets:'SETS',ticketing:'BOLETERÍA','hero-slider':'BANNERS',
+  theme:'APARIENCIA',settings:'CONFIGURACIÓN',system:'ESTADO DEL SISTEMA',backups:'COPIAS DE SEGURIDAD',
   seo:'SEO','content-core':'GESTIÓN DE CONTENIDO',security:'SEGURIDAD / 2FA'
  };
  const moduleTitle=moduleTitles[state.section]||state.section.toUpperCase();

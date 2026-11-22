@@ -197,8 +197,6 @@
     const url = new URL(location.href);
     if (canonical === 'dashboard') url.searchParams.delete(ROUTE_PARAM);
     else url.searchParams.set(ROUTE_PARAM, canonical);
-    if (canonical !== 'ticketing') url.searchParams.delete('tab');
-    if (canonical !== 'settings') url.searchParams.delete('settings');
     const next = `${url.pathname}${url.search}${url.hash}`;
     const current = `${location.pathname}${location.search}${location.hash}`;
     if (next === current) return;
@@ -208,6 +206,7 @@
   async function navigateRoute(section) {
     const canonical = canonicalRouteSection(section);
     if (canonical === 'system' && typeof window.tech === 'function') return window.tech('system');
+    if (canonical === 'ticketing' && window.BRVTALTicketing?.open) return window.BRVTALTicketing.open({replace:true});
     if (typeof window.go === 'function') return window.go(canonical);
   }
 
@@ -245,7 +244,7 @@
   }
 
   function buttonKey(button) {
-    const dataKey = String(button.dataset.iaChild || button.dataset.adminNav || '').toLowerCase();
+    const dataKey = String(button.dataset.adminNav || '').toLowerCase();
     if (dataKey) return dataKey;
 
     const handler = button.getAttribute('onclick') || '';
@@ -260,293 +259,305 @@
     return partialRule?.key || 'other:' + label.toLowerCase();
   }
 
-
-  // DISCADMIN V3: eight canonical roots, and only destination links as children.
-  // Server-side ticketing.php remains the authority for staff capabilities.
+  // #1892 · Menú DISCADMIN V3 aprobado por el dueño: exactamente 8 raíces en este
+  // orden. El menú solo navega a módulos; crear/editar/publicar viven en el workspace.
+  const SOON = 'Próximamente';
   const NAV_TREE = [
-    {key:'dashboard', label:'Escritorio', route:'dashboard'},
-    {key:'events', label:'Eventos', route:'events'},
-    {key:'artists', label:'Artistas', route:'artists'},
-    {key:'music', label:'Música', children:[
-      {key:'sets', label:'Sets', route:'sets'},
-      {key:'releases', label:'Releases', route:'releases'}
+    {key:'dashboard', label:'ESCRITORIO', route:'dashboard'},
+    {key:'events', label:'EVENTOS', route:'events'},
+    {key:'artists', label:'ARTISTAS', route:'artists'},
+    {key:'music', label:'MÚSICA', children:[
+      {key:'sets', label:'SETS', route:'sets'},
+      {key:'releases', label:'RELEASES', route:'releases'}
     ]},
-    {key:'ticketing', label:'Boletería', route:'ticketing', children:[
-      {key:'orders', label:'Pedidos', ticketTab:'orders'},
-      {key:'entries', label:'Boletas', ticketTab:'entries'},
-      {key:'buyers', label:'Compradores', ticketTab:'buyers'},
-      {key:'door', label:'Control de acceso', ticketTab:'door'},
-      {key:'courtesy', label:'Cortesías', ticketTab:'orders', privileged:true},
-      {key:'promos', label:'Promociones', ticketTab:'promos'},
-      {key:'promoters', label:'Promotores', ticketTab:'promoters'},
-      {key:'finance', label:'Finanzas', ticketTab:'finance'},
-      {key:'refunds', label:'Devoluciones', ticketTab:'finance', privileged:true}
+    {key:'ticketing', label:'BOLETERÍA', route:'ticketing', children:[
+      {key:'ticketing:orders', label:'PEDIDOS', tab:'orders'},
+      {key:'ticketing:entries', label:'BOLETAS', tab:'entries'},
+      {key:'ticketing:buyers', label:'COMPRADORES', tab:'buyers'},
+      {key:'ticketing:door', label:'CONTROL DE ACCESO', tab:'door'},
+      {key:'ticketing:courtesies', label:'CORTESÍAS', soon:true, requires:'entries'},
+      {key:'ticketing:promos', label:'PROMOCIONES', tab:'promos'},
+      {key:'ticketing:promoters', label:'PROMOTORES', tab:'promoters'},
+      {key:'ticketing:finance', label:'FINANZAS', tab:'finance'},
+      {key:'ticketing:refunds', label:'DEVOLUCIONES', tab:'finance'}
     ]},
-    {key:'mail', label:'Correos', children:[
-      {key:'mail-history', label:'Historial de envíos', ticketTab:'mail'},
-      {key:'mail-templates', label:'Plantillas', comingSoon:true},
-      {key:'mail-test', label:'Pruebas de envío', comingSoon:true}
+    {key:'mail', label:'CORREOS', children:[
+      {key:'mail:history', label:'HISTORIAL DE ENVÍOS', tab:'mail'},
+      {key:'mail:templates', label:'PLANTILLAS', soon:true, requires:'mail'},
+      {key:'mail:tests', label:'PRUEBAS DE ENVÍO', route:'settings', settings:'integrations'}
     ]},
-    {key:'website', label:'Sitio web', children:[
-      {key:'pages', label:'Páginas', route:'pages'},
-      {key:'blog', label:'Blog', route:'blog'},
-      {key:'media', label:'Multimedia', route:'media'},
-      {key:'hero-slider', label:'Banners', route:'hero-slider'},
-      {key:'theme', label:'Apariencia', route:'theme'},
+    {key:'site', label:'SITIO WEB', children:[
+      {key:'pages', label:'PÁGINAS', route:'pages'},
+      {key:'blog', label:'BLOG', route:'blog'},
+      {key:'media', label:'MULTIMEDIA', route:'media'},
+      {key:'hero-slider', label:'BANNERS', route:'hero-slider'},
+      {key:'theme', label:'APARIENCIA', route:'theme'},
       {key:'seo', label:'SEO', route:'seo'}
     ]},
-    {key:'settings', label:'Configuración', children:[
-      {key:'general', label:'General', settingsTab:'general'},
-      {key:'social', label:'Redes sociales y contacto', settingsTab:'social'},
-      {key:'integrations', label:'Integraciones', settingsTab:'integrations'},
-      {key:'security', label:'Seguridad', settingsTab:'advanced'},
-      {key:'system', label:'Estado del sistema', route:'system'},
-      {key:'backups', label:'Copias de seguridad', route:'system', systemView:'backups'}
+    {key:'config', label:'CONFIGURACIÓN', children:[
+      {key:'settings:general', label:'GENERAL', route:'settings', settings:'general'},
+      {key:'settings:social', label:'REDES SOCIALES Y CONTACTO', route:'settings', settings:'social'},
+      {key:'settings:integrations', label:'INTEGRACIONES', route:'settings', settings:'integrations'},
+      {key:'security', label:'SEGURIDAD', route:'security'},
+      {key:'system', label:'ESTADO DEL SISTEMA', route:'system'},
+      {key:'backups', label:'COPIAS DE SEGURIDAD', route:'backups'}
     ]}
   ];
-  const MENU_STORAGE_KEY = 'brvtal.discadmin.nav-v3';
-  const EXPANDABLE_ROOTS = new Set(NAV_TREE.filter(root => root.children).map(root => root.key));
-  const expandedMenus = new Set();
-  try {
-    const saved = JSON.parse(sessionStorage.getItem(MENU_STORAGE_KEY) || '[]');
-    if (Array.isArray(saved)) saved.forEach(key => {
-      if (EXPANDABLE_ROOTS.has(key)) expandedMenus.add(key);
-    });
-  } catch (_) { /* private browsing or malformed storage: keep safe defaults */ }
-  let lastMenuRoute = '';
-  let ticketAccess = {status:'unknown',role:'',tabs:[]};
-  let permissionRequest = null;
+  const expandedMenus = {};
+  let lastActiveKey = '';
+  let lastScrolledKey = '';
+  // Pestañas de Boletería permitidas por el servidor para el rol actual. null = aún desconocido.
+  let ticketingTabs = null;
+  document.addEventListener('brvtal:ticketing-tabs', event => {
+    const tabs = event.detail?.tabs;
+    if (!Array.isArray(tabs)) return;
+    ticketingTabs = tabs.slice();
+    scheduleNavigation();
+  });
 
-  function storeMenuState() {
-    try { sessionStorage.setItem(MENU_STORAGE_KEY, JSON.stringify([...expandedMenus])); }
-    catch (_) { /* navigation still works without storage */ }
+  function observeNavigation() {
+    navObserver?.observe(document.documentElement,{childList:true,subtree:true});
   }
 
-  // GET-only authorization preview. No client-side grant ever replaces the PHP
-  // ticketing capability checks, and inaccessible operations are not linked.
-  function requestTicketAccess() {
-    if (!window.state?.authed || ticketAccess.status !== 'unknown' || permissionRequest) return;
-    permissionRequest = fetch('/discadmin/ticketing.php', {
-      credentials:'same-origin',cache:'no-store',
-      headers:{'X-BRVTAL-ADMIN-FRAGMENT':'1'}
-    }).then(async response => {
-      if (!response.ok) return {status:'denied',role:'',tabs:[]};
-      const doc = new DOMParser().parseFromString(await response.text(),'text/html');
-      const root = doc.querySelector('[data-admin-module="ticketing"]');
-      if (!root) return {status:'denied',role:'',tabs:[]};
-      const tabs = [...root.querySelectorAll('[data-ticketing-tab]')]
-        .map(button => button.dataset.ticketingTab);
-      return {status:'ready',role:root.dataset.ticketingRole || '',tabs};
-    }).catch(() => ({status:'denied',role:'',tabs:[]}))
-      .then(result => {
-        if (!window.state?.authed) return;
-        ticketAccess = result;
-        rebuildNavigation();
-      }).finally(() => { permissionRequest = null; });
+  function urlParam(name) {
+    return new URLSearchParams(location.search).get(name) || '';
   }
 
-  function currentNavigationContext() {
+  // Clave del destino visible ahora mismo, para resaltar la hoja y abrir su raíz.
+  function activeNavKey() {
     const section = String(window.state?.section || 'dashboard');
+    if (section === 'content-core') return 'events';
+    if (section === 'ticketing') {
+      const tab = urlParam('tab');
+      if (tab === 'mail') return 'mail:history';
+      if (tab && tab !== 'dashboard') return 'ticketing:' + tab;
+      return 'ticketing';
+    }
+    if (section === 'settings') {
+      const tab = document.querySelector('#app [data-settings-tab].active')?.dataset.settingsTab
+        || urlParam('settings') || 'general';
+      return ['general','social','integrations'].includes(tab) ? 'settings:' + tab : 'settings:general';
+    }
+    return section;
+  }
+
+  // El servidor filtra las pestañas por rol en el fragmento existente de Boletería;
+  // hasta conocerlas, sus hojas no se muestran (fallo cerrado para el rol Puerta).
+  let ticketingTabsRequest = null;
+  function loadTicketingTabs() {
+    if (ticketingTabs !== null || ticketingTabsRequest || window.state?.authed !== true) return;
+    ticketingTabsRequest = fetch('/discadmin/ticketing.php', {
+      credentials:'same-origin', cache:'no-store', headers:{'X-BRVTAL-ADMIN-FRAGMENT':'1'}
+    }).then(async response => {
+      if (response.status === 403) return [];
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      const fragment = new DOMParser().parseFromString(await response.text(), 'text/html');
+      return [...fragment.querySelectorAll('[data-ticketing-tab]')].map(tab => tab.dataset.ticketingTab);
+    }).then(tabs => {
+      if (ticketingTabs === null) ticketingTabs = tabs;
+      scheduleNavigation();
+    }).catch(() => {}).finally(() => { ticketingTabsRequest = null; });
+  }
+
+  function leafAllowed(item) {
+    const capability = item.tab || item.requires;
+    if (!capability) return true;
+    if (ticketingTabs === null) { loadTicketingTabs(); return false; }
+    return ticketingTabs.includes(capability);
+  }
+
+  function visibleChildren(root) {
+    return (root.children || []).filter(leafAllowed);
+  }
+
+  function rootContains(root, key) {
+    return root.key === key || (root.children || []).some(child => child.key === key);
+  }
+
+  async function navigateTo(item) {
+    if (item.soon) return false;
     const url = new URL(location.href);
-    const tab = String(url.searchParams.get('tab') || 'dashboard');
-    const settings = String(url.searchParams.get('settings') || 'general');
-    const activeRoot = section === 'ticketing' ? (tab === 'mail' ? 'mail' : 'ticketing')
-      : ['sets','releases'].includes(section) ? 'music'
-      : ['pages','blog','media','hero-slider','theme','seo'].includes(section) ? 'website'
-      : ['settings','security','system','backups'].includes(section) ? 'settings'
-      : section;
-    const menuRoute = activeRoot + ':' + section + ':' + tab + ':' + settings;
-    if (lastMenuRoute !== menuRoute) {
-      if (EXPANDABLE_ROOTS.has(activeRoot)) expandedMenus.add(activeRoot);
-      lastMenuRoute = menuRoute;
+    if (item.tab) {
+      url.searchParams.set(ROUTE_PARAM,'ticketing');
+      url.searchParams.set('tab',item.tab);
+      url.searchParams.delete('settings');
+      history.pushState({brvtalAdminRoute:'ticketing'},'',url);
+      if (window.state?.section === 'ticketing' && window.BRVTALTicketing?.selectTab?.(item.tab)) {
+        rebuildNavigation();
+        return true;
+      }
+      return window.BRVTALTicketing?.open ? window.BRVTALTicketing.open({replace:true}) : window.go('ticketing');
     }
-    return {section,tab,settings,activeRoot};
+    if (item.settings) {
+      url.searchParams.delete('tab');
+      url.searchParams.set(ROUTE_PARAM,'settings');
+      url.searchParams.set('settings',item.settings);
+      history.pushState({brvtalAdminRoute:'settings'},'',url);
+      const tabButton = window.state?.section === 'settings'
+        && document.querySelector(`[data-settings-tab="${item.settings}"]`);
+      if (tabButton) { tabButton.click(); rebuildNavigation(); return true; }
+      return window.go('settings');
+    }
+    let result;
+    if (item.route === 'system' && typeof window.tech === 'function') result = await window.tech('system');
+    else if (item.route === 'ticketing' && window.BRVTALTicketing?.open) result = await window.BRVTALTicketing.open();
+    else result = await window.go(item.route);
+    // Solo se limpia la entrada nueva: la anterior conserva su pestaña para Atrás.
+    if (result !== false) dropStaleParams(['tab','settings']);
+    return result;
   }
 
-  function isVisibleMenuItem(root,item) {
-    if (root.key !== 'ticketing' && root.key !== 'mail') return true;
-    if (ticketAccess.status !== 'ready') return false;
-    if (item.privileged && !['superadmin','owner','root','platform_owner'].includes(ticketAccess.role)) return false;
-    return !item.ticketTab || ticketAccess.tabs.includes(item.ticketTab);
+  function dropStaleParams(names) {
+    const next = new URL(location.href);
+    let changed = false;
+    for (const name of names) {
+      if (!next.searchParams.has(name)) continue;
+      next.searchParams.delete(name);
+      changed = true;
+    }
+    if (changed) history.replaceState(history.state,'',next);
   }
 
-  function isVisibleRoot(root) {
-    if (root.key !== 'ticketing' && root.key !== 'mail') return true;
-    if (ticketAccess.status === 'denied') return false;
-    if (ticketAccess.status === 'unknown') return true; // aria-disabled pending resolution
-    return root.key === 'mail'
-      ? ticketAccess.tabs.includes('mail')
-      : ticketAccess.tabs.length > 0;
-  }
-
-  function activeChild(root, child, context) {
-    if (root.key === 'ticketing')
-      return child.key === context.tab && context.section === 'ticketing';
-    if (root.key === 'mail') return child.ticketTab === 'mail'
-      && context.section === 'ticketing' && context.tab === 'mail';
-    if (root.key === 'settings') {
-      if (child.route === 'system') return context.section === 'system'
-        && (child.systemView ? new URLSearchParams(location.search).get('view') === child.systemView
-                             : new URLSearchParams(location.search).get('view') !== 'backups');
-      return context.section === 'settings' && child.settingsTab === context.settings;
-    }
-    return child.route === context.section;
-  }
-
-  async function followMenuDestination(child) {
-    if (child.comingSoon) return false;
-    if (child.ticketTab) {
-      return window.BRVTALTicketing?.open?.({tab:child.ticketTab});
-    }
-    if (child.settingsTab) {
-      const wasSettings = String(window.state?.section || '') === 'settings';
-      const result = await window.go('settings');
-      if (result === false || window.state?.section !== 'settings') return false;
-      const url = new URL(location.href);
-      url.searchParams.set('module','settings');
-      url.searchParams.set('settings',child.settingsTab);
-      history[wasSettings ? 'pushState' : 'replaceState'](
-        {brvtalAdminRoute:'settings'},'',url
-      );
-      window.BRVTALSettingsV2?.activate?.(child.settingsTab);
-      rebuildNavigation();
-      return true;
-    }
-    if (child.route === 'system') {
-      const wasSystem = String(window.state?.section || '') === 'system';
-      const result = await window.tech?.('system');
-      if (result === false) return false;
-      const url = new URL(location.href);
-      if (child.systemView) url.searchParams.set('view',child.systemView);
-      else url.searchParams.delete('view');
-      history[wasSystem ? 'pushState' : 'replaceState'](
-        {brvtalAdminRoute:'system'},'',url
-      );
-      rebuildNavigation();
-      return true;
-    }
-    return window.go?.(child.route);
-  }
-
-  function rootButton(root, expanded, active) {
+  function navButton(item, depth, activeKey) {
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = 'ia-root-button';
-    button.dataset.adminNav = root.key;
-    button.dataset.iaRootButton = root.key;
-    button.textContent = root.label;
-    button.classList.toggle('active',active);
-    if ((root.key === 'ticketing' || root.key === 'mail') && ticketAccess.status !== 'ready') {
-      button.disabled = true;
-      button.setAttribute('aria-label',root.label + ' · verificando permisos');
-      return button;
-    }
-    if (!root.children) {
-      button.addEventListener('click',() => { followMenuDestination(root)?.catch?.(() => {}); });
-    } else if (root.key === 'ticketing') {
-      button.addEventListener('click',() => { window.BRVTALTicketing?.open?.({tab:'dashboard'})?.catch?.(() => {}); });
+    button.textContent = item.label;
+    button.dataset.adminNav = item.key;
+    button.dataset.iaKey = item.key;
+    if (depth) button.dataset.iaSubnav = '1';
+    if (item.soon) {
+      button.setAttribute('aria-disabled','true');
+      button.dataset.iaSoon = '1';
+      const badge = document.createElement('span');
+      badge.className = 'ia-nav-soon';
+      badge.textContent = SOON;
+      button.append(badge);
     } else {
-      button.setAttribute('aria-expanded',String(expanded));
-      button.setAttribute('aria-controls','brvtal-menu-' + root.key);
-      button.addEventListener('click',() => toggleMenu(root.key));
+      button.addEventListener('click', event => {
+        event.preventDefault();
+        navigateTo(item).catch(() => {});
+      });
     }
+    const active = item.key === activeKey;
+    button.classList.toggle('active',active);
+    if (active) button.setAttribute('aria-current','page');
     return button;
   }
 
+  // Se abre/cierra en su sitio: no se reconstruye el DOM, así el foco no se pierde.
   function toggleMenu(key) {
-    if (expandedMenus.has(key)) expandedMenus.delete(key);
-    else expandedMenus.add(key);
-    storeMenuState();
-    const focus = '[data-ia-disclosure="' + key + '"]';
-    rebuildNavigation(focus);
-    // The canonical mobile shell closes on ANY nav button click. A disclosure
-    // changes only the tree; reopen the existing panel rather than hiding it.
-    const shell = document.querySelector('#app .shell');
-    if (matchMedia('(max-width: 850px)').matches && shell && !shell.classList.contains('admin-nav-open')) {
-      window.toggleAdminNav?.();
-      document.querySelector('.side .nav ' + focus)?.focus({preventScroll:true});
+    expandedMenus[key] = !expandedMenus[key];
+    const open = expandedMenus[key];
+    const nav = document.querySelector('.side .nav');
+    const toggle = nav?.querySelector(`[data-ia-toggle="${key}"]`);
+    const list = document.getElementById('brvtal-nav-' + key);
+    if (!toggle || !list) { rebuildNavigation(); return; }
+    toggle.setAttribute('aria-expanded', String(open));
+    if (toggle.classList.contains('ia-nav-chevron')) {
+      const label = NAV_TREE.find(root => root.key === key)?.label.toLowerCase() || '';
+      toggle.setAttribute('aria-label', (open ? 'Contraer ' : 'Desplegar ') + label);
     }
+    list.hidden = !open;
+    if (nav) nav.dataset.iaSig = navigationSignature();
   }
 
-  function rebuildNavigation(focusSelector = '') {
-    if (applyingNav) return;
-    if (!window.state?.authed) {
-      ticketAccess = {status:'unknown',role:'',tabs:[]};
+  function navigationSignature() {
+    return JSON.stringify([activeNavKey(), expandedMenus, ticketingTabs, window.state?.authed === true]);
+  }
+
+  function appendRoot(nav, root, activeKey) {
+    const children = visibleChildren(root);
+    if (!children.length) {
+      nav.appendChild(navButton(root, 0, activeKey));
       return;
     }
+    const containsActive = rootContains(root, activeKey);
+    if (containsActive && lastActiveKey !== activeKey) expandedMenus[root.key] = true;
+    const open = Boolean(expandedMenus[root.key]);
+    const group = document.createElement('div');
+    group.className = 'ia-navgroup';
+    group.dataset.iaGroup = root.key;
+    const listId = 'brvtal-nav-' + root.key;
+    const head = document.createElement('div');
+    head.className = 'ia-navhead';
+    let toggle;
+    if (root.route) {
+      // Boletería: el padre abre su resumen y un chevron aparte despliega los hijos.
+      const parent = navButton(root, 0, activeKey);
+      parent.classList.toggle('ia-branch-active', containsActive);
+      toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'ia-nav-chevron';
+      toggle.setAttribute('aria-label', (open ? 'Contraer ' : 'Desplegar ') + root.label.toLowerCase());
+      head.append(parent, toggle);
+    } else {
+      toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'ia-nav-parent';
+      toggle.textContent = root.label;
+      toggle.dataset.adminNav = root.key;
+      toggle.dataset.iaKey = root.key;
+      toggle.classList.toggle('ia-branch-active', containsActive);
+      head.append(toggle);
+    }
+    toggle.dataset.iaToggle = root.key;
+    toggle.setAttribute('aria-expanded', String(open));
+    toggle.setAttribute('aria-controls', listId);
+    toggle.addEventListener('click', () => toggleMenu(root.key));
+    const list = document.createElement('div');
+    list.className = 'ia-navchildren';
+    list.id = listId;
+    list.hidden = !open;
+    list.setAttribute('role','group');
+    list.setAttribute('aria-label', root.label.toLowerCase());
+    for (const child of children) list.appendChild(navButton(child, 1, activeKey));
+    group.append(head, list);
+    nav.appendChild(group);
+  }
+
+  function rebuildNavigation() {
+    if (applyingNav) return;
     const nav = document.querySelector('.side .nav');
     if (!nav) return;
+    // Sin cambios reales (destino, desplegables, permisos, sesión) no se toca el DOM.
+    if (nav.dataset.iaTree === 'v3' && nav.querySelector('.ia-navgroup, [data-ia-key]')
+      && nav.dataset.iaSig === navigationSignature()) return;
     applyingNav = true;
     navObserver?.disconnect();
-    const focus = focusSelector || (document.activeElement?.dataset?.iaRootButton
-      ? '[data-ia-root-button="' + document.activeElement.dataset.iaRootButton + '"]'
-      : document.activeElement?.dataset?.iaDisclosure
-        ? '[data-ia-disclosure="' + document.activeElement.dataset.iaDisclosure + '"]'
-        : document.activeElement?.dataset?.iaChild
-          ? '[data-ia-child="' + document.activeElement.dataset.iaChild + '"]' : '');
     try {
-      const context = currentNavigationContext();
-      const fragment = document.createDocumentFragment();
-      for (const root of NAV_TREE) {
-        if (!isVisibleRoot(root)) continue;
-        const expanded = expandedMenus.has(root.key);
-        const entry = document.createElement('div');
-        entry.className = 'ia-root';
-        entry.dataset.iaRoot = root.key;
-        const row = document.createElement('div');
-        row.className = 'ia-root-row';
-        row.appendChild(rootButton(root,expanded,context.activeRoot === root.key));
-        if (root.children) {
-          const disclosure = document.createElement('button');
-          disclosure.type = 'button';
-          disclosure.className = 'ia-disclosure';
-          disclosure.dataset.iaDisclosure = root.key;
-          disclosure.setAttribute('aria-label',(expanded ? 'Contraer ' : 'Expandir ') + root.label);
-          disclosure.setAttribute('aria-expanded',String(expanded));
-          disclosure.setAttribute('aria-controls','brvtal-menu-' + root.key);
-          disclosure.addEventListener('click',() => toggleMenu(root.key));
-          row.appendChild(disclosure);
-        }
-        entry.appendChild(row);
-        if (root.children) {
-          const subnav = document.createElement('div');
-          subnav.className = 'ia-subnav';
-          subnav.id = 'brvtal-menu-' + root.key;
-          subnav.setAttribute('role','group');
-          subnav.setAttribute('aria-label',root.label);
-          subnav.hidden = !expanded;
-          for (const child of root.children) {
-            if (!isVisibleMenuItem(root,child)) continue;
-            const button = document.createElement('button');
-            button.type = 'button';
-            button.dataset.iaChild = child.key;
-            button.textContent = child.label;
-            button.className = 'ia-child';
-            if (activeChild(root,child,context)) button.classList.add('active');
-            if (child.comingSoon) {
-              button.disabled = true;
-              button.title = 'Próximamente · módulo aún no disponible';
-              button.appendChild(document.createTextNode(' · Próximamente'));
-            } else {
-              button.addEventListener('click',() => { followMenuDestination(child)?.catch?.(() => {}); });
-            }
-            subnav.appendChild(button);
-          }
-          entry.appendChild(subnav);
-        }
-        fragment.appendChild(entry);
+      const focusedToggle = document.activeElement?.dataset?.iaToggle || '';
+      const focusedKey = !focusedToggle && nav.contains(document.activeElement)
+        ? document.activeElement?.dataset?.iaKey || '' : '';
+      if (window.state?.authed !== true) ticketingTabs = null;
+      const activeKey = activeNavKey();
+      const scrollTop = nav.scrollTop;
+      nav.replaceChildren();
+      for (const root of NAV_TREE) appendRoot(nav, root, activeKey);
+      // Memorias vive dentro de Multimedia; el marcador oculto evita que memories.js
+      // vuelva a insertar su propio botón en el menú.
+      const memories = document.createElement('button');
+      memories.type = 'button';
+      memories.hidden = true;
+      memories.tabIndex = -1;
+      memories.dataset.memoriesNav = '1';
+      memories.dataset.iaHidden = '1';
+      memories.setAttribute('aria-hidden','true');
+      nav.appendChild(memories);
+      nav.dataset.iaTree = 'v3';
+      nav.dataset.iaSig = navigationSignature();
+      lastActiveKey = activeKey;
+      nav.scrollTop = scrollTop;
+      const activeButton = nav.querySelector('button.active');
+      if (activeButton && lastScrolledKey !== activeKey) {
+        lastScrolledKey = activeKey;
+        activeButton.scrollIntoView?.({block:'nearest'});
       }
-      nav.replaceChildren(fragment);
-      if (focus) nav.querySelector(focus)?.focus({preventScroll:true});
+      if (focusedToggle) nav.querySelector(`[data-ia-toggle="${focusedToggle}"]`)?.focus();
+      else if (focusedKey) nav.querySelector(`[data-ia-key="${CSS.escape(focusedKey)}"]`)?.focus();
     } finally {
       applyingNav = false;
       observeNavigation();
     }
-    requestTicketAccess();
-  }
-
-  function observeNavigation() {
-    navObserver?.observe(document.documentElement,{childList:true,subtree:true});
   }
 
   function scheduleNavigation() {
@@ -572,11 +583,9 @@
     if (title) {
       const navLabel = [...document.querySelectorAll('.side .nav button')]
         .find(button => buttonKey(button) === section)?.textContent?.trim();
-      title.textContent = (navLabel || section).toUpperCase();
+      title.textContent = navLabel || section.toUpperCase();
     }
-    document.querySelectorAll('.side .nav > button').forEach(button => {
-      button.classList.toggle('active', buttonKey(button) === section);
-    });
+    rebuildNavigation();
   }
 
   function captureWorkspaceSnapshot() {
@@ -856,20 +865,9 @@
     applyUrlRoute().catch(() => {});
   });
 
-  // Only replace the navigation tree when the *shell* is recreated.
-  // Watching every workspace mutation caused continuous detaches: live
-  // dashboard telemetry could repaint the sidebar between pointerdown/click.
   navObserver = new MutationObserver(mutations => {
     if (applyingNav) return;
-    const replacedShell = mutations.some(mutation =>
-      [...mutation.addedNodes, ...mutation.removedNodes].some(node =>
-        node.nodeType === 1 && (
-          node.matches?.('#app,.shell,.side,.nav')
-          || !!node.querySelector?.('.shell .side .nav')
-        )
-      )
-    );
-    if (replacedShell) {
+    if (mutations.some(mutation => mutation.addedNodes.length || mutation.removedNodes.length)) {
       scheduleNavigation();
       scheduleInitialRoute();
     }

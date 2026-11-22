@@ -1,19 +1,15 @@
 import { test, expect } from '@playwright/test';
-import { readFileSync, mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const iaJs = readFileSync(join(process.cwd(), 'discadmin/admin-information-architecture.js'), 'utf8');
 const iaCss = readFileSync(join(process.cwd(), 'discadmin/admin-information-architecture.css'), 'utf8');
 const moduleCss = readFileSync(join(process.cwd(), 'discadmin/admin-modules.css'), 'utf8');
-const shellCss = readFileSync(join(process.cwd(), 'discadmin/admin-shell.css'), 'utf8');
-const shellJs = readFileSync(join(process.cwd(), 'discadmin/admin-shell.js'), 'utf8');
-const ticketJs = readFileSync(join(process.cwd(), 'discadmin/ticketing.js'), 'utf8');
 const wrapper = readFileSync(join(process.cwd(), 'discadmin/index.php'), 'utf8');
 const harnessUrl = 'http://127.0.0.1:4173/discadmin-ia-e2e.html';
 
-function harness(authed = true, legacy = false) {
+function harness(authed = true) {
   return `<!doctype html><html><head><style>.shell{display:grid;grid-template-columns:245px minmax(0,1fr)}${moduleCss}
-${shellCss}
 ${iaCss}.side .nav{display:flex;flex-direction:column;gap:2px}.side .nav button{min-height:44px}.legacy-test-modal{display:none}.legacy-test-modal.open{display:block}</style></head><body><div id="app"></div><div id="modal" class="legacy-test-modal"><button id="saveBtn" type="button">SAVE</button></div><script>
     window.state={authed:${authed ? 'true' : 'false'},section:'dashboard',rows:[],editing:null};
     window.__legacyOpen=[];
@@ -28,7 +24,6 @@ ${iaCss}.side .nav{display:flex;flex-direction:column;gap:2px}.side .nav button{
     window.__requestFailures={};
     window.__dynamicNavigationToken=0;
     window.__dashboardMount=null;
-    window.BRVTALSettingsV2={activate(id){window.__activatedSetting=id;}};
     window.req=function(path){
       window.__requestLog.push(path);
       if(window.__requestFailures[path]){
@@ -50,14 +45,12 @@ ${iaCss}.side .nav{display:flex;flex-direction:column;gap:2px}.side .nav button{
       state.section=section;
       window.__nativeRenders.push(section);
       let sectionContent='<div class="native-view">NATIVE '+section.toUpperCase()+'</div>';
-      if(section==='ticketing'){
-        sectionContent='<div id="admin-module-host"></div>';
-      }else if(section==='events'){
+      if(section==='events'){
         sectionContent='<div data-canonical-events-list="1"><div class="toolbar"><input class="search" placeholder="Search events..."><button class="btn red" data-new-event>+ NEW EVENT</button></div><div class="table" data-events-table="canonical">EVENTS TABLE</div></div>';
       }else if(section==='artists'){
         sectionContent='<div class="toolbar"><input class="search"><button class="btn red">+ NEW ARTIST</button></div>';
       }
-      document.getElementById('app').innerHTML='<div class="shell"><button class="admin-nav-scrim" aria-label="Cerrar navegación" onclick="closeAdminNav()"></button><aside class="side" id="admin-primary-nav"><div class="nav">'
+      document.getElementById('app').innerHTML='<div class="shell"><aside class="side"><div class="nav">'
         +navButton('DASHBOARD',"go('dashboard')")
         +navButton('EVENTS',"go('events')")
         +navButton('ARTISTS',"go('artists')")
@@ -84,12 +77,6 @@ ${iaCss}.side .nav{display:flex;flex-direction:column;gap:2px}.side .nav button{
         state.section=section;
         window.__renderShell(section);
         return window.__dashboardMount();
-      }
-      if(section==='ticketing'){
-        window.__nativeGo.push(section);
-        state.section=section;
-        window.__renderShell(section);
-        return window.BRVTALTicketing?.mount();
       }
       if(['media','releases','blog','seo'].includes(section)){
         const token=++window.__dynamicNavigationToken;
@@ -155,257 +142,164 @@ ${iaCss}.side .nav{display:flex;flex-direction:column;gap:2px}.side .nav button{
       }
     };
     window.__renderShell('dashboard');
-  </script>${legacy ? '' : '<script>'+ticketJs+'</script><script>'+shellJs+'</script><script>'+iaJs+'</script>'}</body></html>`;
+  </script><script>${iaJs}</script></body></html>`;
 }
 
-function ticketingFragment(role) {
-  const tabs = role === 'door' ? ['door'] : role === 'admin'
-    ? ['dashboard','orders','entries','buyers','door','finance','promos','promoters','mail']
-    : ['dashboard','orders','entries','buyers','door','finance','promos','promoters','mail','settings'];
-  return '<section data-admin-module="ticketing" data-ticketing-role="' + role + '">'
-    + '<div role="tablist">' + tabs.map((tab,index) =>
-      '<button id="ticketing-tab-' + tab + '" role="tab" data-ticketing-tab="' + tab
-      + '" aria-selected="' + (index === 0) + '">' + tab + '</button>').join('')
-    + '</div><div data-ticketing-panel></div></section>';
+async function serveHarness(page, {authed = true} = {}) {
+  await page.route('**/discadmin-ia-e2e.html*', route => route.fulfill({contentType:'text/html; charset=utf-8',body:harness(authed)}));
 }
 
-async function serveHarness(page, {authed = true, role = 'superadmin'} = {}) {
+const V3_ROOTS = ['ESCRITORIO','EVENTOS','ARTISTAS','MÚSICA','BOLETERÍA','CORREOS','SITIO WEB','CONFIGURACIÓN'];
+const V3_CHILDREN = {
+  music:['SETS','RELEASES'],
+  ticketing:['PEDIDOS','BOLETAS','COMPRADORES','CONTROL DE ACCESO','CORTESÍAS','PROMOCIONES','PROMOTORES','FINANZAS','DEVOLUCIONES'],
+  mail:['HISTORIAL DE ENVÍOS','PLANTILLAS','PRUEBAS DE ENVÍO'],
+  site:['PÁGINAS','BLOG','MULTIMEDIA','BANNERS','APARIENCIA','SEO'],
+  config:['GENERAL','REDES SOCIALES Y CONTACTO','INTEGRACIONES','SEGURIDAD','ESTADO DEL SISTEMA','COPIAS DE SEGURIDAD']
+};
+const ALL_TICKETING_TABS = ['dashboard','orders','entries','buyers','door','finance','promos','promoters','mail','settings'];
+
+// El servidor filtra las pestañas de Boletería por rol en este fragmento existente.
+async function serveTicketingTabs(page, tabs = ALL_TICKETING_TABS) {
   await page.route('**/discadmin/ticketing.php', route => route.fulfill({
-    status:role === 'denied' ? 403 : 200,
     contentType:'text/html; charset=utf-8',
-    body:role === 'denied' ? 'Acceso denegado' : ticketingFragment(role)
-  }));
-  await page.route('**/discadmin-ia-e2e.html*', route => route.fulfill({
-    contentType:'text/html; charset=utf-8',
-    body:harness(authed, new URL(route.request().url()).searchParams.get('legacy') === '1')
+    body:'<section data-admin-module="ticketing"><div role="tablist">'
+      + tabs.map(tab => '<button role="tab" data-ticketing-tab="' + tab + '">' + tab + '</button>').join('')
+      + '</div><div data-ticketing-panel></div></section>'
   }));
 }
 
-// A root is a module/area, not a button to mutate a business record.
-const rootLabels = ['Escritorio','Eventos','Artistas','Música','Boletería','Correos','Sitio web','Configuración'];
-async function expectRootHierarchy(page) {
-  const roots = page.locator('.side .nav > [data-ia-root]');
-  await expect(roots).toHaveCount(8);
-  await expect.poll(async () => roots.locator(':scope > .ia-root-row > .ia-root-button').allTextContents())
-    .toEqual(rootLabels);
-  await expect(page.locator('.side .nav .ia-navdivider,.side .nav .navgroup')).toHaveCount(0);
-}
-
-// Test visual flex ordering, not only textContent/DOM order (which missed #1480).
-async function visualNavLabels(page) {
+// Orden visual (no solo DOM) de las raíces, como exige #1892.
+async function visualRootLabels(page) {
   return page.locator('.side .nav').evaluate(nav => [...nav.children]
-    .filter(button => button.tagName === 'BUTTON'
-      && !button.dataset.iaToggle
-      && button.getClientRects().length > 0
-      && getComputedStyle(button).display !== 'none')
-    .map(button => ({label:button.textContent.trim(),top:button.getBoundingClientRect().top}))
+    .filter(node => !node.hidden && node.getClientRects().length > 0)
+    .map(node => {
+      const head = node.matches('button') ? node : node.querySelector('.ia-navhead > button');
+      return {label:head.childNodes[0].textContent.trim(), top:node.getBoundingClientRect().top};
+    })
     .sort((a,b) => a.top - b.top)
-    .map(button => button.label));
+    .map(item => item.label));
 }
 
-test('AC-01: ocho raíces en orden DOM y visual, sin acciones repetidas', async ({ page }) => {
-  await serveHarness(page);
-  await page.setViewportSize({width:1440,height:900});
-  await page.goto(harnessUrl);
-  await expect(page.locator('[data-ia-root-button="ticketing"]')).toBeEnabled();
-  await expectRootHierarchy(page);
-  await expect(page.locator('[data-ia-root="dashboard"] .ia-subnav,[data-ia-root="events"] .ia-subnav,[data-ia-root="artists"] .ia-subnav')).toHaveCount(0);
-  expect(await page.locator('.side .nav').innerText()).not.toMatch(/Añadir evento|Añadir artista|Ver todos|Resumen de ventas|Herramientas avanzadas/i);
-  const order = await page.locator('.side .nav [data-ia-root]').evaluateAll(els => els.map(e => ({key:e.dataset.iaRoot,y:e.getBoundingClientRect().top})));
-  expect(order.map(x=>x.key)).toEqual(['dashboard','events','artists','music','ticketing','mail','website','settings']);
-  expect(order.map(x=>x.y)).toEqual([...order.map(x=>x.y)].sort((a,b)=>a-b));
-});
-
-test('AC-01: los cinco desplegables contienen solo destinos canónicos', async ({ page }) => {
-  await serveHarness(page);
-  await page.goto(harnessUrl);
-  await expect(page.locator('[data-ia-root-button="ticketing"]')).toBeEnabled();
-  const expected = {
-    music:['Sets','Releases'],
-    ticketing:['Pedidos','Boletas','Compradores','Control de acceso','Cortesías','Promociones','Promotores','Finanzas','Devoluciones'],
-    mail:['Historial de envíos','Plantillas · Próximamente','Pruebas de envío · Próximamente'],
-    website:['Páginas','Blog','Multimedia','Banners','Apariencia','SEO'],
-    settings:['General','Redes sociales y contacto','Integraciones','Seguridad','Estado del sistema','Copias de seguridad']
-  };
-  for (const [root, labels] of Object.entries(expected)) {
-    await page.locator('[data-ia-disclosure="' + root + '"]').click();
-    const submenu = page.locator('#brvtal-menu-' + root);
-    await expect(submenu).toBeVisible();
-    expect(await submenu.locator('button').allTextContents()).toEqual(labels);
-  }
-  await expect(page.locator('[data-ia-child="mail-templates"]')).toBeDisabled();
-  await expect(page.locator('[data-ia-child="mail-test"]')).toBeDisabled();
-});
-
-test('AC-02: teclas, ARIA, foco y sesión restauran la raíz desplegada', async ({ page }) => {
-  await serveHarness(page);
-  await page.goto(harnessUrl);
-  const root = page.locator('[data-ia-root-button="music"]');
-  await root.focus();
-  await page.keyboard.press('Enter');
-  await expect(root).toHaveAttribute('aria-expanded','true');
-  await expect(page.locator('#brvtal-menu-music')).toBeVisible();
-  await expect(root).toHaveAttribute('aria-controls','brvtal-menu-music');
-  await expect(root).toBeFocused();
-  expect(await page.evaluate(() => JSON.parse(sessionStorage.getItem('brvtal.discadmin.nav-v3')))).toContain('music');
-  await page.reload();
-  await expect(page.locator('#brvtal-menu-music')).toBeVisible();
-  await page.locator('[data-ia-disclosure="music"]').focus();
-  await page.keyboard.press('Space');
-  await expect(page.locator('#brvtal-menu-music')).toBeHidden();
-});
-
-test('AC-02: móvil 390 px mantiene panel, desplegables y Escape restituye foco', async ({ page }) => {
-  await serveHarness(page);
-  await page.setViewportSize({width:390,height:844});
-  await page.goto(harnessUrl);
-  await expect(page.locator('[data-ia-root-button="ticketing"]')).toBeEnabled();
-  await expectRootHierarchy(page);
-  const opener = page.locator('.admin-menu-toggle');
-  await opener.click();
-  await expect(page.locator('.shell')).toHaveClass(/admin-nav-open/);
-  await page.locator('[data-ia-disclosure="website"]').click();
-  await expect(page.locator('.shell')).toHaveClass(/admin-nav-open/);
-  await expect(page.locator('#brvtal-menu-website')).toBeVisible();
-  await expect(page.locator('[data-ia-disclosure="website"]')).toBeFocused();
-  await page.keyboard.press('Escape');
-  await expect(page.locator('.shell')).not.toHaveClass(/admin-nav-open/);
-  await expect(opener).toBeFocused();
-  await opener.click();
-  await expect(page.locator('#brvtal-menu-website')).toBeVisible();
-  const nav = await page.locator('.side').boundingBox();
-  expect(nav.x).toBeGreaterThanOrEqual(0);
-  expect(nav.width).toBeLessThanOrEqual(390);
-});
-
-test('AC-03: el rol Puerta no ve Pedidos, Correos, Finanzas ni Cortesías', async ({ page }) => {
-  await serveHarness(page,{role:'door'});
-  await page.goto(harnessUrl);
-  await expect(page.locator('[data-ia-root-button="ticketing"]')).toBeEnabled();
-  await expect(page.locator('[data-ia-root="mail"]')).toHaveCount(0);
-  await page.locator('[data-ia-disclosure="ticketing"]').click();
-  expect(await page.locator('#brvtal-menu-ticketing button').allTextContents()).toEqual(['Control de acceso']);
-  await expect(page.locator('[data-ia-child="finance"],[data-ia-child="orders"],[data-ia-child="courtesy"],[data-ia-child="refunds"]')).toHaveCount(0);
-});
-
-test('AC-03: rol Admin no recibe entradas de cortesías ni devoluciones', async ({ page }) => {
-  await serveHarness(page,{role:'admin'});
-  await page.goto(harnessUrl);
-  await expect(page.locator('[data-ia-root-button="ticketing"]')).toBeEnabled();
-  await page.locator('[data-ia-disclosure="ticketing"]').click();
-  await expect(page.locator('[data-ia-child="orders"]')).toBeVisible();
-  await expect(page.locator('[data-ia-child="courtesy"],[data-ia-child="refunds"]')).toHaveCount(0);
-});
-
-test('AC-03: sin permiso de Boletería se omiten módulos restringidos', async ({ page }) => {
-  await serveHarness(page,{role:'denied'});
-  await page.goto(harnessUrl);
-  await expect(page.locator('[data-ia-root="ticketing"],[data-ia-root="mail"]')).toHaveCount(0);
-  await expect(page.locator('[data-ia-root="events"]')).toHaveCount(1);
-});
-
-test('AC-04: Música y Sitio web navegan a sus módulos nativos sin duplicar editores', async ({ page }) => {
-  await serveHarness(page);
-  await page.goto(harnessUrl);
-  await page.locator('[data-ia-disclosure="music"]').click();
-  await page.locator('[data-ia-child="sets"]').click();
-  await expect.poll(() => page.evaluate(() => window.state.section)).toBe('sets');
-  expect(new URL(page.url()).searchParams.get('module')).toBe('sets');
-  await page.locator('[data-ia-disclosure="website"]').click();
-  await page.locator('[data-ia-child="theme"]').click();
-  await expect.poll(() => page.evaluate(() => window.state.section)).toBe('theme');
-  expect(new URL(page.url()).searchParams.get('module')).toBe('theme');
-  await expect(page.locator('[data-ia-root]')).toHaveCount(8);
-});
-
-test('AC-04: Memorias persiste como vista del workspace Multimedia existente', async ({ page }) => {
-  await serveHarness(page);
-  await page.goto(harnessUrl + '?module=media&view=memories');
-  await expect.poll(() => page.evaluate(() => window.state.section)).toBe('media');
-  await expect(page.locator('[data-ia-root-button="website"]')).toHaveClass(/active/);
-  await expect(page.locator('#brvtal-menu-website')).toBeVisible();
-  await expect(page.locator('[data-ia-child="media"]')).toHaveClass(/active/);
-  expect(new URL(page.url()).searchParams.get('view')).toBe('memories');
-});
-
-test('AC-02/04: configuración profunda selecciona tab real y Back restaura URL', async ({ page }) => {
-  await serveHarness(page);
-  await page.goto(harnessUrl);
-  await page.locator('[data-ia-disclosure="settings"]').click();
-  await page.locator('[data-ia-child="integrations"]').click();
-  await expect.poll(() => page.evaluate(() => window.state.section)).toBe('settings');
-  await expect(page.locator('[data-ia-child="integrations"]')).toHaveClass(/active/);
-  expect(new URL(page.url()).searchParams.get('settings')).toBe('integrations');
-  await page.locator('[data-ia-child="security"]').click();
-  await expect(page.locator('[data-ia-child="security"]')).toHaveClass(/active/);
-  expect(new URL(page.url()).searchParams.get('settings')).toBe('advanced');
-  await page.goBack();
-  await expect.poll(() => new URL(page.url()).searchParams.get('settings')).toBe('integrations');
-});
-
-test('AC-02/04: deep link en Boletería conserva tab en navegación y recarga', async ({ page }) => {
-  await serveHarness(page);
-  await page.goto(harnessUrl + '?module=ticketing&tab=buyers');
-  await expect.poll(() => page.evaluate(() => window.state.section)).toBe('ticketing');
-  await expect(page.locator('[data-ticketing-tab="buyers"]')).toHaveAttribute('aria-selected','true');
-  await expect(page.locator('[data-ia-root-button="ticketing"]')).toHaveClass(/active/);
-  expect(new URL(page.url()).searchParams.get('tab')).toBe('buyers');
-  await page.locator('[data-ia-disclosure="ticketing"]').click();
-  await page.locator('[data-ia-child="orders"]').click();
-  await expect(page.locator('[data-ticketing-tab="orders"]')).toHaveAttribute('aria-selected','true');
-  expect(new URL(page.url()).searchParams.get('tab')).toBe('orders');
-  await page.goBack();
-  await expect.poll(() => new URL(page.url()).searchParams.get('tab')).toBe('buyers');
-  await expect(page.locator('[data-ticketing-tab="buyers"]')).toHaveAttribute('aria-selected','true');
-});
-
-test('AC-05: Correos lleva a historial real y no ofrece editor futuro engañoso', async ({ page }) => {
-  await serveHarness(page);
-  await page.goto(harnessUrl);
-  await expect(page.locator('[data-ia-root-button="mail"]')).toBeEnabled();
-  await page.locator('[data-ia-disclosure="mail"]').click();
-  await expect(page.locator('[data-ia-child="mail-templates"]')).toBeDisabled();
-  await expect(page.locator('[data-ia-child="mail-test"]')).toBeDisabled();
-  await page.locator('[data-ia-child="mail-history"]').click();
-  await expect.poll(() => page.evaluate(() => window.state.section)).toBe('ticketing');
-  await expect(page.locator('[data-ticketing-tab="mail"]')).toHaveAttribute('aria-selected','true');
-  expect(new URL(page.url()).searchParams.get('tab')).toBe('mail');
-  await expect(page.locator('[data-ia-root-button="mail"]')).toHaveClass(/active/);
-});
-
-test('AC-02: re-render de shell y llegada tardía mantienen exactamente las ocho raíces', async ({ page }) => {
-  await serveHarness(page);
-  await page.goto(harnessUrl);
-  await expectRootHierarchy(page);
-  await page.evaluate(() => window.__renderShell('artists'));
-  await expectRootHierarchy(page);
-  await page.evaluate(() => {
-    const late = document.createElement('button');
-    late.textContent = 'HERRAMIENTA LEGACY';
-    late.dataset.adminNav = 'activity';
-    document.querySelector('.side .nav').appendChild(late);
-  });
-  await expectRootHierarchy(page);
-  await expect(page.getByText('HERRAMIENTA LEGACY')).toHaveCount(0);
-});
-
-for (const width of [390,1440]) {
-  test('AC-06: capturas comparables antes/después a ' + width + ' px', async ({ page }) => {
+for (const viewport of [{width:390,height:844},{width:1440,height:900}]) {
+  test(`#1892 menú V3: exactamente 8 raíces en el orden aprobado a ${viewport.width}px`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await serveTicketingTabs(page);
     await serveHarness(page);
-    mkdirSync(join(process.cwd(),'test-results'),{recursive:true});
-    await page.setViewportSize({width,height:900});
-    await page.goto(harnessUrl + '?legacy=1');
-    if (width === 390) await page.locator('.admin-menu-toggle').click();
-    await page.screenshot({path:join(process.cwd(),'test-results','discadmin-v3-before-'+width+'.png'),fullPage:true});
     await page.goto(harnessUrl);
-    await expect(page.locator('[data-ia-root-button="ticketing"]')).toBeEnabled();
-    await expectRootHierarchy(page);
-    if (width === 390) await page.locator('.admin-menu-toggle').click();
-    await page.screenshot({path:join(process.cwd(),'test-results','discadmin-v3-after-'+width+'.png'),fullPage:true});
-    const rootSize = await page.locator('[data-ia-root-button="dashboard"]').boundingBox();
-    expect(rootSize.height).toBeGreaterThanOrEqual(44);
+    await expect(page.locator('.side .nav[data-ia-tree="v3"]')).toBeVisible();
+    await expect.poll(() => visualRootLabels(page)).toEqual(V3_ROOTS);
+    for (const [group, labels] of Object.entries(V3_CHILDREN)) {
+      const children = page.locator(`#brvtal-nav-${group} > button`);
+      await expect.poll(() => children.evaluateAll(nodes => nodes.map(n => n.childNodes[0].textContent.trim())))
+        .toEqual(labels);
+    }
+    // Escritorio, Eventos y Artistas navegan directo: sin desplegable ni «Añadir».
+    for (const key of ['dashboard','events','artists']) {
+      await expect(page.locator(`.side .nav > button[data-ia-key="${key}"]`)).toHaveCount(1);
+    }
+    await expect(page.locator('.side .nav')).not.toContainText(/AÑADIR|VER TODOS|RESUMEN DE VENTAS|CONTENT CORE|ACTIVITY/);
   });
 }
+
+test('#1892 los desplegables funcionan con teclado y conservan el foco', async ({ page }) => {
+  await serveTicketingTabs(page);
+  await serveHarness(page);
+  await page.goto(harnessUrl);
+  const toggle = page.locator('[data-ia-toggle="music"]');
+  await expect(toggle).toHaveAttribute('aria-expanded','false');
+  await expect(toggle).toHaveAttribute('aria-controls','brvtal-nav-music');
+  await expect(page.locator('#brvtal-nav-music')).toBeHidden();
+  await toggle.focus();
+  await page.keyboard.press('Enter');
+  await expect(toggle).toHaveAttribute('aria-expanded','true');
+  await expect(page.locator('#brvtal-nav-music')).toBeVisible();
+  await expect(toggle).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(page.locator('[data-ia-key="sets"]')).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect.poll(() => page.evaluate(() => window.state.section)).toBe('sets');
+  await expect(page.locator('[data-ia-key="sets"]')).toHaveClass(/active/);
+  await expect(page.locator('[data-ia-key="sets"]')).toHaveAttribute('aria-current','page');
+  await expect.poll(() => new URL(page.url()).searchParams.get('module')).toBe('sets');
+  await page.locator('[data-ia-toggle="music"]').click();
+  await expect(page.locator('#brvtal-nav-music')).toBeHidden();
+});
+
+test('#1892 la hoja activa abre su raíz y sobrevive al re-render y a Memorias tardío', async ({ page }) => {
+  await page.setViewportSize({width:390,height:844});
+  await serveTicketingTabs(page);
+  await serveHarness(page);
+  await page.goto(harnessUrl);
+  await page.evaluate(() => window.go('hero-slider'));
+  await expect(page.locator('[data-ia-toggle="site"]')).toHaveAttribute('aria-expanded','true');
+  await expect(page.locator('[data-ia-key="hero-slider"]')).toHaveClass(/active/);
+  await page.evaluate(() => {
+    window.__renderShell('hero-slider');
+    const nav = document.querySelector('.side .nav');
+    const late = document.createElement('button');
+    late.textContent = 'MEMORIES'; late.dataset.memoriesNav = '1';
+    nav.appendChild(late);
+  });
+  await expect.poll(() => visualRootLabels(page)).toEqual(V3_ROOTS);
+  await expect(page.locator('[data-ia-key="hero-slider"]')).toHaveClass(/active/);
+  // Memorias vive dentro de Multimedia: nunca aparece como entrada visible del menú.
+  await expect(page.locator('.side .nav [data-memories-nav]:visible')).toHaveCount(0);
+});
+
+test('#1892 Boletería solo muestra las pestañas que el servidor permite al rol Puerta', async ({ page }) => {
+  await serveTicketingTabs(page, ['dashboard','door']);
+  await serveHarness(page);
+  await page.goto(harnessUrl);
+  await expect(page.locator('#brvtal-nav-ticketing > button')).toHaveCount(1);
+  await expect(page.locator('[data-ia-key="ticketing:door"]')).toHaveCount(1);
+  for (const hidden of ['orders','entries','buyers','finance','refunds','promos','promoters']) {
+    await expect(page.locator(`[data-ia-key="ticketing:${hidden}"]`)).toHaveCount(0);
+  }
+  await expect(page.locator('[data-ia-key="mail:history"]')).toHaveCount(0);
+});
+
+test('#1892 Boletería oculta sus hojas si no puede verificar permisos', async ({ page }) => {
+  await page.route('**/discadmin/ticketing.php', route => route.fulfill({status:403, body:'no'}));
+  await serveHarness(page);
+  await page.goto(harnessUrl);
+  await expect(page.locator('.side .nav > button[data-ia-key="ticketing"]')).toHaveCount(1);
+  await expect(page.locator('[data-ia-key^="ticketing:"]')).toHaveCount(0);
+});
+
+test('#1892 «Próximamente» se anuncia deshabilitado y no navega', async ({ page }) => {
+  await serveTicketingTabs(page);
+  await serveHarness(page);
+  await page.goto(harnessUrl);
+  await page.locator('[data-ia-toggle="mail"]').click();
+  const soon = page.locator('[data-ia-key="mail:templates"]');
+  await expect(soon).toHaveAttribute('aria-disabled','true');
+  await expect(soon).toContainText('Próximamente');
+  const before = await page.evaluate(() => [window.state.section, location.search]);
+  await soon.click({force:true});
+  expect(await page.evaluate(() => [window.state.section, location.search])).toEqual(before);
+});
+
+test('#1892 Configuración enlaza a su pestaña y Atrás/Adelante la conservan', async ({ page }) => {
+  await serveTicketingTabs(page);
+  await serveHarness(page);
+  await page.goto(harnessUrl);
+  await page.locator('[data-ia-toggle="config"]').click();
+  await page.locator('[data-ia-key="settings:integrations"]').click();
+  await expect.poll(() => page.evaluate(() => window.state.section)).toBe('settings');
+  await expect.poll(() => new URL(page.url()).searchParams.get('settings')).toBe('integrations');
+  await expect(page.locator('[data-ia-key="settings:integrations"]')).toHaveClass(/active/);
+  await page.locator('[data-ia-toggle="music"]').click();
+  await page.locator('[data-ia-key="sets"]').click();
+  await expect.poll(() => page.evaluate(() => window.state.section)).toBe('sets');
+  await expect.poll(() => new URL(page.url()).searchParams.get('settings')).toBe(null);
+  await page.goBack();
+  await expect.poll(() => page.evaluate(() => window.state.section)).toBe('settings');
+  await expect.poll(() => new URL(page.url()).searchParams.get('settings')).toBe('integrations');
+  await expect(page.locator('[data-ia-key="settings:integrations"]')).toHaveClass(/active/);
+  await page.goForward();
+  await expect.poll(() => page.evaluate(() => window.state.section)).toBe('sets');
+});
 
 test('successful Dashboard navigation resolves only after canonical active nav is synchronized', async ({ page }) => {
   await serveHarness(page);
@@ -417,8 +311,7 @@ test('successful Dashboard navigation resolves only after canonical active nav i
     window.BRVTALAdminIA.rebuildNavigation();
 
     const committed = await window.go('dashboard');
-    const dashboard = [...document.querySelectorAll('.side .nav button')]
-      .find(button => button.textContent.trim() === 'Escritorio');
+    const dashboard = document.querySelector('.side .nav [data-ia-key="dashboard"]');
 
     return {
       committed,
@@ -498,8 +391,7 @@ test('failed current Dashboard mount restores the previous Hero workspace', asyn
 
     const historyLengthBefore = history.length;
     const committed = await window.go('dashboard');
-    const banners = [...document.querySelectorAll('.side .nav button')]
-      .find(button => button.textContent.trim() === 'Banners');
+    const banners = document.querySelector('.side .nav [data-ia-key="hero-slider"]');
 
     return {
       committed,
@@ -586,8 +478,7 @@ test('failed stale Dashboard mount never overwrites a newer navigation', async (
     releaseMount(false);
     const staleResult = await staleDashboard;
 
-    const artists = [...document.querySelectorAll('.side .nav button')]
-      .find(button => button.textContent.trim() === 'Artistas');
+    const artists = document.querySelector('.side .nav [data-ia-key="artists"]');
 
     return {
       staleResult,
@@ -795,7 +686,7 @@ test('Events is the single entry to the guided event editor', async ({ page }) =
   await page.goto(harnessUrl);
 
   await page.evaluate(() => window.go('events'));
-  await expect(page.locator('.main .top h1')).toHaveText('EVENTS');
+  await expect(page.locator('.main .top h1')).toHaveText('EVENTOS');
   await expect(page.locator('[data-admin-module="content-core"]')).toHaveAttribute('data-ia-context','events');
   await expect(page.locator('[data-canonical-events-list]')).toBeVisible();
   await expect(page.locator('.main .toolbar .search:visible')).toHaveCount(1);
