@@ -7,6 +7,20 @@
  */
 (() => {
   const root = document.documentElement;
+  // Public markup is cacheable: resolve buyer state after rendering, never from
+  // a readable cookie or a server-personalized HTML fragment.
+  let buyerAccountHref = '/mi-cuenta/acceso';
+  const refreshBuyerAccountLinks = async () => {
+    try {
+      const response = await fetch('/api/buyer/auth.php', { credentials: 'same-origin', cache: 'no-store' });
+      if (!response.ok) return;
+      const session = await response.json();
+      if (session?.ok !== true) return;
+      buyerAccountHref = session.authenticated === true ? '/mi-cuenta' : '/mi-cuenta/acceso';
+      document.querySelectorAll('a[data-buyer-account-link]').forEach((link) =>
+        link.setAttribute('href', buyerAccountHref));
+    } catch (_) { /* Fail closed to the public login link. */ }
+  };
   const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 
   const el = (tag, attrs, ...kids) => {
@@ -1089,7 +1103,9 @@
       target: '_blank', rel: 'noopener noreferrer' }) : null;
     const header = el('header', { class: 'top' },
       el('a', { href: '#cromo-top', class: 'u', text: 'BRVTAL' }), nav,
-      el('div', { class: 'nav-actions' }, snd, ticketsLink, menuToggle));
+      el('div', { class: 'nav-actions' },
+        el('a', { class: 'account', href: buyerAccountHref, 'data-buyer-account-link': true, text: 'Mi cuenta' }),
+        snd, ticketsLink, menuToggle));
 
     // The mobile navigation is an actual keyboard/touch surface, not a hidden desktop nav.
     // A small interruptible transition follows the authorised transitions.dev dropdown rules.
@@ -1171,6 +1187,7 @@
     const cookiePrefs = document.querySelector('.brvtal-cookie-preferences');
     const footer = el('footer', {}, el('span', { text: 'BRVTAL, Pereira, Colombia' }), el('span', { text: 'Rave till grave' }),
       el('a', { href: '/privacy', text: 'Privacidad y mis derechos' }),
+      el('a', { href: buyerAccountHref, 'data-buyer-account-link': true, text: 'Mi cuenta' }),
       cookiePrefs ? el('button', { type: 'button', text: 'Preferencias de cookies' }) : null);
     const cookieBtn = footer.querySelector('button');
     if (cookieBtn) cookieBtn.addEventListener('click', () => cookiePrefs.click());
@@ -1300,6 +1317,7 @@
   };
 
   const start = () => {
+    void refreshBuyerAccountLinks();
     const json = (url) => fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error('http'))));
     // The banners are optional: if their endpoint fails the home still mounts without them.

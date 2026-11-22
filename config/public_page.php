@@ -530,7 +530,7 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
                 . '<output id="ticket-checkout-total" class="checkout-total" aria-live="polite"></output>'
                 . '<button type="submit">Continuar al pago</button></form>'
                 . '<p id="ticket-checkout-status" role="status" aria-live="polite">Pago pendiente hasta verificación del servidor.</p>'
-                . '<p>¿Ya tienes cuenta? <a href="/buyer/login.php">Inicia sesión o recupera el acceso</a>.'
+                . '<p>¿Ya tienes cuenta? <a href="/mi-cuenta/acceso">Inicia sesión o recupera el acceso</a>.'
                 . ' Compradores invitados: el checkout está pendiente de habilitación segura.</p></section>';
         }
     }
