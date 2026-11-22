@@ -488,6 +488,52 @@ test('Media writes stay behind the canonical integrity boundary in the real stac
     expect(duplicate.status()).toBe(409);
     expect(await duplicate.json()).toMatchObject({ok:false,error:'LOCAL_MEDIA_ALREADY_REGISTERED',media_id:mediaId});
 
+    // A legacy draft used by Banners is promoted only when a full save commits.
+    // Rejections must never publish the asset or alter the previously saved slider.
+    const settingKey='home.hero.slider';
+    const previousResponse=await page.request.get(
+      `${baseUrl}/api/index.php/settings?key=${encodeURIComponent(settingKey)}`
+    );
+    expect(previousResponse.ok()).toBe(true);
+    const previous=(await previousResponse.json()).data?.[0] ?? null;
+    const slide={id:'ci-media-promote',enabled:true,mediaType:'image',name:'CI LEGACY DRAFT',
+      desktopSrc:filePath,mobileSrc:'',poster:'',layers:[]};
+    const saveConfig=async slides=>page.request.post(`${baseUrl}/api/index.php/settings`,{
+      headers,data:{setting_key:settingKey,setting_value:JSON.stringify({enabled:true,slides}),is_json:1}
+    });
+    const asset=async()=> (await (await page.request.get(
+      `${baseUrl}/api/media-library.php?action=detail&id=${mediaId}`
+    )).json()).data;
+    try {
+      const legacyDraft=await page.request.put(
+        `${baseUrl}/api/media-library.php?action=update&id=${mediaId}`,
+        {headers,data:{status:'draft'}}
+      );
+      expect(legacyDraft.ok(),await legacyDraft.text()).toBe(true);
+      expect((await asset()).status).toBe('draft');
+      const invalid=await saveConfig([{...slide,mobileSrc:'/uploads/ci/hero-missing.jpg'}]);
+      expect(invalid.status()).toBe(422);
+      expect(await invalid.json()).toMatchObject({
+        error:'HERO_SLIDER_MEDIA_FILE_MISSING',field:'slides.0.mobileSrc'
+      });
+      expect((await asset()).status).toBe('draft');
+      const saved=await saveConfig([slide]);
+      expect(saved.ok(),await saved.text()).toBe(true);
+      expect((await asset()).status).toBe('published');
+    } finally {
+      if (previous===null) {
+        await page.request.delete(
+          `${baseUrl}/api/index.php/settings?key=${encodeURIComponent(settingKey)}`,
+          {headers}
+        );
+      } else {
+        await page.request.post(`${baseUrl}/api/index.php/settings`,{
+          headers,data:{setting_key:settingKey,setting_value:String(previous.setting_value??''),
+            is_json:Number(previous.is_json??0)}
+        });
+      }
+    }
+
     const canonicalDelete = await page.request.delete(`${baseUrl}/api/media-library.php?id=${mediaId}`, {headers});
     expect(canonicalDelete.ok()).toBeTruthy();
     expect(await canonicalDelete.json()).toMatchObject({ok:true,deleted:1});
