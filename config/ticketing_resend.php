@@ -87,6 +87,17 @@ function brvtal_ticket_resend_send(array $job, ?callable $request = null): array
         // The bearer exists only in memory for this provider request; never log.
         $body = $revealed;
     }
+    $html = $job['body_html'] ?? null;
+    if ($html !== null) {
+        if (!is_string($html)) return ['state'=>'failed','code'=>'invalid_configuration'];
+        if (str_starts_with($html, BRVTAL_BUYER_MAIL_SEAL_PREFIX)) {
+            $html = brvtalBuyerMailUnseal($html);
+            if ($html === null) return ['state'=>'failed','code'=>'invalid_configuration'];
+        }
+        if (!str_starts_with($html, '<!doctype html>') || strlen($html) > 150000) {
+            return ['state'=>'failed','code'=>'invalid_configuration'];
+        }
+    }
     $domain = strtolower(trim((string)brvtal_secret_value('BRVTAL_TICKET_MAIL_DOMAIN')));
     $from = trim((string)brvtal_secret_value('BRVTAL_TICKET_MAIL_FROM'));
     $apiKey = trim((string)brvtal_secret_value('BRVTAL_TICKET_MAIL_API_KEY'));
@@ -109,6 +120,7 @@ function brvtal_ticket_resend_send(array $job, ?callable $request = null): array
         return ['state' => 'failed', 'code' => 'invalid_configuration'];
     }
     $payload = ['from' => $from, 'to' => [$email], 'subject' => $subject, 'text' => $body];
+    if ($html !== null) $payload['html'] = $html;
     $headers = ['Authorization: Bearer ' . $apiKey, 'Content-Type: application/json',
         'Idempotency-Key: ' . $key];
     if ($mock && $request === null) {

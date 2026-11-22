@@ -106,3 +106,6 @@ catch (RuntimeException $e) {mail_t11_assert($e->getMessage()==='MAIL_PRIVACY_NO
     require __DIR__ . '/ticketing-mail-worker-secrets.php';
 })();
 echo "BRVTAL ticket-mail-history integration OK.\n";
+
+// #1889 separate synthetic MariaDB delivery snapshots.
+require __DIR__ . '/mail-templates-delivery.php';

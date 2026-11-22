@@ -18,9 +18,9 @@ function brvtalBuyerMailCipherKey(): string
     return hash('sha256', 'brvtal-buyer-mail-v1:' . $key, true);
 }
 
-function brvtalBuyerMailSeal(string $plaintext): string
+function brvtalBuyerMailSeal(string $plaintext, int $maxLength = 12000): string
 {
-    if ($plaintext === '' || strlen($plaintext) > 12000) {
+    if ($plaintext === '' || $maxLength > 50000 || strlen($plaintext) > $maxLength) {
         throw new InvalidArgumentException('BUYER_MAIL_INVALID_BODY');
     }
     $nonce = random_bytes(12);
@@ -69,4 +69,16 @@ function brvtalBuyerMailContent(string $kind, string $token): array
         . $copy['cta'] . ': ' . $url
         . "\n\nBRVTAL · Correo transaccional, no publicitario.";
     return ['subject' => $copy['subject'], 'sealed' => brvtalBuyerMailSeal($text)];
+}
+
+
+/** Extract only canonical one-use links from a sealed buyer message, in memory. */
+function brvtalBuyerMailExtractLink(string $plaintext, string $kind): ?string
+{
+    $action = ['verify_account'=>'verify','reset_password'=>'confirm-reset'][$kind] ?? null;
+    if ($action === null) return null;
+    $pattern='~https://www\.brvtal\.com\.co/mi-cuenta/restablecer\?accion='
+        .preg_quote($action,'~').'&token=[A-Za-z0-9_-]{43}(?![A-Za-z0-9_-])~D';
+    if (preg_match($pattern, $plaintext, $match) !== 1) return null;
+    return $match[0];
 }
