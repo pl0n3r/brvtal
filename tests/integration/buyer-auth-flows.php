@@ -159,6 +159,43 @@ buyerAuthAssert((int)$db->query("SELECT COUNT(*) FROM ticket_mail_outbox WHERE s
     LIKE '%Restablece%'")->fetchColumn() <= 6, 'IP and email rate limit bounds mail volume');
 buyerAuthAssert((int)$db->query("SELECT COUNT(*) FROM ticket_buyer_tokens WHERE token_hash
     LIKE '%SynthETIC%'")->fetchColumn() === 0, 'raw password never stored as token');
+// #1877: 72h retention in a disposable DB, with production mutation opt-in.
+foreach (['old-expiring@example.test' => 73, 'young-expiring@example.test' => 71] as $address => $age) {
+    $profile = $input;
+    $profile['email'] = $address;
+    buyerAuthAssert(brvtalBuyerAuthRegister($db, $profile) === ['ok'=>true],
+        'unverified synthetic retention fixture');
+    $db->exec("UPDATE ticket_buyers SET created_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL "
+        . $age . " HOUR) WHERE email=" . $db->quote($address));
+}
+putenv('BRVTAL_INTEGRATION_TESTS=0');
+buyerAuthAssert(brvtalBuyerPurgeUnverified($db) === 0,
+    'no destructive cleanup when production authorization is absent');
+putenv('BRVTAL_INTEGRATION_TESTS=1');
+buyerAuthAssert(brvtalBuyerPurgeUnverified($db) === 1,
+    'expire only unverified buyers older than 72 hours');
+$expired = $db->query("SELECT id,email,full_name,password_hash,status
+    FROM ticket_buyers WHERE status='blocked' AND email IS NULL ORDER BY id DESC LIMIT 1")
+    ->fetch(PDO::FETCH_ASSOC);
+buyerAuthAssert(is_array($expired)
+    && $expired['email'] === null && $expired['full_name'] === null
+    && $expired['password_hash'] === null, 'expired identity anonymized');
+$id = (int)$expired['id'];
+$tokenCheck = $db->prepare('SELECT COUNT(*) FROM ticket_buyer_tokens WHERE buyer_id=?
+    AND consumed_at_utc IS NULL AND revoked_at_utc IS NULL');
+$tokenCheck->execute([$id]);
+buyerAuthAssert((int)$tokenCheck->fetchColumn() === 0,
+    'expired verification tokens revoked');
+$mailCheck = $db->prepare("SELECT COUNT(*) FROM ticket_mail_outbox
+    WHERE related_ref=? AND state='failed' AND last_error_code='consent_revoked'
+    AND recipient_email='purged@invalid.example'");
+$mailCheck->execute(['buyer:'.$id]);
+buyerAuthAssert((int)$mailCheck->fetchColumn() >= 1, 'unsent recipient scrubbed');
+buyerAuthAssert((int)$db->query("SELECT COUNT(*) FROM ticket_buyers
+    WHERE email='young-expiring@example.test' AND status='active'
+    AND email_verified_at IS NULL")->fetchColumn() === 1, 'under 72h preserved');
+buyerAuthAssert(brvtalBuyerPurgeUnverified($db) === 0, 'second pass idempotent');
+
 putenv('BRVTAL_TICKET_MAIL_TESTING');
 $GLOBALS['config'] = $originalConfig;
 echo "BRVTAL buyer-auth MariaDB integration passed.\n";
