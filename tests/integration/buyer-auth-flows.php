@@ -199,3 +199,5 @@ buyerAuthAssert(brvtalBuyerPurgeUnverified($db) === 0, 'second pass idempotent')
 putenv('BRVTAL_TICKET_MAIL_TESTING');
 $GLOBALS['config'] = $originalConfig;
 echo "BRVTAL buyer-auth MariaDB integration passed.\n";
+// #1877: all public form abuse bursts run from the existing buyer-auth CI entrypoint.
+require __DIR__ . '/public-forms-abuse.php';
