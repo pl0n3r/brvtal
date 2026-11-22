@@ -1,0 +1,102 @@
+/* BRVTAL buyer account: public Cromo tokens extend buyer-access.css. */
+.buyer-account .access-topbar{flex-wrap:wrap;gap:16px 32px}
+.buyer-account .access-topnote{margin-left:auto}
+.account-nav{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-left:auto}
+.account-nav a,.account-nav button{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:10px 13px;border:1px solid transparent;background:transparent;color:var(--access-bone);text-decoration:none;font:700 12px/1.2 "Space Mono",monospace;letter-spacing:.01em;transition:background-color .16s ease,border-color .16s ease}
+.account-nav a[aria-current="page"]{border-color:var(--access-red);background:rgba(225,46,52,.13)}
+.account-nav a:hover,.account-nav button:hover{border-color:var(--access-line);background:#1d1a1a}
+.account-nav button{cursor:pointer}
+.account-nav button:disabled{opacity:.6;cursor:wait}
+.account-main{position:relative;z-index:1;width:100%;padding:clamp(30px,5vw,72px) clamp(16px,4vw,56px) 70px}
+.account-wrap{max-width:1160px;margin:0 auto;min-width:0}
+.account-hero{display:flex;align-items:end;justify-content:space-between;gap:24px 40px;padding:0 0 clamp(28px,4vw,48px);border-bottom:1px solid var(--access-line)}
+.account-hero h1{margin:0;max-width:12ch;color:var(--access-bone);font:400 clamp(50px,7.6vw,96px)/.94 "Broken Glass","Barlow Condensed",Impact,sans-serif;letter-spacing:-.035em;text-transform:uppercase;text-wrap:balance}
+.account-hero h1 em{font-style:normal;color:#fff;text-shadow:3px 3px 0 rgba(225,46,52,.58)}
+.account-hero p{max-width:34ch;margin:0 0 4px;color:#d5cfc4;font-size:19px;line-height:1.35;text-wrap:pretty}
+.account-layout{display:grid;grid-template-columns:minmax(240px,290px) minmax(0,1fr);align-items:start;gap:clamp(20px,3vw,38px);margin-top:clamp(22px,4vw,44px)}
+.account-sidebar,.account-content{min-width:0}
+.account-panel{min-width:0;border:1px solid var(--access-line);background:linear-gradient(155deg,#141111,#0b0b0b 72%);padding:clamp(18px,2.8vw,27px)}
+.account-sidebar .account-panel{border-top:3px solid var(--access-red)}
+.account-section-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:18px}
+.account-section-head h2,.account-panel h2{margin:0;color:var(--access-bone);font:700 25px/1.08 "Barlow Condensed","Arial Narrow",Arial,sans-serif;letter-spacing:.01em}
+.account-section-head p{margin:0;color:#c3bfb6;font-size:14px;line-height:1.4}
+.account-filter-form{display:grid;gap:17px}
+.account-field{display:grid;gap:7px;min-width:0;color:#ede9e2;font-weight:700;font-size:16px;line-height:1.3}
+.account-field input,.account-field select,.account-refund-form textarea{width:100%;min-width:0;min-height:48px;border:1px solid rgba(244,241,232,.42);border-radius:0;background:#181515;color:#faf6f0;padding:10px 12px;font:500 16px/1.3 "Barlow Condensed","Arial Narrow",Arial,sans-serif;accent-color:var(--access-red)}
+.account-field select{cursor:pointer}
+.account-field input:hover,.account-field select:hover,.account-refund-form textarea:hover{border-color:#c7bfb5}
+.account-field input:focus-visible,.account-field select:focus-visible,.account-refund-form textarea:focus-visible{outline-offset:2px}
+.account-filter-actions{display:grid;grid-template-columns:1fr;gap:8px;margin-top:4px}
+.account-primary,.account-secondary,.account-action,.account-order button,.account-refund-form button,.account-qr button{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:10px 17px;border:1px solid var(--access-red);border-radius:0;background:var(--access-red);color:#fff;text-decoration:none;cursor:pointer;font:700 12px/1.3 "Space Mono",monospace;letter-spacing:.025em;transition:background-color .16s ease,border-color .16s ease}
+.account-primary:hover,.account-action:hover,.account-order button:hover,.account-refund-form button:hover,.account-qr button:hover{background:#ad1d29;border-color:#ad1d29}
+.account-secondary{border-color:var(--access-line);background:transparent;color:var(--access-bone)}
+.account-secondary:hover{background:#242020;border-color:#d1c8be}
+.buyer-account button:disabled{opacity:.58;cursor:wait}
+.account-help{margin:18px 0 0;color:#c8c1b7;font-size:15px;line-height:1.4}
+.account-content{display:grid;gap:22px}
+.account-content>.account-panel{scroll-margin-top:22px}
+.account-feedback{color:#d3cfc8;font-size:15px;line-height:1.4;margin:0 0 16px;min-height:1.4em}
+.account-feedback[data-tone="error"],.account-qr-feedback[data-tone="error"]{color:#ffc5c9}
+.account-orders{display:grid;gap:14px;min-height:0}
+.account-orders>.account-loading{margin:8px 0;color:#c8c2ba;font-size:18px}
+.account-order{min-width:0;padding:20px 0 0;border:0;border-top:1px solid var(--access-line);margin:0}
+.account-order h2{margin:0 0 9px;font-size:clamp(23px,3vw,31px);line-height:1.15;overflow-wrap:anywhere}
+.account-order p{margin:5px 0;color:#dbd4cd;font-size:17px;line-height:1.35}
+.account-order small{display:block;color:#c2bdb6;font-size:15px;line-height:1.5;font-variant-numeric:tabular-nums}
+.account-order .ticket{display:grid;gap:7px;margin:15px 0 0;padding:12px 0 12px 15px;border-left:1px solid var(--access-red);background:rgba(244,241,232,.035)}
+.account-order .ticket strong{font-size:19px}
+.account-order .ticket p{margin:0}
+.account-order button{justify-self:start;margin-top:3px}
+.account-empty{padding:38px clamp(16px,4vw,34px);background:#171111;border-top:3px solid var(--access-red);text-align:center}
+.account-empty h2{font-size:clamp(26px,4vw,38px);margin:0 0 9px}
+.account-empty p{max-width:37ch;margin:0 auto 22px;color:#d9d1c7;font-size:18px;line-height:1.35}
+.account-action{margin:auto;max-width:max-content}
+.account-refunds{scroll-margin-top:20px}
+.account-refunds #refund-items{display:grid;gap:8px;color:#d7d0c7;font-size:16px;line-height:1.4}
+.account-refunds #refund-items p{margin:0}
+.account-refund-form{margin:18px 0 0;padding:18px;border:1px solid var(--access-line);display:grid;gap:12px;min-width:0}
+.account-refund-form h3{margin:0;font-size:20px}
+.account-refund-form label{display:flex;align-items:flex-start;gap:8px;min-width:0;font-size:16px;line-height:1.3}
+.account-refund-form label:has(textarea){display:grid}
+.account-refund-form input[type="checkbox"]{flex:0 0 18px;width:18px;height:18px;margin:1px 0 0}
+.account-refund-form textarea{min-height:100px;resize:vertical}
+.account-refund-form button{justify-self:start}
+.account-refund-form [role="status"]{margin:0;font-size:15px}
+.account-qr{scroll-margin-top:20px}
+.account-qr p{margin:10px 0 20px;color:#d8d0c8;line-height:1.42}
+.account-qr form{display:grid;gap:12px}
+.account-qr #qr-output svg{display:block;max-width:100%;width:min(75vw,18rem);height:auto;background:white;margin:18px auto}
+.account-qr #qr-feedback{min-height:1.4em;font-size:15px}
+.account-skip{position:absolute;z-index:20;top:-80px;left:16px;padding:12px;background:#fff;color:#111!important}
+.account-skip:focus{top:8px}
+.buyer-account [hidden]{display:none!important}
+@media(max-width:820px){
+.account-layout{grid-template-columns:minmax(0,1fr)}
+.account-hero{align-items:start;flex-direction:column;gap:15px}
+.account-sidebar .account-panel{padding:20px}
+.account-filter-form{grid-template-columns:repeat(2,minmax(0,1fr));align-items:end}
+.account-field:first-child,.account-filter-actions{grid-column:1/-1}
+}
+@media(max-width:520px){
+.buyer-account .access-topbar{padding:16px;gap:14px}
+.buyer-account .access-brand{font-size:27px}
+.buyer-account .access-brand span{font-size:9px}
+.buyer-account .access-topnote{display:none}
+.account-nav{width:100%;margin-left:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+.account-nav a,.account-nav button{padding:8px 5px;font-size:10px;text-align:center;min-width:0;white-space:normal}
+.account-main{padding:30px 16px 45px}
+.account-hero h1{font-size:clamp(48px,13vw,67px)}
+.account-hero p{font-size:18px}
+.account-layout{gap:16px;margin-top:23px}
+.account-content{gap:16px}
+.account-filter-form{grid-template-columns:minmax(0,1fr);gap:15px}
+.account-field:first-child,.account-filter-actions{grid-column:auto}
+.account-panel{padding:20px 17px}
+.account-empty{padding:28px 15px}
+.access-footer{flex-wrap:wrap}
+}
+@media(prefers-reduced-motion:reduce){
+.account-nav a,.account-nav button,.account-primary,.account-secondary,.account-action,.account-order button,.account-refund-form button,.account-qr button{transition:none}
+}
+.buyer-account .access-brand{min-height:44px;justify-content:center}
+.account-footer a{display:inline-flex;align-items:center;min-height:44px;padding:8px 0}

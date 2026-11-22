@@ -46,12 +46,12 @@ test('mobile: empty orders and filters are clear and do not reveal a QR', async 
   const calls=await fakeAccount(page,[]);
   await page.goto(url);
   await expect(page.getByRole('heading',{name:'Mis compras'})).toBeVisible();
-  await expect(page.getByRole('status').first()).toContainText('No hay más pedidos');
-  await expect(page.getByText('Todavía no hay compras para estos filtros.')).toBeVisible();
+  await expect(page.getByRole('status').first()).toHaveText('');
+  await expect(page.getByRole('heading',{name:'Todavía no tienes compras'})).toBeVisible();
   await expect(page.getByRole('region',{name:'Entrada QR'})).toBeHidden();
-  await page.getByLabel('Desde (UTC)').fill('2026-11-01');
-  await page.getByRole('button',{name:'Filtrar'}).click();
-  await expect(page.getByText('Todavía no hay compras para estos filtros.')).toBeVisible();
+  await page.getByLabel('Desde').fill('2026-11-01');
+  await page.getByRole('button',{name:'Aplicar filtros'}).click();
+  await expect(page.getByRole('heading',{name:'No encontramos compras con esos filtros'})).toBeVisible();
   expect(calls.some(x=>x.url.includes('from=2026-11-01'))).toBe(true);
 });
 
