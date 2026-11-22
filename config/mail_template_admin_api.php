@@ -80,10 +80,10 @@ function brvtalMailAdminParsePost(array $payload): array
         throw new InvalidArgumentException('MAIL_TEMPLATE_ACTION_INVALID');
     }
     $fields = match ($action) {
-        'save_draft' => ['action','key','scope','document','revision'],
+        'save_draft' => ['action','key','scope','template_copy','revision'],
         'publish' => ['action','key','scope','version_id','revision'],
         'restore' => ['action','key','scope','previous_version_id','revision'],
-        'preview' => ['action','key','scope','document'],
+        'preview' => ['action','key','scope','template_copy'],
     };
     brvtalMailAdminOnlyFields($payload, $fields);
     if (!is_string($payload['key']) || !is_string($payload['scope'])) {
@@ -99,7 +99,7 @@ function brvtalMailAdminParsePost(array $payload): array
         }
     }
     if (in_array($action, ['save_draft','preview'], true)
-        && (!is_array($payload['document']) || array_is_list($payload['document']))) {
+        && (!is_array($payload['template_copy']) || array_is_list($payload['template_copy']))) {
         throw new InvalidArgumentException('MAIL_TEMPLATE_DOCUMENT_INVALID');
     }
     return $payload;
@@ -127,7 +127,7 @@ function brvtalMailAdminPreview(array $document): array
             $result[$field] = str_replace('{{event_name}}', 'Evento de prueba', $result[$field]);
         }
     }
-    return ['document'=>$result, 'synthetic'=>true, 'mail_sent'=>false];
+    return ['template_copy'=>$result, 'synthetic'=>true, 'mail_sent'=>false];
 }
 
 /**
@@ -202,7 +202,7 @@ function brvtalMailAdminDispatch(
     $key = $request['key']; $scope = $request['scope'];
     $canMedia = brvtalMailAdminMediaAuthorized($pdo);
     if ($action === 'preview') {
-        $document = brvtal_mail_template_validate($key, $scope, $request['document'], $canMedia);
+        $document = brvtal_mail_template_validate($key, $scope, $request['template_copy'], $canMedia);
         return brvtalMailAdminPreview($document);
     }
     brvtalMailAdminRequire($role, true);
@@ -214,7 +214,7 @@ function brvtalMailAdminDispatch(
     }
     $result = match ($action) {
         'save_draft' => brvtal_mail_template_save_draft(
-            $pdo, $key, $scope, $request['document'], $actorId, $request['revision'], $canMedia),
+            $pdo, $key, $scope, $request['template_copy'], $actorId, $request['revision'], $canMedia),
         'publish' => brvtal_mail_template_publish(
             $pdo, $key, $scope, $request['version_id'], $actorId, $request['revision'], $canMedia),
         'restore' => brvtal_mail_template_rollback(

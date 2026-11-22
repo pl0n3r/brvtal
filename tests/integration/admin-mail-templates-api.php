@@ -39,10 +39,10 @@ admin_mail_reject(static fn()=>brvtalMailAdminParseGet(['view'=>'history','key'=
     'non-catalog key');
 
 $draft = brvtalMailAdminParsePost(['action'=>'save_draft','key'=>'order_pending',
-    'scope'=>'ticketing','document'=>$copy,'revision'=>0]);
+    'scope'=>'ticketing','template_copy'=>$copy,'revision'=>0]);
 $preview = brvtalMailAdminParsePost(['action'=>'preview','key'=>'order_pending',
-    'scope'=>'ticketing','document'=>$copy]);
-$synthetic = brvtalMailAdminPreview(brvtal_mail_template_validate('order_pending','ticketing',$preview['document']));
+    'scope'=>'ticketing','template_copy'=>$copy]);
+$synthetic = brvtalMailAdminPreview(brvtal_mail_template_validate('order_pending','ticketing',$preview['template_copy']));
 admin_mail_check($synthetic['document']['message']==='Hola Evento de prueba'
     && $synthetic['mail_sent']===false && $synthetic['synthetic']===true,
     'synthetic preview without sender or token');
@@ -119,7 +119,7 @@ admin_mail_reject(static fn()=>brvtalMailAdminDispatch($pdo,'owner',7,'POST',$pu
 $changed=$copy;$changed['message']='Otra edición de prueba';
 $newDraft=brvtalMailAdminDispatch($pdo,'owner',7,'POST',brvtalMailAdminParsePost([
     'action'=>'save_draft','key'=>'order_pending','scope'=>'ticketing',
-    'document'=>$changed,'revision'=>2]),$audit);
+    'template_copy'=>$changed,'revision'=>2]),$audit);
 brvtalMailAdminDispatch($pdo,'owner',7,'POST',brvtalMailAdminParsePost([
     'action'=>'publish','key'=>'order_pending','scope'=>'ticketing',
     'version_id'=>$newDraft['version_id'],'revision'=>3]),$audit);
