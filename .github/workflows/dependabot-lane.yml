@@ -1,0 +1,140 @@
+name: Dependabot protegido
+
+on:
+  workflow_run:
+    workflows: ['BRVTAL CI']
+    types: [completed]
+  schedule:
+    - cron: '29 10 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependabot-${{ github.repository_id }}-${{ github.event_name }}
+  cancel-in-progress: false
+
+jobs:
+  verificar-kit:
+    name: Comprobar publicacion protegida de Factory v1
+    if: >-
+      (github.event_name == 'schedule' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.event == 'pull_request' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    outputs:
+      published: ${{ steps.upstream.outputs.published }}
+    steps:
+      - name: Comprobar que el tag v1 incluye el arreglo de permisos 2184
+        id: upstream
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # The protected tag must be a descendant of the audited #2184 merge.
+          # This prevents any write-capable call before the authorized v1 release.
+          status="$(gh api 'repos/pl0n3r/Factory/compare/bedb8377f6ce1855845fbb579adbc3fb5b23835a...v1' --jq '.status')"
+          if [[ "$status" != 'ahead' && "$status" != 'identical' ]]; then
+            echo 'Factory@v1 has not incorporated #2184; Dependabot writes remain disabled.'
+            exit 0
+          fi
+          # Never grant automatic merge in live: re-read the canonical main phase.
+          main_phase="$(gh api "repos/$GITHUB_REPOSITORY/contents/datos.yml?ref=main" --jq '.content' | tr -d '\n' | base64 -d | jq -r '.phase // empty')"
+          if [[ "$main_phase" != 'construccion' ]]; then
+            echo 'BRVTAL is not in construccion; automatic dependency writes remain disabled.'
+            exit 0
+          fi
+          echo 'published=true' >> "$GITHUB_OUTPUT"
+
+  verificar-dependabot:
+    name: Validar identidad del bot y HEAD mediante API de solo lectura
+    needs: verificar-kit
+    if: >-
+      needs.verificar-kit.outputs.published == 'true' &&
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.pull_requests[0].number > 0 &&
+      github.event.workflow_run.pull_requests[1] == null &&
+      github.event.workflow_run.pull_requests[0].head.sha == github.event.workflow_run.head_sha
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+    outputs:
+      authenticated: ${{ steps.verify.outputs.authenticated }}
+      pr_number: ${{ steps.verify.outputs.pr_number }}
+      head_sha: ${{ steps.verify.outputs.head_sha }}
+    steps:
+      - name: Contrastar run y PR reales, sin checkout del HEAD no confiable
+        id: verify
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          PR: ${{ github.event.workflow_run.pull_requests[0].number }}
+          HEAD: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$RUN_ID" =~ ^[1-9][0-9]*$ ]] || exit 1
+          [[ "$PR" =~ ^[1-9][0-9]*$ ]] || exit 1
+          [[ "$HEAD" =~ ^[0-9a-f]{40}$ ]] || exit 1
+          run_json="$(gh api "repos/$REPO/actions/runs/$RUN_ID")"
+          pr_json="$(gh api "repos/$REPO/pulls/$PR")"
+
+          if ! jq -e --arg repo "$REPO" --arg head "$HEAD" --argjson pr "$PR" '
+              .name == "BRVTAL CI" and
+              .event == "pull_request" and .conclusion == "success" and
+              .head_repository.full_name == $repo and .head_sha == $head and
+              .actor.login == "dependabot[bot]" and .actor.id == 49699333 and
+              (.pull_requests | length) == 1 and
+              .pull_requests[0].number == $pr and
+              .pull_requests[0].head.sha == $head
+            ' <<< "$run_json" >/dev/null; then
+            echo 'Run is not an authenticated Dependabot PR at the exact HEAD.'
+            exit 0
+          fi
+          if ! jq -e --arg repo "$REPO" --arg head "$HEAD" --argjson pr "$PR" '
+              .number == $pr and .state == "open" and .draft == false and
+              .user.login == "dependabot[bot]" and .user.id == 49699333 and
+              .user.type == "Bot" and .head.repo.full_name == $repo and
+              .head.sha == $head and .base.ref == "main"
+            ' <<< "$pr_json" >/dev/null; then
+            echo 'PR identity, branch or HEAD does not match; no write token delegated.'
+            exit 0
+          fi
+          printf 'authenticated=true\npr_number=%s\nhead_sha=%s\n' "$PR" "$HEAD" >> "$GITHUB_OUTPUT"
+
+  dependabot:
+    needs: verificar-dependabot
+    if: needs.verificar-dependabot.outputs.authenticated == 'true'
+    permissions:
+      contents: write
+      checks: read
+      issues: write
+      pull-requests: write
+    uses: pl0n3r/factory/.github/workflows/coordinacion.yml@v1
+    with:
+      operation: dependabot
+      pr_number: ${{ fromJSON(needs.verificar-dependabot.outputs.pr_number || '0') }}
+      head_sha: ${{ needs.verificar-dependabot.outputs.head_sha }}
+
+  dependabot-sweep:
+    needs: verificar-kit
+    if: >-
+      github.event_name == 'schedule' &&
+      github.ref == 'refs/heads/main' &&
+      needs.verificar-kit.outputs.published == 'true'
+    permissions:
+      contents: write
+      checks: read
+      issues: write
+      pull-requests: write
+    uses: pl0n3r/factory/.github/workflows/coordinacion.yml@v1
+    with:
+      operation: dependabot-sweep
