@@ -15,46 +15,32 @@ const BRVTALRelatedContent = (() => {
     emptyGraph: 'TODAVÍA NO HAY CONTENIDO CONECTADO',
     publicLinks: 'VÍNCULOS PÚBLICOS',
   });
-  // Read balanced Markdown destinations without consuming editorial parentheses.
-  const stripLinks = source => {
-    const chunks = [];
-    let start = 0, cursor = 0;
-    while (cursor < source.length) {
-      const open = source.indexOf('[', cursor);
-      if (open === -1) break;
-      const close = source.indexOf(']', open + 1);
-      if (close === -1) break;
-      const label = source.slice(open + 1, close);
-      if (!label || /[\[\r\n]/.test(label) || source[close + 1] !== '(') {
-        cursor = close + 1;
-        continue;
+  // Only extract the display label of balanced Markdown links.
+  // Reverse offsets keep the earlier label positions stable.
+  const visibleLinks = value => {
+    let result = String(value ?? '');
+    for (const match of [...result.matchAll(/\[([^\]\r\n]+)\]\(/g)].reverse()) {
+      let depth = 1, end = match.index + match[0].length;
+      while (end < result.length && depth && result[end] !== '\n' && result[end] !== '\r') {
+        const ch = result[end++];
+        if (ch === '(') depth++;
+        else if (ch === ')') depth--;
       }
-      let level = 1, i = close + 2;
-      while (i < source.length && level && source[i] !== '\n' && source[i] !== '\r') {
-        if (source[i] === '(') level++;
-        else if (source[i] === ')') level--;
-        i++;
+      if (depth === 0 && end > match.index + match[0].length + 1) {
+        result = result.slice(0, match.index) + match[1] + result.slice(end);
       }
-      if (level === 0 && i > close + 3) {
-        chunks.push(source.slice(start, open), label);
-        start = i;
-        cursor = i;
-      } else cursor = close + 1;
     }
-    chunks.push(source.slice(start));
-    return chunks.join('');
+    return result;
   };
-
-  // Remove recognized Markdown delimiters, not literal C#, #1, or unpaired *.
-  const stripPlainMarkdown = value => stripLinks(String(value ?? ''))
+  const plain = value => visibleLinks(value)
     .replace(/(?<!\*)\*\*[ \t]*([^*\r\n]*?\S)[ \t]*\*\*(?!\*)/g, '$1')
     .replace(/(?<!\*)\*[ \t]*([^*\r\n]*?\S)[ \t]*\*(?!\*)/g, '$1')
     .replace(/(?<![\p{L}\p{N}_])__[ \t]*([^_\r\n]*?\S)[ \t]*__(?![\p{L}\p{N}_])/gu, '$1')
     .replace(/(?<![\p{L}\p{N}_])_[ \t]*([^_\r\n]*?\S)[ \t]*_(?![\p{L}\p{N}_])/gu, '$1')
     .replace(/^[ \t]{0,3}#{1,3}[ \t]+/gm, '')
-    .replace(/^[ \t]*[-*][ \t]+/gm, '');
+    .replace(/^[ \t]*[-*][ \t]+/gm, '')
+    .replace(/\s+/g, ' ').trim();
 
-  const plain = value => stripPlainMarkdown(value).replace(/\s+/g, ' ').trim();
   const cleanUrl = value => {
     const raw = String(value ?? '').trim();
     if (!raw) return '';
