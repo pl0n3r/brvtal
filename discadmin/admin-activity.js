@@ -350,7 +350,7 @@
     clearTimeout(observer._activityTimer);
     observer._activityTimer = setTimeout(() => {
       // Do not overwrite a filter or pagination result mounted in the meantime.
-      if (!document.getElementById('brvtal-admin-activity')) mount('');
+      if (!document.getElementById('brvtal-admin-activity')) void mount('');
     }, 25);
   });
   observer.observe(document.documentElement,{childList:true,subtree:true});
@@ -358,7 +358,7 @@
   ensureStyle();
   setTimeout(() => {
     // The observer can mount before the fallback timer; never reset user selection.
-    if (!document.getElementById('brvtal-admin-activity')) mount('');
+    if (!document.getElementById('brvtal-admin-activity')) void mount('');
   }, 80);
   window.BRVTALAdminActivity = {mount,openDetail,openHistory,closeDetail};
 })();
