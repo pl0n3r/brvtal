@@ -456,7 +456,11 @@
   function restoreVisibleSection(section) {
     if (typeof state === 'object' && state) state.section = section;
     const title = document.querySelector('.main > .top h1');
-    if (title) title.textContent = section.toUpperCase();
+    if (title) {
+      const navLabel = [...document.querySelectorAll('.side .nav button')]
+        .find(button => buttonKey(button) === section)?.textContent?.trim();
+      title.textContent = navLabel || section.toUpperCase();
+    }
     document.querySelectorAll('.side .nav > button').forEach(button => {
       button.classList.toggle('active', buttonKey(button) === section);
     });
