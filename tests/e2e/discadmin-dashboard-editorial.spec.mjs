@@ -56,16 +56,21 @@ test('El dashboard editorial oculta telemetría y los controles hasta Personaliz
   await root.getByRole('button',{name:'Personalizar'}).click();
   await expect(root.locator('.dashboard-v2-module-controls').first()).toBeVisible();
   await expect(root.getByRole('button',{name:'Terminar personalización'})).toHaveAttribute('aria-expanded','true');
+  // AC-01: test real geometry while edit handles are VISIBLE, not after hiding.
+  for(const width of [390,1440]){
+    await page.setViewportSize({width,height:900});
+    await expect(root.locator('.dashboard-v2-module-controls').first()).toBeVisible();
+    const overlaps=await root.locator('.dashboard-v2-module').evaluateAll(nodes=>nodes.some(module=>{
+      const title=module.querySelector('h2');
+      const controls=module.querySelector('.dashboard-v2-module-controls');
+      if(!title||!controls)return false;
+      const t=title.getBoundingClientRect(),c=controls.getBoundingClientRect();
+      return c.width>0&&c.height>0&&t.left<c.right&&t.right>c.left&&t.top<c.bottom&&t.bottom>c.top;
+    }));
+    expect(overlaps, 'no module title overlap with editing controls at '+width+'px').toBe(false);
+  }
   await root.getByRole('button',{name:'Terminar personalización'}).click();
   await expect(root.locator('.dashboard-v2-module-controls').first()).toBeHidden();
-  const overlaps=await root.locator('.dashboard-v2-module').evaluateAll(nodes=>nodes.some(module=>{
-    const title=module.querySelector('h2');
-    const controls=module.querySelector('.dashboard-v2-module-controls');
-    if(!title||!controls)return false;
-    const t=title.getBoundingClientRect(),c=controls.getBoundingClientRect();
-    return c.width>0&&c.height>0&&t.left<c.right&&t.right>c.left&&t.top<c.bottom&&t.bottom>c.top;
-  }));
-  expect(overlaps).toBe(false);
 });
 
 test('La fuente de ventas restringida no fabrica ceros ni datos personales',async({page})=>{
