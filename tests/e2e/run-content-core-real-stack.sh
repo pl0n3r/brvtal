@@ -199,7 +199,7 @@ npx playwright test \
   tests/e2e/discadmin-lineup-draft-artist.spec.mjs \
   tests/e2e/discadmin-integral-event-artist-set.spec.mjs \
   tests/e2e/discadmin-datetime-picker.spec.mjs \
-  --project=chromium
+  --project=chromium --workers=1
 
 BULK_FIXTURE_SQL="${RUNNER_TEMP:-/tmp}/brvtal-bulk-cursor-fixtures.sql"
 {
