@@ -224,7 +224,10 @@ function brvtalMigrationProofSpecifications(): array
         // Column-only proof: ticket_buyers already exists (T03); requiring the
         // table made the pending proof mixed and blocked reconciliation (#1846).
         'migration_buyer_auth_tokens_01.sql' => brvtalMigrationObjectRequirements(
-            'ticket_buyers', ['full_name'], [], false
+            'ticket_buyers',
+            ['full_name'],
+            [],
+            false
         ),
         'migration_ticketing_mail_outbox_01.sql' => brvtalMigrationObjectRequirements(
             'ticket_mail_outbox',
