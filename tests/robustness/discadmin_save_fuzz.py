@@ -8,12 +8,15 @@ from __future__ import annotations
 
 import argparse
 import http.cookiejar
+import http.server
+import io
 import json
 import os
 from pathlib import Path
 import re
 import sys
 import tempfile
+import threading
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -29,10 +32,23 @@ SENTINEL_ID = "2147483647"
 METHODS = ("POST", "PUT", "PATCH", "DELETE")
 LEAK = re.compile(
     r"Stack trace|Uncaught|Fatal error|SQLSTATE|PDOException|"
-    r"Doctrine\\|vendor/|/var/www/|/home/[a-z_]/|"
+    r"Doctrine\\|vendor/|/var/www/|/home/[a-z0-9_.-]+/|"
     r"(?:^|\n)\s*#\d+\s+[/\\]", re.IGNORECASE
 )
 ISSUE = re.compile(r"^https://github\.com/pl0n3r/brvtal/issues/[1-9]\d*$")
+RESPONSE_LIMIT = 131072
+
+
+class OversizedResponse(ValueError):
+    """A response exceeded the hard cap; never parse a truncated JSON prefix."""
+
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Never follow a server-supplied Location, even to another loopback URL."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
 
 
 @dataclass(frozen=True, order=True)
@@ -103,7 +119,9 @@ def require_disposable() -> None:
 
 def make_client() -> urllib.request.OpenerDirector:
     return urllib.request.build_opener(
-        urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar())
+        urllib.request.ProxyHandler({}),  # Ignore ambient http(s)_proxy.
+        urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()),
+        NoRedirect(),  # urllib surfaces 30x as HTTPError, without a second request.
     )
 
 
@@ -120,7 +138,26 @@ def request(
     except urllib.error.HTTPError as exc:
         response = exc
     with response:
-        return response.status, response.read(131072).decode("utf-8", errors="replace")
+        body = response.read(RESPONSE_LIMIT + 1)
+        if len(body) > RESPONSE_LIMIT:
+            raise OversizedResponse("HTTP response exceeded 131072 bytes")
+        return response.status, body.decode("utf-8", errors="replace")
+
+
+def response_defects(status: int, body: str) -> set[str]:
+    """Classify response defects by stable fingerprint suffix."""
+    defects: set[str] = set()
+    if 300 <= status < 400:
+        defects.add("redirect-response")
+    if status >= 500:
+        defects.add("server-5xx")
+    if LEAK.search(body):
+        defects.add("internal-leak")
+    try:
+        json.loads(body)
+    except ValueError:
+        defects.add("non-json")
+    return defects
 
 
 def login(opener: urllib.request.OpenerDirector) -> str:
@@ -196,7 +233,80 @@ def self_test() -> None:
     assert not unexpected(baseline, baseline)
     assert unexpected(baseline, set()) == baseline, "Removing a baseline entry must fail"
     load_baseline()
-    print("SELF-TEST PASS: new write route discovered; removal of baseline finding fails")
+
+    assert LEAK.search("Fatal in /home/runner/work/brvtal/index.php")
+    assert LEAK.search("File /home/deploy_user/application/index.php")
+    assert not LEAK.search("Valid URL /home/"), "Leak matcher must require a username"
+
+    # Use an actual loopback HTTP server: even a same-host Location must not
+    # trigger a second request (outside-host redirects are also forbidden).
+    class RedirectProbe(http.server.BaseHTTPRequestHandler):
+        visits: list[str] = []
+
+        def do_GET(self):
+            type(self).visits.append(self.path)
+            if self.path == "/redirect":
+                self.send_response(302)
+                self.send_header("Location", "/would-have-followed")
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(b'{"ok":false}')
+            else:
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b'{"ok":true}')
+
+        def log_message(self, format, *args):
+            pass
+
+    server = http.server.HTTPServer(("127.0.0.1", 0), RedirectProbe)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        opener = make_client()
+        redirect_req = urllib.request.Request(
+            f"http://127.0.0.1:{server.server_port}/redirect"
+        )
+        try:
+            response = opener.open(redirect_req, timeout=5)
+        except urllib.error.HTTPError as error:
+            response = error
+        with response:
+            status, body = response.status, response.read().decode("utf-8")
+        assert status == 302, "Redirect status was hidden"
+        assert RedirectProbe.visits == ["/redirect"], "Client followed a redirect"
+        assert "redirect-response" in response_defects(status, body)
+        assert any(isinstance(h, urllib.request.HTTPCookieProcessor)
+                   for h in opener.handlers), "Session cookie handling was removed"
+        assert all(not h.proxies for h in opener.handlers
+                   if isinstance(h, urllib.request.ProxyHandler)), "Proxy enabled"
+    finally:
+        server.shutdown()
+        thread.join(timeout=5)
+        server.server_close()
+
+    # A valid JSON prefix plus a 131073rd byte is *not* valid evidence:
+    # the cap must be checked before JSON parsing.
+    prefix = b'{"ok":true}'
+    oversized = prefix + b" " * (RESPONSE_LIMIT - len(prefix)) + b"x"
+    assert json.loads(oversized[:RESPONSE_LIMIT]) == {"ok": True}
+
+    class FakeResponse(io.BytesIO):
+        status = 200
+
+    class FakeOpener:
+        def open(self, _req, timeout):
+            return FakeResponse(oversized)
+
+    try:
+        request(FakeOpener(), "GET", "/api/probe")
+    except OversizedResponse:
+        pass
+    else:
+        raise AssertionError("Valid JSON prefix masked oversized-response")
+    assert "redirect-response" not in response_defects(200, '{"ok":true}')
+    print("SELF-TEST PASS: discovery, leak paths, no HTTP redirects/proxies, "
+          "oversized JSON prefix rejected and known findings unchanged")
 
 
 def main() -> int:
@@ -225,18 +335,15 @@ def main() -> int:
             prefix = f"{target.method} {target.path} [{name}]:"
             try:
                 status, response = request(opener, target.method, target.path, body, csrf)
+            except OversizedResponse:
+                found.add(prefix + "oversized-response")
+                continue
             except (OSError, TimeoutError) as exc:
                 found.add(prefix + "transport-error")
                 print("REQUEST ERROR", prefix, type(exc).__name__, file=sys.stderr)
                 continue
-            if status >= 500:
-                found.add(prefix + "server-5xx")
-            if LEAK.search(response):
-                found.add(prefix + "internal-leak")
-            try:
-                json.loads(response)
-            except ValueError:
-                found.add(prefix + "non-json")
+            for defect in response_defects(status, response):
+                found.add(prefix + defect)
     new = unexpected(found, known)
     print(f"DISCADMIN FUZZ: {len(targets)} discovered endpoints, {total} requests, "
           f"{len(found)} findings ({len(new)} NEW, {len(found & known)} baselined)")

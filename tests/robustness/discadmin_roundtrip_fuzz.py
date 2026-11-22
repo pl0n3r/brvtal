@@ -8,7 +8,8 @@ import time
 import urllib.error
 from discadmin_save_fuzz import BASE, login, make_client, request, require_disposable
 
-VALUE = "Ø Ñandú, música ácida 🦉 مرحبا"
+CREATE_VALUE = "Creación inicial: Ø Ñandú 🎛️ 東京 مرحبا"
+VALUE = "Actualización posterior: música ácida 🦉 שלום"
 
 
 def call(opener, csrf: str, method: str, path: str, payload=None):
@@ -33,11 +34,19 @@ def expect_roundtrip(opener, csrf: str, name: str, create_path: str,
     if record_id < 1:
         raise AssertionError(f"{name}: missing created ID")
     try:
+        initial_value = initial.get(field)
+        if not isinstance(initial_value, str) or initial_value == value:
+            raise AssertionError(f"{name}.{field}: CREATE must supply distinct Unicode")
+        created_row = call(opener, csrf, "GET", read_path(record_id))["data"]
+        if not isinstance(created_row, dict) or created_row.get(field) != initial_value:
+            raise AssertionError(
+                f"{name}.{field} lost initial UTF-8: {created_row.get(field)!r}"
+            )
         call(opener, csrf, "PUT", update_path(record_id), {field: value})
         row = call(opener, csrf, "GET", read_path(record_id))["data"]
         if not isinstance(row, dict) or row.get(field) != value:
             raise AssertionError(f"{name}.{field} lost UTF-8 on readback: {row.get(field)!r}")
-        print(f"ROUNDTRIP PASS: {name}.{field} preserved exact Unicode")
+        print(f"ROUNDTRIP PASS: {name}.{field} preserved distinct Unicode on CREATE/GET/PUT/GET")
     finally:
         call(opener, csrf, "DELETE", delete_path(record_id))
 
@@ -52,7 +61,7 @@ def main() -> int:
         lambda i: f"/api/index.php/events/{i}",
         lambda i: f"/api/index.php/events/{i}",
         lambda i: f"/api/index.php/events/{i}",
-        {"title": "CI Robustness Event " + nonce, "slug": "ci-robust-event-" + nonce,
+        {"title": "CI Robustness Event " + nonce + " " + CREATE_VALUE, "slug": "ci-robust-event-" + nonce,
          "event_date": "2027-11-20 21:00:00", "venue": "CI Only",
          "city": "Pereira", "status": "draft"},
         "title", VALUE, lambda data: data.get("id", 0),
@@ -63,7 +72,7 @@ def main() -> int:
         lambda i: f"/api/index.php/artists/{i}",
         lambda i: f"/api/index.php/artists/{i}",
         {"name": "CI Robustness Artist " + nonce, "slug": "ci-robust-artist-" + nonce,
-         "status": "draft"},
+         "status": "draft", "bio": CREATE_VALUE},
         "bio", VALUE, lambda data: data.get("id", 0),
     )
     expect_roundtrip(
@@ -73,10 +82,10 @@ def main() -> int:
         lambda i: f"/api/media-library.php?id={i}",
         {"type": "image", "title": "CI Robustness Image " + nonce,
          "file_path": "https://example.invalid/brvtal-ci-" + nonce + ".jpg",
-         "mime_type": "image/jpeg", "status": "draft"},
+         "mime_type": "image/jpeg", "status": "draft", "alt_text": CREATE_VALUE},
         "alt_text", VALUE, lambda data: data.get("data", {}).get("id", 0),
     )
-    print("ROUNDTRIP PASS: events/artists/media create→update→GET→delete")
+    print("ROUNDTRIP PASS: events/artists/media CREATE→GET→PUT→GET→DELETE")
     return 0
 
 
