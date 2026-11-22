@@ -2,10 +2,12 @@
 declare(strict_types=1);
 require_once __DIR__ . '/ticketing_mail_outbox.php';
 require_once __DIR__ . '/ticketing_mail_events.php';
+require_once __DIR__ . '/mail_template_renderer.php';
 
 /** T12: one Spanish, escaped, accessible mail copy per trusted transaction. */
-function brvtal_ticket_mail_render(string $kind, array $data): array
+function brvtal_ticket_mail_render(string $kind, array $data, ?PDO $db = null): array
 {
+    if ($db !== null) return brvtal_mail_delivery_render($db, $kind, $data);
     $catalog = require __DIR__ . '/../templates/ticketing/transactional.php';
     if (!isset($catalog[$kind])) throw new InvalidArgumentException('MAIL_TEMPLATE_UNKNOWN');
     $event = trim((string)($data['event'] ?? ''));
@@ -94,9 +96,10 @@ function brvtal_ticket_mail_queue_order(
             throw new DomainException('MAIL_TICKETS_NOT_READY');
         }
     }
-    $rendered = brvtal_ticket_mail_render($kind, $data);
+    $rendered = brvtal_ticket_mail_render($kind, $data, $db);
     $id = brvtal_ticket_mail_enqueue($db, "order:{$orderId}:{$kind}", "order:{$orderId}",
-        $recipient, $rendered['subject'], $rendered['text']);
+        $recipient, $rendered['subject'], $rendered['text'], $rendered['html'],
+        $kind, $rendered['template_version']);
     brvtal_mail_history_record($db, $id, ['event_id'=>(int)$order['event_id'],
         'buyer_id'=>(int)$order['buyer_id'],'order_id'=>$orderId,'template_key'=>$kind]);
     return $id;
@@ -128,9 +131,11 @@ function brvtal_ticket_mail_queue_security(
         || !hash_equals((string)$row['token_hash'], hash('sha256', $token))) {
         throw new DomainException('MAIL_TOKEN_UNAVAILABLE');
     }
-    $rendered = brvtal_ticket_mail_render($kind, $data);
+    $rendered = brvtal_ticket_mail_render($kind, $data, $db);
     $id = brvtal_ticket_mail_enqueue($db, "buyer:{$buyerId}:{$kind}:{$tokenId}",
-        "buyer:{$buyerId}", $recipient, $rendered['subject'], $rendered['text']);
+        "buyer:{$buyerId}", $recipient, $rendered['subject'],
+        brvtalBuyerMailSeal($rendered['text']), brvtalBuyerMailSeal($rendered['html'], 50000),
+        $kind, $rendered['template_version']);
     brvtal_mail_history_record($db,$id,['buyer_id'=>$buyerId,'template_key'=>$kind]);
     return $id;
 }
