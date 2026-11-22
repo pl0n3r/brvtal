@@ -6,7 +6,7 @@ require_once __DIR__ . '/ticketing_wompi_client.php';
 function brvtal_wompi_hook_config(?array $env = null): array
 {
     $base = brvtal_ticket_wompi_config($env);
-    $secret = $env === null ? getenv('BRVTAL_TICKET_WOMPI_EVENTS_SECRET') : ($env['BRVTAL_TICKET_WOMPI_EVENTS_SECRET'] ?? '');
+    $secret = brvtal_secret_value('BRVTAL_TICKET_WOMPI_EVENTS_SECRET', $env);
     if (!is_string($secret) || !str_starts_with($secret, 'test_events_') || strlen($secret) < 20) {
         throw new DomainException('WEBHOOK_DISABLED');
     }

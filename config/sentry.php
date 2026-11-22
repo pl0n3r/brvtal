@@ -2,6 +2,11 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/deployment.php';
+// The logger also runs in isolated forensic fixtures that copy Sentry without
+// the optional provisioning helper. Never break private logging on its absence.
+if (is_file(__DIR__ . '/secrets.php')) {
+    require_once __DIR__ . '/secrets.php';
+}
 
 const BRVTAL_SENTRY_TIMEOUT_SECONDS = 1.2;
 
@@ -149,12 +154,11 @@ function brvtalSentryRuntimeConfig(array $config = [], ?callable $resolver = nul
         return null;
     }
 
-    $dsn = trim((string)(getenv('BRVTAL_SENTRY_DSN') ?: ''));
-    if ($dsn === '') {
-        $observability = $config['observability'] ?? [];
-        $dsn = is_array($observability) ? trim((string)($observability['sentry_dsn'] ?? '')) : '';
+    // Optional telemetry fails closed when the private secret helper is absent.
+    if (!function_exists('brvtal_secret_value')) {
+        return null;
     }
-
+    $dsn = trim(brvtal_secret_value('BRVTAL_SENTRY_DSN', null, $config));
     return brvtalSentryParseDsn($dsn, $resolver);
 }
 
@@ -280,7 +284,7 @@ function brvtalSentryExceptionEvent(Throwable $exception): array
     $event = brvtalSentryBaseEvent(bin2hex(random_bytes(16)), 'error');
     $event['exception'] = [
         'values' => [[
-            'type' => brvtalSentrySymbol(get_class($exception)),
+            'type' => brvtalSentrySymbol($exception::class),
             'value' => 'Unhandled exception',
             'stacktrace' => ['frames' => brvtalSentryExceptionFrames($exception)],
             'mechanism' => ['type' => 'generic', 'handled' => false],
@@ -391,9 +395,7 @@ function brvtalSentryDefaultSender(
             CURLOPT_POSTFIELDS => $body,
             CURLOPT_HTTPHEADER => $headers,
             CURLOPT_RETURNTRANSFER => false,
-            CURLOPT_WRITEFUNCTION => static function ($handle, string $chunk): int {
-                return strlen($chunk);
-            },
+            CURLOPT_WRITEFUNCTION => static fn($handle, string $chunk): int => strlen($chunk),
             CURLOPT_FOLLOWLOCATION => false,
             CURLOPT_CONNECTTIMEOUT_MS => 400,
             CURLOPT_TIMEOUT_MS => (int)round($timeoutSeconds * 1000),

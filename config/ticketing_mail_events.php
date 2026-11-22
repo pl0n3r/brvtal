@@ -1,9 +1,10 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/secrets.php';
 /** T11: internal server-only durable mail audit, retaining no full recipient or recovery token. */
 function brvtal_mail_history_allowed(): bool {
-    return getenv('BRVTAL_TICKET_MAIL_TESTING') === '1'
-        || getenv('BRVTAL_TICKET_MAIL_PRIVACY_APPROVED') === '1';
+    return brvtal_secret_value('BRVTAL_TICKET_MAIL_TESTING') === '1'
+        || brvtal_secret_value('BRVTAL_TICKET_MAIL_PRIVACY_APPROVED') === '1';
 }
 /** Materialize a T10 outbox receipt after commit, with explicit relation IDs. */
 function brvtal_mail_history_record(PDO $pdo, int $outboxId, array $meta = []): int {
@@ -13,8 +14,8 @@ function brvtal_mail_history_record(PDO $pdo, int $outboxId, array $meta = []): 
     $q->execute([$outboxId]);
     $mail = $q->fetch(PDO::FETCH_ASSOC);
     if (!is_array($mail)) throw new DomainException('MAIL_OUTBOX_MISSING');
-    $secret = (string)getenv('BRVTAL_TICKET_MAIL_LOOKUP_SECRET');
-    if ($secret === '' && getenv('BRVTAL_TICKET_MAIL_TESTING') !== '1') throw new RuntimeException('MAIL_LOOKUP_SECRET_MISSING');
+    $secret = (string)brvtal_secret_value('BRVTAL_TICKET_MAIL_LOOKUP_SECRET');
+    if ($secret === '' && brvtal_secret_value('BRVTAL_TICKET_MAIL_TESTING') !== '1') throw new RuntimeException('MAIL_LOOKUP_SECRET_MISSING');
     $email = strtolower((string)$mail['recipient_email']);
     $parts = explode('@',$email,2);
     $hint = substr($parts[0],0,1).'***@'.($parts[1] ?? 'redacted');

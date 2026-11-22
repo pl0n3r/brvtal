@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/secrets.php';
 
 const BRVTAL_GA4_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const BRVTAL_GA4_DATA_BASE = 'https://analyticsdata.googleapis.com';
@@ -11,9 +12,9 @@ const BRVTAL_GA4_STALE_MAX_SECONDS = 3600;
 /** @return array{property_id:string,client_email:string,private_key:string}|null */
 function brvtalAnalyticsConfig(?array $override = null): ?array
 {
-    $propertyId = trim((string)($override['property_id'] ?? getenv('BRVTAL_GA4_PROPERTY_ID') ?: ''));
-    $clientEmail = trim((string)($override['client_email'] ?? getenv('BRVTAL_GA4_CLIENT_EMAIL') ?: ''));
-    $privateKey = trim((string)($override['private_key'] ?? getenv('BRVTAL_GA4_PRIVATE_KEY') ?: ''));
+    $propertyId = trim((string)($override['property_id'] ?? brvtal_secret_value('BRVTAL_GA4_PROPERTY_ID') ?: ''));
+    $clientEmail = trim((string)($override['client_email'] ?? brvtal_secret_value('BRVTAL_GA4_CLIENT_EMAIL') ?: ''));
+    $privateKey = trim((string)($override['private_key'] ?? brvtal_secret_value('BRVTAL_GA4_PRIVATE_KEY') ?: ''));
 
     if ($propertyId === '' || $clientEmail === '' || $privateKey === '') {
         return null;

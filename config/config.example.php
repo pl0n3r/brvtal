@@ -28,8 +28,33 @@ return [
         // Keep empty on shared hosting unless the immediate proxy addresses/CIDRs are known.
         'trusted_proxies' => [],
     ],
+    'ticketing' => [
+        'wompi' => [
+            // Solo sandbox, usar pub_test_, prv_test_ y secretos de pruebas.
+            'mode' => 'sandbox', 'sandbox_enabled' => '',
+            'public_key' => '', 'private_key' => '',
+            'integrity_secret' => '', 'events_secret' => '',
+            'enabled_methods' => '', 'return_url' => '',
+        ],
+        'mail' => [
+            // No activa un proveedor sin puertas de privacidad y DNS.
+            'mode' => 'disabled', 'api_key' => '', 'domain' => '',
+            'from' => '', 'webhook_secret' => '', 'webhook_enabled' => '',
+            'lookup_secret' => '', 'testing' => '', 'privacy_approved' => '',
+            'dns_verified' => '', 'allow_live' => '',
+        ],
+    ],
+    'mail' => [
+        'smtp' => [
+            'host' => '', 'port' => 587, 'user' => '', 'password' => '',
+            'encryption' => 'tls', 'from' => '', 'from_name' => 'BRVTAL',
+        ],
+    ],
+    'analytics' => [
+        'ga4' => ['property_id' => '', 'client_email' => '', 'private_key' => ''],
+    ],
     'observability' => [
-        // Optional production error transport. Prefer BRVTAL_SENTRY_DSN at runtime.
+        // Private config takes precedence over BRVTAL_SENTRY_DSN.
         // Keep this blank in source-controlled examples; no Composer SDK is required.
         'sentry_dsn' => '',
     ],
