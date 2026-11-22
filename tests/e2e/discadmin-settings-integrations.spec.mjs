@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { generateKeyPairSync, createPrivateKey } from 'node:crypto';
 
 const settingsSource=readFileSync(new URL('../../discadmin/settings-v2.js',import.meta.url),'utf8');
@@ -141,6 +142,10 @@ test('AC-02: cinco tarjetas, un Guardar por proveedor y etiquetas comprensibles'
 });
 
 test('AC-02: responsive 390/1440, foco accesible y capturas comparativas',async({page},testInfo)=>{
+  // El workflow existente publica test-results/public-concept05-fidelity-*/*.
+  // Guardamos allí capturas sin secretos y también como adjuntos Playwright.
+  const evidence=resolve(process.cwd(),'test-results/public-concept05-fidelity-discadmin-integrations');
+  mkdirSync(evidence,{recursive:true});
   for(const width of [390,1440]){
     await page.setViewportSize({width,height:900});
     await setup(page);
@@ -158,6 +163,7 @@ test('AC-02: responsive 390/1440, foco accesible y capturas comparativas',async(
     expect(outline).not.toBe('none');
     const after=await page.screenshot({fullPage:true});
     await testInfo.attach('despues-settings-'+width+'px.png',{body:after,contentType:'image/png'});
+    writeFileSync(join(evidence,'despues-settings-'+width+'px.png'),after);
     // Contraste de la estructura de #1840: un botón por cada CAMPO en System status.
     // Esta captura es una reconstrucción sintética, no una toma de producción.
     await page.evaluate(()=>{
@@ -171,6 +177,7 @@ test('AC-02: responsive 390/1440, foco accesible y capturas comparativas',async(
     });
     const before=await page.screenshot({fullPage:true});
     await testInfo.attach('antes-estructura-heredada-'+width+'px.png',{body:before,contentType:'image/png'});
+    writeFileSync(join(evidence,'antes-estructura-heredada-'+width+'px.png'),before);
   }
 });
 
