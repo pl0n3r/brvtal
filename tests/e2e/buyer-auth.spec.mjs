@@ -26,50 +26,57 @@ test('buyer security primitives never share admin cookie or bypass pending schem
   expect(api).toContain('password_verify($password, $storedHash)');
 });
 
-test('mobile buyer login has accessible wait and error states with fake mail/network', async ({ page }) => {
+test('mobile buyer login announces unavailability without inventing access', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 750 });
   let sends = 0;
   let csrfHeader = '';
-  await page.route(pageUrl, route => route.fulfill({contentType:'text/html',body:html}));
+  await page.route(pageUrl, route => route.fulfill({ contentType: 'text/html', body: html }));
   await page.route('**/api/buyer/auth.php', async route => {
     if (route.request().method() === 'GET') {
-      return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,csrf:'test-csrf'})});
+      return route.fulfill({ contentType: 'application/json',
+        body: JSON.stringify({ ok: true, csrf: 'test-csrf' }) });
     }
     sends++;
     csrfHeader = route.request().headers()['x-csrf-token'];
-    await route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({ok:false,error:'BUYER_SCHEMA_PENDING'})});
+    await route.fulfill({ status: 503, contentType: 'application/json',
+      body: JSON.stringify({ ok: false, error: 'BUYER_SCHEMA_PENDING' }) });
   });
   await page.goto(pageUrl);
-  await expect(page.getByRole('heading', {name:'Cuenta de comprador'})).toBeVisible();
-  await page.getByLabel('Correo electrónico').fill('buyer@example.test');
-  await page.getByLabel('Contraseña').fill('a-synthetic-password');
-  await page.getByRole('button',{name:'Entrar'}).click();
-  await expect(page.getByRole('status')).toContainText('No se pudo iniciar sesión');
-  await expect(page.getByLabel('Correo electrónico')).toBeFocused();
+  await expect(page.getByRole('heading', { name: /Entra a tu cuenta/i })).toBeVisible();
+  await page.locator('#entrar-email').fill('buyer@example.test');
+  await page.locator('#entrar-password').fill('a-synthetic-password');
+  await page.getByRole('button', { name: 'Entrar' }).click();
+  await expect(page.getByRole('status')).toContainText('El servicio no está disponible');
+  await expect(page.getByRole('status')).toHaveAttribute('aria-live', 'polite');
   expect(sends).toBe(1);
   expect(csrfHeader).toBe('test-csrf');
-  await expect(page.getByRole('button',{name:'Entrar'})).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Entrar' })).toBeEnabled();
 });
 
-test('mobile login stays pending until the fake server replies, then announces success', async ({ page }) => {
+test('mobile buyer login stays pending until reply, then navigates to Mis compras', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 750 });
   let release;
   const gate = new Promise(resolve => { release = resolve; });
-  await page.route(pageUrl, route => route.fulfill({contentType:'text/html',body:html}));
+  await page.route(pageUrl, route => route.fulfill({ contentType: 'text/html', body: html }));
+  await page.route('**/mi-cuenta', route => route.fulfill({
+    contentType: 'text/html', body: '<!doctype html><html lang="es"><body><h1>Mis compras</h1></body></html>'
+  }));
   await page.route('**/api/buyer/auth.php', async route => {
     if (route.request().method() === 'GET') {
-      return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,csrf:'fixture'})});
+      return route.fulfill({ contentType: 'application/json',
+        body: JSON.stringify({ ok: true, csrf: 'fixture' }) });
     }
     await gate;
-    return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,csrf:'rotated'})});
+    return route.fulfill({ contentType: 'application/json',
+      body: JSON.stringify({ ok: true, csrf: 'rotated' }) });
   });
   await page.goto(pageUrl);
-  await page.getByLabel('Correo electrónico').fill('fixture@example.test');
-  await page.getByLabel('Contraseña').fill('synthetic-password-for-test');
-  await page.getByRole('button',{name:'Entrar'}).click({noWaitAfter:true});
-  await expect(page.getByRole('button',{name:'Entrar'})).toBeDisabled();
-  await expect(page.getByRole('status')).toContainText('Verificando acceso');
+  await page.locator('#entrar-email').fill('fixture@example.test');
+  await page.locator('#entrar-password').fill('synthetic-password-for-test');
+  await page.getByRole('button', { name: 'Entrar' }).click({ noWaitAfter: true });
+  await expect(page.getByRole('button', { name: 'Entrar' })).toBeDisabled();
+  await expect(page.getByRole('status')).toContainText('Comprobando los datos');
   release();
-  await expect(page.getByRole('status')).toContainText('Acceso confirmado');
-  await expect(page.getByRole('button',{name:'Entrar'})).toBeEnabled();
+  await expect(page).toHaveURL('http://127.0.0.1:4173/mi-cuenta');
+  await expect(page.getByRole('heading', { name: 'Mis compras' })).toBeVisible();
 });

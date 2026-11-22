@@ -59,7 +59,7 @@ test('guest: fallback home navigation and footer expose Mi cuenta on mobile', as
   for (const a of await anchors.all()) await expect(a).toHaveAttribute('href', '/mi-cuenta/acceso');
   await page.locator('.c5-footer-contact [data-buyer-account-link]').click();
   await expect(page).toHaveURL(homeUrl + 'mi-cuenta/acceso');
-  await expect(page.getByRole('heading', { name: 'Cuenta de comprador' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Entra a tu cuenta/i })).toBeVisible();
 });
 
 test('logged-in buyer: Cromo menu and footer lead to Mis compras; keyboard and mobile menu work', async ({ page }) => {
@@ -122,7 +122,7 @@ test('Apache real-stack preserves legacy query on 301 and serves Spanish endpoin
     expect(target.searchParams.get('token')).toBe('fixture/value');
     expect(target.searchParams.get('source')).toBe('correo');
   }
-  for (const [path, title] of [['/mi-cuenta', 'Mis compras'], ['/mi-cuenta/acceso', 'Cuenta de comprador']]) {
+  for (const [path, title] of [['/mi-cuenta', 'Mis compras'], ['/mi-cuenta/acceso', 'Entra a tu']]) {
     const response = await request.get(real + path, { maxRedirects: 0 });
     expect(response.status(), path + ' serves buyer template').toBe(200);
     expect(await response.text()).toContain(title);

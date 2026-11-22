@@ -1,0 +1,76 @@
+name: Buyer access before-after evidence
+
+on:
+  pull_request:
+    paths:
+      - buyer/login.php
+      - buyer/reset.php
+      - css/buyer-access.css
+      - tests/e2e/buyer-access.spec.mjs
+      - .github/workflows/buyer-access-visual.yml
+
+permissions:
+  contents: read
+
+jobs:
+  screenshots:
+    name: Capturas acceso comprador (1440/390)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact PR HEAD
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Cache npm downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      - name: Install Playwright test dependencies
+        run: npm install --prefer-offline --no-audit --no-fund
+
+      - name: Install Chromium for synthetic screenshots
+        run: |
+          npx playwright install chromium
+          if ! node --input-type=module - <<'JS'
+          import { chromium } from '@playwright/test';
+          const browser = await chromium.launch();
+          await browser.close();
+          JS
+          then
+            npx playwright install-deps chromium
+          fi
+
+      - name: Render before/after captures and verify accessibility
+        run: npx playwright test tests/e2e/buyer-access.spec.mjs --project=chromium --workers=1 --reporter=list
+
+      - name: Publish exact-HEAD screenshots
+        id: screenshots
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: buyer-access-before-after-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+          path: test-results/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Link evidence in run summary
+        if: always() && steps.screenshots.outputs.artifact-url != ''
+        env:
+          EVIDENCE_URL: ${{ steps.screenshots.outputs.artifact-url }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          {
+            echo "## Mi cuenta · capturas antes y después"
+            echo
+            echo "Playwright usa HTML previo del main de origen y UI del PR; datos sintéticos sin autenticación real."
+            echo
+            echo "HEAD: \`$HEAD_SHA\`"
+            echo
+            echo "[Descargar capturas 1440px/390px]($EVIDENCE_URL)"
+          } >> "$GITHUB_STEP_SUMMARY"
