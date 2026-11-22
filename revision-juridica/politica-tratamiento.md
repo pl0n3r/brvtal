@@ -34,6 +34,7 @@
 | legacy_admin_activity_ip | usage | ip_address | legacy_admin_activity_audit | review_required | review_required | ninguno_declarado | review_required |
 | privacy_controller_contact | contact | phone | privacy_rights_contact_publication | review_required | review_required | ninguno_declarado | review_required |
 | public_gtm_measurement | usage | event_name, page_type, content_type, content_slug, content_title, section, action, destination, media_type, control, source, status, filter_type, relation_type, platform, result_state, content_id, position, depth | public_usage_measurement | review_required | review_required | google_analytics | review_required |
+| sentry_php_error_telemetry | usage | event_id, timestamp, platform, level, environment, release, php_version, sapi, release_sha, exception_type, stack_frame | php_runtime_error_monitoring | review_required | review_required | sentry | review_required |
 | staff_access_metadata | usage | last_access_at, failed_login_count, device_id | staff_security_monitoring | review_required | review_required | ninguno_declarado | review_required |
 | staff_contact | contact | email | staff_invitation_and_recovery | review_required | review_required | ninguno_declarado | staff_account_lifecycle |
 | staff_identity | identification | staff_id, name, role, status | staff_administration | review_required | review_required | ninguno_declarado | staff_account_lifecycle |
