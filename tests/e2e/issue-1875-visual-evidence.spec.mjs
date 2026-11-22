@@ -5,9 +5,18 @@ import { join } from 'node:path';
 
 const root = process.cwd();
 const baseline = 'bfde3ca92a8d0094f01d80b8918ca05ce60d55eb';
-const beforeSource = execFileSync('git', ['show', baseline + ':discadmin/settings-v2.js'], {
-  cwd: root, encoding: 'utf8', timeout: 20000
-});
+// Workflows checkout shallow PR merge refs; fetch only the exact historical
+// baseline when it is absent locally, without changing the before/after source.
+const baselineFile = baseline + ':discadmin/settings-v2.js';
+const gitOptions = { cwd: root, encoding: 'utf8', timeout: 20000 };
+try {
+  execFileSync('git', ['cat-file', '-e', baselineFile], gitOptions);
+} catch (_) {
+  execFileSync('git', ['fetch', '--no-tags', '--depth=1', 'origin', baseline], {
+    ...gitOptions, timeout: 60000
+  });
+}
+const beforeSource = execFileSync('git', ['show', baselineFile], gitOptions);
 const afterSource = readFileSync(join(root, 'discadmin/settings-v2.js'), 'utf8');
 const styles = readFileSync(join(root, 'discadmin/settings-v2.css'), 'utf8');
 const path = join(root, 'artifacts', 'issue-1875-visual');

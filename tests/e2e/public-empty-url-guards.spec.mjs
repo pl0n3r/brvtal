@@ -106,10 +106,10 @@ test('CONNECTED omits blank external CTAs for Sets and Releases', async ({ page 
     window.BRVTALRelatedContent.select('sets', 20);
   });
 
-  await expect(page.getByRole('link', { name: 'VIEW SET ↗' })).toHaveAttribute('href', '/sets/silent-set');
-  await expect(page.getByRole('link', { name: 'OPEN PLATFORM ↗' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'VER SET ↗' })).toHaveAttribute('href', '/sets/silent-set');
+  await expect(page.getByRole('link', { name: 'ABRIR PLATAFORMA ↗' })).toHaveCount(0);
 
   await page.evaluate(() => window.BRVTALRelatedContent.select('releases', 30));
-  await expect(page.getByRole('link', { name: 'VIEW RELEASE ↗' })).toHaveAttribute('href', '/releases/silent-release');
-  await expect(page.getByRole('link', { name: 'LISTEN ↗' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'VER LANZAMIENTO ↗' })).toHaveAttribute('href', '/releases/silent-release');
+  await expect(page.getByRole('link', { name: 'ESCUCHAR ↗' })).toHaveCount(0);
 });
