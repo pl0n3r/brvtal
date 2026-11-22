@@ -15,6 +15,7 @@ require_once __DIR__ . '/admin-read-plan.php';
 require_once __DIR__ . '/route.php';
 require_once __DIR__ . '/pages-contract.php';
 require_once __DIR__ . '/content-validation.php';
+require_once __DIR__ . '/create-input-validation.php';
 
 function client_key(): string {
     $ip = (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown');
@@ -874,6 +875,11 @@ try {
                 brvtalIndexNowNotifySetting($pdo, $key);
             }
             json_response(['ok' => true]);
+        }
+        $createInputError = brvtal_api_create_input_error($resource, $d);
+        if ($createInputError !== null) {
+            json_response(['ok' => false, 'error' => $createInputError['error'],
+                'field' => $createInputError['field']], 422);
         }
         $heroIncluded = $resource === 'artists' && array_key_exists('hero_framing', $d);
         $hero = $heroIncluded ? brvtalArtistHeroValidate($d['hero_framing']) : null;

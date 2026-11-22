@@ -255,3 +255,87 @@ body.cromo-page .entity-rich-body h3{margin:1em 0 .35em;font:700 clamp(27px,3.1v
 body.cromo-page .entity-rich-body ul{padding-left:1.2em;margin:.3em 0 .8em;list-style:disc}
 body.cromo-page .entity-rich-body li{margin:.18em 0}
 body.cromo-page.entity-page--event .entity-rich-body a{text-decoration-color:var(--event-signal)}
+
+/* #1859 · Primera vista de evento: la información nunca espera una animación. */
+body.cromo-page.entity-page--event {
+  --cromo-red-text:#e54147; /* 4,91:1 sobre #090909; rojo principal intacto. */
+}
+body.cromo-page.entity-page--event .entity-hero .entity-copy > * {
+  animation:none;opacity:1;filter:none;transform:none;
+}
+body.cromo-page.entity-page--event .entity-facts span,
+body.cromo-page.entity-page--event .event-record-band span {
+  color:var(--cromo-red-text);
+}
+body.cromo-page.entity-page--event .entity-actions a.event-notify {
+  display:inline-flex;align-items:center;justify-content:center;gap:12px;
+  min-height:56px;padding:14px 20px;
+  background:var(--cromo-red);border:2px solid var(--cromo-red);color:#050505;
+  font:800 20px/1.15 "Barlow Condensed",sans-serif;text-decoration:none;
+}
+body.cromo-page.entity-page--event .event-mobile-menu {display:none;}
+@media (max-width:900px) {
+  body.cromo-page.entity-page--event .entity-hero {
+    grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto;min-height:0;
+  }
+  body.cromo-page.entity-page--event .entity-copy {
+    grid-area:1/1;align-self:start;
+    padding:clamp(92px,11vh,110px) clamp(20px,4vw,44px) 28px;
+  }
+  body.cromo-page.entity-page--event .entity-image {
+    grid-area:2/1;min-height:0;aspect-ratio:4/5;width:100%;
+  }
+}
+@media (max-width:700px) {
+  body.cromo-page.entity-page--event .entity-nav {
+    flex-wrap:nowrap;gap:8px;padding:10px 12px;
+    background:rgba(3,3,3,.96);
+  }
+  body.cromo-page.entity-page--event .entity-nav .entity-brand {
+    min-width:0;flex:1 1 auto;font-size:24px;padding:8px 4px;
+  }
+  body.cromo-page.entity-page--event .entity-nav > .cp-nav {display:none;}
+  body.cromo-page.entity-page--event .cp-tools {flex:0 0 auto;}
+  body.cromo-page.entity-page--event .cp-tools .cp-back {display:none;}
+  body.cromo-page.entity-page--event .event-mobile-menu {
+    display:block;position:relative;flex:0 0 auto;z-index:52;
+  }
+  body.cromo-page.entity-page--event .event-mobile-menu summary {
+    display:flex;align-items:center;justify-content:center;min-height:44px;
+    padding:0 12px;list-style:none;cursor:pointer;
+    background:#050505;border:1px solid var(--cromo-bone);
+    color:var(--cromo-bone);font:700 18px/1 "Barlow Condensed",sans-serif;
+  }
+  body.cromo-page.entity-page--event .event-mobile-menu summary::-webkit-details-marker {display:none;}
+  body.cromo-page.entity-page--event .event-mobile-menu[open] summary {
+    background:var(--cromo-bone);color:#050505;
+  }
+  body.cromo-page.entity-page--event .event-mobile-menu nav {
+    position:absolute;top:calc(100% + 8px);right:0;z-index:53;
+    display:grid;min-width:min(260px,calc(100vw - 24px));padding:8px;
+    background:#050505;border:1px solid var(--cromo-bone);
+    box-shadow:0 12px 28px rgba(0,0,0,.55);
+  }
+  body.cromo-page.entity-page--event .event-mobile-menu nav a {
+    display:flex;align-items:center;min-height:44px;padding:7px 12px;
+    color:var(--cromo-bone);text-decoration:none;
+    font:700 18px/1.2 "Barlow Condensed",sans-serif;
+  }
+  body.cromo-page.entity-page--event .event-mobile-menu nav a:hover,
+  body.cromo-page.entity-page--event .event-mobile-menu nav a:focus-visible {
+    background:var(--cromo-bone);color:#050505;
+  }
+  body.cromo-page.entity-page--event .entity-copy {
+    padding:80px 20px 24px;gap:12px;
+  }
+  body.cromo-page.entity-page--event .entity-hero h1,
+  body.cromo-page.entity-page--event main h1 {
+    display:block;-webkit-line-clamp:unset;overflow:visible;
+    font-size:clamp(40px,10vw,62px);line-height:1;
+    overflow-wrap:anywhere;
+  }
+  body.cromo-page.entity-page--event .entity-facts {gap:4px 0;}
+  body.cromo-page.entity-page--event .entity-facts > div {padding:4px 10px 4px 0;margin-right:10px;}
+  body.cromo-page.entity-page--event .entity-actions {gap:8px;}
+  body.cromo-page.entity-page--event .entity-actions a.event-notify {width:100%;min-height:48px;}
+}
