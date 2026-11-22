@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../config/bootstrap.php';
 require_once __DIR__ . '/../config/public_contact.php';
+require_once __DIR__ . '/../config/public_abuse_guard.php';
 
 if (!headers_sent()) {
     header('Cache-Control: no-store');
@@ -37,6 +38,12 @@ if (!$rate['allowed']) {
 
 try {
     $input = input_json();
+    $gate = brvtal_public_abuse_check('contact', $input, $config);
+    if (!$gate['allowed']) {
+        $headers = $gate['retry_after'] > 0
+            ? ['Retry-After' => (string)$gate['retry_after']] : [];
+        json_response(['ok'=>false,'error'=>$gate['error']],$gate['status'],$headers);
+    }
     $validation = brvtal_contact_validate_payload($input, $config);
     if (!$validation['ok']) {
         json_response(['ok' => false, 'error' => 'VALIDATION_FAILED', 'fields' => $validation['errors']], 422);
