@@ -12,6 +12,10 @@ async function setup(page) {
 test('T28 opt-in explícito, anti-bot y ninguna boleta/cobro al suscribirse',async ({page})=>{
   const received=[];
   await setup(page);
+  await page.route('**/api/ticketing/waitlist.php?challenge=1', route =>
+    route.fulfill({contentType:'application/json',body:JSON.stringify({
+      ok:true,challenge:{question:'2 + 3 = ?',captcha_token:'synthetic-waitlist-token'}
+    })}));
   await page.route('**/api/ticketing/waitlist.php',route=>{
     if (route.request().method()==='GET') return route.fulfill({
       contentType:'application/json',body:JSON.stringify({ok:true,
@@ -90,6 +94,10 @@ test('T28: formulario público consentido y canje opaco sin URL ni sessionStorag
   await page.route('**/discadmin/ticketing-waitlist.js',route=>route.fulfill({
     contentType:'text/javascript',body:source}));
   const posted=[];
+  await page.route('**/api/ticketing/waitlist.php?challenge=1', route =>
+    route.fulfill({contentType:'application/json',body:JSON.stringify({
+      ok:true,challenge:{question:'2 + 3 = ?',captcha_token:'synthetic-waitlist-token'}
+    })}));
   await page.route('**/api/ticketing/waitlist.php?catalog=t28-offer',route=>route.fulfill({
     contentType:'application/json',body:JSON.stringify({ok:true,event_id:42,
       types:[{id:10,name:'General'}],checkout:{invite_mode:true,
