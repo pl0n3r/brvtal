@@ -62,3 +62,95 @@ test('T25 integration contract: restricted action and common QR scan',()=>{
   expect(checkin).toContain("o.status='draft' AND o.total_cop=0");
   expect(endpoint).not.toContain('curl_exec(');
 });
+
+test('T25 mantiene QR tras revocación fallida y reenvío sin QR nuevo',async({page})=>{
+  let revokeAttempts=0;
+  await start(page,route=>{
+    const action=route.request().postDataJSON().action;
+    if (action==='revoke') {
+      revokeAttempts++;
+      return revokeAttempts===1
+        ? route.fulfill({status:403,contentType:'application/json',body:'{"ok":false,"error":"FORBIDDEN"}'})
+        : route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:{invite_id:5,status:'revoked',sent:false}})});
+    }
+    return route.fulfill({contentType:'application/json',body:JSON.stringify(
+      action==='issue'
+        ? {ok:true,data:{invite_id:5,replayed:false,sent:false,qr:'BRVTAL:T1:solo-una-vez'}}
+        : {ok:true,data:{invite_id:5,status:'logged_only',sent:false}}
+    )});
+  });
+  await page.getByLabel('Evento').fill('1');
+  await page.getByLabel('Tipo de boleta').fill('11');
+  await page.getByLabel('Identificador del invitado').fill('guest01');
+  await page.getByLabel('Motivo interno').fill('Cortesía sintética');
+  await page.getByRole('button',{name:'Emitir cortesía'}).click();
+  const qr=page.locator('[data-courtesy-qr]');
+  await expect(qr).toHaveText('BRVTAL:T1:solo-una-vez');
+  await expect(page.locator('[data-courtesy-qr-owner]')).toContainText('#5');
+  await page.getByLabel('ID de cortesía').fill('5');
+  await page.getByRole('button',{name:'Revocar'}).click();
+  await expect(page.locator('[data-courtesy-status]')).toContainText('No autorizada');
+  await expect(qr).toHaveText('BRVTAL:T1:solo-una-vez');
+  await page.getByRole('button',{name:'Registrar reenvío (sin envío)'}).click();
+  await expect(page.locator('[data-courtesy-status]')).toContainText('Reenvío registrado');
+  await expect(qr).toHaveText('BRVTAL:T1:solo-una-vez');
+  await page.getByRole('button',{name:'Revocar'}).click();
+  await expect(page.locator('[data-courtesy-status]')).toContainText('Revocación registrada');
+  await expect(qr).toHaveText('BRVTAL:T1:solo-una-vez');
+  await page.getByRole('button',{name:'Ocultar QR'}).click();
+  await expect(qr).toBeHidden();
+});
+
+test('T25 reintenta tras error de red con la misma clave; cambios generan otra',async({page})=>{
+  const requests=[];
+  await start(page,route=>{
+    const body=route.request().postDataJSON();requests.push(body);
+    if (requests.length===1) return route.abort('failed');
+    return route.fulfill({contentType:'application/json',
+      body:JSON.stringify({ok:true,data:{invite_id:17,replayed:true,qr:null,sent:false}})});
+  });
+  await page.getByLabel('Evento').fill('1');
+  await page.getByLabel('Tipo de boleta').fill('11');
+  await page.getByLabel('Identificador del invitado').fill('guest01');
+  await page.getByLabel('Motivo interno').fill('Cortesía sintética');
+  const submit=page.getByRole('button',{name:'Emitir cortesía'});
+  await submit.click();
+  await expect(page.locator('[data-courtesy-status]')).toContainText('Sin confirmación');
+  await submit.click();
+  await expect(page.locator('[data-courtesy-status]')).toContainText('no recupera');
+  expect(requests).toHaveLength(2);
+  expect(requests[1].idempotency_key).toBe(requests[0].idempotency_key);
+  await expect(page.locator('[data-courtesy-qr]')).toBeHidden();
+  await page.getByLabel('Identificador del invitado').fill('guest02');
+  await submit.click();
+  await expect.poll(()=>requests.length).toBe(3);
+  expect(requests[2].idempotency_key).not.toBe(requests[1].idempotency_key);
+});
+
+test('T25 no duplica montajes ni presenta QR de otra invitación en replay',async({page})=>{
+  let count=0;
+  await start(page,route=>{
+    count++;
+    const data=count===1
+      ? {invite_id:5,replayed:false,qr:'BRVTAL:T1:primero',sent:false}
+      : {invite_id:9,replayed:true,qr:null,sent:false};
+    return route.fulfill({contentType:'application/json',
+      body:JSON.stringify({ok:true,data})});
+  });
+  await page.evaluate(async()=>{
+    (await import('/discadmin/ticketing-courtesy.js')).mount(document.querySelector('#panel'));
+  });
+  await expect(page.locator('[data-ticketing-courtesy]')).toHaveCount(1);
+  await page.getByLabel('Evento').fill('1');
+  await page.getByLabel('Tipo de boleta').fill('11');
+  await page.getByLabel('Identificador del invitado').fill('guest01');
+  await page.getByLabel('Motivo interno').fill('Cortesía sintética');
+  const submit=page.getByRole('button',{name:'Emitir cortesía'});
+  await submit.click();
+  await expect(page.locator('[data-courtesy-qr]')).toHaveText('BRVTAL:T1:primero');
+  await page.getByLabel('Identificador del invitado').fill('guest02');
+  await submit.click();
+  await expect(page.locator('[data-courtesy-status]')).toContainText('no recupera');
+  await expect(page.locator('[data-courtesy-qr]')).toBeHidden();
+  await expect(page.locator('[data-courtesy-qr-owner]')).toBeEmpty();
+});
