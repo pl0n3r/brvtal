@@ -185,14 +185,29 @@
   const quantity = form.elements.namedItem('quantity');
   const method = form.elements.namedItem('method');
   const invitation = form.elements.namedItem('waitlist_token');
+  // T23 is opt-in only in synthetic fixtures; public checkout stays unchanged.
+  const promoDraft = form.dataset.t23Synthetic === '1';
+  let promo = null;
+  if (promoDraft) {
+    const label = document.createElement('label');
+    label.textContent = 'Cupón promocional (solo pruebas) ';
+    promo = document.createElement('input');
+    promo.type = 'text'; promo.name = 'promo_code';
+    promo.maxLength = 32; promo.autocomplete = 'off'; promo.spellcheck = false;
+    label.append(promo); method.closest('label')?.after(label);
+  }
   const button = form.querySelector('button[type="submit"]');
   const total = document.getElementById('ticket-checkout-total');
   const money = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP',
     maximumFractionDigits: 0 });
   let submitting = false;
+  let confirmedPromo = null;
   const selected = () => type.selectedOptions[0];
   const code = () => typeof invitation?.value === 'string' ? invitation.value.trim() : '';
   const validCode = () => /^[A-Za-z0-9_-]{43}$/.test(code());
+  const promoCode = () => typeof promo?.value === 'string' ? promo.value.trim() : '';
+  const validPromo = () => !promoCode() ||
+    /^[A-Za-z0-9][A-Za-z0-9_-]{7,31}$/.test(promoCode());
   const input = () => ({ ticket_type_id: Number(type.value), quantity: Number(quantity.value),
     method: method.value });
   const same = (a, b) => a && a.ticket_type_id === b.ticket_type_id
@@ -210,7 +225,10 @@
   function update() {
     const option = selected();
     const hasCode = code() !== '';
-    const codeValid = !hasCode || validCode();
+    const hasPromo = promoCode() !== '';
+    const codeValid = (!hasCode || validCode()) && validPromo() &&
+      !(hasPromo && hasCode) &&
+      (!record?.promo_used || hasPromo);
     const available = Math.min(20, Number(option?.dataset.available || 0));
     const max = option?.dataset.inviteOnly === '1'
       ? (validCode() ? 1 : 0)
@@ -223,12 +241,23 @@
     quantity.disabled = submitting;
     method.disabled = submitting;
     if (invitation) invitation.disabled = submitting;
-    total.textContent = valid ? money.format(Number(option.dataset.price) * count)
-      : 'Cantidad fuera del cupo disponible';
+    if (promo) promo.disabled = submitting;
+    if (confirmedPromo) {
+      total.textContent = 'Subtotal ' + money.format(confirmedPromo.subtotal_cop) +
+        ' · Descuento ' + money.format(confirmedPromo.discount_cop) +
+        ' · Total ' + money.format(confirmedPromo.total_cop) + ' (servidor)';
+    } else if (valid && hasPromo) {
+      total.textContent = 'Subtotal ' + money.format(Number(option.dataset.price) * count) +
+        ' · Cupón pendiente de verificación en servidor';
+    } else {
+      total.textContent = valid ? money.format(Number(option.dataset.price) * count)
+        : 'Cantidad fuera del cupo disponible';
+    }
   }
   function newPurchase() {
     if (submitting) return; // Never discard an in-flight key on form input.
     intent = null;
+    confirmedPromo = null;
     clear();
     update();
   }
@@ -236,6 +265,13 @@
   quantity.addEventListener('input', newPurchase);
   method.addEventListener('change', newPurchase);
   invitation?.addEventListener('input', () => { if (!submitting) update(); });
+  promo?.addEventListener('input', () => {
+    if (submitting) return;
+    // A lost-response retry retains the original idempotency key; the server
+    // verifies coupon digest. Do not store plaintext coupon in sessionStorage.
+    if (!record?.promo_used || record?.order_id) newPurchase();
+    else update();
+  });
   form.addEventListener('submit', async event => {
     event.preventDefault();
     if (submitting || button.disabled) return;
@@ -250,12 +286,15 @@
         say('Inicia sesión para continuar. Si olvidaste tu clave, recupera el acceso desde Cuenta de comprador.');
         return;
       }
-      if (record?.input && !same(record.input, selection)) {
+      if (record?.input && (!same(record.input, selection)
+          || Boolean(record.promo_used) !== Boolean(promoCode()))) {
         say('La selección de tu reserva cambió. Modifícala para empezar una nueva compra.');
         return;
       }
       intent ||= 'T13-' + crypto.randomUUID();
-      const pending = { intent, input: selection, ...(record?.order_id ? { order_id: record.order_id } : {}) };
+      const pending = { intent, input: selection,
+        ...(promoCode() ? {promo_used: true} : {}),
+        ...(record?.order_id ? { order_id: record.order_id } : {}) };
       if (!save(pending)) {
         say('No se pudo guardar tu reserva para reintentos. Activa el almacenamiento de sesión.');
         return;
@@ -265,12 +304,25 @@
         headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': auth.csrf,
           'X-BRVTAL-TICKET-CHECKOUT': 'prepare' },
         body: JSON.stringify({ ...selection, idempotency_key: intent,
-          ...(code() ? { waitlist_token: code() } : {}) }),
+          ...(code() ? { waitlist_token: code() } : {}),
+          ...(promoCode() ? { promo_code: promoCode() } : {}) }),
       });
       const result = await json(response);
       const checkout = result.checkout;
+      if (promoCode()) {
+        const quote = result.promo_breakdown;
+        if (!quote || !['subtotal_cop','discount_cop','total_cop']
+            .every(key => Number.isSafeInteger(quote[key]) && quote[key] >= 0)
+            || quote.subtotal_cop - quote.discount_cop !== quote.total_cop
+            || checkout?.environment !== 'mock'
+            || checkout.amount_in_cents !== quote.total_cop * 100) {
+          throw new Error('INVALID_PROMO_BREAKDOWN');
+        }
+        confirmedPromo = quote; // Display ONLY server-authoritative totals.
+      }
       save({ ...pending, order_id: String(result.order_id) });
       if (invitation) invitation.value = ''; // Never persist or retain the opaque token.
+      if (promo) promo.value = ''; // Never retain raw coupon after confirmed prepare.
       say('Reserva preparada. El pago sigue pendiente hasta confirmación del servidor.');
       if (checkout.environment === 'mock') return; // Synthetic mode NEVER charges.
       if (checkout.environment !== 'sandbox' || checkout.currency !== 'COP'

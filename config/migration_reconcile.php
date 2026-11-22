@@ -188,6 +188,16 @@ function brvtalMigrationProofSpecifications(): array
              'opens_at_local','closes_at_local'],
             ['PRIMARY','uq_ticket_stage_type_code','idx_ticket_stage_event'], true
         ),
+        'migration_ticketing_promos_01.sql' => array_merge(
+            brvtalMigrationObjectRequirements('ticket_promo_rules',
+                ['code_digest','event_id','ticket_type_id','kind','value_cop',
+                 'starts_at_utc','ends_at_utc','max_uses','buyer_limit','uses_count','active','campaign_key'],
+                ['uq_promo_digest','idx_promo_event_type'],true),
+            brvtalMigrationObjectRequirements('ticket_promo_redemptions',
+                ['promo_id','order_id','buyer_id','code_digest','subtotal_cop',
+                 'discount_cop','total_cop','campaign_key'],
+                ['uq_promo_order','idx_promo_buyer'],true)
+        ),
         'migration_ticketing_admin_notes_01.sql' => brvtalMigrationObjectRequirements(
             'ticket_admin_actions',
             ['order_id','actor_admin_id','action','request_key_hash','request_hash',
