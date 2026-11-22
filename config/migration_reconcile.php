@@ -87,6 +87,11 @@ function brvtalMigrationProofSpecifications(): array
     ];
 
     $specifications = [
+        'migration_integration_secrets_01.sql' => brvtalMigrationObjectRequirements(
+            'integration_secrets',
+            ['secret_key','value_encrypted','updated_by_admin_id','updated_at'],
+            ['PRIMARY','idx_integration_secrets_updated'], true
+        ),
         'migration_events_venue_address_01.sql' => [
             'column:events.venue_address',
             'column-type:events.venue_address=varchar(300)',

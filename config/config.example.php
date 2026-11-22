@@ -20,6 +20,10 @@ return [
         'session_name' => 'BRVTAL_ADMIN',
         'csrf_key' => 'REPLACE_WITH_LONG_RANDOM_SECRET',
         'encryption_key' => 'REPLACE_WITH_32_PLUS_BYTE_RANDOM_SECRET',
+        // Separate 32-byte random key in base64:... or 64-digit hex; never commit live keys.
+        'integration_secret_master_key' => '',
+        // Opt-in enables writes, never activates providers or live sends.
+        'integration_secret_write' => false,
     ],
     'contact' => [
         // Public Contact form recipient. BRVTAL_CONTACT_TO can override this at runtime.

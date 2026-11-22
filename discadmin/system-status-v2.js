@@ -3,6 +3,7 @@
 
   const TECH = '/discadmin/technical.php?action=overview';
   const INTEGRATIONS = '/api/admin-system-status.php';
+  const INTEGRATION_SECRETS = '/api/admin-integration-secrets.php';
   const HEALTH = '/api/content-health.php';
   const ACTIVITY = '/api/admin-activity.php?limit=5';
   const LOGS = '/discadmin/technical.php?action=logs';
@@ -713,15 +714,33 @@
       <small>AVISOS BASADOS EN MEDICIONES DISPONIBLES. SIN PLAN DE PAGO.</small></section>`;
   }
 
-  function integrationStatusPanel(result) {
+
+  function integrationStatusPanel(result, secrets) {
     const rows = result?.ok === false ? [] : (Array.isArray(result?.integrations) ? result.integrations : []);
     const workers = result?.ok === false ? [] : (Array.isArray(result?.workers) ? result.workers : []);
+    const items = secrets?.ok === false ? [] : (Array.isArray(secrets?.items) ? secrets.items : []);
+    const writable = secrets?.write_enabled === true;
     const allowed = new Set(['configurado', 'falta', 'modo sandbox']);
     const body = rows.map(item => {
       const status = allowed.has(item?.status) ? item.status : 'falta';
-      return `<div class="ssv2-quota-row" data-integration="${esc(item.id)}">
-        <strong>${esc(item.label)}</strong> <span data-integration-state>${esc(status)}</span>
-      </div>`;
+      const fields = items.filter(entry => entry.provider === item.id).map(entry => {
+        const label = esc(entry.field.replaceAll('_',' '));
+        const key = esc(entry.key);
+        const updated = entry.updated_at ? 'Actualizado: ' + esc(entry.updated_at) : 'Sin clave almacenada';
+        return '<div class="ssv2-secret-field" data-secret-row="' + key + '">' +
+          '<label>' + label + ' <input type="password" autocomplete="off" spellcheck="false" data-secret-input="' +
+          key + '" aria-label="Nueva clave de ' + esc(item.label) + ' ' + label + '" ' +
+          (writable ? '' : 'disabled') + '></label>' +
+          '<button type="button" data-secret-action="POST" data-secret-key="' + key + '" ' +
+          (writable ? '' : 'disabled') + '>Guardar clave</button>' +
+          '<button type="button" data-secret-action="DELETE" data-secret-key="' + key + '" ' +
+          (writable && entry.stored ? '' : 'disabled') + '>Eliminar clave</button>' +
+          '<small>' + (entry.stored ? 'Guardada · ' : '') + updated + '</small>' +
+          '<span role="status" data-secret-feedback></span></div>';
+      }).join('');
+      return '<div class="ssv2-quota-row" data-integration="' + esc(item.id) + '">' +
+        '<strong>' + esc(item.label) + '</strong> <span data-integration-state>' + esc(status) + '</span>' +
+        fields + '</div>';
     }).join('');
     const cronRows = workers.map(item => {
       const raw = typeof item.last_execution === 'string' ? item.last_execution : '';
@@ -729,20 +748,55 @@
       const label = raw && Number.isFinite(millis)
         ? new Date(millis).toLocaleString('es-CO', {timeZone:'America/Bogota'})
         : 'sin ejecución registrada';
-      return `<div class="ssv2-quota-row" data-worker="${esc(item.id)}">
-        <strong>${esc(item.label)}</strong> <span>${esc(label)}</span>
-      </div>`;
+      return '<div class="ssv2-quota-row" data-worker="' + esc(item.id) +
+        '"><strong>' + esc(item.label) + '</strong> <span>' + esc(label) + '</span></div>';
     }).join('');
-    return `<section class="ssv2-panel" data-testid="system-integrations" aria-label="Estado de integraciones">
-      <div class="ssv2-panel-head"><span>INTEGRACIONES</span><b>ESTADO SIN CLAVES</b></div>
-      <div class="ssv2-quota-list">${body || '<div class="ssv2-empty">ESTADO NO DISPONIBLE</div>'}</div>
-      <div class="ssv2-panel-head"><span>CRONS DE CORREO</span><b>ÚLTIMA SALIDA EN LOG</b></div>
-      <div class="ssv2-quota-list">${cronRows || '<div class="ssv2-empty">SIN EVIDENCIA DE EJECUCIÓN</div>'}</div>
-      <small>CONFIGURADO NO SIGNIFICA ENVÍO, COBRO NI GO-LIVE HABILITADO.</small>
-    </section>`;
+    const notice = secrets?.ok === false
+      ? 'El estado de almacenamiento no está disponible.'
+      : writable
+        ? 'Escritura de claves habilitada: sus valores nunca se muestran.'
+        : 'Escritura bloqueada: configure una llave maestra privada y habilite el interruptor de servidor.';
+    return '<section class="ssv2-panel" data-testid="system-integrations" aria-label="Estado de integraciones">' +
+      '<div class="ssv2-panel-head"><span>INTEGRACIONES</span><b>ESTADO SIN CLAVES</b></div>' +
+      '<p data-secret-write-status>' + esc(notice) + '</p>' +
+      '<div class="ssv2-quota-list">' + (body || '<div class="ssv2-empty">ESTADO NO DISPONIBLE</div>') + '</div>' +
+      '<div class="ssv2-panel-head"><span>CRONS DE CORREO</span><b>ÚLTIMA SALIDA EN LOG</b></div>' +
+      '<div class="ssv2-quota-list">' + (cronRows || '<div class="ssv2-empty">SIN EVIDENCIA DE EJECUCIÓN</div>') + '</div>' +
+      '<small>CONFIGURADO NO SIGNIFICA ENVÍO, COBRO NI GO-LIVE HABILITADO.</small></section>';
   }
 
-  function render(root, data, health, activity, latency, quotas, integrations) {
+  function bindIntegrationSecretActions(root) {
+    root.querySelectorAll('[data-secret-action]').forEach(button => {
+      button.addEventListener('click', async () => {
+        const action = button.dataset.secretAction;
+        const key = button.dataset.secretKey;
+        const row = button.closest('[data-secret-row]');
+        const field = row?.querySelector('[data-secret-input]');
+        const feedback = row?.querySelector('[data-secret-feedback]');
+        if (!key || !feedback || (action === 'POST' && !field?.value)) return;
+        row.querySelectorAll('button').forEach(item => { item.disabled = true; });
+        feedback.textContent = 'Guardando…';
+        try {
+          const token = await csrfToken();
+          await fetchJson(INTEGRATION_SECRETS, {
+            method:action,
+            headers:{'Content-Type':'application/json','X-CSRF-Token':token},
+            body:JSON.stringify(action === 'POST' ? {key,value:field.value} : {key}),
+          });
+          if (field) field.value = '';
+          feedback.textContent = action === 'POST' ? 'Clave guardada' : 'Clave eliminada';
+          await load(currentSystemStatusRoot(root), true);
+        } catch (error) {
+          if (field) field.value = '';
+          invalidateCachedCsrf(error);
+          feedback.textContent = 'Error: ' + String(error.message || 'UNAVAILABLE');
+          row.querySelectorAll('button').forEach(item => { item.disabled = false; });
+        }
+      });
+    });
+  }
+
+  function render(root, data, health, activity, latency, quotas, integrations, secrets) {
     if (!root.isConnected || !isSystemStatus()) return;
     const advancedOpen = root.querySelector('.ssv2-advanced')?.open === true;
     const deployment = data.deployment || {};
@@ -786,7 +840,7 @@
 
       <div class="ssv2-free-quotas-static">${freeQuotaPanel(quotas)}</div>
 
-      <div class="ssv2-integrations-static">${integrationStatusPanel(integrations)}</div>
+      <div class="ssv2-integrations-static">${integrationStatusPanel(integrations, secrets)}</div>
 
       <div class="ssv2-grid split">
         <section class="ssv2-panel"><div class="ssv2-panel-head"><span>RUNTIME / DEPLOYMENT</span><b data-testid="system-product-version">${esc(productVersion)} · ${esc(environmentLabel)}</b></div>
@@ -818,6 +872,7 @@
       advanced.open = true;
     }
     setLogActionsDisabled(root, logResetInFlight);
+    bindIntegrationSecretActions(root);
     root.querySelector('#ssv2-refresh')?.addEventListener('click', () => load(root, true));
     root.querySelector('#ssv2-load-logs')?.addEventListener('click', event => {
       void loadLogs(root, event.currentTarget);
@@ -833,18 +888,19 @@
     const started = performance.now();
     try {
       const layoutPromise = fetchJson(PREFERENCES).catch(() => null);
-      const [data,health,activity,quotas,integrations] = await Promise.all([
+      const [data,health,activity,quotas,integrations,secrets] = await Promise.all([
         fetchJson(TECH),
         fetchJson(HEALTH).catch(error => unavailableSource(error)),
         fetchJson(ACTIVITY).catch(error => unavailableSource(error)),
         fetchJson(QUOTAS).catch(() => ({ok:false})),
         fetchJson(INTEGRATIONS).catch(error => unavailableSource(error)),
+        fetchJson(INTEGRATION_SECRETS).catch(error => unavailableSource(error)),
       ]);
       if (id !== requestId || !root.isConnected) return;
       const layoutPayload = await layoutPromise;
       if (id !== requestId || !root.isConnected) return;
       systemLayout = normalizeSystemLayout(layoutPayload?.data);
-      render(root,data,health,activity,performance.now()-started,quotas,integrations);
+      render(root,data,health,activity,performance.now()-started,quotas,integrations,secrets);
     } catch (error) {
       if (id !== requestId || !root.isConnected) return;
       root.innerHTML = `<div class="ssv2-fatal"><strong>SYSTEM STATUS UNAVAILABLE</strong><span>${esc(error.message)}</span><button type="button">RETRY</button></div>`;

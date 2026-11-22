@@ -1,8 +1,10 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/integration_secrets_store.php';
+
 /** Private config takes precedence over legacy environment variables. */
-function brvtal_secret_value(string $envName, ?array $override = null, ?array $privateConfig = null): string
+function brvtal_secret_value(string $envName, ?array $override = null, ?array $privateConfig = null, ?PDO $secretPdo = null): string
 {
     if ($override !== null) {
         $value = $override[$envName] ?? '';
@@ -55,6 +57,11 @@ function brvtal_secret_value(string $envName, ?array $override = null, ?array $p
             }
             return is_bool($value) ? ($value ? '1' : '0') : (string)$value;
         }
+    }
+    // Config wins; decrypt only keys on the explicit allowlist.
+    if (isset(brvtalIntegrationSecretCatalog()[$envName])) {
+        $stored = brvtalIntegrationSecretRead($envName, $secretPdo, $privateConfig);
+        if ($stored !== null) return $stored;
     }
     $environment = getenv($envName);
     return is_string($environment) ? $environment : '';
