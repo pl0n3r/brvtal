@@ -81,3 +81,26 @@ html[data-discadmin-appearance="glass"] .dashboard-v2-customize{background:rgba(
 .dashboard-v2 :where(.dashboard-v2-button,.dashboard-v2-module-controls button,.dashboard-v2-summary-action):active{transform:scale(.96)}
 html[data-discadmin-appearance="light"] .dashboard-v2 :where(.dashboard-v2-sub,.dashboard-v2-panel-head p,.dashboard-v2-row-meta,.dashboard-v2-empty,.dashboard-v2-health-card small,.dashboard-v2-customize span,.dashboard-v2-module-controls button){color:#50565c}
 @media(prefers-reduced-motion:reduce){.dashboard-v2 :where(.dashboard-v2-button,.dashboard-v2-module-controls button,.dashboard-v2-summary-action):active{transform:none}}
+
+/* #1863: editorial first. Editing handles appear only after explicit customization. */
+.dashboard-v2-customize{justify-content:flex-start;flex-wrap:wrap}
+.dashboard-v2-customize-toggle{margin-right:auto;min-width:132px}
+.dashboard-v2-customize-tools{display:grid;gap:4px;min-width:0}
+.dashboard-v2-customize-tools span{margin:0}
+.dashboard-v2:not([data-dashboard-customizing="true"]) :where(.dashboard-v2-module-controls,[data-dashboard-customize-tools]){display:none!important}
+.dashboard-v2 [data-testid="dashboard-product-version"]{display:none!important}
+.dashboard-v2-module>.dashboard-v2-panel{height:auto}
+.dashboard-v2-grid-configurable{grid-auto-flow:row;align-items:start}
+.dashboard-v2-lineup-note{color:#bfc6ca;font-size:12px;line-height:1.55;margin:14px 0 8px}
+.dashboard-v2-event-sales{border-top:1px solid #292d31;margin-top:12px;padding-top:12px;font-size:12px;line-height:1.5;color:#c8d0d4}
+.dashboard-v2-event-sales strong{display:block;margin-bottom:8px;color:#fff}
+.dashboard-v2-sales-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.dashboard-v2-sales-metrics span{display:grid;gap:5px;border:1px solid #30353a;padding:10px;min-width:0}
+.dashboard-v2-sales-metrics b{font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.dashboard-v2-event-sales small{display:block;margin-top:8px;color:#aeb7bd}
+@media(max-width:720px){.dashboard-v2-panel-head{flex-wrap:wrap}.dashboard-v2-panel-head>div{min-width:0;flex:1 1 100%}.dashboard-v2-sales-metrics{grid-template-columns:1fr}.dashboard-v2-customize-toggle{width:100%}}
+html[data-discadmin-appearance="light"] .dashboard-v2-event-sales strong{color:#15191b}
+html[data-discadmin-appearance="light"] .dashboard-v2-lineup-note,html[data-discadmin-appearance="light"] .dashboard-v2-event-sales{color:#414950}
+
+/* Keep editing help off the reading surface until the owner opts in. */
+.dashboard-v2:not([data-dashboard-customizing="true"]) .dashboard-v2-customize-tools{display:none!important}

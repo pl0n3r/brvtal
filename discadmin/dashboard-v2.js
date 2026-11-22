@@ -14,7 +14,8 @@
     seo:'/api/seo-workspace.php?summary=1',
     backup:'/api/admin-backup-signals.php',
     analytics:'/api/admin-analytics-signals.php',
-    preferences:'/api/admin-dashboard-preferences.php'
+    preferences:'/api/admin-dashboard-preferences.php',
+    finances:'/api/ticketing/admin-finances.php'
   };
   const sectionFor = type => ({events:'events',artists:'artists',sets:'sets',releases:'releases',pages:'pages',blog:'blog',ticket_types:'events',event_lineup:'events'})[type] || 'dashboard';
   let mounting = false;
@@ -22,6 +23,7 @@
   let mountSerial = 0;
   let layoutSaveSerial = 0;
   let layoutSaveChain = Promise.resolve();
+  let customizing = false;
   let lastMountDiagnostics = {
     status:'idle',
     reason:'',
@@ -178,6 +180,8 @@
         <div><h3>${esc(event.title || 'Untitled event')}</h3><div class="dashboard-next-event-meta">${esc(meta.date || 'Date pending')} · ${esc(meta.location)}${meta.timing}</div><div class="dashboard-next-event-status"><span class="dashboard-v2-chip accent">${esc(String(event.status || '').replaceAll('_',' '))}</span><span class="dashboard-v2-chip ${ticket.className}">${esc(ticket.label)}</span>${warnings.map(item=>`<span class="dashboard-v2-chip">${esc(item)}</span>`).join('')}</div></div>
       </div>
       <div class="dashboard-v2-actions" style="margin-top:14px"><button class="dashboard-v2-button" type="button" data-dashboard-go="events">OPEN EVENTS</button></div>
+      <p class="dashboard-v2-lineup-note" data-dashboard-lineup role="status">Lineup: verificando artistas asignados…</p>
+      <div class="dashboard-v2-event-sales" data-dashboard-sales aria-live="polite">Ventas de boletería: consultando resumen autorizado…</div>
     </section>`;
   }
 
@@ -716,6 +720,64 @@
       });
   }
 
+
+  function hydrateLineup(results, serial) {
+    const eventId = Number(resultValue(results[0])?.next_event?.id || 0);
+    if (!Number.isSafeInteger(eventId) || eventId < 1) return;
+    const update = message => {
+      if (serial !== mountSerial || !window.state?.authed || window.state?.section !== 'dashboard') return;
+      const target = document.querySelector('#brvtal-dashboard-v2 [data-dashboard-lineup]');
+      if (target) target.textContent = message;
+    };
+    void fetchData('/api/index.php/events/' + encodeURIComponent(eventId) + '/lineup')
+      .then(lineup => {
+        if (!Array.isArray(lineup)) return update('Lineup: no se pudo verificar.');
+        if (lineup.length === 0) return update('Falta lineup: no hay artistas asignados.');
+        return update('Lineup: ' + lineup.length + (lineup.length === 1
+          ? ' artista asignado. Revisar estado de publicación en Eventos.'
+          : ' artistas asignados. Revisar estado de publicación en Eventos.'));
+      })
+      .catch(() => update('Lineup: no se pudo verificar.'));
+  }
+
+  function hydrateTicketSales(results, serial) {
+    const event = resultValue(results[0])?.next_event;
+    const eventId = Number(event?.id || 0);
+    if (!Number.isSafeInteger(eventId) || eventId < 1) return;
+    const update = markup => {
+      if (serial !== mountSerial || !window.state?.authed || window.state?.section !== 'dashboard') return;
+      const box = document.querySelector('#brvtal-dashboard-v2 [data-dashboard-sales]');
+      if (box) box.innerHTML = markup;
+    };
+    void fetchData(ENDPOINTS.finances + '?event_id=' + encodeURIComponent(eventId))
+      .then(finance => {
+        if (!Array.isArray(finance?.rows)) {
+          update('Ventas de boletería: fuente no disponible.');
+          return;
+        }
+        const row = finance.rows.find(item => Number(item.event_id) === eventId);
+        if (!row && finance.rows.length) {
+          update('Ventas de boletería: fuente incompleta.');
+          return;
+        }
+        const validNumber = value => Number.isSafeInteger(Number(value)) && Number(value) >= 0;
+        const paid = row?.paid_orders ?? 0, tickets = row?.tickets ?? 0, approved = row?.approved_cop ?? 0;
+        if (![paid,tickets,approved].every(validNumber)) {
+          update('Ventas de boletería: datos inválidos.');
+          return;
+        }
+        const fmt = value => new Intl.NumberFormat('es-CO').format(Number(value));
+        update('<strong>Ventas verificadas · COP</strong><div class="dashboard-v2-sales-metrics">'
+          + '<span>Pedidos pagados <b>' + fmt(paid) + '</b></span>'
+          + '<span>Boletas <b>' + fmt(tickets) + '</b></span>'
+          + '<span>Pagos aprobados <b>$ ' + fmt(approved) + '</b></span></div>'
+          + '<small>Reporte provisional de Boletería; no acredita conciliación de pagos.</small>');
+      })
+      .catch(error => update(String(error?.message || '').includes('FORBIDDEN')
+        ? 'Ventas de boletería: requiere permiso de finanzas.'
+        : 'Ventas de boletería: fuente no disponible. Consulta Boletería.'));
+  }
+
   function actionsPanel() {
     return `<section class="dashboard-v2-panel"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">SECONDARY</div><h2>QUICK CREATE</h2><p>Shortcuts stay available without dominating the Dashboard.</p></div></div><div class="dashboard-v2-actions"><button class="dashboard-v2-button accent" type="button" data-dashboard-create="events">+ EVENT</button><button class="dashboard-v2-button" type="button" data-dashboard-create="artists">+ ARTIST</button><button class="dashboard-v2-button" type="button" data-dashboard-create="sets">+ SET</button><button class="dashboard-v2-button" type="button" data-dashboard-go="media">MEDIA LIBRARY</button></div></section>`;
   }
@@ -797,9 +859,10 @@
 
   function customizationPanel(layout) {
     const hidden = layout.modules.filter(item => !item.visible);
-    return `<section class="dashboard-v2-customize" aria-label="Dashboard customization">
-      <div><strong>LAYOUT</strong><span>Drag modules or use keyboard/touch controls. Sizes snap to grid cells.</span></div>
-      <div class="dashboard-v2-customize-actions">
+    return `<section class="dashboard-v2-customize" aria-label="Personalización del panel">
+      <button type="button" class="dashboard-v2-button dashboard-v2-customize-toggle" data-dashboard-customize-toggle aria-expanded="${customizing}" aria-controls="dashboard-customize-tools">${customizing ? 'Terminar personalización' : 'Personalizar'}</button>
+      <div class="dashboard-v2-customize-tools" id="dashboard-customize-tools"><strong>Organizar módulos</strong><span>Reordena o ajusta tarjetas sin tapar sus títulos.</span></div>
+      <div class="dashboard-v2-customize-actions" data-dashboard-customize-tools>
         ${hidden.map(item => `<button type="button" class="dashboard-v2-button" data-dashboard-show="${esc(item.id)}">+ ${esc(item.id.replaceAll('_',' ').toUpperCase())}</button>`).join('')}
         <button type="button" class="dashboard-v2-button" data-dashboard-reset>RESET TO DEFAULT</button>
       </div>
@@ -830,7 +893,7 @@
       });
     });
     root.querySelectorAll('[data-dashboard-create]').forEach(button => button.addEventListener('click', () => window.openModal?.(button.dataset.dashboardCreate)));
-    root.querySelector('[data-dashboard-system]')?.addEventListener('click', () => window.tech?.('system'));
+    root.querySelectorAll('[data-dashboard-system]').forEach(button => button.addEventListener('click', () => window.tech?.('system')));
   }
 
   function bindActivityMore(root) {
@@ -878,6 +941,8 @@
         if (saveSerial !== layoutSaveSerial) return saved;
         results[5] = {status:'fulfilled',value:saved};
         render(results,serial);
+        hydrateLineup(results,serial);
+        hydrateTicketSales(results,serial);
         return saved;
       })
       .catch(() => {
@@ -934,6 +999,15 @@
   }
 
   function bindCustomization(root, layout, results, serial) {
+    root.querySelector('[data-dashboard-customize-toggle]')?.addEventListener('click', event => {
+      customizing = !customizing;
+      root.dataset.dashboardCustomizing = String(customizing);
+      event.currentTarget.setAttribute('aria-expanded',String(customizing));
+      event.currentTarget.textContent = customizing ? 'Terminar personalización' : 'Personalizar';
+      root.querySelectorAll('[data-dashboard-module]').forEach(module => {
+        module.draggable = customizing;
+      });
+    });
     const dragState = {current:''};
     const persist = () => persistDashboardLayout(layout,results,serial);
 
@@ -975,10 +1049,9 @@
     const overview = resultValue(overviewResult), content = resultValue(contentResult), health = resultValue(healthResult), storage = resultValue(storageResult), activity = resultValue(activityResult);
     const layout = normalizeLayout(resultValue(preferenceResult));
     const summary = overview?.summary || {};
-    let developmentMarkup = developmentLoadingPanel();
-    if (developmentResult) {
-      developmentMarkup = developmentPanel(developmentSources(results));
-    }
+    // Engineering telemetry belongs to the authenticated System Status workspace.
+    // Keep the legacy module identifier so persisted layouts continue to load.
+    const developmentMarkup = `<section class="dashboard-v2-panel dashboard-v2-system-shortcut"><div class="dashboard-v2-panel-head"><div><h2>Sistema</h2><p>Los diagnósticos técnicos están separados de las tareas editoriales.</p></div></div><button class="dashboard-v2-button" type="button" data-dashboard-system>Abrir estado del sistema</button></section>`;
 
     const modules = {
       next_event:nextEventPanel(overview,resultError(overviewResult)),
@@ -995,10 +1068,12 @@
       .map(item => moduleShell(item,modules[item.id]))
       .join('');
 
+    root.dataset.dashboardCustomizing = String(customizing);
     root.innerHTML = `
       <section class="dashboard-v2-hero"><div><div class="dashboard-v2-kicker">BRVTAL / COMMAND OVERVIEW</div><h2 class="dashboard-v2-title">WHAT NEEDS<br>ATTENTION NOW</h2><div class="dashboard-v2-sub">Operational and editorial signals first. Counts are derived from active data sources; unavailable sources stay explicit instead of becoming misleading zeroes.</div></div><div class="dashboard-v2-summary">${summaryCard('Public records', overview ? Number(summary.public_records || 0) : '—')}${summaryCard('Draft backlog', overview ? Number(summary.draft_records || 0) : '—')}${summaryCard('Active events', overview ? Number(summary.active_events || 0) : '—','events')}${summaryCard('Media assets', overview ? Number(summary.media_assets || 0) : '—','media')}</div></section>
       ${customizationPanel(layout)}
       <div class="dashboard-v2-grid dashboard-v2-grid-configurable" data-dashboard-grid>${visibleModules}</div>`;
+    root.querySelectorAll('[data-dashboard-module]').forEach(module => { module.draggable = customizing; });
     bind(root,layout,results,serial);
 
     if (!overview || !health || health.database !== 'connected') setShellStatus(!health ? 'offline' : 'degraded', !health ? 'OFFLINE / CHECK' : 'DEGRADED');
@@ -1050,7 +1125,8 @@
       ]);
       rendered = render(results,serial);
       if (rendered) {
-        hydrateDevelopmentSignals(results,serial);
+        hydrateLineup(results,serial);
+        hydrateTicketSales(results,serial);
         hydrateAnalyticsSignal(results,serial);
       }
     } finally {
@@ -1076,6 +1152,7 @@
   }
 
   function invalidate() {
+    customizing = false;
     mountSerial += 1;
     mountPromise = null;
     mounting = false;
