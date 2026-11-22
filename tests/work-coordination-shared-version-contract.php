@@ -7,7 +7,7 @@ declare(strict_types=1);
  * Both coordination calls that validate PR claims and collisions must declare
  * the release files as shared, otherwise every product leaf serializes on them.
  */
-$expected = 'shared_version_paths: \'["config/version.php","package.json"]\'';
+$expected = 'shared_version_paths: \'["config/version.php","package.json","revision-juridica/00-LEEME.md"]\'';
 $calls = [
     '.github/workflows/update-release-metadata.yml' => 'operation: validate',
     '.github/workflows/work-coordination.yml' => 'operation: pr',

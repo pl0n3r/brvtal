@@ -248,7 +248,7 @@ jobs:
       operation: validate
       profile: en
       # Factory#2163: version-only bumps no longer serialize leaves (#1811).
-      shared_version_paths: '["config/version.php","package.json"]'
+      shared_version_paths: '["config/version.php","package.json","revision-juridica/00-LEEME.md"]'
       pr_number: ${{ github.event.pull_request.number }}
       # Bootstrap-only exception: PR #728 migrates the last trusted BRVTAL v1
       # reservation marker. Every subsequent PR must present Factory v2 fingerprinting.
