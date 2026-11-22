@@ -52,7 +52,7 @@ jobs:
             npx playwright install-deps chromium
           fi
       - name: Render screenshots from current and original repository code
-        run: npx playwright test tests/e2e/discadmin-admin-shell.spec.mjs --project=chromium --grep 'visual evidence #1864' --reporter=list
+        run: npx playwright test tests/e2e/discadmin-admin-shell.spec.mjs --project=chromium --grep=visual --reporter=list
       - name: Verify four real Chromium WebP captures and exact-SHA manifest
         shell: bash
         env:
