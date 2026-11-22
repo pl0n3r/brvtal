@@ -108,6 +108,8 @@ admin_mail_reject(static fn()=>brvtalMailAdminDispatch($pdo,'owner',7,'POST',$dr
 $readDraft=brvtalMailAdminDispatch($pdo,'admin',7,'GET',[
     'view'=>'draft','key'=>'order_pending','scope'=>'ticketing','version_id'=>$saved['version_id']],$audit);
 admin_mail_check($readDraft['document']['message']==='Hola {{event_name}}','read draft');
+admin_mail_check(!array_key_exists('author_admin_id', $readDraft),
+    'read API does not expose staff identifiers');
 $publish=brvtalMailAdminParsePost(['action'=>'publish','key'=>'order_pending','scope'=>'ticketing',
     'version_id'=>$saved['version_id'],'revision'=>1]);
 $published=brvtalMailAdminDispatch($pdo,'superadmin',7,'POST',$publish,$audit);
@@ -135,6 +137,11 @@ $history=brvtalMailAdminDispatch($pdo,'admin',7,'GET',[
     'view'=>'history','key'=>'order_pending','scope'=>'ticketing'],$audit);
 admin_mail_check(count($history['items'])===3 && !isset($history['items'][0]['document_json']),
     'history metadata only');
+foreach ($history['items'] as $historyVersion) {
+    admin_mail_check(!array_key_exists('author_admin_id', $historyVersion)
+        && !array_key_exists('discarded_by_admin_id', $historyVersion),
+        'history response does not expose staff identifiers');
+}
 admin_mail_check(count($events)===5, 'one audit per successful mutation');
 foreach ($events as $entry) {
     admin_mail_check(array_keys($entry['meta'])===['key','scope','version_id','revision']
