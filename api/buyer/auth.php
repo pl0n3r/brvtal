@@ -6,7 +6,22 @@ require_once __DIR__ . '/../../config/buyer_auth_flows.php';
 require_once __DIR__ . '/../../config/public_abuse_guard.php';
 
 // The required bootstrap loads and validates this configuration.
+/**
+ * Whitelist internal diagnostic codes only; arbitrary exception messages can
+ * contain user-controlled email, password, token or provider details.
+ */
+function brvtalBuyerAuthLogFailure(string $event, Throwable $error): void
+{
+    $message = $error->getMessage();
+    $context = ['class' => $error::class];
+    if (preg_match('/\A[A-Z][A-Z0-9_]{2,79}\z/D', $message) === 1) {
+        $context['code'] = $message;
+    }
+    brvtal_log($event, 'Buyer authentication operation failed.', $context);
+}
+
 /** @var array<string, mixed> $config */
+
 
 header('Cache-Control: no-store, private');
 header('Referrer-Policy: no-referrer');
@@ -14,7 +29,8 @@ header('X-Content-Type-Options: nosniff');
 
 try {
     brvtalBuyerSessionStart();
-} catch (Throwable) {
+} catch (Throwable $error) {
+    brvtalBuyerAuthLogFailure('BUYER_SESSION_FAILED', $error);
     json_response(['ok' => false, 'error' => 'BUYER_AUTH_UNAVAILABLE'], 503);
 }
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
@@ -25,7 +41,8 @@ if ($method === 'GET') {
             'request-reset' => brvtal_public_abuse_challenge($config, 'request-reset'),
             'resend-verification' => brvtal_public_abuse_challenge($config, 'resend-verification'),
         ];
-    } catch (Throwable) {
+    } catch (Throwable $error) {
+        brvtalBuyerAuthLogFailure('BUYER_CHALLENGE_FAILED', $error);
         json_response(['ok' => false, 'error' => 'CAPTCHA_UNAVAILABLE'], 503);
     }
     json_response(['ok' => true, 'csrf' => $_SESSION['buyer_csrf'],
@@ -65,7 +82,8 @@ try {
     if (getenv('BRVTAL_BUYER_RETENTION_PURGE_APPROVED') === '1') {
         brvtalBuyerPurgeUnverified($pdo);
     }
-} catch (Throwable) {
+} catch (Throwable $error) {
+    brvtalBuyerAuthLogFailure('BUYER_SCHEMA_FAILED', $error);
     json_response(['ok' => false, 'error' => 'BUYER_SCHEMA_PENDING'], 503);
 }
 
@@ -75,7 +93,8 @@ if ($action === 'register') {
         json_response(['ok' => true], 202);
     } catch (InvalidArgumentException $error) {
         json_response(['ok' => false, 'error' => $error->getMessage()], 422);
-    } catch (Throwable) {
+    } catch (Throwable $error) {
+        brvtalBuyerAuthLogFailure('BUYER_REGISTER_FAILED', $error);
         json_response(['ok' => false, 'error' => 'BUYER_MAIL_PENDING'], 503);
     }
 }
@@ -90,15 +109,17 @@ if ($action === 'verify' || $action === 'confirm-reset') {
         json_response(['ok' => false, 'error' => 'TOKEN_INVALID'], 422);
     } catch (InvalidArgumentException $error) {
         json_response(['ok' => false, 'error' => $error->getMessage()], 422);
-    } catch (Throwable) {
+    } catch (Throwable $error) {
+        brvtalBuyerAuthLogFailure('BUYER_TOKEN_ACTION_FAILED', $error);
         json_response(['ok' => false, 'error' => 'BUYER_AUTH_UNAVAILABLE'], 503);
     }
 }
 if ($action === 'request-reset' || $action === 'resend-verification') {
     try {
         brvtalBuyerAuthRequestForAction($pdo, $body['email'] ?? null, $action);
-    } catch (Throwable) {
-        // All responses remain neutral, including unknown addresses and delivery failures.
+    } catch (Throwable $error) {
+        // Preserve neutral public responses even for unknown addresses.
+        brvtalBuyerAuthLogFailure('BUYER_MAIL_REQUEST_FAILED', $error);
     }
     json_response(['ok' => true], 202);
 }
@@ -134,6 +155,7 @@ try {
     brvtalBuyerLoginSession((int)$buyer['id']);
     brvtal_password_rate_limit_reset('buyer|' . $email, __DIR__ . '/../../storage/buyer_rate_limits');
     json_response(['ok' => true, 'csrf' => $_SESSION['buyer_csrf']]);
-} catch (Throwable) {
+} catch (Throwable $error) {
+    brvtalBuyerAuthLogFailure('BUYER_LOGIN_FAILED', $error);
     json_response(['ok' => false, 'error' => 'BUYER_AUTH_UNAVAILABLE'], 503);
 }
