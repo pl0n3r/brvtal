@@ -69,6 +69,15 @@ window.BRVTALTicketing = (() => {
       });
       panel.appendChild(launch);
     }
+    if (key === 'entries') {
+      import('/discadmin/ticketing-entries.js').then(mod => {
+        if (panel.isConnected && panel.getAttribute('aria-labelledby') === active.id)
+          return mod.mount(panel);
+      }).catch(() => {
+        if (panel.isConnected && panel.getAttribute('aria-labelledby') === active.id)
+          panel.replaceChildren(element('p', 'No se pudo cargar Boletas.', 'ticketing-error'));
+      });
+    }
     if (key === 'orders' || key === 'buyers') {
       import('/discadmin/ticketing-orders.js').then(mod => {
         if (panel.isConnected && panel.getAttribute('aria-labelledby') === active.id) {

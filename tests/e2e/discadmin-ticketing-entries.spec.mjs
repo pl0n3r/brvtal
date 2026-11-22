@@ -1,6 +1,7 @@
 import {test,expect} from '@playwright/test';
 import {readFileSync} from 'node:fs';
 const code=readFileSync('discadmin/ticketing-entries.js','utf8');
+const shellCode=readFileSync('discadmin/ticketing.js','utf8');
 const pagePhp=readFileSync('discadmin/ticketing-entries.php','utf8');
 const apiPhp=readFileSync('api/ticketing/admin-entries.php','utf8');
 const fixture='<section data-ticketing-entries data-ticketing-csrf="fixture" data-ticketing-can-reissue="1" data-ticketing-can-void="1"><p data-entry-status role="status"></p><div data-entry-list></div><button data-entry-more hidden>Más</button><div data-entry-detail></div><div data-entry-qr hidden><div data-entry-qr-image></div><button data-entry-download>Descargar</button><button data-entry-close>Cerrar</button></div></section>';
@@ -62,4 +63,23 @@ test('T19 ficha muestra trazabilidad sin exponer QR ni correo privado',async({pa
   await expect(detail).toContainText('reissue');
   await expect(detail).not.toContainText('@example');
   await expect(detail).not.toContainText('BRVTAL:T1:');
+});
+
+test('T19 pestaña Boletas integrada en el shell DISCADMIN, sin segundo administrador',async({page})=>{
+  await page.route('**/discadmin/t19-shell-fixture.html',r=>r.fulfill({
+    contentType:'text/html',
+    body:'<html lang="es"><div id="root" data-ticketing-role="superadmin"><div role="tablist"><button id="boletas-tab" role="tab" data-ticketing-tab="entries" aria-selected="false">Boletas</button><button id="pedidos-tab" role="tab" data-ticketing-tab="orders" aria-selected="true">Pedidos</button></div><section data-ticketing-panel></section></div></html>'
+  }));
+  await page.route('**/discadmin/ticketing-entries.php',r=>r.fulfill({contentType:'text/html',body:fixture}));
+  await page.route('**/discadmin/ticketing-entries.js',r=>r.fulfill({contentType:'text/javascript',body:code}));
+  await page.route('**/api/ticketing/admin-entries.php*',r=>r.fulfill({
+    contentType:'application/json',body:JSON.stringify({ok:true,data:[row]})
+  }));
+  await page.goto('https://www.brvtal.com.co/discadmin/t19-shell-fixture.html');
+  await page.addScriptTag({content:shellCode});
+  await page.getByRole('tab',{name:'Boletas'}).click();
+  await expect(page.getByRole('tab',{name:'Boletas'})).toHaveAttribute('aria-selected','true');
+  await expect(page.getByRole('button',{name:'Ver ficha'})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Reemitir'})).toBeVisible();
+  await expect(page.locator('[data-ticketing-panel] tbody tr')).toHaveCount(1);
 });
