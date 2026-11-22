@@ -5,6 +5,33 @@ require_once __DIR__ . '/../config/admin_auth.php';
 require_once __DIR__ . '/../config/integration_secrets_store.php';
 require_once __DIR__ . '/../config/ticketing_staff_permissions.php';
 
+/**
+ * Publish ONLY non-credential settings for authenticated administrators.
+ * Keys such as password/DSN/PEM/Webhook and test recipients remain write-only.
+ */
+function brvtalIntegrationSecretPublicStatus(PDO $pdo): array
+{
+    $items = brvtalIntegrationSecretStatus($pdo);
+    if (brvtalIntegrationSecretMasterKey() === null) return $items;
+    $publicKeys = array_fill_keys([
+        'BRVTAL_TICKET_MAIL_FROM',
+        'BRVTAL_TICKET_MAIL_DOMAIN',
+        'BRVTAL_SMTP_HOST',
+        'BRVTAL_SMTP_USER',
+        'BRVTAL_MAIL_FROM',
+        'BRVTAL_GA4_PROPERTY_ID',
+        'BRVTAL_GA4_CLIENT_EMAIL',
+    ], true);
+    foreach ($items as &$item) {
+        $key = (string)($item['key'] ?? '');
+        if (!($item['stored'] ?? false) || !isset($publicKeys[$key])) continue;
+        $value = brvtalIntegrationSecretRead($key, $pdo);
+        if (is_string($value)) $item['value'] = $value;
+    }
+    unset($item);
+    return $items;
+}
+
 header('Cache-Control: no-store, private');
 header('X-Content-Type-Options: nosniff');
 brvtal_admin_require();
@@ -26,7 +53,7 @@ try {
     $masterAvailable = brvtalIntegrationSecretMasterKey() !== null;
     if ($method === 'GET') {
         json_response(['ok'=>true,'write_enabled'=>$writeEnabled && $masterAvailable,
-            'master_key_configured'=>$masterAvailable, 'items'=>brvtalIntegrationSecretStatus($pdo)]);
+            'master_key_configured'=>$masterAvailable, 'items'=>brvtalIntegrationSecretPublicStatus($pdo)]);
     }
 
     // Normalize rejected write CSRF to 403 for the documented API contract.
@@ -54,7 +81,7 @@ try {
     $key = $input['key'];
     $value = $method === 'POST' ? ($input['value'] ?? null) : null;
     brvtalIntegrationSecretMutate($pdo, $method, $key, is_string($value) ? $value : null, $actorId);
-    json_response(['ok'=>true,'items'=>brvtalIntegrationSecretStatus($pdo)]);
+    json_response(['ok'=>true,'items'=>brvtalIntegrationSecretPublicStatus($pdo)]);
 } catch (InvalidArgumentException | JsonException) {
     json_response(['ok'=>false,'error'=>'SECRET_FORMAT_INVALID'], 422);
 } catch (DomainException) {
