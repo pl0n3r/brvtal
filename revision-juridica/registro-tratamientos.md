@@ -174,6 +174,16 @@ Producto: `pl0n3r/brvtal`
 - Proveedores: `google_analytics`
 - Retención: `review_required`
 
+## sentry_php_error_telemetry
+
+- Categoría: `usage`
+- Campos de software: `event_id`, `timestamp`, `platform`, `level`, `environment`, `release`, `php_version`, `sapi`, `release_sha`, `exception_type`, `stack_frame`
+- Finalidad: `php_runtime_error_monitoring`
+- Base documentada: `review_required` (revisión jurídica requerida)
+- Consentimiento: `review_required`
+- Proveedores: `sentry`
+- Retención: `review_required`
+
 ## staff_access_metadata
 
 - Categoría: `usage`

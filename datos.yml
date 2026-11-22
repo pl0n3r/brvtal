@@ -448,6 +448,30 @@
       "providers": [
         "resend"
       ]
+    },
+    {
+      "id": "sentry_php_error_telemetry",
+      "category": "usage",
+      "fields": [
+        "event_id",
+        "timestamp",
+        "platform",
+        "level",
+        "environment",
+        "release",
+        "php_version",
+        "sapi",
+        "release_sha",
+        "exception_type",
+        "stack_frame"
+      ],
+      "purpose": "php_runtime_error_monitoring",
+      "basis": "review_required",
+      "retention": "review_required",
+      "consent": "review_required",
+      "providers": [
+        "sentry"
+      ]
     }
   ]
 }

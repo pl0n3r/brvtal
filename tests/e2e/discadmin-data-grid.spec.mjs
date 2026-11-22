@@ -134,14 +134,22 @@ test('Releases and Blog use the same canonical table structure', async ({page}) 
   await expect(page.locator('#blog [data-grid-cell="excerpt"]')).toContainText('Editorial');
 });
 
-test('mobile keeps the canonical grid usable through horizontal scrolling', async ({page}) => {
+test('mobile events show cards without horizontal scroll, with status and touch actions visible', async ({page}) => {
   await page.setViewportSize({width:390,height:844});
   await harness(page);
   await page.evaluate(rows => BRVTALDataGrid.render('events',document.getElementById('events'),rows,{allRows:rows}),events);
   const dimensions=await page.locator('#events .admin-data-grid-scroll').evaluate(el=>({
     client:el.clientWidth,scroll:el.scrollWidth
   }));
-  expect(dimensions.scroll).toBeGreaterThan(dimensions.client);
+  expect(dimensions.scroll).toBeLessThanOrEqual(dimensions.client+1);
+  const card=page.locator('#events [data-grid-row-id="9"]');
+  await expect(card.locator('[data-grid-cell="status"]')).toBeVisible();
+  await expect(card.locator('[data-grid-action="lineup"]')).toBeVisible();
+  await expect(card.locator('[data-grid-action="edit"]')).toBeVisible();
+  await expect(card.locator('[data-grid-action="delete"]')).toBeVisible();
+  const hit=await card.locator('.admin-grid-select-hit').boundingBox();
+  expect(hit.width).toBeGreaterThanOrEqual(44);
+  expect(hit.height).toBeGreaterThanOrEqual(44);
   await expect(page.locator('#events [data-grid-columns-toggle]')).toBeVisible();
 });
 
