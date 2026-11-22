@@ -471,8 +471,8 @@
   }
 
   function mediaSaveLabel() {
-    if (mediaReady) return 'SAVE';
-    return mediaLoadError ? 'MEDIA UNAVAILABLE' : 'MEDIA LOADING…';
+    if (mediaReady) return 'GUARDAR';
+    return mediaLoadError ? 'ARCHIVOS NO DISPONIBLES' : 'CARGANDO ARCHIVOS…';
   }
 
   function syncMediaControls(host) {

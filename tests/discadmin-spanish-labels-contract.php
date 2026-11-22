@@ -11,7 +11,9 @@ function brvtal_spanish_labels_assert(bool $ok, string $reason): void
 }
 $core = (string) file_get_contents(__DIR__ . '/../discadmin/index-core.php');
 $banners = (string) file_get_contents(__DIR__ . '/../discadmin/hero-slider.js');
-brvtal_spanish_labels_assert($core !== '' && $banners !== '', 'missing source');
+$navigation = (string) file_get_contents(__DIR__ . '/../discadmin/admin-information-architecture.js');
+brvtal_spanish_labels_assert($core !== '' && $banners !== '' && $navigation !== '', 'missing source');
+brvtal_spanish_labels_assert(str_contains($navigation, 'buttonKey(button) === section'), 'route restore must reuse the real user-visible Spanish navigation label');
 foreach ([
     "['dashboard','INICIO']",
     "['pages','PÁGINAS']",
@@ -54,6 +56,7 @@ foreach ([
     'Banners de portada',
     'Organiza banners y capas con ajustes independientes para móvil.',
     'ELEGIR ARCHIVO',
+    "return 'GUARDAR'",
     '+ NUEVO BANNER',
     'ESCRITORIO',
     'MÓVIL',
@@ -73,6 +76,7 @@ foreach ([
 }
 foreach ([
     'SLIDER MANAGER V2', 'LayerSlider-inspired', 'SELECT MEDIA',
+    "return 'SAVE'", 'MEDIA LOADING…',
     'LOCAL DRAFT AVAILABLE', 'HOME / HERO',
     '>DESKTOP</button>', '>MOBILE</button>',
     'LIVE PREVIEW · drag selected layers',

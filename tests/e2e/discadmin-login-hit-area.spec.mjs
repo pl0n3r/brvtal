@@ -87,7 +87,7 @@ test('recovery link keeps native keyboard focus, visible outline and Enter navig
   const recovery = await openLogin(page, 390);
   const email = page.locator('#admin-login-email');
   const password = page.locator('#admin-login-password');
-  const enter = page.getByRole('button', { name: 'ENTER' });
+  const enter = page.getByRole('button', { name: 'ENTRAR' });
 
   await email.focus();
   await page.keyboard.press('Tab');
@@ -116,7 +116,7 @@ test('recovery affordance does not replace or bypass the existing login form', a
   await expect(page.locator('form.loginbox')).toHaveAttribute('onsubmit', 'login(event)');
   await expect(page.locator('#admin-login-email')).toHaveAttribute('type', 'email');
   await expect(page.locator('#admin-login-password')).toHaveAttribute('type', 'password');
-  await expect(page.getByRole('button', { name: 'ENTER' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'ENTRAR' })).toBeVisible();
   await expect(recovery).toHaveAttribute('href', '/discadmin/forgot-password.php');
   // The browser fixture intentionally isolates the form; verify the security script in the real PHP source.
   expect(loginSource).toContain('/discadmin/totp-login.js?');

@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - 'discadmin/index-core.php'
+      - 'discadmin/admin-information-architecture.js'
       - 'discadmin/hero-slider.js'
       - 'tests/e2e/discadmin-admin-shell.spec.mjs'
       - '.github/workflows/discadmin-spanish-visual.yml'
