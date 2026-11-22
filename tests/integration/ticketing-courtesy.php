@@ -72,7 +72,7 @@ try {
     $replay=brvtalCourtesyIssue($db,7,'superadmin',$input);
     t25($replay['replayed']&&$replay['qr']===null,'idempotent no second secret');
     foreach ([
-        ['ticket_type_id'=>12], ['category'=>'press'],
+        ['ticket_type_id'=>12], ['ticket_type_id'=>999], ['category'=>'press'],
         ['reason'=>'Motivo sintético diferente']
     ] as $changed) {
         try {

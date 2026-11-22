@@ -55,14 +55,6 @@ function brvtalCourtesyIssue(PDO $db,int $actor,string $role,array $data): array
         $q=$db->prepare('SELECT status FROM events WHERE id=? FOR UPDATE'); $q->execute([$event]);
         $eventStatus=$q->fetchColumn();
         if (!in_array($eventStatus,['active','published'],true)) throw new DomainException('EVENT_CLOSED');
-        $q=$db->prepare('SELECT t.status, i.capacity,i.courtesy_capacity,e.capacity AS event_capacity
-            FROM event_ticket_types t
-            JOIN ticket_inventory_types i ON i.ticket_type_id=t.id AND i.event_id=t.event_id
-            JOIN ticket_inventory_events e ON e.event_id=t.event_id
-            WHERE t.id=? AND t.event_id=? FOR UPDATE');
-        $q->execute([$type,$event]); $limits=$q->fetch(PDO::FETCH_ASSOC);
-        if (!$limits || $limits['status']!=='active') throw new DomainException('CAPACITY_NOT_CONFIGURED');
-
         $q=$db->prepare('SELECT id,request_digest,ticket_type_id,category,reason FROM ticket_courtesy_invites
             WHERE event_id=? AND recipient_digest=? FOR UPDATE');
         $q->execute([$event,$recipient]); $existing=$q->fetch(PDO::FETCH_ASSOC);
@@ -78,6 +70,14 @@ function brvtalCourtesyIssue(PDO $db,int $actor,string $role,array $data): array
         $q=$db->prepare('SELECT id FROM ticket_courtesy_invites WHERE request_digest=?');
         $q->execute([$request]);
         if ($q->fetchColumn()!==false) throw new DomainException('IDEMPOTENCY_CONFLICT');
+        $q=$db->prepare('SELECT t.status, i.capacity,i.courtesy_capacity,e.capacity AS event_capacity
+            FROM event_ticket_types t
+            JOIN ticket_inventory_types i ON i.ticket_type_id=t.id AND i.event_id=t.event_id
+            JOIN ticket_inventory_events e ON e.event_id=t.event_id
+            WHERE t.id=? AND t.event_id=? FOR UPDATE');
+        $q->execute([$type,$event]); $limits=$q->fetch(PDO::FETCH_ASSOC);
+        if (!$limits || $limits['status']!=='active') throw new DomainException('CAPACITY_NOT_CONFIGURED');
+
         $utc=gmdate('Y-m-d H:i:s');
         $all=brvtal_ticket_inventory_usage($db,$event,0,$utc);
         $perType=brvtal_ticket_inventory_usage($db,$event,$type,$utc);
