@@ -52,10 +52,12 @@ releases_assert(str_contains($adminModules, 'dataset.adminNav = section'), 'shar
 $adminCss = (string)file_get_contents(__DIR__ . '/../discadmin/admin-modules.css');
 $adminIa = (string)file_get_contents(__DIR__ . '/../discadmin/admin-information-architecture.js');
 releases_assert(
-    str_contains($adminIa, "['pages','blog','media','events','artists','releases','sets']")
-        && str_contains($adminIa, "['appearance','hero-slider','theme','seo']")
-        && str_contains($adminIa, "['settings','system']"),
-    'Releases and related content destinations must use approved canonical sidebar grouping'
+    // #1892: el menú V3 agrupa Sets y Releases bajo Música.
+    preg_match("/\\{key:'music'.*?\\]\\}/s", $adminIa, $musicGroup) === 1
+        && str_contains($musicGroup[0], "{key:'sets'")
+        && str_contains($musicGroup[0], "{key:'releases'")
+        && strpos($musicGroup[0], "{key:'sets'") < strpos($musicGroup[0], "{key:'releases'"),
+    'Releases must live under Música next to Sets in the approved V3 sidebar'
 );
 releases_assert(
     preg_match('/\.nav\s*>\s*button[^{}]*\{\s*order\s*:/', $adminCss) !== 1

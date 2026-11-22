@@ -154,8 +154,8 @@ const V3_CHILDREN = {
   music:['SETS','RELEASES'],
   ticketing:['PEDIDOS','BOLETAS','COMPRADORES','CONTROL DE ACCESO','CORTESÍAS','PROMOCIONES','PROMOTORES','FINANZAS','DEVOLUCIONES'],
   mail:['HISTORIAL DE ENVÍOS','PLANTILLAS','PRUEBAS DE ENVÍO'],
-  site:['PÁGINAS','BLOG','MULTIMEDIA','BANNERS','APARIENCIA','SEO'],
-  config:['GENERAL','REDES SOCIALES Y CONTACTO','INTEGRACIONES','SEGURIDAD','ESTADO DEL SISTEMA','COPIAS DE SEGURIDAD']
+  website:['PÁGINAS','BLOG','MULTIMEDIA','BANNERS','APARIENCIA','SEO'],
+  settings:['GENERAL','REDES SOCIALES Y CONTACTO','INTEGRACIONES','SEGURIDAD','ESTADO DEL SISTEMA','COPIAS DE SEGURIDAD']
 };
 const ALL_TICKETING_TABS = ['dashboard','orders','entries','buyers','door','finance','promos','promoters','mail','settings'];
 
@@ -232,7 +232,7 @@ test('#1892 la hoja activa abre su raíz y sobrevive al re-render y a Memorias t
   await serveHarness(page);
   await page.goto(harnessUrl);
   await page.evaluate(() => window.go('hero-slider'));
-  await expect(page.locator('[data-ia-toggle="site"]')).toHaveAttribute('aria-expanded','true');
+  await expect(page.locator('[data-ia-toggle="website"]')).toHaveAttribute('aria-expanded','true');
   await expect(page.locator('[data-ia-key="hero-slider"]')).toHaveClass(/active/);
   await page.evaluate(() => {
     window.__renderShell('hero-slider');
@@ -284,7 +284,7 @@ test('#1892 Configuración enlaza a su pestaña y Atrás/Adelante la conservan',
   await serveTicketingTabs(page);
   await serveHarness(page);
   await page.goto(harnessUrl);
-  await page.locator('[data-ia-toggle="config"]').click();
+  await page.locator('[data-ia-toggle="settings"]').click();
   await page.locator('[data-ia-key="settings:integrations"]').click();
   await expect.poll(() => page.evaluate(() => window.state.section)).toBe('settings');
   await expect.poll(() => new URL(page.url()).searchParams.get('settings')).toBe('integrations');

@@ -286,7 +286,7 @@
       {key:'mail:templates', label:'PLANTILLAS', soon:true, requires:'mail'},
       {key:'mail:tests', label:'PRUEBAS DE ENVÍO', route:'settings', settings:'integrations'}
     ]},
-    {key:'site', label:'SITIO WEB', children:[
+    {key:'website', label:'SITIO WEB', children:[
       {key:'pages', label:'PÁGINAS', route:'pages'},
       {key:'blog', label:'BLOG', route:'blog'},
       {key:'media', label:'MULTIMEDIA', route:'media'},
@@ -294,7 +294,7 @@
       {key:'theme', label:'APARIENCIA', route:'theme'},
       {key:'seo', label:'SEO', route:'seo'}
     ]},
-    {key:'config', label:'CONFIGURACIÓN', children:[
+    {key:'settings', label:'CONFIGURACIÓN', children:[
       {key:'settings:general', label:'GENERAL', route:'settings', settings:'general'},
       {key:'settings:social', label:'REDES SOCIALES Y CONTACTO', route:'settings', settings:'social'},
       {key:'settings:integrations', label:'INTEGRACIONES', route:'settings', settings:'integrations'},

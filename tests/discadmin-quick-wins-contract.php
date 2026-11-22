@@ -116,7 +116,7 @@ $lastPosition = -1;
 $orderedTree = $treeSource !== '';
 foreach (["key:'dashboard', label:'ESCRITORIO'", "key:'events', label:'EVENTOS'", "key:'artists', label:'ARTISTAS'",
     "key:'music', label:'MÚSICA'", "key:'ticketing', label:'BOLETERÍA'", "key:'mail', label:'CORREOS'",
-    "key:'site', label:'SITIO WEB'", "key:'config', label:'CONFIGURACIÓN'"] as $root) {
+    "key:'website', label:'SITIO WEB'", "key:'settings', label:'CONFIGURACIÓN'"] as $root) {
     $position = strpos($treeSource, $root);
     if ($position === false || $position <= $lastPosition) { $orderedTree = false; break; }
     $lastPosition = $position;

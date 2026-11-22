@@ -51,7 +51,7 @@ test('Banners uses bounded bootstrap reads on the authenticated real stack', asy
 
   await page.goto(`${baseUrl}/discadmin/`);
   // #1892: Banners vive dentro del desplegable «Sitio web» del menú V3.
-  const site = page.locator('[data-ia-toggle="site"]');
+  const site = page.locator('[data-ia-toggle="website"]');
   await expect(site).toBeVisible();
   await site.click();
   await expect(site).toHaveAttribute('aria-expanded','true');
