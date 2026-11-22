@@ -3,6 +3,7 @@
 
   const TECH = '/discadmin/technical.php?action=overview';
   const INTEGRATIONS = '/api/admin-system-status.php';
+  const INTEGRATION_SECRETS = '/api/admin-integration-secrets.php';
   const HEALTH = '/api/content-health.php';
   const ACTIVITY = '/api/admin-activity.php?limit=5';
   const LOGS = '/discadmin/technical.php?action=logs';
@@ -713,15 +714,39 @@
       <small>AVISOS BASADOS EN MEDICIONES DISPONIBLES. SIN PLAN DE PAGO.</small></section>`;
   }
 
-  function integrationStatusPanel(result) {
+
+  function integrationStatusPanel(result, secrets) {
     const rows = result?.ok === false ? [] : (Array.isArray(result?.integrations) ? result.integrations : []);
     const workers = result?.ok === false ? [] : (Array.isArray(result?.workers) ? result.workers : []);
+    const items = secrets?.ok === false ? [] : (Array.isArray(secrets?.items) ? secrets.items : []);
+    const writable = secrets?.write_enabled === true;
     const allowed = new Set(['configurado', 'falta', 'modo sandbox']);
     const body = rows.map(item => {
       const status = allowed.has(item?.status) ? item.status : 'falta';
-      return `<div class="ssv2-quota-row" data-integration="${esc(item.id)}">
-        <strong>${esc(item.label)}</strong> <span data-integration-state>${esc(status)}</span>
-      </div>`;
+      const fields = items.filter(entry => entry.provider === item.id).map(entry => {
+        const label = esc(entry.field.replaceAll('_',' '));
+        const key = esc(entry.key);
+        const updated = entry.updated_at ? 'Actualizado: ' + esc(entry.updated_at) : 'Sin clave almacenada';
+        const attributes = ' autocomplete="off" spellcheck="false" data-secret-input="' + key +
+          '" aria-label="Nueva clave de ' + esc(item.label) + ' ' + label + '" ' +
+          (writable ? '' : 'disabled');
+        // A password input strips line breaks. PEM requires an actual multiline editor.
+        // Neither editor contains or retrieves an existing secret.
+        const editor = entry.key === 'BRVTAL_GA4_PRIVATE_KEY'
+          ? '<textarea rows="4"' + attributes + '></textarea>'
+          : '<input type="password"' + attributes + '>';
+        return '<div class="ssv2-secret-field" data-secret-row="' + key + '">' +
+          '<label>' + label + ' ' + editor + '</label>' +
+          '<button type="button" data-secret-action="POST" data-secret-key="' + key + '" ' +
+          (writable ? '' : 'disabled') + '>Guardar clave</button>' +
+          '<button type="button" data-secret-action="DELETE" data-secret-key="' + key + '" ' +
+          (writable && entry.stored ? '' : 'disabled') + '>Eliminar clave</button>' +
+          '<small>' + (entry.stored ? 'Guardada · ' : '') + updated + '</small>' +
+          '<span role="status" data-secret-feedback></span></div>';
+      }).join('');
+      return '<div class="ssv2-quota-row" data-integration="' + esc(item.id) + '">' +
+        '<strong>' + esc(item.label) + '</strong> <span data-integration-state>' + esc(status) + '</span>' +
+        fields + '</div>';
     }).join('');
     const cronRows = workers.map(item => {
       const raw = typeof item.last_execution === 'string' ? item.last_execution : '';
@@ -729,20 +754,89 @@
       const label = raw && Number.isFinite(millis)
         ? new Date(millis).toLocaleString('es-CO', {timeZone:'America/Bogota'})
         : 'sin ejecución registrada';
-      return `<div class="ssv2-quota-row" data-worker="${esc(item.id)}">
-        <strong>${esc(item.label)}</strong> <span>${esc(label)}</span>
-      </div>`;
+      return '<div class="ssv2-quota-row" data-worker="' + esc(item.id) +
+        '"><strong>' + esc(item.label) + '</strong> <span>' + esc(label) + '</span></div>';
     }).join('');
-    return `<section class="ssv2-panel" data-testid="system-integrations" aria-label="Estado de integraciones">
-      <div class="ssv2-panel-head"><span>INTEGRACIONES</span><b>ESTADO SIN CLAVES</b></div>
-      <div class="ssv2-quota-list">${body || '<div class="ssv2-empty">ESTADO NO DISPONIBLE</div>'}</div>
-      <div class="ssv2-panel-head"><span>CRONS DE CORREO</span><b>ÚLTIMA SALIDA EN LOG</b></div>
-      <div class="ssv2-quota-list">${cronRows || '<div class="ssv2-empty">SIN EVIDENCIA DE EJECUCIÓN</div>'}</div>
-      <small>CONFIGURADO NO SIGNIFICA ENVÍO, COBRO NI GO-LIVE HABILITADO.</small>
-    </section>`;
+    const notice = secrets?.ok === false
+      ? 'El estado de almacenamiento no está disponible.'
+      : writable
+        ? 'Escritura de claves habilitada: sus valores nunca se muestran.'
+        : 'Escritura bloqueada: configure una llave maestra privada y habilite el interruptor de servidor.';
+    return '<section class="ssv2-panel" data-testid="system-integrations" aria-label="Estado de integraciones">' +
+      '<div class="ssv2-panel-head"><span>INTEGRACIONES</span><b>ESTADO SIN CLAVES</b></div>' +
+      '<p data-secret-write-status>' + esc(notice) + '</p>' +
+      '<div class="ssv2-quota-list">' + (body || '<div class="ssv2-empty">ESTADO NO DISPONIBLE</div>') + '</div>' +
+      '<div class="ssv2-panel-head"><span>CRONS DE CORREO</span><b>ÚLTIMA SALIDA EN LOG</b></div>' +
+      '<div class="ssv2-quota-list">' + (cronRows || '<div class="ssv2-empty">SIN EVIDENCIA DE EJECUCIÓN</div>') + '</div>' +
+      '<small>CONFIGURADO NO SIGNIFICA ENVÍO, COBRO NI GO-LIVE HABILITADO.</small></section>';
   }
 
-  function render(root, data, health, activity, latency, quotas, integrations) {
+  function hasSecretDrafts(root) {
+    return Array.from(root.querySelectorAll('[data-secret-input]')).some(field => field.value !== '');
+  }
+
+  function refreshSavedSecretRow(row, item) {
+    if (!row || !item) return;
+    const details = row.querySelector('small');
+    if (details) details.textContent = (item.stored ? 'Guardada · ' : '') +
+      (item.updated_at ? 'Actualizado: ' + item.updated_at : 'Sin clave almacenada');
+    const save = row.querySelector('[data-secret-action="POST"]');
+    const remove = row.querySelector('[data-secret-action="DELETE"]');
+    if (save) save.disabled = false;
+    if (remove) remove.disabled = !item.stored;
+  }
+
+  function bindIntegrationSecretActions(root) {
+    root.querySelectorAll('[data-secret-action]').forEach(button => {
+      button.addEventListener('click', async () => {
+        const action = button.dataset.secretAction;
+        const key = button.dataset.secretKey;
+        const row = button.closest('[data-secret-row]');
+        const field = row?.querySelector('[data-secret-input]');
+        const feedback = row?.querySelector('[data-secret-feedback]');
+        const candidate = field?.value ?? '';
+        if (!key || !feedback || (action === 'POST' && candidate === '')) return;
+        row.querySelectorAll('button').forEach(item => { item.disabled = true; });
+        if (field) field.disabled = true;
+        feedback.textContent = 'Guardando…';
+        try {
+          const token = await csrfToken();
+          const response = await fetchJson(INTEGRATION_SECRETS, {
+            method:action,
+            headers:{'Content-Type':'application/json','X-CSRF-Token':token},
+            body:JSON.stringify(action === 'POST' ? {key,value:candidate} : {key}),
+          });
+          const saved = response.items?.find(item => item.key === key);
+          if (!saved) throw new Error('SECRET_STATUS_UNAVAILABLE');
+          if (field) field.value = '';
+          refreshSavedSecretRow(row, saved);
+          feedback.textContent = action === 'POST' ? 'Clave guardada' : 'Clave eliminada';
+          // Update the affected provider status without replacing other unsaved drafts.
+          try {
+            const status = await fetchJson(INTEGRATIONS);
+            const parent = row.closest('[data-integration]');
+            const updated = status.integrations?.find(item => item.id === parent?.dataset.integration);
+            const badge = parent?.querySelector('[data-integration-state]');
+            if (badge && ['configurado', 'falta', 'modo sandbox'].includes(updated?.status)) {
+              badge.textContent = updated.status;
+            }
+          } catch {
+            // The write succeeded: retain its accurate feedback even if status is stale.
+          }
+        } catch (error) {
+          // Never repeat a submitted secret in an error, and never store drafts.
+          if (field) field.value = '';
+          invalidateCachedCsrf(error);
+          feedback.textContent = 'Error: ' + String(error.message || 'UNAVAILABLE');
+          row.querySelectorAll('button').forEach(item => { item.disabled = false; });
+        } finally {
+          if (field) field.disabled = false;
+        }
+      });
+    });
+  }
+
+  function render(root, data, health, activity, latency, quotas, integrations, secrets) {
     if (!root.isConnected || !isSystemStatus()) return;
     const advancedOpen = root.querySelector('.ssv2-advanced')?.open === true;
     const deployment = data.deployment || {};
@@ -786,7 +880,7 @@
 
       <div class="ssv2-free-quotas-static">${freeQuotaPanel(quotas)}</div>
 
-      <div class="ssv2-integrations-static">${integrationStatusPanel(integrations)}</div>
+      <div class="ssv2-integrations-static">${integrationStatusPanel(integrations, secrets)}</div>
 
       <div class="ssv2-grid split">
         <section class="ssv2-panel"><div class="ssv2-panel-head"><span>RUNTIME / DEPLOYMENT</span><b data-testid="system-product-version">${esc(productVersion)} · ${esc(environmentLabel)}</b></div>
@@ -818,6 +912,7 @@
       advanced.open = true;
     }
     setLogActionsDisabled(root, logResetInFlight);
+    bindIntegrationSecretActions(root);
     root.querySelector('#ssv2-refresh')?.addEventListener('click', () => load(root, true));
     root.querySelector('#ssv2-load-logs')?.addEventListener('click', event => {
       void loadLogs(root, event.currentTarget);
@@ -828,25 +923,30 @@
   }
 
   async function load(root, manual=false) {
+    // Do not destructively replace pending credential drafts, even on timed refresh.
+    if (hasSecretDrafts(root)) return;
     const id = ++requestId;
     if (manual) root.classList.add('is-refreshing');
     const started = performance.now();
     try {
       const layoutPromise = fetchJson(PREFERENCES).catch(() => null);
-      const [data,health,activity,quotas,integrations] = await Promise.all([
+      const [data,health,activity,quotas,integrations,secrets] = await Promise.all([
         fetchJson(TECH),
         fetchJson(HEALTH).catch(error => unavailableSource(error)),
         fetchJson(ACTIVITY).catch(error => unavailableSource(error)),
         fetchJson(QUOTAS).catch(() => ({ok:false})),
         fetchJson(INTEGRATIONS).catch(error => unavailableSource(error)),
+        fetchJson(INTEGRATION_SECRETS).catch(error => unavailableSource(error)),
       ]);
       if (id !== requestId || !root.isConnected) return;
       const layoutPayload = await layoutPromise;
       if (id !== requestId || !root.isConnected) return;
+      if (hasSecretDrafts(root)) return;
       systemLayout = normalizeSystemLayout(layoutPayload?.data);
-      render(root,data,health,activity,performance.now()-started,quotas,integrations);
+      render(root,data,health,activity,performance.now()-started,quotas,integrations,secrets);
     } catch (error) {
       if (id !== requestId || !root.isConnected) return;
+      if (hasSecretDrafts(root)) return;
       root.innerHTML = `<div class="ssv2-fatal"><strong>SYSTEM STATUS UNAVAILABLE</strong><span>${esc(error.message)}</span><button type="button">RETRY</button></div>`;
       root.querySelector('button')?.addEventListener('click',()=>load(root,true));
     } finally {
