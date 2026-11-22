@@ -90,6 +90,12 @@ test('sidebar active selection and ticketing selected tab use the SAME brand acc
     await page.evaluate(m => window.BRVTALAdminAppearance.setMode(m), mode);
     const signal = await page.locator('.side .nav button.active').evaluate(el => getComputedStyle(el).boxShadow);
     expect(signal).toContain('rgb(196, 24, 50)');
+    // Theme Studio's lime data signal must never re-color active navigation.
+    await page.evaluate(() => document.documentElement.style.setProperty('--admin-signal', '#b8ff00'));
+    const stable = await page.locator('.side .nav button.active').evaluate(el => getComputedStyle(el).boxShadow);
+    expect(stable).toContain('rgb(196, 24, 50)');
+    const statusGreen = await page.locator('.status i').evaluate(el => getComputedStyle(el).backgroundColor);
+    expect(statusGreen).toBe('rgb(73, 217, 138)');
     const selected = page.locator('.ticketing-tabs button[aria-selected="true"]');
     const {bg,fg} = await colors(selected);
     expect(bg).toBe('rgb(196, 24, 50)');
