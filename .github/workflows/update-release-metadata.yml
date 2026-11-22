@@ -587,6 +587,34 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      # #1860: Capture each baseline/corrected Chromium viewport in an explicit
+      # test-results path. Missing evidence is a failed acceptance gate.
+      - name: Verify Cromo header plate A/B captures
+        if: success() && github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in before-390.png after-390.png before-1440.png after-1440.png; do
+            count="$(find test-results -type f -name "$name" | wc -l)"
+            if [[ "$count" -ne 1 ]]; then
+              echo "::error title=Missing Cromo evidence::$name: expected 1, observed $count"
+              exit 1
+            fi
+          done
+
+      - name: Upload Cromo header plate A/B captures
+        if: success() && github.event_name == 'pull_request'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: cromo-header-plate-ab-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_id }}
+          path: |
+            test-results/**/before-390.png
+            test-results/**/after-390.png
+            test-results/**/before-1440.png
+            test-results/**/after-1440.png
+          if-no-files-found: error
+          retention-days: 14
+
       # Public synthetic page only; captures are evidence, not approval to
       # refresh visual baselines or bypass the failing Chromium test.
       - name: Upload Concept 05 visual diff for manual review
