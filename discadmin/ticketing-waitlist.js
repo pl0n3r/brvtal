@@ -83,26 +83,62 @@ export function mountPublic(container, {eventId, typeId, csrf}) {
   label.prepend(checkbox);
   const honeypot = el('input'); honeypot.name = 'website'; honeypot.tabIndex = -1;
   honeypot.setAttribute('aria-hidden', 'true'); honeypot.hidden = true;
+  const captchaLabel = el('label', 'Verificación humana: ');
+  const captchaQuestion = el('span', 'Cargando suma…');
+  const captchaAnswer = el('input');
+  captchaAnswer.name='captcha_answer';
+  captchaAnswer.type='text';
+  captchaAnswer.inputMode='numeric';
+  captchaAnswer.pattern='[0-9]{1,2}';
+  captchaAnswer.maxLength=2;
+  captchaAnswer.required=true;
+  captchaAnswer.autocomplete='off';
+  captchaLabel.append(captchaQuestion,captchaAnswer);
   const send = el('button', 'Entrar en lista de espera'); send.type = 'submit';
+  send.disabled=true;
   const status = el('p'); status.setAttribute('role','status');
   const privacy = el('a','Privacidad y mis derechos');
   privacy.href = '/privacy';
-  form.append(label,privacy,honeypot,send);
+  form.append(label,privacy,honeypot,captchaLabel,send);
   container.append(form,status);
+  let challengeToken='';
+  async function refreshChallenge() {
+    send.disabled=true;
+    challengeToken='';
+    try {
+      const response=await fetch('/api/ticketing/waitlist.php?challenge=1',
+        {credentials:'same-origin',cache:'no-store'});
+      const data=await response.json();
+      if (!response.ok || !data.ok || typeof data.challenge?.captcha_token !== 'string'
+          || typeof data.challenge?.question !== 'string') throw Error('UNAVAILABLE');
+      challengeToken=data.challenge.captcha_token;
+      captchaQuestion.textContent=data.challenge.question;
+      captchaAnswer.value='';
+      send.disabled=false;
+    } catch {
+      captchaQuestion.textContent='Verificación no disponible';
+      status.textContent='No se puede inscribir sin completar la verificación humana.';
+    }
+  }
+  void refreshChallenge();
   form.addEventListener('submit',async event => {
     event.preventDefault();
-    if (!checkbox.checked || !csrf) return;
+    if (!checkbox.checked || !csrf || !challengeToken || !captchaAnswer.value.trim()) return;
     send.disabled = true;
     try {
       const res = await fetch('/api/ticketing/waitlist.php', {
         method:'POST',credentials:'same-origin',
         headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},
         body:JSON.stringify({action:'subscribe',event_id:eventId,ticket_type_id:typeId,
-          consent:'waitlist-v1',website:honeypot.value})
+          consent:'waitlist-v1',website:honeypot.value,
+          captcha_token:challengeToken,captcha_answer:captchaAnswer.value.trim()})
       });
       if (!res.ok) throw Error('DENIED');
       status.textContent = 'Solicitud recibida. No es una reserva ni una compra.';
-    } catch {status.textContent = 'No fue posible inscribirte; verifica tu correo y vuelve a intentarlo.';}
-    finally {send.disabled = false;}
+    } catch {
+      status.textContent='No fue posible inscribirte; comprueba la suma y vuelve a intentarlo.';
+      void refreshChallenge();
+    }
+    finally { if (challengeToken) send.disabled=false; }
   });
 }
