@@ -35,8 +35,9 @@ const css = [
 ].join('\n');
 
 function render(html, state) {
-  let result = html.replace(/<link\b[^>]*rel="stylesheet"[^>]*>/gi, '')
-    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
+  // Render original PHP markup unchanged. A restrictive, early CSP blocks all
+  // JavaScript and network fetches in this isolated, synthetic visual fixture.
+  let result = html;
   if (state === 'before') {
     const labels = ['Responsable del tratamiento', 'Correo de contacto del responsable',
       'Teléfono público del responsable', 'Domicilio del responsable',
@@ -54,7 +55,10 @@ function render(html, state) {
     : 'Texto legal pendiente de aprobación profesional. Selecciona tus cookies.';
   const cookie = '<aside class="qa-cookie" aria-label="Demo sintética de cookies"><p>' +
     copy + '</p><div class="qa-actions"><button>RECHAZAR</button><button>ACEPTAR</button></div></aside>';
-  result = result.replace('</head>', '<style>' + css + '</style></head>');
+  const csp = "<meta http-equiv=\"Content-Security-Policy\" content=\"" +
+    "default-src 'none'; script-src 'none'; connect-src 'none'; " +
+    "img-src 'none'; font-src 'none'; style-src 'unsafe-inline';\">";
+  result = result.replace('</head>', csp + '<style>' + css + '</style></head>');
   result = result.replace(/(<body\b[^>]*>)/, '$1<div class="qa-banner">' +
     'CAPTURA LOCAL DE FIXTURE SINTÉTICA · NO ES PRODUCCIÓN · ' + title +
     ' · BRVTAL #1862</div>');
@@ -73,6 +77,8 @@ test('AC-02: cuatro capturas reales de Chromium con fixture sintética a 390 y 1
     for (const state of ['before', 'after']) {
       await page.setViewportSize({ width, height: 900 });
       await page.setContent(render(php, state), { waitUntil: 'load' });
+      await expect(page.locator('meta[http-equiv="Content-Security-Policy"]'))
+        .toHaveAttribute('content', /script-src 'none'/);
       await expect(page.getByRole('heading', { name: 'Privacidad y mis derechos', exact: true })).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
       const content = await page.locator('body').innerText();
