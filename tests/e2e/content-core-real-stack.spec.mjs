@@ -479,7 +479,7 @@ test('Media writes stay behind the canonical integrity boundary in the real stac
     const filePath = String(uploaded?.data?.file_path || '');
     expect(mediaId).toBeGreaterThan(0);
     expect(filePath).toMatch(/^\/uploads\/media\//);
-    expect(uploaded?.data?.status).toBe('draft');
+    expect(uploaded?.data?.status).toBe('published'); // Uploaded Media is immediately reusable.
 
     const duplicate = await page.request.post(`${baseUrl}/api/media-library.php?action=register`, {
       headers,
