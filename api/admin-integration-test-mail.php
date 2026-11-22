@@ -29,12 +29,26 @@ try {
     }
     brvtal_admin_require_csrf($csrf);
 
-    if (brvtal_secret_value('BRVTAL_TICKET_MAIL_MODE') !== 'test') {
-        json_response(['ok'=>false,'error'=>'TEST_MODE_REQUIRED'], 409);
+    // El destino lo escribe el administrador (como en Condor); si lo deja vacío se
+    // usa el primer destinatario permitido. No depende del modo live/test (#1904).
+    $input = json_decode((string)file_get_contents('php://input', false, null, 0, 2048), true);
+    $requested = is_array($input) ? strtolower(trim((string)($input['email'] ?? ''))) : '';
+    if ($requested !== '') {
+        if (strlen($requested) > 254 || filter_var($requested, FILTER_VALIDATE_EMAIL) === false) {
+            json_response(['ok'=>false,'error'=>'TEST_RECIPIENT_INVALID'], 422);
+        }
+        $recipient = $requested;
+    } else {
+        $allowed = brvtal_ticket_test_recipients();
+        if ($allowed === []) {
+            json_response(['ok'=>false,'error'=>'TEST_RECIPIENT_REQUIRED'], 422);
+        }
+        $recipient = $allowed[0];
     }
-    $allowed = brvtal_ticket_test_recipients();
-    if ($allowed === []) {
-        json_response(['ok'=>false,'error'=>'TEST_RECIPIENTS_EMPTY'], 422);
+    if (trim((string)brvtal_secret_value('BRVTAL_TICKET_MAIL_API_KEY')) === ''
+        || trim((string)brvtal_secret_value('BRVTAL_TICKET_MAIL_FROM')) === ''
+        || trim((string)brvtal_secret_value('BRVTAL_TICKET_MAIL_DOMAIN')) === '') {
+        json_response(['ok'=>false,'error'=>'MAIL_NOT_CONFIGURED'], 409);
     }
 
     // Session-local anti-spam fence, acquired before the provider call.
@@ -48,7 +62,8 @@ try {
 
     // The endpoint never accepts an arbitrary recipient from client input.
     $job = [
-        'recipient_email' => $allowed[0],
+        'recipient_email' => $recipient,
+        'admin_test' => true,
         'message_key' => 'admin:test:' . bin2hex(random_bytes(12)),
         'subject' => 'Correo de prueba BRVTAL',
         'body_text' => 'Este es un mensaje de prueba controlado de BRVTAL. No corresponde a una compra.',
