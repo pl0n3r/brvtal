@@ -12,12 +12,12 @@
     if (!info) return;
     if (info.querySelector('.event-ticket,.event-view,.event-record')) return;
 
-    const title = (info.querySelector('h3')?.textContent || 'event').trim();
+    const title = (info.querySelector('h3')?.textContent || 'evento').replace(/^\s*#{1,3}\s+/, '').replace(/\*+/g, '').trim();
     const link = document.createElement('a');
     link.className = 'event-view mono';
     link.href = '#eventArchive';
-    link.textContent = 'VIEW NIGHTS ↓';
-    link.setAttribute('aria-label', `Explore BRVTAL events after ${title}`);
+    link.textContent = 'VER NOCHES ↓';
+    link.setAttribute('aria-label', `Explorar noches de BRVTAL después de ${title}`);
     info.appendChild(link);
   }
 

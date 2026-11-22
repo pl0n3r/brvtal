@@ -79,7 +79,7 @@ const data = {
 
 function harness() {
   const payload = JSON.stringify(data).replace(/</g, '\\u003c');
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"></head><body><main><section id="media"></section></main><script>${relatedJs}</script><script>window.BRVTALRelatedContent.init(${payload});</script></body></html>`;
+  return `<!doctype html><html lang="es"><head><meta charset="utf-8"></head><body><main><section id="media"></section></main><script>${relatedJs}</script><script>window.BRVTALRelatedContent.init(${payload});</script></body></html>`;
 }
 
 test.beforeEach(async ({ page }) => {
@@ -88,31 +88,31 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('Connected exposes Artists, Events, Sets and Releases as first-class layers', async ({ page }) => {
-  await expect(page.getByRole('tab')).toHaveText(['ARTISTS', 'EVENTS', 'SETS', 'RELEASES']);
-  await expect(page.getByRole('tab', { name: 'ARTISTS' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab')).toHaveText(['ARTISTAS', 'NOCHES', 'SETS', 'LANZAMIENTOS']);
+  await expect(page.getByRole('tab', { name: 'ARTISTAS' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('[data-related-detail] h3')).toHaveText('PL0N3R');
   await expect(page.locator('[data-related-detail]')).toContainText('GENESIS FLOOR');
   await expect(page.getByRole('tab')).toHaveCount(4);
-  await expect(page.getByRole('tab', {name:'MEMORIES'})).toHaveCount(0);
+  await expect(page.getByRole('tab', {name:'MEMORIAS'})).toHaveCount(0);
 
   await page.locator('[data-related-detail] [data-related-select][data-related-type="sets"][data-related-id="20"]').click();
   await expect(page.getByRole('tab', { name: 'SETS' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('[data-related-detail] h3')).toHaveText('PL0N3R SET');
-  await expect(page.getByRole('link', { name: 'VIEW SET ↗' })).toHaveAttribute('href', '/sets/pl0n3r-set');
-  await expect(page.getByRole('link', { name: 'OPEN PLATFORM ↗' })).toHaveAttribute('target', '_blank');
+  await expect(page.getByRole('link', { name: 'VER SET ↗' })).toHaveAttribute('href', '/sets/pl0n3r-set');
+  await expect(page.getByRole('link', { name: 'ABRIR PLATAFORMA ↗' })).toHaveAttribute('target', '_blank');
 
   await page.locator('[data-related-detail] [data-related-select][data-related-type="events"][data-related-id="10"]').click();
-  await expect(page.getByRole('tab', { name: 'EVENTS' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: 'NOCHES' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('[data-related-detail] h3')).toHaveText('NEXT NIGHT');
   await expect(page.locator('[data-related-detail]')).toContainText('GENESIS FLOOR');
-  await expect(page.locator('[data-related-summary]')).toContainText('2 MEMORY LINKS');
+  await expect(page.locator('[data-related-summary]')).toContainText('2 VÍNCULOS DE MEMORIA');
 });
 
 test('CONNECTED tabs use roving focus and the expected keyboard navigation pattern', async ({ page }) => {
-  const artists = page.getByRole('tab', { name: 'ARTISTS' });
-  const events = page.getByRole('tab', { name: 'EVENTS' });
+  const artists = page.getByRole('tab', { name: 'ARTISTAS' });
+  const events = page.getByRole('tab', { name: 'NOCHES' });
   const sets = page.getByRole('tab', { name: 'SETS' });
-  const releases = page.getByRole('tab', { name: 'RELEASES' });
+  const releases = page.getByRole('tab', { name: 'LANZAMIENTOS' });
   const panel = page.getByRole('tabpanel');
 
   await expect(artists).toHaveAttribute('tabindex', '0');
@@ -153,11 +153,11 @@ test('CONNECTED tabs use roving focus and the expected keyboard navigation patte
 
 test('Archived Event returns to its exact Archive context while active Event does not', async ({ page }) => {
   await page.evaluate(() => history.replaceState({}, '', '?network_type=events&network_id=11#network'));
-  await page.getByRole('tab', { name: 'EVENTS' }).click();
+  await page.getByRole('tab', { name: 'NOCHES' }).click();
   await page.locator('[data-related-select][data-related-type="events"][data-related-id="11"]').first().click();
 
   await expect(page.locator('[data-related-detail] h3')).toHaveText('PAST NIGHT');
-  const archiveLink = page.getByRole('link', { name: 'VIEW IN ARCHIVE ↗' });
+  const archiveLink = page.getByRole('link', { name: 'VER EN ARCHIVO ↗' });
   await expect(archiveLink).toBeVisible();
   const archiveHref = await archiveLink.getAttribute('href');
   const archiveUrl = new URL(archiveHref, page.url());
@@ -169,17 +169,43 @@ test('Archived Event returns to its exact Archive context while active Event doe
 
   await page.locator('[data-related-select][data-related-type="events"][data-related-id="10"]').first().click();
   await expect(page.locator('[data-related-detail] h3')).toHaveText('NEXT NIGHT');
-  await expect(page.getByRole('link', { name: 'VIEW IN ARCHIVE ↗' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'VER EN ARCHIVO ↗' })).toHaveCount(0);
 });
 
 test('Release detail remains inside the graph and links back to its artist', async ({ page }) => {
   await page.locator('[data-related-detail] [data-related-select][data-related-type="releases"][data-related-id="30"]').click();
-  await expect(page.getByRole('tab', { name: 'RELEASES' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: 'LANZAMIENTOS' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('[data-related-detail] h3')).toHaveText('SIGNAL 001');
-  await expect(page.getByRole('link', { name: 'VIEW RELEASE ↗' })).toHaveAttribute('href', '/releases/signal-001');
-  await expect(page.getByRole('link', { name: 'LISTEN ↗' })).toHaveAttribute('target', '_blank');
+  await expect(page.getByRole('link', { name: 'VER LANZAMIENTO ↗' })).toHaveAttribute('href', '/releases/signal-001');
+  await expect(page.getByRole('link', { name: 'ESCUCHAR ↗' })).toHaveAttribute('target', '_blank');
 
   await page.locator('[data-related-detail] [data-related-select][data-related-type="artists"][data-related-id="1"]').click();
-  await expect(page.getByRole('tab', { name: 'ARTISTS' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: 'ARTISTAS' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('[data-related-detail] h3')).toHaveText('PL0N3R');
+});
+
+
+test('Public graph preserves literal # and * while stripping valid Markdown links and emphasis', async ({ page }) => {
+  const fixture = {
+    artists: [
+      { id:1, name:'C# #1 *', slug:'c-hash' },
+      { id:2, name:'** ZEBTS** __Noche__', slug:'zebts' },
+      { id:3, name:'[Conexión](https://example.org/a_(b(c)))', slug:'conexion' },
+    ],
+    events: [], archive: { events: [] }, sets: [], releases: [],
+    relations: { artists:{'1':{},'2':{},'3':{}}, counts:{} },
+  };
+  const payload=JSON.stringify(fixture).replace(/</g,'\\u003c');
+  await page.route(harnessUrl, route => route.fulfill({
+    contentType:'text/html; charset=utf-8',
+    body: '<!doctype html><html lang="es"><body><main><section id="media"></section></main>' +
+      '<script>' + relatedJs + '</script><script>window.BRVTALRelatedContent.init(' +
+      payload + ');</script></body></html>',
+  }));
+  await page.goto(harnessUrl);
+  await expect(page.locator('[data-related-detail] h3')).toHaveText('C# #1 *');
+  await page.getByRole('button', { name:/ZEBTS Noche/ }).first().click();
+  await expect(page.locator('[data-related-detail] h3')).toHaveText('ZEBTS Noche');
+  await page.getByRole('button', { name:/Conexión/ }).first().click();
+  await expect(page.locator('[data-related-detail] h3')).toHaveText('Conexión');
 });

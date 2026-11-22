@@ -86,7 +86,7 @@ related_expect(str_contains($archiveJs, "searchParams.get('v')"), 'Related Conte
 related_expect(str_contains($archiveJs, "relatedAssetUrl('/js/related-content.js')"), 'Public related-content module must use the inherited deploy version');
 related_expect(str_contains($archiveJs, "relatedAssetUrl('/css/related-content.css')"), 'Related Content stylesheet must use the inherited deploy version');
 related_expect(!str_contains($archiveJs, "import('/js/related-content.js')"), 'Public related-content module must not be imported through an unversioned URL');
-related_expect(str_contains($relatedJs, 'RELATED CONTENT / PUBLIC GRAPH'), 'Related Content UI must render as a BRVTAL public graph explorer');
+related_expect(str_contains($relatedJs, 'CONTENIDO RELACIONADO / RED PÚBLICA'), 'Related Content UI must render as a BRVTAL public graph explorer');
 related_expect(str_contains($relatedJs, 'data-related-mode="sets"'), 'Connected must expose Sets as a first-class graph layer');
 related_expect(str_contains($relatedJs, 'data-related-mode="releases"'), 'Connected must expose Releases as a first-class graph layer');
 related_expect(str_contains($relatedJs, 'function renderSetDetail'), 'Connected must render contextual Set detail');
@@ -94,7 +94,7 @@ related_expect(str_contains($relatedJs, 'function renderReleaseDetail'), 'Connec
 related_expect(str_contains($relatedJs, "['artists','events','sets','releases']"), 'All four canonical entity types must be navigable inside the graph');
 related_expect(str_contains($relatedJs, "entityUrl('sets', set.slug)"), 'Set graph detail must preserve the canonical public Set route');
 related_expect(str_contains($relatedJs, "entityUrl('releases', release.slug)"), 'Release graph detail must preserve the canonical public Release route');
-related_expect(str_contains($relatedJs, "group('RELEASES'"), 'Artist discovery must include Releases');
+related_expect(str_contains($relatedJs, "group('LANZAMIENTOS'"), 'Artist discovery must include Releases');
 related_expect(str_contains($relatedCss, 'grid-template-columns:repeat(4,minmax(0,1fr))'), 'Connected desktop tabs must accommodate all four graph layers');
 related_expect(str_contains($relatedCss, 'grid-template-columns:repeat(2,minmax(0,1fr))'), 'Connected mobile tabs must remain usable with four graph layers');
 
