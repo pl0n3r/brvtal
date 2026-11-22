@@ -115,7 +115,7 @@ test('Banners media buttons never render untrusted Media Library values as HTML'
   await open(page, {media:[{id:77,type:'image',file_path:mediaPath,title:mediaTitle}]});
 
   const picker = page.locator('button[data-media-picker="desktopSrc"]');
-  await expect(picker).toHaveText('SELECT MEDIA');
+  await expect(picker).toHaveText('ELEGIR ARCHIVO');
   await expect(page.locator('select[data-media-picker], select[data-layer-media]')).toHaveCount(0);
   await expect(page.locator('.hero-manager')).not.toContainText(mediaTitle);
   await expect(page.locator('.hero-manager')).not.toContainText(mediaPath);
@@ -134,7 +134,7 @@ test('Banners renders from the scoped setting before Media Library hydration fin
   await expect(page.locator('.hero-manager')).toBeVisible();
   const picker = page.locator('[data-media-picker="desktopSrc"]');
   await expect(picker).toBeDisabled();
-  await expect(picker).toHaveText('SELECT MEDIA');
+  await expect(picker).toHaveText('ELEGIR ARCHIVO');
   await expect(page.locator('[data-save-slider]')).toBeDisabled();
 
   const stateAtFirstRender = await page.evaluate(() => ({

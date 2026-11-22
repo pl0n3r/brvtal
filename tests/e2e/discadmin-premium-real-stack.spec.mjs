@@ -38,19 +38,20 @@ test('real DISCADMIN shows the canonical product version across navigation and r
   await page.goto(`${baseUrl}/discadmin/`, {waitUntil:'domcontentloaded'});
   await page.waitForFunction(() => Boolean(window.state?.authed), null, {timeout:10_000});
 
-  const expected = `BRVTAL v${expectedProductVersion}`;
-  await expect(page.getByTestId('admin-product-version')).toHaveText(expected);
+  const expected = expectedProductVersion;
+  await expect(page.getByTestId('admin-product-version')).toHaveAttribute('data-release', expected);
+  await expect(page.getByTestId('admin-product-version')).toContainText('BRVTAL');
 
   await page.evaluate(async () => {
     if (typeof window.go !== 'function') throw new Error('DISCADMIN navigation is unavailable');
     await window.go('settings');
   });
   await expect(page.getByTestId('settings-v2-root')).toBeVisible({timeout:10_000});
-  await expect(page.getByTestId('admin-product-version')).toHaveText(expected);
+  await expect(page.getByTestId('admin-product-version')).toHaveAttribute('data-release', expected);
 
   await page.reload({waitUntil:'domcontentloaded'});
   await page.waitForFunction(() => Boolean(window.state?.authed), null, {timeout:10_000});
-  await expect(page.getByTestId('admin-product-version')).toHaveText(expected);
+  await expect(page.getByTestId('admin-product-version')).toHaveAttribute('data-release', expected);
 });
 
 test('real DISCADMIN uses the readable premium type scale on desktop and mobile', async ({ page }) => {
