@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 
 const source=readFileSync(new URL('../../discadmin/settings-v2.js',import.meta.url),'utf8');
 const css=readFileSync(new URL('../../discadmin/settings-v2.css',import.meta.url),'utf8');
@@ -83,4 +84,12 @@ test('AC-02: fallo de modo y diseño móvil sin destinatarios visibles',async({p
   await card.getByRole('button',{name:'Enviar correo de prueba'}).click();
   await expect(card.locator('[data-secret-feedback]')).toContainText('Activa el modo test');
   expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(391);
+});
+
+
+test('AC-01: contrato PHP ejecutado offline con configuración privada sintética',()=>{
+  const output=execFileSync('php',['tests/integration/ticketing-mail-test-mode.php'],{
+    cwd:process.cwd(),timeout:20000,encoding:'utf8',env:{...process.env,BRVTAL_TICKET_MAIL_MODE:'disabled'}
+  });
+  expect(output).toContain('BRVTAL test mail allowlist, prefix, strict suppression and live isolation passed.');
 });

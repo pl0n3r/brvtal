@@ -12,14 +12,16 @@ function mail_test_assert(bool $ok, string $message): void
 
 $job = ['recipient_email'=>'allowed@example.test','message_key'=>'admin:test:synthetic:1',
     'subject'=>'Confirmación', 'body_text'=>'Mensaje sintético'];
-putenv('BRVTAL_TICKET_MAIL_MODE=test');
-putenv('BRVTAL_TICKET_MAIL_TEST_RECIPIENTS=allowed@example.test, second@example.test');
-putenv('BRVTAL_TICKET_MAIL_API_KEY=re_SYNTHETIC_TEST_ONLY_12345');
-putenv('BRVTAL_TICKET_MAIL_DOMAIN=example.test');
-putenv('BRVTAL_TICKET_MAIL_FROM=BRVTAL QA <sender@example.test>');
-putenv('BRVTAL_TICKET_MAIL_ALLOW_LIVE=0');
-putenv('BRVTAL_TICKET_MAIL_PRIVACY_APPROVED=0');
-putenv('BRVTAL_TICKET_MAIL_DNS_VERIFIED=0');
+// Private config wins over encrypted storage and env; isolated synthetic values
+// avoid any database dependency or network during this transport contract.
+$GLOBALS['config'] = ['ticketing' => ['mail' => [
+    'mode'=>'test',
+    'test_recipients'=>'allowed@example.test, second@example.test',
+    'api_key'=>'re_SYNTHETIC_TEST_ONLY_12345',
+    'domain'=>'example.test',
+    'from'=>'BRVTAL QA <sender@example.test>',
+    'allow_live'=>'0', 'privacy_approved'=>'0', 'dns_verified'=>'0',
+]]];
 
 $calls = [];
 $request = static function (array $payload, array $headers) use (&$calls): array {
@@ -41,25 +43,25 @@ $suppressed = brvtal_ticket_resend_send($blocked, $request);
 mail_test_assert($suppressed['state'] === 'suppressed_test', 'unlisted recipient suppressed');
 mail_test_assert(count($calls) === 1, 'no provider call for unlisted recipient');
 
-putenv('BRVTAL_TICKET_MAIL_TEST_RECIPIENTS=invalid-address, allowed@example.test');
+$GLOBALS['config']['ticketing']['mail']['test_recipients'] = 'invalid-address, allowed@example.test';
 mail_test_assert(brvtal_ticket_resend_send($job, $request)['state'] === 'suppressed_test',
     'invalid list fails closed');
 mail_test_assert(count($calls) === 1, 'invalid list never contacts provider');
-putenv('BRVTAL_TICKET_MAIL_TEST_RECIPIENTS=');
+$GLOBALS['config']['ticketing']['mail']['test_recipients'] = '';
 mail_test_assert(brvtal_ticket_resend_send($job, $request)['state'] === 'suppressed_test',
     'empty list fails closed');
 
-putenv('BRVTAL_TICKET_MAIL_TEST_RECIPIENTS=allowed@example.test');
-putenv('BRVTAL_TICKET_MAIL_API_KEY');
+$GLOBALS['config']['ticketing']['mail']['test_recipients'] = 'allowed@example.test';
+$GLOBALS['config']['ticketing']['mail']['api_key'] = '';
 mail_test_assert(brvtal_ticket_resend_send($job, $request)['code'] === 'invalid_configuration',
     'test mode needs real configured transport credentials');
 mail_test_assert(count($calls) === 1, 'missing key never invokes provider');
 
-putenv('BRVTAL_TICKET_MAIL_MODE=live');
-putenv('BRVTAL_TICKET_MAIL_API_KEY=re_SYNTHETIC_TEST_ONLY_12345');
+$GLOBALS['config']['ticketing']['mail']['mode'] = 'live';
+$GLOBALS['config']['ticketing']['mail']['api_key'] = 're_SYNTHETIC_TEST_ONLY_12345';
 mail_test_assert(brvtal_ticket_resend_send($job, $request)['code'] === 'transport_disabled',
     'live gates are unchanged');
-putenv('BRVTAL_TICKET_MAIL_MODE=disabled');
+$GLOBALS['config']['ticketing']['mail']['mode'] = 'disabled';
 mail_test_assert(brvtal_ticket_resend_send($job, $request)['code'] === 'transport_disabled',
     'disabled remains disabled');
 mail_test_assert(count($calls) === 1, 'no accidental external calls');
