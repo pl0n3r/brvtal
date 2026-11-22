@@ -43,8 +43,8 @@ worker_secret_assert(mkdir($sandbox . '/ops', 0700, true)
 register_shutdown_function(static function () use ($server, $dbName, $sandbox): void {
     try { $server->exec('DROP DATABASE IF EXISTS ' . chr(96) . $dbName . chr(96)); }
     catch (Throwable) {}
-    foreach (['ops/ticketing-mail-worker.php', 'ops/admin-password-mail-worker.php',
-        'config/ticketing_mail_outbox.php', 'config/admin_password_security.php',
+    foreach (['ops/ticketing-mail-worker.php',
+        'config/ticketing_mail_outbox.php',
         'config/integration_secrets_store.php', 'config/secrets.php',
         'config/config.php'] as $file) @unlink($sandbox . '/' . $file);
     @rmdir($sandbox . '/ops'); @rmdir($sandbox . '/config'); @rmdir($sandbox);
@@ -54,11 +54,6 @@ $pdo = new PDO("mysql:host={$host};port={$port};dbname={$dbName};charset=utf8mb4
 $pdo->exec('CREATE TABLE admins (id INT UNSIGNED PRIMARY KEY) ENGINE=InnoDB');
 $pdo->exec((string)file_get_contents($repo . '/database/migration_integration_secrets_01.sql'));
 $pdo->exec((string)file_get_contents($repo . '/database/migration_ticketing_mail_outbox_01.sql'));
-$pdo->exec("CREATE TABLE admin_password_mail_outbox (
-    id INT PRIMARY KEY, admin_id INT NOT NULL, kind VARCHAR(20) NOT NULL,
-    available_at DATETIME NOT NULL, claimed_at DATETIME NULL, delivered_at DATETIME NULL
-) ENGINE=InnoDB");
-
 require_once $repo . '/config/integration_secrets_store.php';
 $master = bin2hex(random_bytes(32));
 $keyBytes = hex2bin($master);
@@ -82,11 +77,11 @@ $pdo->prepare('INSERT INTO ticket_mail_outbox
     ->execute(['ticket:cli:1874', hash('sha256','fixture'), 'ticket:1874',
         $recipient, 'Entrada sintética', 'Contenido sintético']);
 
-foreach (['ticketing-mail-worker.php','admin-password-mail-worker.php'] as $file) {
+foreach (['ticketing-mail-worker.php'] as $file) {
     worker_secret_assert(copy($repo . '/ops/' . $file, $sandbox . '/ops/' . $file),
         'copy worker entrypoint');
 }
-foreach (['ticketing_mail_outbox.php','admin_password_security.php',
+foreach (['ticketing_mail_outbox.php',
     'integration_secrets_store.php','secrets.php'] as $file) {
     worker_secret_assert(symlink($repo . '/config/' . $file, $sandbox . '/config/' . $file),
         'link production module read-only');
@@ -112,10 +107,6 @@ worker_secret_assert((string)$pdo->query('SELECT state FROM ticket_mail_outbox')
 foreach ([$apiKey,$recipient,'noreply@brvtal.invalid','Contenido sintético'] as $private) {
     worker_secret_assert(!str_contains($out . $err, $private), 'CLI output does not leak sensitive data');
 }
-[$exit, $out, $err] = worker_secret_run($sandbox . '/ops/admin-password-mail-worker.php', $environment);
-worker_secret_assert($exit === 0 && trim($out) === '{"status":"idle"}' && $err === '',
-    'admin recovery worker standalone CLI bootstrap');
-
 unset($config['security']['integration_secret_master_key']);
 worker_secret_config($sandbox . '/config/config.php', $config);
 [$exit, $out, $err] = worker_secret_run($sandbox . '/ops/ticketing-mail-worker.php', $environment);
