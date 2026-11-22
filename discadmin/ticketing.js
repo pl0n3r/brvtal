@@ -107,6 +107,15 @@ window.BRVTALTicketing = (() => {
           panel.replaceChildren(element('p', 'Finanzas no disponibles.', 'ticketing-error'));
       });
     }
+    if (key === 'promos') {
+      import('/discadmin/ticketing-promos.js').then(mod => {
+        if (panel.isConnected && panel.getAttribute('aria-labelledby') === active.id)
+          mod.mount(panel);
+      }).catch(() => {
+        if (panel.isConnected && panel.getAttribute('aria-labelledby') === active.id)
+          panel.replaceChildren(element('p', 'Promos no disponibles.', 'ticketing-error'));
+      });
+    }
     if (key === 'settings') {
       const group = element('fieldset', undefined, 'ticketing-settings');
       group.appendChild(element('legend', 'Integraciones (solo consulta)'));
