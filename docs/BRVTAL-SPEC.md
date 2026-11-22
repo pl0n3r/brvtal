@@ -251,6 +251,8 @@ Media may be reused by multiple pieces of content. Before deletion, references m
 
 The reusable Media Library, picker, metadata, reference detection, sidecars and protected deletion flow are implemented foundations.
 
+**Media publication by default (#1841).** Uploaded files and authenticated HTTPS imports (which reuse the same upload endpoint) are available as `published` Media assets without a separate publishing step. The Media inspector no longer exposes the old publish toggle in its normal metadata workflow. Banners may select older registered draft assets; saving an enabled Hero Slider slide promotes **only referenced local drafts** in the same transaction as the settings write, with an audit event. Invalid paths, unregistered files, missing files, mismatched types and non-HTTPS external URLs still fail closed. Disabled slides and unreferenced drafts remain untouched; publishing an asset does not publish its containing editorial record.
+
 The public Media experience supports search and image/video/audio filtering. Images open in an accessible viewer; audio and video use native browser controls and all content remains limited to published API records.
 
 ## 18. Media Engine
