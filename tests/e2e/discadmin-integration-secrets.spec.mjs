@@ -87,7 +87,8 @@ test('AC-02: System status saves and removes a synthetic Sentry DSN without expo
   await smtpDraft.fill('smtp.synthetic.invalid');
   await field.fill(synthetic);
   await row.getByRole('button',{name:'Guardar clave'}).click();
-  await expect(row.getByText('Guardada', {exact:false})).toBeVisible();
+  await expect(row.locator('[data-secret-feedback]')).toHaveText('Clave guardada');
+  await expect(row.locator('small')).toContainText('Guardada');
   await expect(smtpDraft).toHaveValue('smtp.synthetic.invalid');
   await page.locator('#ssv2-refresh').click();
   await expect(smtpDraft).toHaveValue('smtp.synthetic.invalid');
@@ -129,7 +130,8 @@ test('AC-02: multiline synthetic GA4 RSA PEM survives the write-only editor and 
   await editor.fill(privateKey);
   await expect(editor).toHaveValue(privateKey);
   await row.getByRole('button',{name:'Guardar clave'}).click();
-  await expect(row.getByText('Guardada',{exact:false})).toBeVisible();
+  await expect(row.locator('[data-secret-feedback]')).toHaveText('Clave guardada');
+  await expect(row.locator('small')).toContainText('Guardada');
   await expect(editor).toHaveValue('');
   const stored=await page.evaluate(()=>window.integrationFixture.ga4Value);
   expect(stored).toBe(privateKey);
