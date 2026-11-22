@@ -1,0 +1,9 @@
+# Issue #1883 — capturas reales y serialización de Settings
+
+Estas capturas se obtuvieron con **Playwright Chromium**, fixtures sintéticos y sin credenciales reales, en [CI #45032744496](https://github.com/pl0n3r/brvtal/actions/runs/45032744496) para `a65e5ed2100dc1a7390018cd649e29ce812bafdb`. [Descargar las cuatro imágenes en el artefacto de CI](https://github.com/pl0n3r/brvtal/actions/runs/45032744496/artifacts/14758064380), donde se incluyen `antes-serializacion-390.png`, `despues-serializacion-390.png`, `antes-serializacion-1440.png` y `despues-serializacion-1440.png`.
+
+Antes: formulario Integraciones previo a POST suspendido. Después: el mismo Settings remontado durante el guardado Resend; muestra «Guardando…» y sus controles `disabled` con `aria-busy=true`, mientras otros proveedores siguen disponibles. Las capturas no acreditan un SHA posterior: se ejecutará Chromium de nuevo para el HEAD integrado.
+
+**QA:** la regresión deja una respuesta POST multiclave pendiente, remonta la tarjeta, bloquea la segunda escritura incluso con click artificial, deja terminar ambas escrituras viejas y comprueba que solo después puede guardarse el valor nuevo; incluye prueba de DELETE pendiente, bloqueo de correo de prueba, CSRF y privacidad del DOM/respuestas. 
+**Diseño:** Factory `impeccable` modo Operate, `reference/craft-floor.md` y `make-interfaces-feel-better`: 390/1440, tarjetas y espaciados existentes, estados accesibles, un único Guardar por proveedor, copy en español y sin estilos nuevos.
+**Seguridad:** el registro `Map` contiene exclusivamente IDs de proveedor y mensajes públicos de estado, nunca tokens ni secretos; las operaciones antiguas terminan antes de habilitar mutaciones nuevas. La integración del nuevo campo de email de PR #1905 se mantiene, con captura previa al bloqueo de DOM; no se cambia el API, sesión, CSRF, despliegue ni configuración real.
