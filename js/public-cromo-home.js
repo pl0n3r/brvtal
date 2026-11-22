@@ -74,10 +74,11 @@
 
   // Remove recognized Markdown delimiters, not literal C#, #1, or unpaired *.
   const stripPlainMarkdown = value => stripLinks(String(value ?? ''))
-    .replace(/(?<!\*)\*\*[ \t]*([^*\r\n]*?\S)[ \t]*\*\*(?!\*)/g, '$1')
-    .replace(/(?<!\*)\*[ \t]*([^*\r\n]*?\S)[ \t]*\*(?!\*)/g, '$1')
-    .replace(/(?<![\p{L}\p{N}_])__[ \t]*([^_\r\n]*?\S)[ \t]*__(?![\p{L}\p{N}_])/gu, '$1')
-    .replace(/(?<![\p{L}\p{N}_])_[ \t]*([^_\r\n]*?\S)[ \t]*_(?![\p{L}\p{N}_])/gu, '$1')
+    // Each pair is bounded by its delimiter; unmatched editorial marks survive.
+    .replace(/(?<!\*)\*\*([^*\r\n]+)\*\*(?!\*)/g, (_, inner) => inner.trim())
+    .replace(/(?<!\*)\*([^*\r\n]+)\*(?!\*)/g, (_, inner) => inner.trim())
+    .replace(/(?<![\p{L}\p{N}_])__([^_\r\n]+)__(?![\p{L}\p{N}_])/gu, (_, inner) => inner.trim())
+    .replace(/(?<![\p{L}\p{N}_])_([^_\r\n]+)_(?![\p{L}\p{N}_])/gu, (_, inner) => inner.trim())
     .replace(/^[ \t]{0,3}#{1,3}[ \t]+/gm, '')
     .replace(/^[ \t]*[-*][ \t]+/gm, '');
 

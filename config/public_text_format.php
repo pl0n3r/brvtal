@@ -5,10 +5,17 @@ declare(strict_types=1);
 /** Normalize padded Markdown emphasis while preserving HTML escaping. */
 function brvtalPublicTextNormalizeEmphasis(string $text): string
 {
-    // Never match the closing delimiter of a previous span as a new opener.
-    // Excluding interior asterisks keeps adjacent spans and their spaces intact.
-    $text = preg_replace('/(?<![\pL\pN_*])\*\*[ \t]+(?=\S)([^*\r\n]*?\S)[ \t]*\*\*(?!\*)/u', '**$1**', $text) ?? $text;
-    return preg_replace('/(?<![\pL\pN_*])\*[ \t]+(?=\S)([^*\r\n]*?\S)[ \t]*\*(?!\*)/u', '*$1*', $text) ?? $text;
+    // Only normalize padded opening delimiters; never cross an existing span.
+    $text = preg_replace_callback(
+        '/(?<![\pL\pN_*])\*\*[ \t]+([^*\s][^*\r\n]*)\*\*(?!\*)/u',
+        static fn(array $match): string => '**' . rtrim($match[1]) . '**',
+        $text
+    ) ?? $text;
+    return preg_replace_callback(
+        '/(?<![\pL\pN_*])\*[ \t]+([^*\s][^*\r\n]*)\*(?!\*)/u',
+        static fn(array $match): string => '*' . rtrim($match[1]) . '*',
+        $text
+    ) ?? $text;
 }
 
 function brvtalPublicTextEmphasis(string $text): string
