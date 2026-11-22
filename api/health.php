@@ -4,6 +4,16 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/bootstrap.php';
 require_once __DIR__ . '/../config/deployment.php';
 require_once __DIR__ . '/../config/deploy_readiness.php';
+require_once __DIR__ . '/../config/buyer_auth_mail_templates.php';
+
+// Coarse public signal only. Never expose the key, exception reason or class.
+$buyerRegistrationReady = true;
+try {
+    brvtalBuyerMailCipherKey();
+} catch (Throwable) {
+    $buyerRegistrationReady = false;
+}
+
 
 // Public readiness is deliberately coarse. Detailed database and migration
 // diagnostics remain available through authenticated DISCADMIN endpoints.
@@ -30,6 +40,7 @@ try {
         'app' => 'BRVTAL',
         'status' => $readiness['status'],
         'version' => BRVTAL_APP_VERSION,
+        'buyer_registration_ready' => $buyerRegistrationReady,
         'release_sha' => $readiness['release_sha'],
         'deployment' => $deployment,
     ], $statusCode);
@@ -46,6 +57,7 @@ try {
         'app' => 'BRVTAL',
         'status' => 'degraded',
         'version' => BRVTAL_APP_VERSION,
+        'buyer_registration_ready' => $buyerRegistrationReady,
         'release_sha' => $readiness['release_sha'],
         'deployment' => $deployment,
     ], 503);

@@ -8,6 +8,169 @@ function buyerAuthAssert(bool $ok, string $reason): void
     if (!$ok) throw new RuntimeException('BUYER AUTH CONTRACT FAILED: ' . $reason);
 }
 
+/**
+ * #1909: isolated real HTTP requests, disposable MariaDB and a throwaway log.
+ * No production keys, external mail or persistent test data are involved.
+ */
+function buyerAuthMissingMailKeyHttpCheck(
+    PDO $db, string $dbName, string $host, int $port, string $dbUser, string $dbPass,
+    array $input
+): void {
+    buyerAuthAssert(function_exists('proc_open') && function_exists('stream_socket_server'),
+        'HTTP integration requires a local PHP server');
+    $root = dirname(__DIR__, 2);
+    $directory = sys_get_temp_dir() . '/brvtal-buyer-1909-' . bin2hex(random_bytes(6));
+    buyerAuthAssert(mkdir($directory, 0700), 'create disposable HTTP fixture directory');
+    $process = null;
+    $pipes = [];
+    try {
+        $configPath = $directory . '/config.php';
+        $prependPath = $directory . '/prepend.php';
+        $loggerPath = $directory . '/brvtal.log';
+        $serverLog = $directory . '/server.log';
+        $fixture = [
+            'app' => ['timezone' => 'America/Bogota', 'debug' => false],
+            'db' => [
+                'host' => $host, 'port' => $port, 'name' => $dbName,
+                'user' => $dbUser, 'pass' => $dbPass, 'charset' => 'utf8mb4',
+            ],
+            'security' => [
+                'csrf_key' => str_repeat('brvtal-1909-synthetic-csrf-', 3),
+                // encryption_key deliberately absent.
+            ],
+            'ticketing' => ['mail' => [
+                'testing' => '1', 'privacy_approved' => '1', 'mode' => 'disabled',
+            ]],
+        ];
+        buyerAuthAssert(file_put_contents($configPath,
+            '<?php return ' . var_export($fixture, true) . ';') !== false,
+            'write temporary synthetic HTTP config');
+        chmod($configPath, 0600);
+        $prepend = '<?php define("BRVTAL_SENTRY_TESTING", true); '
+            . '$GLOBALS["brvtalBootstrapConfigPath"] = ' . var_export($configPath, true) . '; '
+            . '$GLOBALS["brvtalSentryTestLogFile"] = ' . var_export($loggerPath, true) . ';';
+        buyerAuthAssert(file_put_contents($prependPath, $prepend) !== false,
+            'write temporary logger redirect');
+        chmod($prependPath, 0600);
+
+        $listener = stream_socket_server('tcp://127.0.0.1:0', $errorNo, $errorString);
+        buyerAuthAssert($listener !== false, 'allocate local-only HTTP port');
+        $bound = stream_socket_get_name($listener, false);
+        fclose($listener);
+        $listenPort = (int) substr(strrchr((string) $bound, ':'), 1);
+        buyerAuthAssert($listenPort > 0, 'local HTTP port valid');
+
+        $environment = (array) getenv();
+        $environment['BRVTAL_TICKET_MAIL_TESTING'] = '1';
+        $environment['BRVTAL_TICKET_MAIL_PRIVACY_APPROVED'] = '1';
+        $environment['BRVTAL_TICKET_MAIL_MODE'] = 'disabled';
+        $command = [PHP_BINARY, '-d', 'auto_prepend_file=' . $prependPath,
+            '-S', '127.0.0.1:' . $listenPort, '-t', $root];
+        $process = proc_open($command, [
+            0 => ['pipe', 'r'],
+            1 => ['file', $serverLog, 'a'],
+            2 => ['file', $serverLog, 'a'],
+        ], $pipes, $root, $environment);
+        buyerAuthAssert(is_resource($process), 'start local-only PHP HTTP server');
+        if (isset($pipes[0]) && is_resource($pipes[0])) {
+            fclose($pipes[0]);
+        }
+        $url = 'http://127.0.0.1:' . $listenPort;
+        $send = static function (string $path, string $method = 'GET',
+            ?array $data = null, array $headers = []) use ($url): array {
+            $requestHeaders = array_merge(['Connection: close'], $headers);
+            $options = ['method' => $method, 'ignore_errors' => true, 'timeout' => 8];
+            if ($data !== null) {
+                $requestHeaders[] = 'Content-Type: application/json';
+                $options['content'] = json_encode($data, JSON_THROW_ON_ERROR);
+            }
+            $options['header'] = implode("\r\n", $requestHeaders);
+            $context = stream_context_create(['http' => $options]);
+            $response = @file_get_contents($url . $path, false, $context);
+            $receivedHeaders = $http_response_header ?? [];
+            preg_match('~^HTTP/\S+ ([0-9]{3})~', (string) ($receivedHeaders[0] ?? ''), $matches);
+            return [
+                'status' => (int) ($matches[1] ?? 0),
+                'json' => is_string($response) ? json_decode($response, true) : null,
+                'headers' => $receivedHeaders,
+            ];
+        };
+        $session = null;
+        for ($attempt = 0; $attempt < 30; ++$attempt) {
+            $response = $send('/api/buyer/auth.php');
+            if ($response['status'] === 200) {
+                $session = $response;
+                break;
+            }
+            usleep(100_000);
+        }
+        buyerAuthAssert(is_array($session) && is_array($session['json'] ?? null),
+            'session + CSRF HTTP handshake');
+        $csrf = $session['json']['csrf'] ?? null;
+        buyerAuthAssert(is_string($csrf) && strlen($csrf) > 20,
+            'session contains a nontrivial CSRF token');
+        $cookie = null;
+        foreach ($session['headers'] as $header) {
+            if (stripos($header, 'Set-Cookie: BRVTAL_BUYER=') === 0) {
+                $cookie = explode(';', substr($header, strlen('Set-Cookie: ')), 2)[0];
+                break;
+            }
+        }
+        buyerAuthAssert(is_string($cookie), 'buyer cookie retained');
+
+        // Challenge timestamp is already 3 seconds old; no artificial test delay.
+        $challenge = brvtal_public_abuse_challenge($fixture, 'register', time() - 3);
+        preg_match('/^(\d+) \+ (\d+) = \?$/', $challenge['question'], $answer);
+        buyerAuthAssert(count($answer) === 3, 'synthetic challenge was generated');
+        $payload = $input;
+        $payload['action'] = 'register';
+        $payload['website'] = '';
+        $payload['privacy_accepted'] = true;
+        $payload['captcha_token'] = $challenge['captcha_token'];
+        $payload['captcha_answer'] = (int) $answer[1] + (int) $answer[2];
+        $register = $send('/api/buyer/auth.php', 'POST', $payload, [
+            'Cookie: ' . $cookie, 'X-CSRF-Token: ' . $csrf,
+        ]);
+        buyerAuthAssert($register['status'] === 503
+            && $register['json'] === ['ok' => false, 'error' => 'BUYER_MAIL_PENDING'],
+            'missing mail key keeps the exact public 503 contract');
+        $logged = (string) @file_get_contents($loggerPath);
+        buyerAuthAssert(str_contains($logged, '[BUYER_REGISTER_FAILED]')
+            && str_contains($logged, '"class":"RuntimeException"')
+            && str_contains($logged, '"code":"BUYER_MAIL_KEY_UNAVAILABLE"'),
+            'internal code and exception class recorded in isolated log');
+        buyerAuthAssert(!str_contains($logged, (string) $input['email'])
+            && !str_contains($logged, (string) $input['password'])
+            && !str_contains($logged, '"trace"')
+            && !str_contains($logged, 'captcha_token'),
+            'no account PII, password, CAPTCHA bearer or stack traces logged');
+        buyerAuthAssert((int) $db->query('SELECT COUNT(*) FROM ticket_buyers')->fetchColumn() === 0
+            && (int) $db->query('SELECT COUNT(*) FROM ticket_buyer_tokens')->fetchColumn() === 0
+            && (int) $db->query('SELECT COUNT(*) FROM ticket_mail_outbox')->fetchColumn() === 0,
+            'missing key rolls back buyer, token and mail queue atomically');
+
+        $health = $send('/api/health.php');
+        buyerAuthAssert(in_array($health['status'], [200, 503], true)
+            && is_array($health['json'])
+            && ($health['json']['buyer_registration_ready'] ?? null) === false,
+            'public health reports only aggregate buyer readiness on missing key');
+        $publicPayload = json_encode($health['json'], JSON_THROW_ON_ERROR);
+        buyerAuthAssert(!str_contains($publicPayload, 'encryption_key')
+            && !str_contains($publicPayload, 'BUYER_MAIL_KEY_UNAVAILABLE')
+            && !str_contains($publicPayload, (string) $input['email']),
+            'health endpoint does not expose configuration or private reasons');
+    } finally {
+        if (is_resource($process)) {
+            proc_terminate($process);
+            proc_close($process);
+        }
+        foreach (glob($directory . '/*') ?: [] as $file) {
+            if (is_file($file)) unlink($file);
+        }
+        @rmdir($directory);
+    }
+}
+
 if (getenv('BRVTAL_INTEGRATION_TESTS') !== '1') {
     echo "BRVTAL buyer-auth MariaDB integration skipped (synthetic-only).\n";
     return;
@@ -55,6 +218,7 @@ register_shutdown_function(static function () use ($rateDirectory): void {
 });
 $input = ['name'=>'Persona Sintética', 'email'=>'buyer@example.test',
     'password'=>'SynthETIC-9345-safe-Long', 'terms_accepted'=>true,'consent_version'=>'0.1.277'];
+buyerAuthMissingMailKeyHttpCheck($db, $dbName, $host, $port, $user, $pass, $input);
 $deniedInput = $input;
 $deniedInput['email'] = 'privacy-denied@example.test';
 try {
