@@ -352,7 +352,7 @@ const BRVTALRelatedContent = (() => {
     const canonical = entityUrl('artists', artist.slug);
     return `<div class="related-detail-hero">
       <div class="related-detail-image">${photo ? `<img src="${esc(photo)}" alt="${esc(plain(artist.name || 'Artista'))}" loading="lazy" decoding="async">` : '<div class="related-detail-placeholder mono">BRVTAL / ARTISTA</div>'}</div>
-      <div class="related-detail-copy"><div class="mono">ARTISTA / RUTA DE CONTENIDO</div><h3>${esc(artist.name || 'UNKNOWN')}</h3><p>${esc(plain(artist.bio || 'ARTISTA BRVTAL'))}</p>${detailLinks([{href:canonical,label:'VER ARTISTA'}])}</div>
+      <div class="related-detail-copy"><div class="mono">ARTISTA / RUTA DE CONTENIDO</div><h3>${esc(plain(artist.name || 'UNKNOWN'))}</h3><p>${esc(plain(artist.bio || 'ARTISTA BRVTAL'))}</p>${detailLinks([{href:canonical,label:'VER ARTISTA'}])}</div>
     </div>
     <div class="related-groups">
       ${group('NOCHES', eventItems, event => relationItem('event', event, { meta: [formatDate(event.event_date), event.city].filter(Boolean).join(' / ') }))}
@@ -372,7 +372,7 @@ const BRVTALRelatedContent = (() => {
     const archive = archiveEventUrl(event);
     return `<div class="related-detail-hero">
       <div class="related-detail-image">${image ? `<img src="${esc(image)}" alt="${esc(event.title || 'Event')}" loading="lazy" decoding="async">` : '<div class="related-detail-placeholder mono">BRVTAL / NOCHE</div>'}</div>
-      <div class="related-detail-copy"><div class="mono">NOCHE / ${esc(status)}</div><h3>${esc(event.title || 'NOCHE SIN TÍTULO')}</h3><p>${esc([formatDate(event.event_date), event.venue, event.city].filter(Boolean).join(' / '))}</p>${detailLinks([{href:canonical,label:'VER NOCHE'},{href:archive,label:'VER EN ARCHIVO'}])}</div>
+      <div class="related-detail-copy"><div class="mono">NOCHE / ${esc(status)}</div><h3>${esc(plain(event.title || 'NOCHE SIN TÍTULO'))}</h3><p>${esc([formatDate(event.event_date), event.venue, event.city].filter(Boolean).join(' / '))}</p>${detailLinks([{href:canonical,label:'VER NOCHE'},{href:archive,label:'VER EN ARCHIVO'}])}</div>
     </div>
     <div class="related-groups">
       ${group('ARTISTAS', artistItems, artist => relationItem('artist', artist, { meta: artist.bio || 'ARTISTA BRVTAL' }))}
@@ -392,7 +392,7 @@ const BRVTALRelatedContent = (() => {
     const description = set.description || [set.artist_name, set.event_title].filter(Boolean).join(' / ') || 'BRVTAL SET';
     return `<div class="related-detail-hero">
       <div class="related-detail-image">${image ? `<img src="${esc(image)}" alt="${esc(set.title || 'Set')}" loading="lazy" decoding="async">` : '<div class="related-detail-placeholder mono">BRVTAL / SET</div>'}</div>
-      <div class="related-detail-copy"><div class="mono">SET / ${esc(platform)}</div><h3>${esc(set.title || 'SET SIN TÍTULO')}</h3><p>${esc(plain(description))}</p>${detailLinks([{href:canonical,label:'VER SET'},{href:external,label:'ABRIR PLATAFORMA',external:true}])}</div>
+      <div class="related-detail-copy"><div class="mono">SET / ${esc(platform)}</div><h3>${esc(plain(set.title || 'SET SIN TÍTULO'))}</h3><p>${esc(plain(description))}</p>${detailLinks([{href:canonical,label:'VER SET'},{href:external,label:'ABRIR PLATAFORMA',external:true}])}</div>
     </div>
     <div class="related-groups">
       ${group('ARTISTA', artist ? [artist] : [], item => relationItem('artist', item, { meta: item.bio || 'ARTISTA BRVTAL' }))}
@@ -411,7 +411,7 @@ const BRVTALRelatedContent = (() => {
     const meta = [formatDate(release.release_date), release.catalog_number].filter(Boolean).join(' / ');
     return `<div class="related-detail-hero">
       <div class="related-detail-image">${image ? `<img src="${esc(image)}" alt="${esc(release.title || 'Release')}" loading="lazy" decoding="async">` : '<div class="related-detail-placeholder mono">BRVTAL / LANZAMIENTO</div>'}</div>
-      <div class="related-detail-copy"><div class="mono">${esc(releaseType)} / CATÁLOGO</div><h3>${esc(release.title || 'LANZAMIENTO SIN TÍTULO')}</h3><p>${esc(release.description || meta || 'BRVTAL LANZAMIENTO')}</p>${detailLinks([{href:canonical,label:'VER LANZAMIENTO'},{href:external,label:'ESCUCHAR',external:true}])}</div>
+      <div class="related-detail-copy"><div class="mono">${esc(releaseType)} / CATÁLOGO</div><h3>${esc(plain(release.title || 'LANZAMIENTO SIN TÍTULO'))}</h3><p>${esc(release.description || meta || 'BRVTAL LANZAMIENTO')}</p>${detailLinks([{href:canonical,label:'VER LANZAMIENTO'},{href:external,label:'ESCUCHAR',external:true}])}</div>
     </div>
     <div class="related-groups">
       ${group('ARTISTAS', artistItems, artist => relationItem('artist', artist, { meta: artist.bio || 'ARTISTA BRVTAL' }))}
