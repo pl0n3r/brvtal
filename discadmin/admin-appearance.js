@@ -44,10 +44,10 @@
     return '●';
   }
 
-  function selectorMarkup() {
+  function selectorMarkup(location) {
     return `
-      <div class="discadmin-appearance-label">APPEARANCE</div>
-      <div class="discadmin-appearance-options" role="radiogroup" aria-label="Choose admin appearance">
+      <div class="discadmin-appearance-label">${location === "preferences" ? "PREFERENCIAS DE APARIENCIA" : "APPEARANCE"}</div>
+      <div class="discadmin-appearance-options" role="radiogroup" aria-label="${location === "preferences" ? "Elegir apariencia del panel" : "Choose admin appearance"}">
         ${MODES.map(mode => `<button type="button" role="radio" data-discadmin-appearance="${mode}" aria-checked="false" title="${mode.toUpperCase()}"><span aria-hidden="true">${icon(mode)}</span><b>${mode.toUpperCase()}</b></button>`).join('')}
       </div>`;
   }
@@ -75,18 +75,26 @@
 
   function createSelector(location) {
     const root = document.createElement('section');
-    root.className = 'discadmin-appearance' + (location === 'login' ? ' discadmin-appearance-login' : '');
+    root.className = 'discadmin-appearance';
+    if (location === 'login') root.className += ' discadmin-appearance-login';
+    else if (location === 'preferences') root.className += ' discadmin-appearance-preferences';
     root.dataset.appearanceSelector = location;
-    root.setAttribute('aria-label', 'Admin appearance');
-    root.innerHTML = selectorMarkup();
+    root.setAttribute('aria-label', location === 'preferences' ? 'Preferencias de apariencia' : 'Admin appearance');
+    root.innerHTML = selectorMarkup(location);
     bindSelector(root);
     return root;
   }
 
-  function mountSidebar() {
-    const sidefoot = document.querySelector('.sidefoot');
-    if (!sidefoot || sidefoot.querySelector('[data-appearance-selector="sidebar"]')) return false;
-    sidefoot.prepend(createSelector('sidebar'));
+  function mountPreferences() {
+    // A personal preference belongs in Settings, never in the primary
+    // navigation.  Settings is re-rendered by its owner, so remount when
+    // that host changes without adding a second navigation or state store.
+    const settings = document.querySelector('#app .main [data-settings-v2], #app .main .settings-v2');
+    if (!settings || settings.querySelector('[data-appearance-selector="preferences"]')) return false;
+    const selector = createSelector('preferences');
+    const layout = settings.querySelector('.sv2-layout');
+    if (layout) layout.before(selector);
+    else settings.appendChild(selector);
     return true;
   }
 
@@ -101,7 +109,7 @@
   }
 
   function mount() {
-    const mounted = mountSidebar() || mountLogin();
+    const mounted = mountLogin() || mountPreferences();
     if (mounted) syncControls(readMode());
   }
 

@@ -20,7 +20,7 @@ async function routeHarness(page, url, body) {
 
 async function openHarness(page) {
   await routeHarness(page, harness, `
-    <div class="shell">
+    <div id="app"><div class="shell">
       <aside class="side"><div class="logo">BRVTAL</div><nav class="nav"><button class="active">Dashboard</button></nav><div class="sidefoot"><button id="logout">LOGOUT</button></div></aside>
       <main class="main">
         <div class="top"><h1>DASHBOARD</h1><button class="brvtal-global-search-trigger">SEARCH</button></div>
@@ -31,7 +31,7 @@ async function openHarness(page) {
         <section class="activity-panel">ADMIN ACTIVITY</section>
         <section class="brvtal-seo-section">SEO</section>
       </main>
-    </div>`);
+    </div></div>`);
   await page.goto(harness);
 }
 
@@ -48,14 +48,14 @@ async function rgbTotal(locator) {
   });
 }
 
-test('appearance selector exposes dark light and glass directly above logout', async ({ page }) => {
+test('appearance selector lives in personal preferences inside Settings, not in sidebar', async ({ page }) => {
   await openHarness(page);
-  const selector = page.locator('[data-appearance-selector="sidebar"]');
+  const selector = page.locator('.settings-v2 [data-appearance-selector="preferences"]');
   await expect(selector).toBeVisible();
+  await expect(selector).toContainText('PREFERENCIAS DE APARIENCIA');
   await expect(selector.locator('button[data-discadmin-appearance]')).toHaveCount(3);
-  const selectorBox = await selector.boundingBox();
-  const logoutBox = await page.locator('#logout').boundingBox();
-  expect(selectorBox?.y).toBeLessThan(logoutBox?.y ?? 0);
+  await expect(page.locator('.side .discadmin-appearance')).toHaveCount(0);
+  await expect(page.locator('.sidefoot #logout')).toBeVisible();
   await expect(page.locator('html')).not.toHaveAttribute('aria-checked', /.+/);
 });
 
