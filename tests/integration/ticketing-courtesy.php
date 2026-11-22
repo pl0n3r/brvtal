@@ -59,9 +59,9 @@ try {
     }
     $db->exec("INSERT INTO events VALUES (1,'published')");
     $db->exec("INSERT INTO admins VALUES (7,'superadmin',1),(8,'admin',1)");
-    $db->exec("INSERT INTO event_ticket_types VALUES (11,1,'active')");
+    $db->exec("INSERT INTO event_ticket_types VALUES (11,1,'active'),(12,1,'active')");
     $db->exec('INSERT INTO ticket_inventory_events VALUES (1,2)');
-    $db->exec('INSERT INTO ticket_inventory_types VALUES (11,1,2,2)');
+    $db->exec('INSERT INTO ticket_inventory_types VALUES (11,1,2,2),(12,1,2,2)');
     putenv('BRVTAL_COURTESY_ENABLED=1');
     t25(brvtalCourtesyEnabled($db),'only synthetic mode enabled');
     try {brvtalCourtesyIssue($db,8,'admin',$input);throw new RuntimeException('role bypass');}
@@ -71,6 +71,18 @@ try {
         && !$first['sent'],'distinct QR, no provider');
     $replay=brvtalCourtesyIssue($db,7,'superadmin',$input);
     t25($replay['replayed']&&$replay['qr']===null,'idempotent no second secret');
+    foreach ([
+        ['ticket_type_id'=>12], ['ticket_type_id'=>999], ['category'=>'press'],
+        ['reason'=>'Motivo sintético diferente']
+    ] as $changed) {
+        try {
+            brvtalCourtesyIssue($db,7,'superadmin',array_merge($input,$changed));
+            throw new RuntimeException('changed replay accepted');
+        } catch (DomainException $error) {
+            t25($error->getMessage()==='IDEMPOTENCY_CONFLICT',
+                'same key and recipient must reject changed payload');
+        }
+    }
     try {
         brvtalCourtesyIssue($db,7,'superadmin',array_merge($input,
             ['idempotency_key'=>str_repeat('z',24)]));
