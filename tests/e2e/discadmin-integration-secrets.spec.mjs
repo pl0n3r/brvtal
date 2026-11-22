@@ -3,8 +3,8 @@ import {readFileSync} from 'node:fs';
 
 const source=readFileSync(new URL('../../discadmin/system-status-v2.js',import.meta.url),'utf8');
 const harness='http://127.0.0.1:4173/discadmin/integration-secrets-harness.html';
-const key='BRVTAL_TICKET_MAIL_API_KEY';
-const synthetic='re_SYNTHETIC_NO_DELIVERY_0123456789';
+const key='BRVTAL_SENTRY_DSN';
+const synthetic='https://synthetic-only@sentry.invalid/101';
 
 async function setup(page,{writable=true}={}) {
   await page.route(harness,route=>route.fulfill({
@@ -31,7 +31,7 @@ async function setup(page,{writable=true}={}) {
       if(path==='/discadmin/free-quotas.php') return json({ok:true,data:{rows:[]}});
       if(path==='/api/admin-dashboard-preferences.php') return json({ok:true,data:{modules:[]}});
       if(path==='/api/admin-system-status.php') return json({
-        ok:true,integrations:[{id:'resend',label:'Resend',status:'falta'}],workers:[]
+        ok:true,integrations:[{id:'sentry',label:'Sentry',status:db.stored?'configurado':'falta'}],workers:[]
       });
       if(path==='/api/admin-integration-secrets.php'){
         if(method!=='GET'){
@@ -43,7 +43,7 @@ async function setup(page,{writable=true}={}) {
             return json({ok:false,error:'CSRF'},419);
           if(body.key!==key) return json({ok:false,error:'SECRET_KEY_NOT_ALLOWED'},422);
           if(method==='POST'){
-            if(body.value!== 're_SYNTHETIC_NO_DELIVERY_0123456789')
+            if(body.value!== 'https://synthetic-only@sentry.invalid/101')
               return json({ok:false,error:'SECRET_FORMAT_INVALID'},422);
             db.value=body.value;
             db.stored=true;
@@ -53,7 +53,7 @@ async function setup(page,{writable=true}={}) {
           }
         }
         return json({ok:true,write_enabled:db.writable,master_key_configured:db.writable,items:[{
-          key,provider:'resend',field:'api_key',stored:db.stored,
+          key,provider:'sentry',field:'dsn',stored:db.stored,
           updated_at:db.stored?'2026-11-22 00:00:00':null
         }]});
       }
@@ -64,25 +64,27 @@ async function setup(page,{writable=true}={}) {
   await expect(page.locator('[data-secret-row="'+key+'"]')).toBeVisible();
 }
 
-test('AC-03: System status saves and removes synthetic Resend keys without exposing their value',async({page})=>{
+test('AC-02: System status saves and removes a synthetic Sentry DSN without exposing its value',async({page})=>{
   await setup(page);
   const row=page.locator('[data-secret-row="'+key+'"]');
   const field=row.locator('input[type=password]');
   await field.fill(synthetic);
   await row.getByRole('button',{name:'Guardar clave'}).click();
   await expect(row.getByText('Guardada', {exact:false})).toBeVisible();
+  await expect(page.locator('[data-integration="sentry"] [data-integration-state]')).toHaveText('configurado');
   await expect(field).toHaveValue('');
   expect(await page.locator('body').textContent()).not.toContain(synthetic);
   const stored=await page.evaluate(()=>window.integrationFixture);
   expect(stored.requests[0]).toMatchObject({method:'POST',key,csrf:'synthetic-csrf-token',containsValue:true});
   await row.getByRole('button',{name:'Eliminar clave'}).click();
   await expect(row.getByText('Sin clave almacenada')).toBeVisible();
+  await expect(page.locator('[data-integration="sentry"] [data-integration-state]')).toHaveText('falta');
   const deleted=await page.evaluate(()=>window.integrationFixture);
   expect(deleted.requests[1]).toMatchObject({method:'DELETE',key,csrf:'synthetic-csrf-token',containsValue:false});
   expect(deleted.value).toBe(null);
 });
 
-test('AC-03: missing master/write switch leaves all secret controls disabled',async({page})=>{
+test('AC-02: missing master/write switch leaves all secret controls disabled',async({page})=>{
   await setup(page,{writable:false});
   const row=page.locator('[data-secret-row="'+key+'"]');
   await expect(row.locator('input[type=password]')).toBeDisabled();
