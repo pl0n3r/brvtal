@@ -514,24 +514,24 @@ test('Media writes stay behind the canonical integrity boundary in the real stac
       const invalid=await saveConfig([{...slide,mobileSrc:'/uploads/ci/hero-missing.jpg'}]);
       expect(invalid.status()).toBe(422);
       expect(await invalid.json()).toMatchObject({
-        error:'HERO_SLIDER_MEDIA_FILE_MISSING',field:'slides.0.mobileSrc'
+        error:'HERO_SLIDER_MEDIA_NOT_REGISTERED',field:'slides.0.mobileSrc'
       });
       expect((await asset()).status).toBe('draft');
       const saved=await saveConfig([slide]);
       expect(saved.ok(),await saved.text()).toBe(true);
       expect((await asset()).status).toBe('published');
     } finally {
-      if (previous===null) {
-        await page.request.delete(
-          `${baseUrl}/api/index.php/settings?key=${encodeURIComponent(settingKey)}`,
-          {headers}
-        );
-      } else {
-        await page.request.post(`${baseUrl}/api/index.php/settings`,{
-          headers,data:{setting_key:settingKey,setting_value:String(previous.setting_value??''),
-            is_json:Number(previous.is_json??0)}
-        });
-      }
+      // Do not rely on a Settings DELETE route: restore an asset-free disabled config.
+      const restore = previous===null
+        ? {enabled:false,slides:[]}
+        : null;
+      const restored = await page.request.post(`${baseUrl}/api/index.php/settings`,{
+        headers,data:{setting_key:settingKey,
+          setting_value:restore!==null
+            ? JSON.stringify(restore) : String(previous.setting_value??''),
+          is_json:restore!==null ? 1 : Number(previous.is_json??0)}
+      });
+      expect(restored.ok(), await restored.text()).toBe(true);
     }
 
     const canonicalDelete = await page.request.delete(`${baseUrl}/api/media-library.php?id=${mediaId}`, {headers});
