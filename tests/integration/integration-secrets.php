@@ -103,6 +103,30 @@ foreach (['pub_live_1234567890','prv_prod_1234567890'] as $invalid) {
     } catch (InvalidArgumentException) { $wasInvalid = true; }
     secretAssert($wasInvalid,'production Wompi key rejected');
 }
+$paddedWebhook = 'whsec_' . base64_encode(str_repeat('s', 32));
+brvtalIntegrationSecretValidate('BRVTAL_TICKET_MAIL_WEBHOOK_SECRET', $paddedWebhook);
+$plusSlashWebhook = 'whsec_' . base64_encode(str_repeat(chr(251) . chr(255), 16));
+secretAssert(str_contains($plusSlashWebhook, '+') && str_contains($plusSlashWebhook, '/'), 'base64 fixture is standard');
+brvtalIntegrationSecretValidate('BRVTAL_TICKET_MAIL_WEBHOOK_SECRET', $plusSlashWebhook);
+foreach (['whsec_###', 'whsec_' . base64_encode('short'), 'whsec_' . str_repeat('A', 260)] as $bad) {
+    $invalid = false;
+    try { brvtalIntegrationSecretValidate('BRVTAL_TICKET_MAIL_WEBHOOK_SECRET', $bad); }
+    catch (InvalidArgumentException) { $invalid = true; }
+    secretAssert($invalid, 'malformed or short webhook key rejected');
+}
+$keypair = openssl_pkey_new(['private_key_bits'=>2048, 'private_key_type'=>OPENSSL_KEYTYPE_RSA]);
+secretAssert($keypair !== false, 'synthetic RSA generator');
+$exported = '';
+secretAssert(openssl_pkey_export($keypair, $exported), 'synthetic private key export');
+brvtalIntegrationSecretValidate('BRVTAL_GA4_PRIVATE_KEY', $exported);
+$escapedPem = str_replace("\n", '\\n', $exported);
+brvtalIntegrationSecretValidate('BRVTAL_GA4_PRIVATE_KEY', $escapedPem);
+foreach (['-----BEGIN PRIVATE KEY-----not-a-key-----END PRIVATE KEY-----', 'bad'] as $bad) {
+    $invalid = false;
+    try { brvtalIntegrationSecretValidate('BRVTAL_GA4_PRIVATE_KEY', $bad); }
+    catch (InvalidArgumentException) { $invalid = true; }
+    secretAssert($invalid, 'unparseable GA4 key rejected');
+}
 $forbidden = false;
 try { brvtalIntegrationSecretValidate('BRVTAL_TICKET_MAIL_ALLOW_LIVE','1'); }
 catch (InvalidArgumentException) { $forbidden = true; }

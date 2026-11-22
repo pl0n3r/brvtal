@@ -727,10 +727,16 @@
         const label = esc(entry.field.replaceAll('_',' '));
         const key = esc(entry.key);
         const updated = entry.updated_at ? 'Actualizado: ' + esc(entry.updated_at) : 'Sin clave almacenada';
+        const attributes = ' autocomplete="off" spellcheck="false" data-secret-input="' + key +
+          '" aria-label="Nueva clave de ' + esc(item.label) + ' ' + label + '" ' +
+          (writable ? '' : 'disabled');
+        // A password input strips line breaks. PEM requires an actual multiline editor.
+        // Neither editor contains or retrieves an existing secret.
+        const editor = entry.key === 'BRVTAL_GA4_PRIVATE_KEY'
+          ? '<textarea rows="4"' + attributes + '></textarea>'
+          : '<input type="password"' + attributes + '>';
         return '<div class="ssv2-secret-field" data-secret-row="' + key + '">' +
-          '<label>' + label + ' <input type="password" autocomplete="off" spellcheck="false" data-secret-input="' +
-          key + '" aria-label="Nueva clave de ' + esc(item.label) + ' ' + label + '" ' +
-          (writable ? '' : 'disabled') + '></label>' +
+          '<label>' + label + ' ' + editor + '</label>' +
           '<button type="button" data-secret-action="POST" data-secret-key="' + key + '" ' +
           (writable ? '' : 'disabled') + '>Guardar clave</button>' +
           '<button type="button" data-secret-action="DELETE" data-secret-key="' + key + '" ' +
@@ -765,6 +771,21 @@
       '<small>CONFIGURADO NO SIGNIFICA ENVÍO, COBRO NI GO-LIVE HABILITADO.</small></section>';
   }
 
+  function hasSecretDrafts(root) {
+    return Array.from(root.querySelectorAll('[data-secret-input]')).some(field => field.value !== '');
+  }
+
+  function refreshSavedSecretRow(row, item) {
+    if (!row || !item) return;
+    const details = row.querySelector('small');
+    if (details) details.textContent = (item.stored ? 'Guardada · ' : '') +
+      (item.updated_at ? 'Actualizado: ' + item.updated_at : 'Sin clave almacenada');
+    const save = row.querySelector('[data-secret-action="POST"]');
+    const remove = row.querySelector('[data-secret-action="DELETE"]');
+    if (save) save.disabled = false;
+    if (remove) remove.disabled = !item.stored;
+  }
+
   function bindIntegrationSecretActions(root) {
     root.querySelectorAll('[data-secret-action]').forEach(button => {
       button.addEventListener('click', async () => {
@@ -773,24 +794,43 @@
         const row = button.closest('[data-secret-row]');
         const field = row?.querySelector('[data-secret-input]');
         const feedback = row?.querySelector('[data-secret-feedback]');
-        if (!key || !feedback || (action === 'POST' && !field?.value)) return;
+        const candidate = field?.value ?? '';
+        if (!key || !feedback || (action === 'POST' && candidate === '')) return;
         row.querySelectorAll('button').forEach(item => { item.disabled = true; });
+        if (field) field.disabled = true;
         feedback.textContent = 'Guardando…';
         try {
           const token = await csrfToken();
-          await fetchJson(INTEGRATION_SECRETS, {
+          const response = await fetchJson(INTEGRATION_SECRETS, {
             method:action,
             headers:{'Content-Type':'application/json','X-CSRF-Token':token},
-            body:JSON.stringify(action === 'POST' ? {key,value:field.value} : {key}),
+            body:JSON.stringify(action === 'POST' ? {key,value:candidate} : {key}),
           });
+          const saved = response.items?.find(item => item.key === key);
+          if (!saved) throw new Error('SECRET_STATUS_UNAVAILABLE');
           if (field) field.value = '';
+          refreshSavedSecretRow(row, saved);
           feedback.textContent = action === 'POST' ? 'Clave guardada' : 'Clave eliminada';
-          await load(currentSystemStatusRoot(root), true);
+          // Update the affected provider status without replacing other unsaved drafts.
+          try {
+            const status = await fetchJson(INTEGRATIONS);
+            const parent = row.closest('[data-integration]');
+            const updated = status.integrations?.find(item => item.id === parent?.dataset.integration);
+            const badge = parent?.querySelector('[data-integration-state]');
+            if (badge && ['configurado', 'falta', 'modo sandbox'].includes(updated?.status)) {
+              badge.textContent = updated.status;
+            }
+          } catch {
+            // The write succeeded: retain its accurate feedback even if status is stale.
+          }
         } catch (error) {
+          // Never repeat a submitted secret in an error, and never store drafts.
           if (field) field.value = '';
           invalidateCachedCsrf(error);
           feedback.textContent = 'Error: ' + String(error.message || 'UNAVAILABLE');
           row.querySelectorAll('button').forEach(item => { item.disabled = false; });
+        } finally {
+          if (field) field.disabled = false;
         }
       });
     });
@@ -883,6 +923,8 @@
   }
 
   async function load(root, manual=false) {
+    // Do not destructively replace pending credential drafts, even on timed refresh.
+    if (hasSecretDrafts(root)) return;
     const id = ++requestId;
     if (manual) root.classList.add('is-refreshing');
     const started = performance.now();
@@ -899,10 +941,12 @@
       if (id !== requestId || !root.isConnected) return;
       const layoutPayload = await layoutPromise;
       if (id !== requestId || !root.isConnected) return;
+      if (hasSecretDrafts(root)) return;
       systemLayout = normalizeSystemLayout(layoutPayload?.data);
       render(root,data,health,activity,performance.now()-started,quotas,integrations,secrets);
     } catch (error) {
       if (id !== requestId || !root.isConnected) return;
+      if (hasSecretDrafts(root)) return;
       root.innerHTML = `<div class="ssv2-fatal"><strong>SYSTEM STATUS UNAVAILABLE</strong><span>${esc(error.message)}</span><button type="button">RETRY</button></div>`;
       root.querySelector('button')?.addEventListener('click',()=>load(root,true));
     } finally {

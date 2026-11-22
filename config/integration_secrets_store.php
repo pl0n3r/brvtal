@@ -52,6 +52,32 @@ function brvtalIntegrationSecretWriteEnabled(?array $privateConfig = null): bool
     return getenv('BRVTAL_INTEGRATION_SECRET_WRITE_ENABLED') === 'true';
 }
 
+/** Resend/Svix webhook keys are strict base64 after whsec_, not base64url. */
+function brvtalIntegrationSecretValidWebhook(string $value): bool
+{
+    if (!str_starts_with($value, 'whsec_') || strlen($value) > 256) {
+        return false;
+    }
+    $decoded = base64_decode(substr($value, 6), true);
+    return is_string($decoded) && strlen($decoded) >= 16;
+}
+
+/** Validate a real RSA private key after the same newline handling as GA4. */
+function brvtalIntegrationSecretValidGa4Key(string $value): bool
+{
+    $normalized = str_replace('\\n', "\n", trim($value));
+    if (!str_contains($normalized, '-----BEGIN PRIVATE KEY-----')
+        || !str_contains($normalized, '-----END PRIVATE KEY-----')) {
+        return false;
+    }
+    $key = @openssl_pkey_get_private($normalized);
+    if ($key === false) {
+        return false;
+    }
+    $details = openssl_pkey_get_details($key);
+    return is_array($details) && ($details['type'] ?? null) === OPENSSL_KEYTYPE_RSA;
+}
+
 function brvtalIntegrationSecretValidate(string $name, string $value): void
 {
     if (!isset(brvtalIntegrationSecretCatalog()[$name])) {
@@ -62,7 +88,7 @@ function brvtalIntegrationSecretValidate(string $name, string $value): void
     }
     $ok = match ($name) {
         'BRVTAL_TICKET_MAIL_API_KEY' => preg_match('/^re_[A-Za-z0-9_-]{8,}$/D', $value) === 1,
-        'BRVTAL_TICKET_MAIL_WEBHOOK_SECRET' => preg_match('/^whsec_[A-Za-z0-9_-]{8,}$/D', $value) === 1,
+        'BRVTAL_TICKET_MAIL_WEBHOOK_SECRET' => brvtalIntegrationSecretValidWebhook($value),
         'BRVTAL_TICKET_WOMPI_PUBLIC_KEY' => preg_match('/^pub_test_[A-Za-z0-9_-]{8,}$/D', $value) === 1,
         'BRVTAL_TICKET_WOMPI_PRIVATE_KEY' => preg_match('/^prv_test_[A-Za-z0-9_-]{8,}$/D', $value) === 1,
         'BRVTAL_TICKET_MAIL_FROM','BRVTAL_MAIL_FROM','BRVTAL_GA4_CLIENT_EMAIL' =>
@@ -71,8 +97,7 @@ function brvtalIntegrationSecretValidate(string $name, string $value): void
             strlen($value) <= 253 && preg_match('/^(?=.{1,253}$)[a-z0-9](?:[a-z0-9.-]*[a-z0-9])$/iD', $value) === 1
             && !str_contains($value, '..'),
         'BRVTAL_GA4_PROPERTY_ID' => preg_match('/^[0-9]{4,20}$/D', $value) === 1,
-        'BRVTAL_GA4_PRIVATE_KEY' => str_contains($value, '-----BEGIN PRIVATE KEY-----')
-            && str_contains($value, '-----END PRIVATE KEY-----'),
+        'BRVTAL_GA4_PRIVATE_KEY' => brvtalIntegrationSecretValidGa4Key($value),
         'BRVTAL_SENTRY_DSN' => filter_var($value, FILTER_VALIDATE_URL) !== false
             && parse_url($value, PHP_URL_SCHEME) === 'https',
         default => trim($value) !== '',
