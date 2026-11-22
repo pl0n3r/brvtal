@@ -149,3 +149,6 @@ require __DIR__ . '/ticketing-mail-history.php';
 
 // T34: run the buyer-auth synthetic MariaDB contracts in the canonical database gate.
 require __DIR__ . '/buyer-auth-flows.php';
+
+// #1874: run real CLI workers against encrypted credentials in disposable MariaDB.
+require __DIR__ . '/ticketing-mail-worker-secrets.php';
