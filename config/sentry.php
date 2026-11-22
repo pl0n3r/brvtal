@@ -2,7 +2,11 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/deployment.php';
-require_once __DIR__ . '/secrets.php';
+// The logger also runs in isolated forensic fixtures that copy Sentry without
+// the optional provisioning helper. Never break private logging on its absence.
+if (is_file(__DIR__ . '/secrets.php')) {
+    require_once __DIR__ . '/secrets.php';
+}
 
 const BRVTAL_SENTRY_TIMEOUT_SECONDS = 1.2;
 
@@ -150,6 +154,10 @@ function brvtalSentryRuntimeConfig(array $config = [], ?callable $resolver = nul
         return null;
     }
 
+    // Optional telemetry fails closed when the private secret helper is absent.
+    if (!function_exists('brvtal_secret_value')) {
+        return null;
+    }
     $dsn = trim(brvtal_secret_value('BRVTAL_SENTRY_DSN', null, $config));
     return brvtalSentryParseDsn($dsn, $resolver);
 }
