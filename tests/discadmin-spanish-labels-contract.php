@@ -14,6 +14,24 @@ $banners = (string) file_get_contents(__DIR__ . '/../discadmin/hero-slider.js');
 $navigation = (string) file_get_contents(__DIR__ . '/../discadmin/admin-information-architecture.js');
 brvtal_spanish_labels_assert($core !== '' && $banners !== '' && $navigation !== '', 'missing source');
 brvtal_spanish_labels_assert(str_contains($navigation, 'buttonKey(button) === section'), 'route restore must reuse the real user-visible Spanish navigation label');
+$usesV3 = str_contains($core, ' const adminMenuRoots=[');
+$legacyNavOnly = [
+    "['dashboard','INICIO']", "['pages','PÁGINAS']", "['events','EVENTOS']",
+    "['ticketing','BOLETERÍA']", '>APARIENCIA</button>',
+    '>CONFIGURACIÓN</button>', '>ESTADO DEL SISTEMA</button>', '>TEMA VISUAL</button>',
+];
+if ($usesV3) {
+    $start = strpos($core, ' const adminMenuRoots=[');
+    $end = strpos($core, ' const moduleTitles=', $start);
+    $roots = $end !== false ? substr($core, $start, $end - $start) : '';
+    preg_match_all("/\\['([^']+)','([^']+)'\\]/", $roots, $rootPairs, PREG_SET_ORDER);
+    $actualRoots = array_map(static fn(array $p): array => [$p[1], $p[2]], $rootPairs);
+    brvtal_spanish_labels_assert($actualRoots === [
+        ['dashboard','ESCRITORIO'], ['events','EVENTOS'], ['artists','ARTISTAS'],
+        ['music','MÚSICA'], ['ticketing','BOLETERÍA'], ['mail','CORREOS'],
+        ['website','SITIO WEB'], ['settings','CONFIGURACIÓN'],
+    ], 'V3 must render eight canonical Spanish root labels');
+}
 foreach ([
     "['dashboard','INICIO']",
     "['pages','PÁGINAS']",
@@ -33,6 +51,7 @@ foreach ([
     'data-testid="admin-product-version"',
     'data-testid="admin-deploy-source"',
 ] as $fragment) {
+    if ($usesV3 && in_array($fragment, $legacyNavOnly, true)) continue;
     brvtal_spanish_labels_assert(
         str_contains($core, $fragment),
         'missing translated shell label or stable contract: ' . $fragment

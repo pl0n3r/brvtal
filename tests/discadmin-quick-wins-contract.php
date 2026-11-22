@@ -75,6 +75,27 @@ quick_win_assert(
 );
 
 $indexCore = (string)file_get_contents(__DIR__ . '/../discadmin/index-core.php');
+if (str_contains($indexCore, ' const adminMenuRoots=[')) {
+    $navStart = strpos($indexCore, ' const adminMenuRoots=[');
+    $navEnd = strpos($indexCore, ' const moduleTitles=', $navStart);
+    $navSource = $navEnd !== false ? substr($indexCore, $navStart, $navEnd - $navStart) : '';
+    preg_match_all("/\\['([^']+)','([^']+)'\\]/", $navSource, $pairs, PREG_SET_ORDER);
+    $actual = array_map(static fn(array $p): array => [$p[1], $p[2]], $pairs);
+    $expected = [
+        ['dashboard','ESCRITORIO'], ['events','EVENTOS'], ['artists','ARTISTAS'],
+        ['music','MÚSICA'], ['ticketing','BOLETERÍA'], ['mail','CORREOS'],
+        ['website','SITIO WEB'], ['settings','CONFIGURACIÓN'],
+    ];
+    quick_win_assert($actual === $expected, 'V3 sidebar must declare exactly eight ordered roots');
+    $adminIa = (string)file_get_contents(__DIR__ . '/../discadmin/admin-information-architecture.js');
+    $website = strpos($adminIa, "{key:'website'");
+    $pages = $website !== false ? strpos($adminIa, "{key:'pages'", $website) : false;
+    $blog = $pages !== false ? strpos($adminIa, "{key:'blog'", $pages) : false;
+    $media = $blog !== false ? strpos($adminIa, "{key:'media'", $blog) : false;
+    quick_win_assert($website !== false && $pages !== false && $blog !== false && $media !== false
+        && $website < $pages && $pages < $blog && $blog < $media,
+        'V3 Site web must keep Pages, Blog and Multimedia in canonical order');
+} else {
 $navItems = [
     "['dashboard','INICIO']",
     "['pages','PÁGINAS']",
@@ -126,6 +147,7 @@ quick_win_assert(
         && str_contains($navSource, 'data-admin-nav="theme"'),
     'canonical shell must render the approved WordPress-like navigation before enhancements boot'
 );
+}
 quick_win_assert(
     preg_match('/<div class="nav">\\s*\\$\\{navHtml\\}\\s*<\\/div>/', $indexCore) === 1,
     'canonical sidebar must render approved links inside the .nav container'
