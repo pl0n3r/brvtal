@@ -87,6 +87,11 @@ function brvtalMigrationProofSpecifications(): array
     ];
 
     $specifications = [
+        'migration_integration_secrets_01.sql' => brvtalMigrationObjectRequirements(
+            'integration_secrets',
+            ['secret_key','value_encrypted','updated_by_admin_id','updated_at'],
+            ['PRIMARY','idx_integration_secrets_updated'], true
+        ),
         'migration_events_venue_address_01.sql' => [
             'column:events.venue_address',
             'column-type:events.venue_address=varchar(300)',
@@ -204,6 +209,23 @@ function brvtalMigrationProofSpecifications(): array
              'note_text','status','created_at_utc','retention_until_utc'],
             ['uq_ticket_admin_request','idx_ticket_admin_order','idx_ticket_admin_retention'],
             true
+        ),
+        'migration_mail_templates_01.sql' => array_merge(
+            brvtalMigrationObjectRequirements(
+                'mail_template_registry',
+                ['id','template_key','scope','revision','published_version_id',
+                 'published_by_admin_id','published_at','created_at','updated_at'],
+                ['PRIMARY','uq_mail_template_scope','idx_mail_template_published'],
+                true
+            ),
+            brvtalMigrationObjectRequirements(
+                'mail_template_versions',
+                ['id','template_id','version_number','kind','document_json',
+                 'author_admin_id','first_published_at','discarded_at',
+                 'discarded_by_admin_id','created_at'],
+                ['PRIMARY','uq_mail_template_version','idx_mail_template_version_created'],
+                true
+            )
         ),
         'migration_ticketing_mail_history_01.sql' => array_merge(
             brvtalMigrationObjectRequirements(

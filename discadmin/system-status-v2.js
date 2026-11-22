@@ -3,11 +3,11 @@
 
   const TECH = '/discadmin/technical.php?action=overview';
   const INTEGRATIONS = '/api/admin-system-status.php';
+  const AUTH = '/api/index.php/auth';
   const HEALTH = '/api/content-health.php';
   const ACTIVITY = '/api/admin-activity.php?limit=5';
   const LOGS = '/discadmin/technical.php?action=logs';
   const LOG_RESET = '/discadmin/logs.php?action=clear&format=json';
-  const AUTH = '/api/index.php/auth';
   const GITHUB_ISSUES = 'https://github.com/pl0n3r/brvtal/issues';
   const PREFERENCES = '/api/admin-dashboard-preferences.php?workspace=system_status';
   const QUOTAS = '/discadmin/free-quotas.php';
@@ -713,33 +713,33 @@
       <small>AVISOS BASADOS EN MEDICIONES DISPONIBLES. SIN PLAN DE PAGO.</small></section>`;
   }
 
+
   function integrationStatusPanel(result) {
-    const rows = result?.ok === false ? [] : (Array.isArray(result?.integrations) ? result.integrations : []);
-    const workers = result?.ok === false ? [] : (Array.isArray(result?.workers) ? result.workers : []);
-    const allowed = new Set(['configurado', 'falta', 'modo sandbox']);
-    const body = rows.map(item => {
-      const status = allowed.has(item?.status) ? item.status : 'falta';
-      return `<div class="ssv2-quota-row" data-integration="${esc(item.id)}">
-        <strong>${esc(item.label)}</strong> <span data-integration-state>${esc(status)}</span>
-      </div>`;
-    }).join('');
-    const cronRows = workers.map(item => {
-      const raw = typeof item.last_execution === 'string' ? item.last_execution : '';
-      const millis = Date.parse(raw);
-      const label = raw && Number.isFinite(millis)
-        ? new Date(millis).toLocaleString('es-CO', {timeZone:'America/Bogota'})
-        : 'sin ejecución registrada';
-      return `<div class="ssv2-quota-row" data-worker="${esc(item.id)}">
-        <strong>${esc(item.label)}</strong> <span>${esc(label)}</span>
-      </div>`;
-    }).join('');
-    return `<section class="ssv2-panel" data-testid="system-integrations" aria-label="Estado de integraciones">
-      <div class="ssv2-panel-head"><span>INTEGRACIONES</span><b>ESTADO SIN CLAVES</b></div>
-      <div class="ssv2-quota-list">${body || '<div class="ssv2-empty">ESTADO NO DISPONIBLE</div>'}</div>
-      <div class="ssv2-panel-head"><span>CRONS DE CORREO</span><b>ÚLTIMA SALIDA EN LOG</b></div>
-      <div class="ssv2-quota-list">${cronRows || '<div class="ssv2-empty">SIN EVIDENCIA DE EJECUCIÓN</div>'}</div>
-      <small>CONFIGURADO NO SIGNIFICA ENVÍO, COBRO NI GO-LIVE HABILITADO.</small>
-    </section>`;
+   const rows=result?.ok===false?[]:(Array.isArray(result?.integrations)?result.integrations:[]);
+   const workers=result?.ok===false?[]:(Array.isArray(result?.workers)?result.workers:[]);
+   const allowed=new Set(["configurado","falta","modo sandbox"]);
+   const body=rows.map(item=>{
+     const status=allowed.has(item?.status)?item.status:"falta";
+     return '<div class="ssv2-quota-row" data-integration="'+esc(item.id)+'">'+
+       '<strong>'+esc(item.label)+'</strong><span data-integration-state>'+esc(status)+'</span></div>';
+   }).join("");
+   const cronRows=workers.map(item=>{
+     const raw=typeof item.last_execution==="string"?item.last_execution:"";
+     const millis=Date.parse(raw);
+     const label=raw&&Number.isFinite(millis)
+       ? new Date(millis).toLocaleString("es-CO",{timeZone:"America/Bogota"})
+       : "sin ejecución registrada";
+     return '<div class="ssv2-quota-row" data-worker="'+esc(item.id)+'"><strong>'+
+       esc(item.label)+'</strong> <span>'+esc(label)+'</span></div>';
+   }).join("");
+   return '<section class="ssv2-panel" data-testid="system-integrations" aria-label="Estado de integraciones">'+
+     '<div class="ssv2-panel-head"><span>INTEGRACIONES</span><b>SOLO LECTURA</b></div>'+
+     '<p>Consulta la configuración sin revelar credenciales. Para añadir, actualizar o eliminar claves, abre Settings.</p>'+
+     '<a class="btn ghost ssv2-config-link" data-open-integration-settings href="/discadmin/?settings=integrations">Configurar en Settings</a>'+
+     '<div class="ssv2-quota-list">'+(body||'<div class="ssv2-empty">ESTADO NO DISPONIBLE</div>')+'</div>'+
+     '<div class="ssv2-panel-head"><span>CRONS DE CORREO</span><b>ÚLTIMA SALIDA EN LOG</b></div>'+
+     '<div class="ssv2-quota-list">'+(cronRows||'<div class="ssv2-empty">SIN EVIDENCIA DE EJECUCIÓN</div>')+'</div>'+
+     '<small>CONFIGURADO NO SIGNIFICA ENVÍO, COBRO NI GO-LIVE HABILITADO.</small></section>';
   }
 
   function render(root, data, health, activity, latency, quotas, integrations) {
@@ -818,6 +818,16 @@
       advanced.open = true;
     }
     setLogActionsDisabled(root, logResetInFlight);
+    root.querySelector('[data-open-integration-settings]')?.addEventListener('click', event => {
+      event.preventDefault();
+      const link=event.currentTarget;
+      if(typeof globalThis.go !== 'function') { location.assign(link.href); return; }
+      const next=new URL(link.href,location.href);
+      history.replaceState(history.state,'',next.pathname+next.search);
+      void Promise.resolve(globalThis.go('settings')).then(() => {
+        globalThis.BRVTALSettingsV2?.activate?.('integrations');
+      });
+    });
     root.querySelector('#ssv2-refresh')?.addEventListener('click', () => load(root, true));
     root.querySelector('#ssv2-load-logs')?.addEventListener('click', event => {
       void loadLogs(root, event.currentTarget);

@@ -157,8 +157,26 @@ class CromoLayerTests(unittest.TestCase):
                     return (index + delta) & 0xFFFF if index else 0
             return 0
 
-        for character in "BRVTALÁÉÍÓÚáéíóúñÑ¿¡":
+        for character in "BRVTALÁÉÍÓÚáéíóúñÑ¿¡Ø":
             self.assertNotEqual(glyph(ord(character)), 0, f"missing glyph {character}")
+
+    def test_event_cromo_hero_restores_display_font_over_legacy_event_rule(self) -> None:
+        """The later Cromo sheet must win an equally specific event-title rule."""
+        event = (ROOT / "css/public-event-record.css").read_text(encoding="utf-8")
+        pages = (ROOT / "css/public-cromo-pages.css").read_text(encoding="utf-8")
+        renderer = (ROOT / "config/public_page.php").read_text(encoding="utf-8")
+        self.assertLess(renderer.index("public-event-record.css"), renderer.index("public-cromo-pages.css"))
+        self.assertIn('--display:"Broken Glass","Barlow Condensed",sans-serif;', pages)
+        self.assertIn('font-family:"Barlow Condensed",Arial,sans-serif;', pages)
+        # This event-specific selector originally won over the generic Cromo H1.
+        selector = r'body\.cromo-page\.entity-page--event \.entity-hero h1,\s*body\.cromo-page\.entity-page--event main h1\s*\{([^{}]*)\}'
+        legacy = re.search(selector, event)
+        self.assertIsNotNone(legacy)
+        override = re.search(selector, pages)
+        self.assertIsNotNone(override)
+        self.assertIn("font-family:var(--display)", override.group(1))
+        self.assertIn("font-weight:400", override.group(1))
+        self.assertIn('font:700 18px/1 "Barlow Condensed",sans-serif', pages)
 
     def test_broken_glass_is_only_used_by_cromo_display_headings(self) -> None:
         no_face = re.sub(r"@font-face\s*\{[^{}]*\}", "", CSS, flags=re.S)

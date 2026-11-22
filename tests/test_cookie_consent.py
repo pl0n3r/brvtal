@@ -146,7 +146,8 @@ echo json_encode([
     def test_legal_and_accessibility(self) -> None:
         js = (ROOT / 'js/cookie-consent.js').read_text(encoding='utf-8')
         css = (ROOT / 'css/cookie-consent.css').read_text(encoding='utf-8')
-        self.assertIn('Texto legal pendiente de aprobación profesional', js)
+        self.assertNotIn('Texto legal pendiente de aprobación profesional', js)
+        self.assertIn('Las cookies opcionales solo se activan si las aceptas.', js)
         self.assertIn('prefers-reduced-motion:reduce', css)
         self.assertIn('button:focus-visible', css)
         self.assertIn('min-height:44px', css)
