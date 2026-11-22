@@ -1,0 +1,89 @@
+name: DISCADMIN Spanish visual evidence
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - 'discadmin/index-core.php'
+      - 'discadmin/hero-slider.js'
+      - 'tests/e2e/discadmin-admin-shell.spec.mjs'
+      - '.github/workflows/discadmin-spanish-visual.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: discadmin-spanish-evidence-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  visual-evidence:
+    name: Capturas Playwright 390/1440
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact PR HEAD with baseline history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Confirm exact HEAD and baseline
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git cat-file -e 9b3a0421f247d8e3eb9038a1721be44d7165dbdf:discadmin/index-core.php
+      - name: Install project-pinned browser dependencies
+        run: npm install --prefer-offline --no-audit --no-fund
+      - name: Ensure Chromium available
+        shell: bash
+        run: |
+          npx playwright install chromium
+          if ! node --input-type=module - <<'JS'
+          import { chromium } from '@playwright/test';
+          const browser = await chromium.launch();
+          await browser.close();
+          JS
+          then
+            npx playwright install-deps chromium
+          fi
+      - name: Render screenshots from current and original repository code
+        run: npx playwright test tests/e2e/discadmin-admin-shell.spec.mjs --project=chromium --grep 'visual evidence #1864' --reporter=list
+      - name: Verify four real Chromium WebP captures and exact-SHA manifest
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          node <<'JS'
+          const fs=require('node:fs');
+          const path=require('node:path');
+          const crypto=require('node:crypto');
+          const root='artifacts/discadmin-spanish-visual';
+          const manifest=JSON.parse(fs.readFileSync(path.join(root,'manifest.json'),'utf8'));
+          if(manifest.head!==process.env.EXPECTED_HEAD || manifest.captures?.length!==4)
+            throw Error('Incomplete or non-exact-HEAD screenshot manifest');
+          for(const name of ['before-390','after-390','before-1440','after-1440']){
+            const capture=manifest.captures.find(x=>x.name===name+'.webp');
+            if(!capture || capture.width!==Number(name.split('-')[1]) || capture.height<200)
+              throw Error('Missing or mismatched real viewport: '+name);
+            const bytes=fs.readFileSync(path.join(root,capture.name));
+            if(bytes.toString('ascii',0,4)!=='RIFF'||bytes.toString('ascii',8,12)!=='WEBP')
+              throw Error('Not an authentic WebP image: '+name);
+            if(crypto.createHash('sha256').update(bytes).digest('hex')!==capture.sha256)
+              throw Error('Hash mismatch: '+name);
+          }
+          if(!manifest.provenance.includes('synthetic source-derived fixture'))
+            throw Error('Fixture provenance not disclosed');
+          JS
+      - name: Attach four screenshots and provenance to PR workflow
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: discadmin-spanish-visual-${{ github.event.pull_request.head.sha }}-${{ github.run_id }}
+          path: artifacts/discadmin-spanish-visual/*
+          if-no-files-found: warn
+          retention-days: 14
