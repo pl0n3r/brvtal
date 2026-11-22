@@ -367,11 +367,16 @@
     const checked = selected.has(id);
     const checkedAttribute = checked ? 'checked' : '';
     const selectedClass = checked ? ' selected' : '';
+    // Expanded 44px touch target via label; the checkbox itself stays readable.
+    const checkbox = `<input type="checkbox" data-grid-select="${id}" aria-label="Select record ${id}" ${checkedAttribute}>`;
+    const selectControl = state.module === 'events'
+      ? `<label class="admin-grid-select-hit">${checkbox}</label>`
+      : checkbox;
     const cells = visibleColumns.map(column =>
-      `<div role="cell" class="admin-grid-cell admin-grid-cell-${esc(column.key)}" data-grid-cell="${esc(column.key)}">${column.render(row)}</div>`
+      `<div role="cell" class="admin-grid-cell admin-grid-cell-${esc(column.key)}" data-grid-cell="${esc(column.key)}" data-grid-label="${esc(column.label)}">${column.render(row)}</div>`
     ).join('');
     return `<div class="admin-data-grid-row${selectedClass}" role="row" data-grid-row-id="${id}" ${orderAttributes(spec,state,false,id)} style="--admin-grid-template:${esc(template)}">
-      <div role="cell" class="admin-grid-select-cell"><input type="checkbox" data-grid-select="${id}" aria-label="Select record ${id}" ${checkedAttribute}></div>
+      <div role="cell" class="admin-grid-select-cell">${selectControl}</div>
       ${cells}
       <div role="cell" class="admin-grid-row-actions">${renderActions(state.module,id)}</div>
     </div>`;
@@ -594,7 +599,7 @@
         <div class="admin-data-grid-scroll">
           <div class="admin-data-grid" role="table" aria-label="${esc(state.module)} records">
             <div class="admin-data-grid-head" role="row" style="--admin-grid-template:${esc(template)}">
-              <div role="columnheader" class="admin-grid-select-cell"><input type="checkbox" data-grid-select-all aria-label="Select all current results" ${allChecked}></div>
+              <div role="columnheader" class="admin-grid-select-cell">${state.module === 'events' ? '<label class="admin-grid-select-hit">' : ''}<input type="checkbox" data-grid-select-all aria-label="Select all current results" ${allChecked}>${state.module === 'events' ? '</label>' : ''}</div>
               ${headers}
               <div role="columnheader" class="admin-grid-actions-head"><span>ACTIONS</span></div>
             </div>
