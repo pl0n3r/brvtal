@@ -112,7 +112,9 @@ test('Dashboard to Media uses canonical readiness even after the dependency load
   });
   await page.addScriptTag({content:adminIaJs});
 
-  await page.getByRole('button', {name:'MEDIA', exact:true}).click();
+  // #1892: Multimedia vive dentro del desplegable «Sitio web» del menú V3.
+  await page.locator('[data-ia-toggle="website"]').click();
+  await page.locator('[data-ia-key="media"]').click();
   await expect(page.locator('[data-admin-module="media"]')).toBeVisible();
   await expect(page.locator('#media-grid')).toBeVisible();
   await expect(page.locator('#media-register')).toHaveCount(0);

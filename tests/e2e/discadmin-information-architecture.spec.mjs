@@ -149,212 +149,156 @@ async function serveHarness(page, {authed = true} = {}) {
   await page.route('**/discadmin-ia-e2e.html*', route => route.fulfill({contentType:'text/html; charset=utf-8',body:harness(authed)}));
 }
 
-// Test visual flex ordering, not only textContent/DOM order (which missed #1480).
-async function visualNavLabels(page) {
-  return page.locator('.side .nav').evaluate(nav => [...nav.children]
-    .filter(button => button.tagName === 'BUTTON'
-      && !button.dataset.iaToggle
-      && button.getClientRects().length > 0
-      && getComputedStyle(button).display !== 'none')
-    .map(button => ({label:button.textContent.trim(),top:button.getBoundingClientRect().top}))
-    .sort((a,b) => a.top - b.top)
-    .map(button => button.label));
+const V3_ROOTS = ['ESCRITORIO','EVENTOS','ARTISTAS','MÚSICA','BOLETERÍA','CORREOS','SITIO WEB','CONFIGURACIÓN'];
+const V3_CHILDREN = {
+  music:['SETS','RELEASES'],
+  ticketing:['PEDIDOS','BOLETAS','COMPRADORES','CONTROL DE ACCESO','CORTESÍAS','PROMOCIONES','PROMOTORES','FINANZAS','DEVOLUCIONES'],
+  mail:['HISTORIAL DE ENVÍOS','PLANTILLAS','PRUEBAS DE ENVÍO'],
+  website:['PÁGINAS','BLOG','MULTIMEDIA','BANNERS','APARIENCIA','SEO'],
+  settings:['GENERAL','REDES SOCIALES Y CONTACTO','INTEGRACIONES','SEGURIDAD','ESTADO DEL SISTEMA','COPIAS DE SEGURIDAD']
+};
+const ALL_TICKETING_TABS = ['dashboard','orders','entries','buyers','door','finance','promos','promoters','mail','settings'];
+
+// El servidor filtra las pestañas de Boletería por rol en este fragmento existente.
+async function serveTicketingTabs(page, tabs = ALL_TICKETING_TABS) {
+  await page.route('**/discadmin/ticketing.php', route => route.fulfill({
+    contentType:'text/html; charset=utf-8',
+    body:'<section data-admin-module="ticketing"><div role="tablist">'
+      + tabs.map(tab => '<button role="tab" data-ticketing-tab="' + tab + '">' + tab + '</button>').join('')
+      + '</div><div data-ticketing-panel></div></section>'
+  }));
 }
 
-test('sidebar exposes the approved WordPress-like hierarchy without technical headings', async ({ page }) => {
-  await serveHarness(page);
-  await page.goto(harnessUrl);
+// Orden visual (no solo DOM) de las raíces, como exige #1892.
+async function visualRootLabels(page) {
+  return page.locator('.side .nav').evaluate(nav => [...nav.children]
+    .filter(node => !node.hidden && node.getClientRects().length > 0)
+    .map(node => {
+      const head = node.matches('button') ? node : node.querySelector('.ia-navhead > button');
+      return {label:head.childNodes[0].textContent.trim(), top:node.getBoundingClientRect().top};
+    })
+    .sort((a,b) => a.top - b.top)
+    .map(item => item.label));
+}
 
-  await expect(page.locator('.ia-navgroup,.navgroup')).toHaveCount(0);
-  await expect(page.locator('.ia-navdivider')).toHaveCount(3);
-  await expect(page.getByRole('button',{name:'CONTENT CORE'})).toBeHidden();
-  await expect(page.getByRole('button',{name:'SECURITY / 2FA'})).toBeHidden();
-  await expect(page.getByRole('button',{name:'THEME STUDIO'})).toBeHidden();
-
-  const presentLabels = await page.locator('.side .nav > button:not([data-ia-hidden="1"]):not([data-ia-toggle])').allTextContents();
-  expect(presentLabels).toEqual([
-    'DASHBOARD','PAGES','BLOG','MEDIA','EVENTS','ARTISTS','RELEASES','SETS',
-    'APPEARANCE','BANNERS','THEME STUDIO','SEO','SETTINGS','SYSTEM STATUS'
-  ]);
-  const topLevel = ['DASHBOARD','PAGES','BLOG','MEDIA','EVENTS','ARTISTS',
-    'RELEASES','SETS','APPEARANCE','SEO','SETTINGS','SYSTEM STATUS'];
-  for (const label of topLevel) {
-    await expect(page.getByRole('button',{name:label,exact:true})).toBeVisible();
-  }
-  await expect.poll(() => visualNavLabels(page)).toEqual(topLevel);
-});
-
-test('Appearance is a keyboard-accessible expandable group with working native destinations', async ({ page }) => {
-  await serveHarness(page);
-  await page.setViewportSize({width:390,height:820});
-  await page.goto(harnessUrl);
-
-  const appearance = page.getByRole('button',{name:'APPEARANCE'});
-  const banners = page.getByRole('button',{name:'BANNERS'});
-  const theme = page.getByRole('button',{name:'THEME STUDIO'});
-  await expect(appearance).toHaveAttribute('aria-expanded','false');
-  await expect(banners).toBeHidden();
-  await appearance.focus();
-  await page.keyboard.press('Enter');
-  await expect(appearance).toHaveAttribute('aria-expanded','true');
-  await expect(banners).toBeVisible();
-  await expect(theme).toBeVisible();
-  await expect.poll(() => visualNavLabels(page)).toEqual([
-    'DASHBOARD','PAGES','BLOG','MEDIA','EVENTS','ARTISTS','RELEASES','SETS',
-    'APPEARANCE','BANNERS','THEME STUDIO','SEO','SETTINGS','SYSTEM STATUS'
-  ]);
-
-  await theme.click();
-  await expect.poll(() => page.evaluate(() => window.state.section)).toBe('theme');
-  await expect(appearance).toHaveAttribute('aria-expanded','true');
-  await expect(theme).toHaveClass(/active/);
-  await appearance.click();
-  await expect(theme).toBeHidden();
-  await expect(appearance).toHaveAttribute('aria-expanded','false');
-  await appearance.click();
-  await banners.click();
-  await expect.poll(() => page.evaluate(() => window.state.section)).toBe('hero-slider');
-  await expect(banners).toHaveClass(/active/);
-});
-
-test('navigation label fallbacks preserve canonical and fuzzy destination keys', async ({ page }) => {
-  await serveHarness(page);
-  await page.goto(harnessUrl);
-
-  const keys = await page.evaluate(() => {
-    const nav = document.querySelector('.side .nav');
-    const labels = [
-      'MEDIA LIBRARY',
-      'PRIMARY HERO SLIDER',
-      'BANNERS',
-      'VISUAL THEME TOOLS',
-      'ACCOUNT 2FA',
-      'SYSTEM STATUS / HOST',
-      'BACKUP VAULT',
-      'ADMIN ACTIVITY LOG',
-      'LEGACY CONTENT CORE',
-      'SEO TOOLS',
-      'CUSTOM TOOL'
-    ];
-    const buttons = labels.map(label => {
-      const button = document.createElement('button');
-      button.textContent = label;
-      nav.appendChild(button);
-      return button;
-    });
-    window.BRVTALAdminIA.rebuildNavigation();
-    return Object.fromEntries(buttons.map(button => [button.textContent, button.dataset.iaKey]));
+for (const viewport of [{width:390,height:844},{width:1440,height:900}]) {
+  test(`#1892 menú V3: exactamente 8 raíces en el orden aprobado a ${viewport.width}px`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await serveTicketingTabs(page);
+    await serveHarness(page);
+    await page.goto(harnessUrl);
+    await expect(page.locator('.side .nav[data-ia-tree="v3"]')).toBeVisible();
+    await expect.poll(() => visualRootLabels(page)).toEqual(V3_ROOTS);
+    for (const [group, labels] of Object.entries(V3_CHILDREN)) {
+      const children = page.locator(`#brvtal-nav-${group} > button`);
+      await expect.poll(() => children.evaluateAll(nodes => nodes.map(n => n.childNodes[0].textContent.trim())))
+        .toEqual(labels);
+    }
+    // Escritorio, Eventos y Artistas navegan directo: sin desplegable ni «Añadir».
+    for (const key of ['dashboard','events','artists']) {
+      await expect(page.locator(`.side .nav > button[data-ia-key="${key}"]`)).toHaveCount(1);
+    }
+    await expect(page.locator('.side .nav')).not.toContainText(/AÑADIR|VER TODOS|RESUMEN DE VENTAS|CONTENT CORE|ACTIVITY/);
   });
+}
 
-  expect(keys).toEqual({
-    'MEDIA LIBRARY':'media',
-    'PRIMARY HERO SLIDER':'hero-slider',
-    'BANNERS':'hero-slider',
-    'VISUAL THEME TOOLS':'theme',
-    'ACCOUNT 2FA':'security',
-    'SYSTEM STATUS / HOST':'system',
-    'BACKUP VAULT':'backups',
-    'ADMIN ACTIVITY LOG':'activity',
-    'LEGACY CONTENT CORE':'content-core',
-    'SEO TOOLS':'seo',
-    'CUSTOM TOOL':'other:custom tool'
-  });
-  await expect(page.getByRole('button',{name:'LEGACY CONTENT CORE'})).toBeHidden();
-});
-
-test('Media keeps its route while Memories expands, collapses and owns its active state', async ({ page }) => {
+test('#1892 los desplegables funcionan con teclado y conservan el foco', async ({ page }) => {
+  await serveTicketingTabs(page);
   await serveHarness(page);
   await page.goto(harnessUrl);
-
-  await page.evaluate(() => {
-    const nav = document.querySelector('.side .nav');
-    const media = [...nav.querySelectorAll(':scope > button')].find(button => button.textContent.trim() === 'MEDIA');
-    const memories = document.createElement('button');
-    memories.type = 'button';
-    memories.textContent = 'MEMORIES';
-    memories.dataset.adminNav = 'media';
-    memories.dataset.memoriesNav = '1';
-    media.after(memories);
-
-    window.state.section = 'media';
-    history.replaceState({}, '', '?module=media&view=memories');
-    window.BRVTALAdminIA.rebuildNavigation();
-  });
-
-  const media = page.getByRole('button',{name:'MEDIA',exact:true});
-  const memories = page.locator('[data-memories-nav="1"]');
-  const toggle = page.locator('[data-ia-toggle="media"]');
-  await expect(memories).toHaveCount(1);
-  await expect(toggle).toHaveAttribute('aria-expanded','true');
-  await expect(memories).toBeVisible();
-  expect(await media.evaluate(node => node.nextElementSibling?.dataset.iaToggle)).toBe('media');
-  await expect(toggle).toHaveAttribute('aria-controls','brvtal-nav-memories');
-  await expect(memories).toHaveAttribute('id','brvtal-nav-memories');
-  await expect(memories).toHaveClass(/active/);
-  await expect(media).not.toHaveClass(/active/);
-  await expect.poll(() => visualNavLabels(page)).toEqual([
-    'DASHBOARD','PAGES','BLOG','MEDIA','MEMORIES','EVENTS','ARTISTS','RELEASES',
-    'SETS','APPEARANCE','SEO','SETTINGS','SYSTEM STATUS'
-  ]);
-
+  const toggle = page.locator('[data-ia-toggle="music"]');
+  await expect(toggle).toHaveAttribute('aria-expanded','false');
+  await expect(toggle).toHaveAttribute('aria-controls','brvtal-nav-music');
+  await expect(page.locator('#brvtal-nav-music')).toBeHidden();
   await toggle.focus();
   await page.keyboard.press('Enter');
-  await expect(toggle).toHaveAttribute('aria-expanded','false');
-  await expect(toggle).toBeFocused();
-  await page.keyboard.press('Space');
   await expect(toggle).toHaveAttribute('aria-expanded','true');
+  await expect(page.locator('#brvtal-nav-music')).toBeVisible();
   await expect(toggle).toBeFocused();
-
-  await toggle.click();
-  await expect(toggle).toHaveAttribute('aria-expanded','false');
-  await expect(memories).toBeHidden();
-  await expect(media).toHaveClass(/active/);
-  await toggle.click();
-  await expect(memories).toBeVisible();
-
-  await page.evaluate(() => {
-    history.replaceState({}, '', '?module=media');
-    window.BRVTALAdminIA.rebuildNavigation();
-  });
-  await expect(media).toHaveClass(/active/);
-  await expect(memories).not.toHaveClass(/active/);
+  await page.keyboard.press('Tab');
+  await expect(page.locator('[data-ia-key="sets"]')).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect.poll(() => page.evaluate(() => window.state.section)).toBe('sets');
+  await expect(page.locator('[data-ia-key="sets"]')).toHaveClass(/active/);
+  await expect(page.locator('[data-ia-key="sets"]')).toHaveAttribute('aria-current','page');
+  await expect.poll(() => new URL(page.url()).searchParams.get('module')).toBe('sets');
+  await page.locator('[data-ia-toggle="music"]').click();
+  await expect(page.locator('#brvtal-nav-music')).toBeHidden();
 });
 
-test('visual sidebar order survives shell re-render and delayed Memories insertion on mobile', async ({ page }) => {
+test('#1892 la hoja activa abre su raíz y sobrevive al re-render y a Memorias tardío', async ({ page }) => {
+  await page.setViewportSize({width:390,height:844});
+  await serveTicketingTabs(page);
   await serveHarness(page);
-  await page.setViewportSize({width:390,height:820});
   await page.goto(harnessUrl);
-  const topLevel = [
-    'DASHBOARD','PAGES','BLOG','MEDIA','EVENTS','ARTISTS','RELEASES',
-    'SETS','APPEARANCE','SEO','SETTINGS','SYSTEM STATUS'
-  ];
-  await expect.poll(() => visualNavLabels(page)).toEqual(topLevel);
-
+  await page.evaluate(() => window.go('hero-slider'));
+  await expect(page.locator('[data-ia-toggle="website"]')).toHaveAttribute('aria-expanded','true');
+  await expect(page.locator('[data-ia-key="hero-slider"]')).toHaveClass(/active/);
   await page.evaluate(() => {
+    window.__renderShell('hero-slider');
     const nav = document.querySelector('.side .nav');
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.textContent = 'MEMORIES';
-    button.dataset.adminNav = 'media';
-    button.dataset.memoriesNav = '1';
-    nav.appendChild(button); // Arrives after shell/initial sidebar hydration.
-    window.BRVTALAdminIA.rebuildNavigation();
+    const late = document.createElement('button');
+    late.textContent = 'MEMORIES'; late.dataset.memoriesNav = '1';
+    nav.appendChild(late);
   });
-  const toggle = page.locator('[data-ia-toggle="media"]');
-  await expect(toggle).toHaveCount(1);
-  await toggle.click();
-  await expect.poll(() => visualNavLabels(page)).toEqual([
-    'DASHBOARD','PAGES','BLOG','MEDIA','MEMORIES','EVENTS','ARTISTS',
-    'RELEASES','SETS','APPEARANCE','SEO','SETTINGS','SYSTEM STATUS'
-  ]);
+  await expect.poll(() => visualRootLabels(page)).toEqual(V3_ROOTS);
+  await expect(page.locator('[data-ia-key="hero-slider"]')).toHaveClass(/active/);
+  // Memorias vive dentro de Multimedia: nunca aparece como entrada visible del menú.
+  await expect(page.locator('.side .nav [data-memories-nav]:visible')).toHaveCount(0);
+});
 
-  await page.evaluate(() => {
-    window.__renderShell('media');
-    window.BRVTALAdminIA.rebuildNavigation();
-  });
-  await expect.poll(() => visualNavLabels(page)).toEqual(topLevel);
-  await expect(page.locator('[data-ia-toggle="media"]')).toHaveCount(0);
-  await expect(page.locator('[data-memories-nav]')).toHaveCount(0);
+test('#1892 Boletería solo muestra las pestañas que el servidor permite al rol Puerta', async ({ page }) => {
+  await serveTicketingTabs(page, ['dashboard','door']);
+  await serveHarness(page);
+  await page.goto(harnessUrl);
+  await expect(page.locator('#brvtal-nav-ticketing > button')).toHaveCount(1);
+  await expect(page.locator('[data-ia-key="ticketing:door"]')).toHaveCount(1);
+  for (const hidden of ['orders','entries','buyers','finance','refunds','promos','promoters']) {
+    await expect(page.locator(`[data-ia-key="ticketing:${hidden}"]`)).toHaveCount(0);
+  }
+  await expect(page.locator('[data-ia-key="mail:history"]')).toHaveCount(0);
+});
+
+test('#1892 Boletería oculta sus hojas si no puede verificar permisos', async ({ page }) => {
+  await page.route('**/discadmin/ticketing.php', route => route.fulfill({status:403, body:'no'}));
+  await serveHarness(page);
+  await page.goto(harnessUrl);
+  await expect(page.locator('.side .nav > button[data-ia-key="ticketing"]')).toHaveCount(1);
+  await expect(page.locator('[data-ia-key^="ticketing:"]')).toHaveCount(0);
+});
+
+test('#1892 «Próximamente» se anuncia deshabilitado y no navega', async ({ page }) => {
+  await serveTicketingTabs(page);
+  await serveHarness(page);
+  await page.goto(harnessUrl);
+  await page.locator('[data-ia-toggle="mail"]').click();
+  const soon = page.locator('[data-ia-key="mail:templates"]');
+  await expect(soon).toHaveAttribute('aria-disabled','true');
+  await expect(soon).toContainText('Próximamente');
+  const before = await page.evaluate(() => [window.state.section, location.search]);
+  await soon.click({force:true});
+  expect(await page.evaluate(() => [window.state.section, location.search])).toEqual(before);
+});
+
+test('#1892 Configuración enlaza a su pestaña y Atrás/Adelante la conservan', async ({ page }) => {
+  await serveTicketingTabs(page);
+  await serveHarness(page);
+  await page.goto(harnessUrl);
+  await page.locator('[data-ia-toggle="settings"]').click();
+  await page.locator('[data-ia-key="settings:integrations"]').click();
+  await expect.poll(() => page.evaluate(() => window.state.section)).toBe('settings');
+  await expect.poll(() => new URL(page.url()).searchParams.get('settings')).toBe('integrations');
+  await expect(page.locator('[data-ia-key="settings:integrations"]')).toHaveClass(/active/);
+  await page.locator('[data-ia-toggle="music"]').click();
+  await page.locator('[data-ia-key="sets"]').click();
+  await expect.poll(() => page.evaluate(() => window.state.section)).toBe('sets');
+  await expect.poll(() => new URL(page.url()).searchParams.get('settings')).toBe(null);
+  await page.goBack();
+  await expect.poll(() => page.evaluate(() => window.state.section)).toBe('settings');
+  await expect.poll(() => new URL(page.url()).searchParams.get('settings')).toBe('integrations');
+  await expect(page.locator('[data-ia-key="settings:integrations"]')).toHaveClass(/active/);
+  await page.goForward();
+  await expect.poll(() => page.evaluate(() => window.state.section)).toBe('sets');
 });
 
 test('successful Dashboard navigation resolves only after canonical active nav is synchronized', async ({ page }) => {
@@ -367,8 +311,7 @@ test('successful Dashboard navigation resolves only after canonical active nav i
     window.BRVTALAdminIA.rebuildNavigation();
 
     const committed = await window.go('dashboard');
-    const dashboard = [...document.querySelectorAll('.side .nav > button')]
-      .find(button => button.textContent.trim() === 'DASHBOARD');
+    const dashboard = document.querySelector('.side .nav [data-ia-key="dashboard"]');
 
     return {
       committed,
@@ -448,8 +391,7 @@ test('failed current Dashboard mount restores the previous Hero workspace', asyn
 
     const historyLengthBefore = history.length;
     const committed = await window.go('dashboard');
-    const banners = [...document.querySelectorAll('.side .nav > button')]
-      .find(button => button.textContent.trim() === 'BANNERS');
+    const banners = document.querySelector('.side .nav [data-ia-key="hero-slider"]');
 
     return {
       committed,
@@ -536,8 +478,7 @@ test('failed stale Dashboard mount never overwrites a newer navigation', async (
     releaseMount(false);
     const staleResult = await staleDashboard;
 
-    const artists = [...document.querySelectorAll('.side .nav > button')]
-      .find(button => button.textContent.trim() === 'ARTISTS');
+    const artists = document.querySelector('.side .nav [data-ia-key="artists"]');
 
     return {
       staleResult,
@@ -745,7 +686,7 @@ test('Events is the single entry to the guided event editor', async ({ page }) =
   await page.goto(harnessUrl);
 
   await page.evaluate(() => window.go('events'));
-  await expect(page.locator('.main .top h1')).toHaveText('EVENTS');
+  await expect(page.locator('.main .top h1')).toHaveText('EVENTOS');
   await expect(page.locator('[data-admin-module="content-core"]')).toHaveAttribute('data-ia-context','events');
   await expect(page.locator('[data-canonical-events-list]')).toBeVisible();
   await expect(page.locator('.main .toolbar .search:visible')).toHaveCount(1);

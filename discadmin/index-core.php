@@ -1292,44 +1292,29 @@ function render(){
  const previousSide=root.querySelector('.side');
  document.body.classList.remove('admin-nav-open');
  const visibleSection=state.section==='security'?'settings':state.section;
- const editorialSections=[
-  ['dashboard','INICIO'],
-  ['pages','PÁGINAS'],
-  ['blog','BLOG'],
-  ['media','MEDIOS'],
+ // #1892: menú V3 de 8 raíces. admin-information-architecture.js construye el árbol
+ // con sus desplegables; este listado plano solo es la reserva si ese script no carga.
+ const adminMenuRoots=[
+  ['dashboard','ESCRITORIO'],
   ['events','EVENTOS'],
   ['artists','ARTISTAS'],
-  ['releases','LANZAMIENTOS'],
-  ['sets','SESIONES'],
-  ['ticketing','BOLETERÍA']
+  ['music','MÚSICA'],
+  ['ticketing','BOLETERÍA'],
+  ['mail','CORREOS'],
+  ['website','SITIO WEB'],
+  ['settings','CONFIGURACIÓN']
  ];
- const editorialNav=editorialSections.map(([key,label])=>{
-  const active=visibleSection===key?'active':'';
-  return `<button class="${active}" data-admin-nav="${key}" onclick="go('${key}')">${label}</button>`;
+ const rootDestination={music:'sets',mail:'ticketing',website:'pages'};
+ const navHtml=adminMenuRoots.map(([key,label])=>{
+  const target=rootDestination[key]||key;
+  const active=visibleSection===target?'active':'';
+  return `<button class="${active}" data-admin-nav="${key}" onclick="go('${target}')">${label}</button>`;
  }).join('');
- const appearanceActive=['hero-slider','theme'].includes(state.section);
- const settingsActive=visibleSection==='settings'?'active':'';
- const systemActive=state.section==='system'?'active':'';
- const navHtml=[
-  editorialNav,
-  `<button type="button" data-admin-nav="appearance" aria-expanded="${appearanceActive}"
-    aria-controls="brvtal-nav-banners brvtal-nav-theme"
-    class="${appearanceActive?'active':''}">APARIENCIA</button>`,
-  `<button id="brvtal-nav-banners" class="${state.section==='hero-slider'?'active':''}"
-    data-ia-subnav="1" data-admin-nav="hero-slider"
-    onclick="go('hero-slider')" >BANNERS DE PORTADA</button>`,
-  `<button id="brvtal-nav-theme" class="${state.section==='theme'?'active':''}"
-    data-ia-subnav="1" data-admin-nav="theme"
-    onclick="go('theme')" >TEMA VISUAL</button>`,
-  `<button class="${visibleSection==='seo'?'active':''}" data-admin-nav="seo" onclick="go('seo')">SEO</button>`,
-  `<button class="${settingsActive}" data-admin-nav="settings" onclick="go('settings')">CONFIGURACIÓN</button>`,
-  `<button class="${systemActive}" data-admin-nav="system" onclick="tech('system')">ESTADO DEL SISTEMA</button>`
- ].join('');
  const moduleTitles={
-  dashboard:'INICIO',pages:'PÁGINAS',blog:'BLOG',media:'MEDIOS',
-  events:'EVENTOS',artists:'ARTISTAS',releases:'LANZAMIENTOS',
-  sets:'SESIONES',ticketing:'BOLETERÍA','hero-slider':'BANNERS DE PORTADA',
-  theme:'TEMA VISUAL',settings:'CONFIGURACIÓN',system:'ESTADO DEL SISTEMA',
+  dashboard:'ESCRITORIO',pages:'PÁGINAS',blog:'BLOG',media:'MULTIMEDIA',
+  events:'EVENTOS',artists:'ARTISTAS',releases:'RELEASES',
+  sets:'SETS',ticketing:'BOLETERÍA','hero-slider':'BANNERS',
+  theme:'APARIENCIA',settings:'CONFIGURACIÓN',system:'ESTADO DEL SISTEMA',backups:'COPIAS DE SEGURIDAD',
   seo:'SEO','content-core':'GESTIÓN DE CONTENIDO',security:'SEGURIDAD / 2FA'
  };
  const moduleTitle=moduleTitles[state.section]||state.section.toUpperCase();

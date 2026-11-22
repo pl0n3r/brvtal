@@ -315,8 +315,21 @@ async function getAdminCollection(context, resource) {
   return payload.data;
 }
 
+// #1892: en el menú V3 Configuración abre su pestaña General y los destinos hijos
+// viven en desplegables; se abre el grupo que contiene el destino antes de pulsarlo.
+const NAV_KEY_ALIASES = {settings:'settings:general'};
+async function revealNavEntry(page, key) {
+  await page.evaluate(navKey => {
+    const button = document.querySelector(`.side .nav [data-admin-nav="${navKey}"]`);
+    const list = button?.closest('.ia-navchildren');
+    if (list?.hidden) document.querySelector(`.side .nav [aria-controls="${list.id}"]`)?.click();
+  }, key);
+}
+
 async function navigate(page, section) {
-  const button = page.locator(`[data-admin-nav="${section}"]`).first();
+  const navKey = NAV_KEY_ALIASES[section] || section;
+  await revealNavEntry(page, navKey);
+  const button = page.locator(`[data-admin-nav="${navKey}"]`).first();
   await runOperation(
     `navigate:${section}`,
     async () => {
@@ -421,10 +434,7 @@ async function auditRemainingDiscAdmin(page, context) {
   await coverageWorkspace(page,'seo','seo',
     '#admin-module-host [data-admin-module="seo"] #seo-workspace-search');
   markStage('coverage:theme');
-  const appearance=page.locator('[data-admin-nav="appearance"]');
-  if (await appearance.getAttribute('aria-expanded')!=='true') {
-    await runOperation('appearance:expand',()=>appearance.click());
-  }
+  await runOperation('site:expand',()=>revealNavEntry(page,'theme'));
   await coverageWorkspace(page,'themeStudio','theme','[data-theme-studio-v2]',
     '[data-theme-studio-v2] [data-theme-tab="brand"].active');
 
@@ -463,6 +473,7 @@ async function auditRemainingDiscAdmin(page, context) {
 
   markStage('coverage:system');
   await runOperation('system:open',async()=>{
+    await revealNavEntry(page,'system');
     await page.locator('[data-admin-nav="system"]').click();
     await page.locator('#system-status-v2').waitFor({state:'visible',timeout:14_000});
   },17_000);
