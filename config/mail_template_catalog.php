@@ -23,7 +23,7 @@ function brvtal_mail_template_catalog(): array
             'allowed_variables' => in_array($key, ['verify_account', 'reset_password'], true)
                 ? [] : ['event_name'],
             'server_only' => ['link', 'token', 'recipient', 'email', 'buyer_id',
-                'order_id', 'ticket_id', 'qr', 'cta_url', 'payment_reference'],
+                'order_id', 'ticket_id', 'qr', 'cta_url'],
             'defaults' => [
                 'subject' => (string)$copy[$key]['subject'],
                 'preheader' => '',
@@ -142,7 +142,9 @@ function brvtal_mail_template_validate(
         $normalized[$field] = trim($value);
     }
     $theme = $document['theme'] ?? null;
-    if (!is_array($theme) || array_keys($theme) !== array_keys(brvtal_mail_template_default_theme())) {
+    $allowedThemeKeys = array_keys(brvtal_mail_template_default_theme());
+    if (!is_array($theme) || count($theme) !== count($allowedThemeKeys)
+        || array_diff(array_keys($theme), $allowedThemeKeys) !== []) {
         throw new InvalidArgumentException('MAIL_TEMPLATE_THEME_INVALID');
     }
     $colors = ['background','foreground','accent'];
