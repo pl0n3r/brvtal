@@ -177,7 +177,7 @@ async function serveHarness(page, {authed = true, role = 'superadmin'} = {}) {
   }));
   await page.route('**/discadmin-ia-e2e.html*', route => route.fulfill({
     contentType:'text/html; charset=utf-8',
-    body:harness(authed, new URL(route.request().url).searchParams.get('legacy') === '1')
+    body:harness(authed, new URL(route.request().url()).searchParams.get('legacy') === '1')
   }));
 }
 
