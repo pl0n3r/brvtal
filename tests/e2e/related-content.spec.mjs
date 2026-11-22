@@ -48,7 +48,7 @@ test('related content explorer connects artists to events, sets and releases wit
 
   await page.route(harnessUrl, route => route.fulfill({
     contentType: 'text/html; charset=utf-8',
-    body: `<!doctype html><html lang="en"><head><meta charset="utf-8"></head><body>
+    body: `<!doctype html><html lang="es"><head><meta charset="utf-8"></head><body>
       <main><section id="sets"></section><section id="media"></section></main>
       <script>window.ScrollTrigger={refresh(){window.__relatedRefreshed=true;}};window.BRVTALPublicArchive={getData(){return ${JSON.stringify(data)};}};</script>
       <script>${relatedJs}</script>
@@ -58,7 +58,7 @@ test('related content explorer connects artists to events, sets and releases wit
   await page.goto(harnessUrl);
 
   await expect(page.locator('#network')).toBeVisible();
-  await expect(page.locator('[data-related-summary]')).toContainText('7 PUBLIC LINKS');
+  await expect(page.locator('[data-related-summary]')).toContainText('7 VÍNCULOS PÚBLICOS');
   await expect(page.locator('[data-related-detail]')).toContainText('PL0N3R');
   await expect(page.locator('[data-related-detail]')).toContainText('NEXT SIGNAL');
   await expect(page.locator('[data-related-detail]')).toContainText('PL0N3R LIVE');
@@ -70,15 +70,15 @@ test('related content explorer connects artists to events, sets and releases wit
   await expect(page.locator('a[href="/sets/pl0n3r-live"]')).toBeVisible();
   await expect(page.locator('[data-related-detail]')).toContainText('NEXT SIGNAL');
 
-  await page.getByRole('tab', { name: 'ARTISTS' }).click();
+  await page.getByRole('tab', { name: 'ARTISTAS' }).click();
   await page.getByRole('button', { name: /DNL5/ }).first().click();
   await expect(page.locator('[data-related-detail]')).toContainText('PAST SIGNAL');
   await expect(page.locator('[data-related-detail]')).toContainText('DNL5 ARCHIVE');
   await expect(page.locator('[data-related-detail]')).not.toContainText('SIGNAL 001');
 
-  await page.getByRole('tab', { name: 'EVENTS' }).click();
+  await page.getByRole('tab', { name: 'NOCHES' }).click();
   await page.getByRole('button', { name: /PAST SIGNAL/ }).first().click();
-  await expect(page.locator('[data-related-detail]')).toContainText('EVENT / FINISHED');
+  await expect(page.locator('[data-related-detail]')).toContainText('NOCHE / FINISHED');
   await expect(page.locator('a[href="/events/past-signal"]')).toBeVisible();
   await expect(page.locator('[data-related-detail]')).toContainText('DNL5');
   await expect(page.locator('[data-related-detail]')).toContainText('DNL5 ARCHIVE');
