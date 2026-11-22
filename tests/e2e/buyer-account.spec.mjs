@@ -2,6 +2,8 @@ import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+test.use({locale:'es-CO',timezoneId:'America/Bogota'});
+
 const root = process.cwd();
 const html = readFileSync(join(root, 'buyer/index.php'), 'utf8');
 const config = readFileSync(join(root, 'config/buyer_account.php'), 'utf8');

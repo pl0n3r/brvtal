@@ -2,6 +2,8 @@ import { test, expect } from '@playwright/test';
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+test.use({locale:'es-CO',timezoneId:'America/Bogota'});
+
 // Browser renders actual buyer/index.php + buyer-access.css + buyer-account.css.
 // No real users, credentials, purchases, external provider calls or production.
 const root=process.cwd();
@@ -12,7 +14,7 @@ const origin='http://127.0.0.1:4173';
 const output=join(root,'artifacts','buyer-account-1911');
 const fakeOrders=[
   {event_id:13,event_title:'BRVTAL Noche industrial',status:'paid',payment_status:'paid',
-   created_at_utc:'2026-11-22 19:30:00',total_cop:95000,currency:'COP',
+   created_at_utc:'2026-11-23 02:30:00',total_cop:95000,currency:'COP',
    items:[{name:'Entrada general',quantity:1,status:'issued',credential_active:false}]},
   {event_id:27,event_title:'BRVTAL Techno al amanecer',status:'pending',
    payment_status:'pending',created_at_utc:'2026-11-20 03:45:00',total_cop:70000,
@@ -74,6 +76,7 @@ test('AC-01: comprador sintético, selector por nombre y fecha de Colombia, sin 
   await page.setViewportSize({width:390,height:900});
   const queries=await prepare(page);
   await expect(page.getByRole('heading',{name:'Mis compras'})).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('lang','es-CO');
   await expect(page.locator('link[href^="/css/buyer-access.css"]')).toHaveCount(1);
   await expect(page.locator('link[href^="/css/buyer-account.css"]')).toHaveCount(1);
   const selector=page.getByRole('combobox',{name:'Evento'});
