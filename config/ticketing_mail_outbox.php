@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/ticketing_resend.php';
 require_once __DIR__ . '/public_abuse_guard.php';
+require_once __DIR__ . '/mail_template_renderer.php';
 
 /**
  * Enqueue INSIDE the caller's existing order/payment transaction. This does
@@ -10,7 +11,8 @@ require_once __DIR__ . '/public_abuse_guard.php';
  * The same key MUST identify the same content, not a second email.
  */
 function brvtal_ticket_mail_enqueue(
-    PDO $pdo, string $key, string $reference, string $recipient, string $subject, string $body
+    PDO $pdo, string $key, string $reference, string $recipient, string $subject, string $body,
+    ?string $html = null, ?string $templateKey = null, ?int $templateVersion = null
 ): int {
     // No personal-data persistence without explicit privacy gate (or test fixture).
     // Private config wins over env. Only explicit "1" may bypass privacy.
@@ -28,7 +30,46 @@ function brvtal_ticket_mail_enqueue(
         || $body === '' || strlen($body) > 50000) {
         throw new InvalidArgumentException('MAIL_INVALID_INPUT');
     }
-    $fingerprint = hash('sha256', json_encode([$reference, $recipient, $subject, $body], JSON_THROW_ON_ERROR));
+    $sensitive = str_starts_with($body, BRVTAL_BUYER_MAIL_SEAL_PREFIX);
+    if ($sensitive && $html === null) {
+        // Existing BuyerAuth flow passes only the sealed text. Resolve the
+        // published snapshot here, inside the caller's transaction, without
+        // persisting a raw one-use bearer or changing its external API.
+        if (!preg_match('/^buyer:[0-9]+:(verify_account|reset_password):[0-9]+$/D', $key, $matched)) {
+            throw new DomainException('MAIL_TOKEN_CONTEXT_INVALID');
+        }
+        $plaintext = brvtalBuyerMailUnseal($body);
+        if ($plaintext === null) throw new DomainException('MAIL_TOKEN_CONTEXT_INVALID');
+        $link = brvtalBuyerMailExtractLink($plaintext, $matched[1]);
+        if ($link === null) throw new DomainException('MAIL_TOKEN_CONTEXT_INVALID');
+        $snapshot = brvtal_mail_delivery_render($pdo, $matched[1], ['link'=>$link]);
+        $subject = $snapshot['subject'];
+        $body = brvtalBuyerMailSeal($snapshot['text']);
+        $html = brvtalBuyerMailSeal($snapshot['html'], 50000);
+        $templateKey = $matched[1];
+        $templateVersion = $snapshot['template_version'];
+    }
+    if ($html !== null && ($html === '' || strlen($html) > 150000
+        || $templateKey === null || !preg_match('/^[a-z_]{1,64}$/D',$templateKey)
+        || ($templateVersion !== null && $templateVersion < 1)
+        || ($sensitive && !str_starts_with($html, BRVTAL_BUYER_MAIL_SEAL_PREFIX)))) {
+        throw new InvalidArgumentException('MAIL_HTML_INVALID');
+    }
+    // A legacy, pre-migration database keeps a sealed/plain text-only path.
+    // The new schema is required to preserve the HTML + template metadata.
+    $schemaReady = false;
+    if ($html !== null) {
+        $columns = $pdo->query("SELECT COUNT(*) FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='ticket_mail_outbox'
+            AND COLUMN_NAME IN ('body_html','template_key','template_version')");
+        $schemaReady = (int)$columns->fetchColumn() === 3;
+    }
+    $fingerprint = hash('sha256', json_encode($html === null
+        ? [$reference,$recipient,$subject,$body]
+        : [$reference,$recipient,$subject,
+            $sensitive ? hash('sha256',(string)brvtalBuyerMailUnseal($body)) : $body,
+            $sensitive ? hash('sha256',(string)brvtalBuyerMailUnseal($html)) : $html,
+            $templateKey,$templateVersion], JSON_THROW_ON_ERROR));
     // An idempotent replay must not spend the budget or enqueue a second email.
     $existing = $pdo->prepare('SELECT id,payload_hash FROM ticket_mail_outbox WHERE message_key=? LIMIT 1');
     $existing->execute([$key]);
@@ -45,11 +86,21 @@ function brvtal_ticket_mail_enqueue(
             throw new DomainException('MAIL_RATE_LIMITED');
         }
     }
-    $stmt = $pdo->prepare('INSERT INTO ticket_mail_outbox
-        (message_key,payload_hash,related_ref,recipient_email,subject,body_text,next_attempt_at,created_at,updated_at)
-        VALUES (?,?,?,?,?,?,UTC_TIMESTAMP(),UTC_TIMESTAMP(),UTC_TIMESTAMP())
-        ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)');
-    $stmt->execute([$key, $fingerprint, $reference, $recipient, $subject, $body]);
+    if ($schemaReady) {
+        $stmt = $pdo->prepare('INSERT INTO ticket_mail_outbox
+            (message_key,payload_hash,related_ref,recipient_email,subject,body_text,
+             body_html,template_key,template_version,next_attempt_at,created_at,updated_at)
+            VALUES (?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP(),UTC_TIMESTAMP(),UTC_TIMESTAMP())
+            ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)');
+        $stmt->execute([$key,$fingerprint,$reference,$recipient,$subject,$body,
+            $html,$templateKey,$templateVersion]);
+    } else {
+        $stmt = $pdo->prepare('INSERT INTO ticket_mail_outbox
+            (message_key,payload_hash,related_ref,recipient_email,subject,body_text,next_attempt_at,created_at,updated_at)
+            VALUES (?,?,?,?,?,?,UTC_TIMESTAMP(),UTC_TIMESTAMP(),UTC_TIMESTAMP())
+            ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)');
+        $stmt->execute([$key,$fingerprint,$reference,$recipient,$subject,$body]);
+    }
     $id = (int)$pdo->lastInsertId();
     $read = $pdo->prepare('SELECT payload_hash FROM ticket_mail_outbox WHERE id=?');
     $read->execute([$id]);
