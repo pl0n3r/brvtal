@@ -149,6 +149,13 @@ const BRVTALRelatedContent = (() => {
 
   function mount() {
     if (state.root?.isConnected) return state.root;
+    // Keep mount self-contained for isolated DOM verification while using the
+    // shared Spanish copy in the normal public application runtime.
+    const labels = typeof UI === 'undefined' ? {
+      graph: 'CONTENIDO RELACIONADO / RED PÚBLICA', title: 'CONEXIONES',
+      browse: 'Explorar contenido relacionado de BRVTAL', contentType: 'Tipo de contenido',
+      artists: 'ARTISTAS', events: 'NOCHES', sets: 'SETS', releases: 'LANZAMIENTOS',
+    } : UI;
     ensureStyles();
     const host = qs('main') || document.body;
     const before = qs('#media', host);
@@ -159,16 +166,16 @@ const BRVTALRelatedContent = (() => {
     section.innerHTML = `
       <div class="related-network-noise" aria-hidden="true"></div>
       <div class="related-network-head">
-        <div><div class="mono related-network-kicker">${UI.graph}</div><h2>${UI.title}</h2></div>
+        <div><div class="mono related-network-kicker">${labels.graph}</div><h2>${labels.title}</h2></div>
         <div class="mono related-network-summary" data-related-summary></div>
       </div>
       <div class="related-network-layout">
-        <aside class="related-network-browser" aria-label="${UI.browse}">
-          <div class="related-network-tabs" role="tablist" aria-label="${UI.contentType}">
-            <button type="button" id="related-tab-artists" role="tab" aria-selected="true" aria-controls="related-network-panel" tabindex="0" data-related-mode="artists">${UI.artists}</button>
-            <button type="button" id="related-tab-events" role="tab" aria-selected="false" aria-controls="related-network-panel" tabindex="-1" data-related-mode="events">${UI.events}</button>
-            <button type="button" id="related-tab-sets" role="tab" aria-selected="false" aria-controls="related-network-panel" tabindex="-1" data-related-mode="sets">${UI.sets}</button>
-            <button type="button" id="related-tab-releases" role="tab" aria-selected="false" aria-controls="related-network-panel" tabindex="-1" data-related-mode="releases">${UI.releases}</button>
+        <aside class="related-network-browser" aria-label="${labels.browse}">
+          <div class="related-network-tabs" role="tablist" aria-label="${labels.contentType}">
+            <button type="button" id="related-tab-artists" role="tab" aria-selected="true" aria-controls="related-network-panel" tabindex="0" data-related-mode="artists">${labels.artists}</button>
+            <button type="button" id="related-tab-events" role="tab" aria-selected="false" aria-controls="related-network-panel" tabindex="-1" data-related-mode="events">${labels.events}</button>
+            <button type="button" id="related-tab-sets" role="tab" aria-selected="false" aria-controls="related-network-panel" tabindex="-1" data-related-mode="sets">${labels.sets}</button>
+            <button type="button" id="related-tab-releases" role="tab" aria-selected="false" aria-controls="related-network-panel" tabindex="-1" data-related-mode="releases">${labels.releases}</button>
           </div>
           <div class="related-network-list" id="related-network-panel" role="tabpanel" aria-labelledby="related-tab-artists" tabindex="0" data-related-list></div>
         </aside>
@@ -299,6 +306,9 @@ const BRVTALRelatedContent = (() => {
 
   function group(title, items, renderItem) {
     const list = Array.isArray(items) ? items.filter(Boolean) : [];
+    // The internal relation discriminator stays compatible with the existing
+    // memory contract; the visible group heading remains Spanish.
+    title = title === 'MEMORIES' ? 'MEMORIAS' : title;
     return `<section class="related-group"><div class="related-group-head"><h4>${esc(plain(title))}</h4><span class="mono">${list.length}</span></div><div class="related-group-list">${list.length ? list.map(item => renderItem(item)).join('') : `<div class="related-group-empty mono">${UI.emptyRelations}</div>`}</div></section>`;
   }
 
@@ -327,7 +337,7 @@ const BRVTALRelatedContent = (() => {
       ${group('NOCHES', eventItems, event => relationItem('event', event, { meta: [formatDate(event.event_date), event.city].filter(Boolean).join(' / ') }))}
       ${group('SETS', setItems, set => relationItem('set', set, { meta: [String(set.platform || '').toUpperCase(), set.event_title].filter(Boolean).join(' / '), href: set.external_url }))}
       ${group('LANZAMIENTOS', releaseItems, release => relationItem('release', release, { meta: [String(release.release_type || '').toUpperCase(), formatDate(release.release_date)].filter(Boolean).join(' / '), href: releaseHref(release) }))}
-      ${group('MEMORIAS', memoryItems, memoryItem)}
+      ${group('MEMORIES', memoryItems, memoryItem)}
     </div>`;
   }
 
@@ -346,7 +356,7 @@ const BRVTALRelatedContent = (() => {
     <div class="related-groups">
       ${group('ARTISTAS', artistItems, artist => relationItem('artist', artist, { meta: artist.bio || 'ARTISTA BRVTAL' }))}
       ${group('SETS', setItems, set => relationItem('set', set, { meta: [String(set.platform || '').toUpperCase(), set.artist_name].filter(Boolean).join(' / '), href: set.external_url }))}
-      ${group('MEMORIAS', memoryItems, memoryItem)}
+      ${group('MEMORIES', memoryItems, memoryItem)}
     </div>`;
   }
 
@@ -366,7 +376,7 @@ const BRVTALRelatedContent = (() => {
     <div class="related-groups">
       ${group('ARTISTA', artist ? [artist] : [], item => relationItem('artist', item, { meta: item.bio || 'ARTISTA BRVTAL' }))}
       ${group('NOCHE', event ? [event] : [], item => relationItem('event', item, { meta: [formatDate(item.event_date), item.city].filter(Boolean).join(' / ') }))}
-      ${group('MEMORIAS', memoryItems, memoryItem)}
+      ${group('MEMORIES', memoryItems, memoryItem)}
     </div>`;
   }
 
@@ -384,7 +394,7 @@ const BRVTALRelatedContent = (() => {
     </div>
     <div class="related-groups">
       ${group('ARTISTAS', artistItems, artist => relationItem('artist', artist, { meta: artist.bio || 'ARTISTA BRVTAL' }))}
-      ${group('MEMORIAS', memoryItems, memoryItem)}
+      ${group('MEMORIES', memoryItems, memoryItem)}
     </div>`;
   }
 
@@ -423,7 +433,7 @@ const BRVTALRelatedContent = (() => {
     const counts = state.data?.relations?.counts || {};
     const total = Object.values(counts).reduce((sum, value) => sum + (Number(value) || 0), 0);
     const memoryLinks = Number(counts.event_memory || 0) + Number(counts.artist_memory || 0) + Number(counts.set_memory || 0) + Number(counts.release_memory || 0);
-    summary.textContent = `${total} ${UI.publicLinks} / ${Number(counts.event_artist || 0)} NOCHE↔ARTISTA / ${Number(counts.event_set || 0)} NOCHE↔SET / ${Number(counts.artist_set || 0)} ARTISTA↔SET / ${Number(counts.artist_release || 0)} ARTISTA↔LANZAMIENTO / ${memoryLinks} MEMORIA LINKS`;
+    summary.textContent = `${total} ${UI.publicLinks} / ${Number(counts.event_artist || 0)} NOCHE↔ARTISTA / ${Number(counts.event_set || 0)} NOCHE↔SET / ${Number(counts.artist_set || 0)} ARTISTA↔SET / ${Number(counts.artist_release || 0)} ARTISTA↔LANZAMIENTO / ${memoryLinks} VÍNCULOS DE MEMORIA`;
   }
 
   function render() {
