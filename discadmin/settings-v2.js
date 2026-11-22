@@ -227,6 +227,19 @@
 
     const INTEGRATION_PROVIDERS = [{"id":"resend","name":"Resend","description":"Envío de correos y confirmaciones de entradas.","fields":[{"key":"BRVTAL_TICKET_MAIL_API_KEY","label":"Clave de API","help":"Empieza por re_…","example":"re_…","kind":"password"},{"key":"BRVTAL_TICKET_MAIL_DOMAIN","label":"Dominio de envío","help":"Dominio verificado para enviar correos.","example":"correo.ejemplo.co","kind":"text"},{"key":"BRVTAL_TICKET_MAIL_FROM","label":"Remitente","help":"Correo que verán las personas al recibir un mensaje.","example":"entradas@ejemplo.co","kind":"email"},{"key":"BRVTAL_TICKET_MAIL_WEBHOOK_SECRET","label":"Secreto del webhook","help":"Clave de firma para verificar los eventos recibidos.","example":"whsec_…","kind":"password"}]},{"id":"wompi","name":"Wompi sandbox","description":"Pagos de prueba; estas claves no activan cobros reales.","fields":[{"key":"BRVTAL_TICKET_WOMPI_PUBLIC_KEY","label":"Clave pública","help":"Clave de pruebas para la integración.","example":"pub_test_…","kind":"password"},{"key":"BRVTAL_TICKET_WOMPI_PRIVATE_KEY","label":"Clave privada","help":"Guárdala de forma privada. No se mostrará otra vez.","example":"prv_test_…","kind":"password"}]},{"id":"smtp","name":"SMTP","description":"Servidor alternativo para el envío de correos.","fields":[{"key":"BRVTAL_SMTP_HOST","label":"Servidor","help":"Dirección del servidor de correo.","example":"smtp.ejemplo.co","kind":"text"},{"key":"BRVTAL_SMTP_USER","label":"Usuario","help":"Identificador de la cuenta de correo.","example":"cuenta@ejemplo.co","kind":"text"},{"key":"BRVTAL_SMTP_PASSWORD","label":"Contraseña","help":"Contraseña del servidor. No se mostrará después.","example":"Introduce una nueva contraseña","kind":"password"},{"key":"BRVTAL_MAIL_FROM","label":"Remitente","help":"Correo desde el que se envían los mensajes.","example":"hola@ejemplo.co","kind":"email"}]},{"id":"ga4","name":"Google Analytics 4","description":"Identidad de servicio para consultar métricas.","fields":[{"key":"BRVTAL_GA4_PROPERTY_ID","label":"ID de propiedad","help":"Solo los números del identificador de GA4.","example":"123456789","kind":"text"},{"key":"BRVTAL_GA4_CLIENT_EMAIL","label":"Correo de servicio","help":"Dirección de la cuenta de servicio.","example":"cuenta@proyecto.iam.gserviceaccount.com","kind":"email"},{"key":"BRVTAL_GA4_PRIVATE_KEY","label":"Clave privada (PEM)","help":"Pega el bloque PEM completo, con saltos de línea.","example":"-----BEGIN PRIVATE KEY-----","kind":"multiline"}]},{"id":"sentry","name":"Sentry","description":"Diagnóstico de errores del servidor.","fields":[{"key":"BRVTAL_SENTRY_DSN","label":"Dirección de conexión (DSN)","help":"Dirección HTTPS de tu proyecto.","example":"https://…@sentry.io/…","kind":"password"}]}];
   
+  // Only fields explicitly allowed by the server can be displayed in Settings.
+  const INTEGRATION_PUBLIC_KEYS = new Set(["BRVTAL_TICKET_MAIL_FROM","BRVTAL_TICKET_MAIL_DOMAIN","BRVTAL_SMTP_HOST","BRVTAL_SMTP_USER","BRVTAL_MAIL_FROM","BRVTAL_GA4_PROPERTY_ID","BRVTAL_GA4_CLIENT_EMAIL"]);
+  function integrationPublicValue(field,item){
+    if(!INTEGRATION_PUBLIC_KEYS.has(field.key) || !['text','email'].includes(field.kind))return '';
+    return item?.stored===true && typeof item.value==='string' ? item.value : '';
+  }
+  function integrationPublicItem(item){
+    const key=String(item.key||'');
+    const row={key,stored:item.stored===true,updated_at:String(item.updated_at||'')};
+    if(row.stored && INTEGRATION_PUBLIC_KEYS.has(key) && typeof item.value==='string')row.value=item.value;
+    return row;
+  }
+
   function integrationState(provider,items){
    const stored=provider.fields.some(field=>items.some(item=>item.key===field.key && item.stored===true));
    if(!stored)return "Falta";
@@ -238,9 +251,12 @@
    const stored=item?.stored===true;
    const id="sv2-secret-"+field.key.toLowerCase().replaceAll("_","-");
    const disabled=writable?"":"disabled";
+   const isPublic=INTEGRATION_PUBLIC_KEYS.has(field.key) && ['text','email'].includes(field.kind);
+   const current=isPublic?integrationPublicValue(field,item):'';
+   const preset=isPublic?` value="${esc(current)}" data-public-original="${esc(current)}"`:'';
    const input=field.kind==="multiline"
      ? `<textarea id="${id}" rows="5" data-secret-input data-secret-key="${esc(field.key)}" autocomplete="off" spellcheck="false" placeholder="${esc(field.example)}" ${disabled}></textarea>`
-     : `<input id="${id}" data-secret-input data-secret-key="${esc(field.key)}" type="${esc(field.kind)}" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(field.example)}" ${disabled}>`;
+     : `<input id="${id}" data-secret-input data-secret-key="${esc(field.key)}" type="${esc(field.kind)}" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(field.example)}"${preset} ${disabled}>`;
    const updated=item?.updated_at ? "Actualizado: "+esc(item.updated_at) : "Sin valor guardado";
    return `<div class="sv2-secret-field" data-secret-row="${esc(field.key)}">
        <label class="sv2-secret-label" for="${id}">${esc(field.label)}</label>
@@ -340,9 +356,7 @@
      if(token!==V2.integrationLoadToken || !host.isConnected)return;
      const writable=payload.write_enabled===true && payload.master_key_configured===true;
      V2.integrationWritable=writable;
-     V2.integrationItems=payload.items.map(item=>({
-       key:String(item.key||""),stored:item.stored===true,updated_at:String(item.updated_at||"")
-     }));
+     V2.integrationItems=payload.items.map(integrationPublicItem);
      host.innerHTML=(writable?"":'<p class="sv2-secret-locked" role="note">La escritura de claves está bloqueada en el servidor. Puedes consultar el estado, pero no modificarlas.</p>')+
        '<div class="sv2-secret-cards">'+INTEGRATION_PROVIDERS.map(provider=>integrationCard(provider,V2.integrationItems,writable)).join("")+"</div>"+
        '<p class="sv2-secret-disclaimer">Guardar una clave no activa envíos, cobros reales ni publicación del sitio.</p>';
@@ -376,11 +390,11 @@
      if(["CSRF","AUTH_REQUIRED","HTTP_401","HTTP_403"].includes(error))delete window.csrf;
      throw new Error(error);
    }
-   // Only status metadata, never values or ciphertext, may leave this function.
-   return payload.items.map(item=>({key:String(item.key||""),stored:item.stored===true,updated_at:String(item.updated_at||"")}));
+   // Only explicit public settings, never keys, ciphertext or private config.
+   return payload.items.map(integrationPublicItem);
   }
   
-  function updateIntegrationCard(card,items){
+  function updateIntegrationCard(card,items,savedKeys=[]){
    const provider=INTEGRATION_PROVIDERS.find(p=>p.id===card.dataset.integrationProvider);
    if(!provider)return;
    V2.integrationItems=items;
@@ -402,6 +416,15 @@
      if(small)small.textContent=saved?("Guardada · Actualizado: "+String(item.updated_at||"fecha no disponible")):"Sin valor guardado";
      const del=row.querySelector("[data-secret-delete]");
      if(del){del.hidden=!saved;del.disabled=!V2.integrationWritable;}
+     // Only committed fields refresh; unrelated unsaved drafts stay untouched.
+     if(savedKeys.includes(field.key)){
+       const input=row.querySelector('[data-secret-input][data-public-original]');
+       if(input){
+         const value=integrationPublicValue(field,item);
+         input.value=value;
+         input.dataset.publicOriginal=value;
+       }
+     }
    });
   }
   
@@ -426,12 +449,12 @@
     card.setAttribute("aria-busy",busy?"true":"false");
   }
 
-  function integrationFinished(id,message,items=null){
+  function integrationFinished(id,message,items=null,savedKeys=[]){
     integrationOperations.delete(id);
     if(items)V2.integrationItems=items;
     const card=integrationCardFor(id);
     if(!card)return; // A committed operation finishes even if Settings is no longer mounted.
-    if(items)updateIntegrationCard(card,items);
+    if(items)updateIntegrationCard(card,items,savedKeys);
     integrationBusy(card,false);
     const feedback=card.querySelector('[data-secret-feedback]');
     if(feedback)feedback.textContent=message;
@@ -441,7 +464,8 @@
     const card=integrationCardFor(id);
     if(!card || !V2.integrationWritable || integrationOperations.has(id))return;
     const fields=Array.from(card.querySelectorAll('[data-secret-input], [data-mail-allowlist]'))
-      .filter(field=>field.value.trim().length>0)
+      .filter(field=>field.value.trim().length>0
+        && (!field.hasAttribute('data-public-original') || field.value!==field.dataset.publicOriginal))
       .map(field=>({element:field,key:field.dataset.secretKey,value:field.value}));
     const feedback=card.querySelector('[data-secret-feedback]');
     if(!feedback)return;
@@ -450,18 +474,19 @@
     integrationOperations.set(id,"Guardando…");
     integrationBusy(card,true);
     feedback.textContent="Guardando…";
-    let saved=0, latestItems=null, message="";
+    let saved=0, latestItems=null, message="", savedKeys=[];
     try{
       for(const field of fields){
         latestItems=await integrationMutation("POST",field.key,field.value);
         field.element.value="";
+        savedKeys.push(field.key);
         saved++;
       }
       message=saved===1?"Clave guardada. Los demás valores no se modificaron.":`${saved} claves guardadas. Los demás valores no se modificaron.`;
     }catch(error){
       message=(saved?`${saved} claves guardadas. `:"")+integrationError(error);
     }finally{
-      integrationFinished(id,message,latestItems);
+      integrationFinished(id,message,latestItems,savedKeys);
     }
   }
 
@@ -512,7 +537,7 @@
     }catch(error){
       message=integrationError(error);
     }finally{
-      integrationFinished(id,message,latestItems);
+      integrationFinished(id,message,latestItems,[key]);
     }
   }
 
