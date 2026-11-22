@@ -1,9 +1,12 @@
 /* T19: one module inside DISCADMIN, never a second shell or QR secret store. */
-export async function mount(panel) {
+export async function mount(panel,isCurrent=()=>true) {
   const response = await fetch('/discadmin/ticketing-entries.php',
     {credentials:'same-origin',cache:'no-store',headers:{'X-BRVTAL-ADMIN-FRAGMENT':'1'}});
+  if (!isCurrent()) return;
   if (!response.ok) {panel.textContent='No se pudo abrir Boletas ('+response.status+').';return;}
-  const doc = new DOMParser().parseFromString(await response.text(),'text/html');
+  const markup=await response.text();
+  if (!isCurrent()) return;
+  const doc = new DOMParser().parseFromString(markup,'text/html');
   const root = doc.querySelector('[data-ticketing-entries]');
   if (!root) {panel.textContent='Respuesta inválida de Boletas.';return;}
   panel.replaceChildren(document.importNode(root,true));
@@ -12,7 +15,7 @@ export async function mount(panel) {
   const qrBox=host.querySelector('[data-entry-qr]'),qrImage=host.querySelector('[data-entry-qr-image]');
   const more=host.querySelector('[data-entry-more]'),csrf=host.dataset.ticketingCsrf;
   let cursor=Number.MAX_SAFE_INTEGER, busy=false, generation=0;
-  const active=()=>host.isConnected && panel.contains(host);
+  const active=()=>isCurrent() && host.isConnected && panel.contains(host);
   const el=(tag,value)=>{const e=document.createElement(tag);e.textContent=String(value??'');return e;};
   function clearQr(){qrBox.hidden=true;qrImage.replaceChildren();}
   async function api(method,body,query='') {

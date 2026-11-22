@@ -91,3 +91,34 @@ test('T19 pestaña Boletas integrada en el shell DISCADMIN, sin segundo administ
   await expect(page.getByRole('button',{name:'Reemitir'})).toBeVisible();
   await expect(page.locator('[data-ticketing-panel] tbody tr')).toHaveCount(1);
 });
+
+test('T19 respuesta tardía no reinyecta la ficha al abandonar la pestaña',async({page})=>{
+  let markStarted,releaseResponse;
+  const started=new Promise(resolve=>{markStarted=resolve;});
+  const gate=new Promise(resolve=>{releaseResponse=resolve;});
+  await page.route('**/discadmin/t19-fixture.html',r=>r.fulfill({
+    contentType:'text/html',body:'<html lang="es"><div id="panel" data-active="entries"></div></html>'
+  }));
+  await page.route('**/discadmin/ticketing-entries.js',r=>r.fulfill({contentType:'text/javascript',body:code}));
+  await page.route('**/discadmin/ticketing-entries.php',async r=>{
+    markStarted();
+    await gate;
+    await r.fulfill({contentType:'text/html',body:fixture});
+  });
+  await page.goto('https://www.brvtal.com.co/discadmin/t19-fixture.html');
+  await page.evaluate(async()=>{
+    const mod=await import('/discadmin/ticketing-entries.js');
+    const panel=document.querySelector('#panel');
+    window.pendingEntries=mod.mount(panel,()=>panel.dataset.active==='entries');
+  });
+  await started;
+  await page.evaluate(()=>{
+    const panel=document.querySelector('#panel');
+    panel.dataset.active='dashboard';
+    panel.textContent='Dashboard actual';
+  });
+  releaseResponse();
+  await page.evaluate(()=>window.pendingEntries);
+  await expect(page.locator('#panel')).toHaveText('Dashboard actual');
+  await expect(page.locator('[data-ticketing-entries]')).toHaveCount(0);
+});

@@ -15,6 +15,7 @@ window.BRVTALTicketing = (() => {
     mail:'Correos', settings:'Ajustes'
   };
   let stopDoor = null;
+  let selectionGeneration = 0;
   function element(tag, text, className) {
     const node = document.createElement(tag);
     if (text !== undefined) node.textContent = text;
@@ -33,6 +34,7 @@ window.BRVTALTicketing = (() => {
     const panel = root.querySelector('[data-ticketing-panel]');
     if (!panel) return false;
     panel.setAttribute('aria-labelledby', active.id);
+    const generation = ++selectionGeneration;
     if (stopDoor) { stopDoor(); stopDoor = null; }
     panel.replaceChildren(element('h2', titles[key]), element('p', descriptions[key], 'ticketing-empty'));
     if (key === 'door') {
@@ -71,8 +73,11 @@ window.BRVTALTicketing = (() => {
     }
     if (key === 'entries') {
       import('/discadmin/ticketing-entries.js').then(mod => {
-        if (panel.isConnected && panel.getAttribute('aria-labelledby') === active.id)
-          return mod.mount(panel);
+        if (panel.isConnected && panel.getAttribute('aria-labelledby') === active.id
+            && generation === selectionGeneration)
+          return mod.mount(panel, () => panel.isConnected
+            && panel.getAttribute('aria-labelledby') === active.id
+            && generation === selectionGeneration);
       }).catch(() => {
         if (panel.isConnected && panel.getAttribute('aria-labelledby') === active.id)
           panel.replaceChildren(element('p', 'No se pudo cargar Boletas.', 'ticketing-error'));
