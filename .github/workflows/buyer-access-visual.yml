@@ -49,13 +49,19 @@ jobs:
       - name: Render before/after captures and verify accessibility
         run: npx playwright test tests/e2e/buyer-access.spec.mjs --project=chromium --workers=1 --reporter=list
 
+      - name: Verify ten before/after PNGs were rendered
+        run: |
+          set -euo pipefail
+          test "$(find visual-evidence -type f -name '*.png' | wc -l)" -ge 10
+          find visual-evidence -type f -name '*.png' | sort
+
       - name: Publish exact-HEAD screenshots
         id: screenshots
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: buyer-access-before-after-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
-          path: test-results/
+          path: visual-evidence/
           if-no-files-found: error
           retention-days: 14
 

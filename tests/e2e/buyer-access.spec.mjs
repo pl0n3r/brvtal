@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const root = process.cwd();
@@ -9,6 +9,13 @@ const css = readFileSync(join(root, 'css/buyer-access.css'), 'utf8');
 const previousLogin = "<!doctype html>\n<html lang=\"es\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n<meta name=\"referrer\" content=\"no-referrer\">\n<title>Acceso comprador · BRVTAL</title>\n<style>\n:root{color-scheme:dark;font-family:system-ui,sans-serif;background:#101010;color:white}\nbody{margin:0;min-height:100dvh;display:grid;place-items:center}\nmain{width:min(100% - 2rem,28rem);padding:1.5rem;border:1px solid #555;border-radius:1rem}\nh1{font-size:1.65rem}label{display:block;margin:1rem 0 .35rem}\ninput,button{box-sizing:border-box;width:100%;padding:.85rem;border-radius:.35rem;font:inherit}\ninput{background:#222;color:#fff;border:1px solid #999}\nbutton{margin-top:1.2rem;background:#fff;color:#111;border:0;font-weight:700}\nbutton:disabled{opacity:.6}a{color:#fff}\n:focus-visible{outline:3px solid #f44;outline-offset:3px}\n</style>\n</head>\n<body>\n<main>\n<h1>Cuenta de comprador</h1>\n<p>Acceso independiente de DISCADMIN.</p>\n<form id=\"buyer-form\">\n<label for=\"email\">Correo electrónico</label>\n<input id=\"email\" type=\"email\" required autocomplete=\"email\" maxlength=\"190\">\n<label for=\"password\">Contraseña</label>\n<input id=\"password\" type=\"password\" required autocomplete=\"current-password\">\n<button id=\"submit\" type=\"submit\">Entrar</button>\n<p id=\"message\" role=\"status\" aria-live=\"polite\"></p>\n</form>\n</main>\n<script>\n(() => {\n  const form = document.getElementById('buyer-form');\n  const message = document.getElementById('message');\n  const button = document.getElementById('submit');\n  let csrf = '';\n  const api = '/api/buyer/auth.php';\n  async function initialize() {\n    try {\n      const response = await fetch(api, {credentials:'same-origin',cache:'no-store'});\n      if (!response.ok) throw Error('UNAVAILABLE');\n      csrf = String((await response.json()).csrf || '');\n      if (!csrf) throw Error('UNAVAILABLE');\n    } catch (_) {\n      message.textContent = 'No está disponible el acceso en este momento.';\n    }\n  }\n  form.addEventListener('submit', async (event) => {\n    event.preventDefault();\n    button.disabled = true;\n    message.textContent = 'Verificando acceso…';\n    try {\n      if (!csrf) throw Error('UNAVAILABLE');\n      const response = await fetch(api, {\n        method:'POST',credentials:'same-origin',\n        headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},\n        body:JSON.stringify({action:'login',email:form.email.value,password:form.password.value})\n      });\n      if (!response.ok) throw Error('UNAVAILABLE');\n      message.textContent = 'Acceso confirmado.';\n    } catch (_) {\n      message.textContent = 'No se pudo iniciar sesión. Verifica los datos o inténtalo después.';\n      document.getElementById('email').focus();\n    } finally { button.disabled = false; }\n  });\n  initialize();\n})();\n</script>\n</body>\n</html>\n"; // Exact pre-redesign snapshot main@8d39c2754757107aa73ed26dd49f11e9940433d9
 const brokenGlass = readFileSync(join(root, 'assets/fonts/BrokenGlass.ttf'));
 const base = 'http://127.0.0.1:4173';
+const evidence = join(root, 'visual-evidence');
+async function capture(page, testInfo, name) {
+  mkdirSync(evidence, { recursive: true });
+  const png = await page.screenshot({ fullPage: true });
+  writeFileSync(join(evidence, name + '.png'), png);
+  await testInfo.attach(name, { body: png, contentType: 'image/png' });
+}
 
 async function setup(page, onAction = () => ({ status: 503, error: 'BUYER_MAIL_PENDING' })) {
   const calls = [];
@@ -60,7 +67,7 @@ for (const width of [1440, 390]) {
     await setup(page);
     await page.route('**/mi-cuenta/acceso-antes', route => route.fulfill({ contentType: 'text/html', body: previousLogin }));
     await page.goto(base + '/mi-cuenta/acceso-antes');
-    await testInfo.attach('antes-entrar-' + width + 'px', { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
+    await capture(page, testInfo, 'antes-entrar-' + width + 'px');
     await page.goto(base + '/mi-cuenta/acceso?vista=entrar');
     await expect(page.getByRole('heading', { name: /Entra a tu cuenta/i })).toBeVisible();
     await expect(page.getByText('Consulta tus boletas, pedidos y reembolsos.')).toBeVisible();
@@ -69,18 +76,14 @@ for (const width of [1440, 390]) {
     await expect(page.locator('#entrar-email')).toHaveAttribute('autocomplete', 'email');
     await expect(page.locator('#entrar-password')).toHaveAttribute('autocomplete', 'current-password');
     await checkA11y(page, '#entrar-email');
-    await testInfo.attach('despues-entrar-' + width + 'px', {
-      body: await page.screenshot({ fullPage: true }), contentType: 'image/png'
-    });
+    await capture(page, testInfo, 'despues-entrar-' + width + 'px');
 
     await page.getByRole('link', { name: '¿Olvidaste tu contraseña?' }).click();
     await expect(page).toHaveURL(/vista=recuperar/);
     await expect(page.getByRole('heading', { name: /Vuelve a entrar/i })).toBeVisible();
     await expect(page.locator('#recuperar-email')).toHaveAttribute('autocomplete', 'email');
     await checkA11y(page, '#recuperar-email');
-    await testInfo.attach('despues-recuperar-' + width + 'px', {
-      body: await page.screenshot({ fullPage: true }), contentType: 'image/png'
-    });
+    await capture(page, testInfo, 'despues-recuperar-' + width + 'px');
 
     await page.getByRole('link', { name: 'Volver a entrar' }).click();
     await page.getByRole('link', { name: 'Créala' }).click();
@@ -98,9 +101,7 @@ for (const width of [1440, 390]) {
     await page.getByRole('button', { name: 'Ocultar contraseña' }).click();
     await expect(page.locator('#crear-password')).toHaveAttribute('type', 'password');
     await checkA11y(page, '#crear-nombre');
-    await testInfo.attach('despues-crear-' + width + 'px', {
-      body: await page.screenshot({ fullPage: true }), contentType: 'image/png'
-    });
+    await capture(page, testInfo, 'despues-crear-' + width + 'px');
     await page.reload();
     await expect(page.getByRole('heading', { name: /Crea tu cuenta/i })).toBeVisible();
     await page.goBack();
@@ -115,9 +116,7 @@ for (const width of [1440, 390]) {
     await expect(page.locator('#reset-new-password')).toHaveAttribute('autocomplete', 'new-password');
     await expect(page.locator('#reset-confirm-password')).toHaveAttribute('autocomplete', 'new-password');
     await checkA11y(page, '#reset-new-password');
-    await testInfo.attach('despues-restablecer-' + width + 'px', {
-      body: await page.screenshot({ fullPage: true }), contentType: 'image/png'
-    });
+    await capture(page, testInfo, 'despues-restablecer-' + width + 'px');
     await page.locator('#reset-new-password').fill('UnaClaveLarga1234');
     await page.locator('#reset-confirm-password').fill('ClaveDistinta1234');
     await page.getByRole('button', { name: /Guardar contraseña/i }).click();
