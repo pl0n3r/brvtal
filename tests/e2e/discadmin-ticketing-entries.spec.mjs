@@ -68,7 +68,11 @@ test('T19 ficha muestra trazabilidad sin exponer QR ni correo privado',async({pa
 test('T19 pestaña Boletas integrada en el shell DISCADMIN, sin segundo administrador',async({page})=>{
   await page.route('**/discadmin/t19-shell-fixture.html',r=>r.fulfill({
     contentType:'text/html',
-    body:'<html lang="es"><div id="root" data-ticketing-role="superadmin"><div role="tablist"><button id="boletas-tab" role="tab" data-ticketing-tab="entries" aria-selected="false">Boletas</button><button id="pedidos-tab" role="tab" data-ticketing-tab="orders" aria-selected="true">Pedidos</button></div><section data-ticketing-panel></section></div></html>'
+    body:'<html lang="es"><div id="admin-module-host"></div></html>'
+  }));
+  await page.route('**/discadmin/ticketing.php',r=>r.fulfill({
+    contentType:'text/html',
+    body:'<div data-admin-module="ticketing" data-ticketing-role="superadmin"><div role="tablist"><button id="dashboard-tab" role="tab" data-ticketing-tab="dashboard" aria-selected="true">Dashboard</button><button id="boletas-tab" role="tab" data-ticketing-tab="entries" aria-selected="false">Boletas</button></div><section data-ticketing-panel></section></div>'
   }));
   await page.route('**/discadmin/ticketing-entries.php',r=>r.fulfill({contentType:'text/html',body:fixture}));
   await page.route('**/discadmin/ticketing-entries.js',r=>r.fulfill({contentType:'text/javascript',body:code}));
@@ -77,6 +81,10 @@ test('T19 pestaña Boletas integrada en el shell DISCADMIN, sin segundo administ
   }));
   await page.goto('https://www.brvtal.com.co/discadmin/t19-shell-fixture.html');
   await page.addScriptTag({content:shellCode});
+  await page.evaluate(async()=>{
+    window.state={authed:true,section:'ticketing'};
+    await window.BRVTALTicketing.mount();
+  });
   await page.getByRole('tab',{name:'Boletas'}).click();
   await expect(page.getByRole('tab',{name:'Boletas'})).toHaveAttribute('aria-selected','true');
   await expect(page.getByRole('button',{name:'Ver ficha'})).toBeVisible();
