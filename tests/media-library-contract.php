@@ -157,7 +157,7 @@ media_assert(str_contains($controller, 'PHYSICAL FOOTPRINT'), 'Media inspector m
 media_assert(str_contains($controller, 'Optimization up to date · existing variants reused.'), 'focal regeneration must not pretend reused variants were freshly encoded');
 media_assert(str_contains($controller, "['square','card','hero']"), 'inspector must preview supported delivery contexts');
 media_assert(str_contains($controller, "?action=transform&id="), 'focal-point changes must use the protected transform endpoint');
-media_assert(str_contains($controller, 'media-edit-status') && str_contains($controller, "?action=update&id="), 'Media inspector must keep an explicit publication control for draft uploads');
+media_assert(!str_contains($controller, 'media-edit-status') && str_contains($controller, "?action=update&id="), 'Media inspector must save metadata without a separate publication control');
 media_assert(str_contains($publicPage, "brvtal_public_media_variant((string)\$seo['image'], 'hero')"), 'public heroes must select the hero context variant');
 media_assert(str_contains($publicPage, "brvtal_public_media_variant((string)\$item['image'], 'card')"), 'public related cards must select the card context variant');
 media_assert(str_contains($publicIndex, 'data-public-media-search') && str_contains($publicIndex, 'data-public-media-type="image"'), 'public Media must expose search and type filters');
