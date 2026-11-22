@@ -169,7 +169,7 @@ class CromoLayerTests(unittest.TestCase):
         self.assertIn('--display:"Broken Glass","Barlow Condensed",sans-serif;', pages)
         self.assertIn('font-family:"Barlow Condensed",Arial,sans-serif;', pages)
         # This event-specific selector originally won over the generic Cromo H1.
-        selector = r'body\\.cromo-page\\.entity-page--event \\.entity-hero h1,\\s*body\\.cromo-page\\.entity-page--event main h1\\s*\\{([^{}]*)\\}'
+        selector = r'body\.cromo-page\.entity-page--event \.entity-hero h1,\s*body\.cromo-page\.entity-page--event main h1\s*\{([^{}]*)\}'
         legacy = re.search(selector, event)
         self.assertIsNotNone(legacy)
         override = re.search(selector, pages)
