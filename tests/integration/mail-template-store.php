@@ -6,7 +6,7 @@ function mail_store_assert(bool $ok, string $reason): void {
     if (!$ok) throw new RuntimeException('MAIL STORE TEST FAILED: '.$reason);
 }
 function mail_store_reject(callable $test, string $reason): void {
-    try { $test(); } catch (InvalidArgumentException|DomainException $error) { return; }
+    try { $test(); } catch (InvalidArgumentException|DomainException) { return; }
     throw new RuntimeException('MAIL STORE TEST FAILED: '.$reason);
 }
 $catalog = brvtal_mail_template_catalog();
