@@ -14,7 +14,7 @@ const end = homeCss.indexOf(endMarker);
 if (start < 0 || end <= start) throw Error('#1860 CSS patch must be present');
 // Reconstruct the true pre-fix baseline, including the original layout declarations.
 const baseline = (homeCss.slice(0, start) + homeCss.slice(end + endMarker.length))
-  .replace('color:#fff;background:rgba(3,3,3,.9);border-bottom:1px solid rgba(242,239,232,.35)', 'color:#fff')
+  .replace('color:#fff;background:rgba(3,3,3,.9);border-bottom:1px solid rgba(242,239,232,.35);animation:cromo-header-plate auto linear both;animation-timeline:scroll(root block);animation-range:0px 16px;', 'color:#fff')
   .replace('scroll-margin-top:clamp(100px,13vh,132px)', 'scroll-margin-top:84px')
   .replace('top:clamp(108px,14vh,150px)', 'top:clamp(20px,5vh,56px)');
 const url = 'http://127.0.0.1:4173/cromo-header-plate-fixture.html';
