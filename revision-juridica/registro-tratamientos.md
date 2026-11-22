@@ -207,7 +207,7 @@ Producto: `pl0n3r/brvtal`
 ## ticket_buyer_account
 
 - Categoría: `contact`
-- Campos de software: `public_id`, `email`, `email_verified_at`, `consent_version`, `consent_recorded_at`, `status`, `created_at`, `updated_at`
+- Campos de software: `public_id`, `email`, `full_name`, `email_verified_at`, `consent_version`, `consent_recorded_at`, `status`, `created_at`, `updated_at`
 - Finalidad: `ticket_buyer_account`
 - Base documentada: `review_required` (revisión jurídica requerida)
 - Consentimiento: `review_required`

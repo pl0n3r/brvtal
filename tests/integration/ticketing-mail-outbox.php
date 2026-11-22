@@ -146,3 +146,6 @@ echo "BRVTAL ticket-mail outbox integration OK.\n";
 
 // T11: run signed webhook and durable history tests in the existing canonical mail integration suite.
 require __DIR__ . '/ticketing-mail-history.php';
+
+// T34: run the buyer-auth synthetic MariaDB contracts in the canonical database gate.
+require __DIR__ . '/buyer-auth-flows.php';
