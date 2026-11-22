@@ -44,7 +44,7 @@
   const ROUTE_PARAM = 'module';
   const routeSections = new Set([
     'dashboard','events','artists','releases','sets','blog','pages','media','seo','hero-slider',
-    'theme','settings','security','system','backups','activity'
+    'theme','settings','security','system','backups','activity','ticketing'
   ]);
   const dynamicModuleSections = new Set(['media','releases','blog','seo']);
   const normalize = value => String(value || '').trim().toUpperCase().replace(/\s+/g, ' ');
@@ -197,6 +197,8 @@
     const url = new URL(location.href);
     if (canonical === 'dashboard') url.searchParams.delete(ROUTE_PARAM);
     else url.searchParams.set(ROUTE_PARAM, canonical);
+    if (canonical !== 'ticketing') url.searchParams.delete('tab');
+    if (canonical !== 'settings') url.searchParams.delete('settings');
     const next = `${url.pathname}${url.search}${url.hash}`;
     const current = `${location.pathname}${location.search}${location.hash}`;
     if (next === current) return;
@@ -243,7 +245,7 @@
   }
 
   function buttonKey(button) {
-    const dataKey = String(button.dataset.adminNav || '').toLowerCase();
+    const dataKey = String(button.dataset.iaChild || button.dataset.adminNav || '').toLowerCase();
     if (dataKey) return dataKey;
 
     const handler = button.getAttribute('onclick') || '';
@@ -258,182 +260,293 @@
     return partialRule?.key || 'other:' + label.toLowerCase();
   }
 
-  // Canonical WordPress-like sidebar; existing module buttons remain direct children.
-  const groups = [
-    ['dashboard'],
-    ['pages','blog','media','events','artists','releases','sets'],
-    ['appearance','hero-slider','theme','seo'],
-    ['settings','system']
+
+  // DISCADMIN V3: eight canonical roots, and only destination links as children.
+  // Server-side ticketing.php remains the authority for staff capabilities.
+  const NAV_TREE = [
+    {key:'dashboard', label:'Escritorio', route:'dashboard'},
+    {key:'events', label:'Eventos', route:'events'},
+    {key:'artists', label:'Artistas', route:'artists'},
+    {key:'music', label:'Música', children:[
+      {key:'sets', label:'Sets', route:'sets'},
+      {key:'releases', label:'Releases', route:'releases'}
+    ]},
+    {key:'ticketing', label:'Boletería', route:'ticketing', children:[
+      {key:'orders', label:'Pedidos', ticketTab:'orders'},
+      {key:'entries', label:'Boletas', ticketTab:'entries'},
+      {key:'buyers', label:'Compradores', ticketTab:'buyers'},
+      {key:'door', label:'Control de acceso', ticketTab:'door'},
+      {key:'courtesy', label:'Cortesías', ticketTab:'orders', privileged:true},
+      {key:'promos', label:'Promociones', ticketTab:'promos'},
+      {key:'promoters', label:'Promotores', ticketTab:'promoters'},
+      {key:'finance', label:'Finanzas', ticketTab:'finance'},
+      {key:'refunds', label:'Devoluciones', ticketTab:'finance', privileged:true}
+    ]},
+    {key:'mail', label:'Correos', children:[
+      {key:'mail-history', label:'Historial de envíos', ticketTab:'mail'},
+      {key:'mail-templates', label:'Plantillas', comingSoon:true},
+      {key:'mail-test', label:'Pruebas de envío', comingSoon:true}
+    ]},
+    {key:'website', label:'Sitio web', children:[
+      {key:'pages', label:'Páginas', route:'pages'},
+      {key:'blog', label:'Blog', route:'blog'},
+      {key:'media', label:'Multimedia', route:'media'},
+      {key:'hero-slider', label:'Banners', route:'hero-slider'},
+      {key:'theme', label:'Apariencia', route:'theme'},
+      {key:'seo', label:'SEO', route:'seo'}
+    ]},
+    {key:'settings', label:'Configuración', children:[
+      {key:'general', label:'General', settingsTab:'general'},
+      {key:'social', label:'Redes sociales y contacto', settingsTab:'social'},
+      {key:'integrations', label:'Integraciones', settingsTab:'integrations'},
+      {key:'security', label:'Seguridad', settingsTab:'advanced'},
+      {key:'system', label:'Estado del sistema', route:'system'},
+      {key:'backups', label:'Copias de seguridad', route:'system', systemView:'backups'}
+    ]}
   ];
-  const hiddenNavigationKeys = new Set(['content-core','security','backups','activity']);
-  const expandedMenus = {media:false,appearance:false};
+  const MENU_STORAGE_KEY = 'brvtal.discadmin.nav-v3';
+  const EXPANDABLE_ROOTS = new Set(NAV_TREE.filter(root => root.children).map(root => root.key));
+  const expandedMenus = new Set();
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(MENU_STORAGE_KEY) || '[]');
+    if (Array.isArray(saved)) saved.forEach(key => {
+      if (EXPANDABLE_ROOTS.has(key)) expandedMenus.add(key);
+    });
+  } catch (_) { /* private browsing or malformed storage: keep safe defaults */ }
   let lastMenuRoute = '';
+  let ticketAccess = {status:'unknown',role:'',tabs:[]};
+  let permissionRequest = null;
 
-  function observeNavigation() {
-    navObserver?.observe(document.documentElement,{childList:true,subtree:true});
+  function storeMenuState() {
+    try { sessionStorage.setItem(MENU_STORAGE_KEY, JSON.stringify([...expandedMenus])); }
+    catch (_) { /* navigation still works without storage */ }
   }
 
-  function collectNavigationButtons(nav) {
-    const keyed = new Map();
-    for (const button of nav.querySelectorAll(':scope > button')) {
-      const key = buttonKey(button);
-      button.dataset.iaKey = key;
-      if (hiddenNavigationKeys.has(key)) {
-        button.dataset.iaHidden = '1';
-        button.setAttribute('aria-hidden','true');
-        button.tabIndex = -1;
-        button.hidden = true;
-        continue;
-      }
-      delete button.dataset.iaHidden;
-      button.removeAttribute('aria-hidden');
-      button.removeAttribute('tabindex');
-      button.hidden = false;
-      if (button.dataset.memoriesNav === '1' || key === 'hero-slider' || key === 'theme') {
-        button.dataset.iaSubnav = '1';
-      } else {
-        delete button.dataset.iaSubnav;
-      }
-      if (!keyed.has(key)) keyed.set(key, []);
-      keyed.get(key).push(button);
-    }
-    return keyed;
-  }
-
-  function ensureAppearanceNav(keyed) {
-    // Production renders Appearance immediately; the legacy test shell can omit it.
-    if (keyed.has('appearance')) return;
-    const appearance = document.createElement('button');
-    appearance.type = 'button';
-    appearance.textContent = 'APPEARANCE';
-    appearance.dataset.adminNav = 'appearance';
-    appearance.dataset.iaKey = 'appearance';
-    keyed.set('appearance',[appearance]);
+  // GET-only authorization preview. No client-side grant ever replaces the PHP
+  // ticketing capability checks, and inaccessible operations are not linked.
+  function requestTicketAccess() {
+    if (!window.state?.authed || ticketAccess.status !== 'unknown' || permissionRequest) return;
+    permissionRequest = fetch('/discadmin/ticketing.php', {
+      credentials:'same-origin',cache:'no-store',
+      headers:{'X-BRVTAL-ADMIN-FRAGMENT':'1'}
+    }).then(async response => {
+      if (!response.ok) return {status:'denied',role:'',tabs:[]};
+      const doc = new DOMParser().parseFromString(await response.text(),'text/html');
+      const root = doc.querySelector('[data-admin-module="ticketing"]');
+      if (!root) return {status:'denied',role:'',tabs:[]};
+      const tabs = [...root.querySelectorAll('[data-ticketing-tab]')]
+        .map(button => button.dataset.ticketingTab);
+      return {status:'ready',role:root.dataset.ticketingRole || '',tabs};
+    }).catch(() => ({status:'denied',role:'',tabs:[]}))
+      .then(result => {
+        if (!window.state?.authed) return;
+        ticketAccess = result;
+        rebuildNavigation();
+      }).finally(() => { permissionRequest = null; });
   }
 
   function currentNavigationContext() {
-    const visibleSection = String(window.state?.section || '') === 'security'
-      ? 'settings' : String(window.state?.section || '');
-    const memoriesActive = visibleSection === 'media'
-      && new URL(location.href).searchParams.get('view') === 'memories';
-    const appearanceActive = visibleSection === 'hero-slider' || visibleSection === 'theme';
-    const menuRoute = visibleSection + (memoriesActive ? ':memories' : '');
+    const section = String(window.state?.section || 'dashboard');
+    const url = new URL(location.href);
+    const tab = String(url.searchParams.get('tab') || 'dashboard');
+    const settings = String(url.searchParams.get('settings') || 'general');
+    const activeRoot = section === 'ticketing' ? (tab === 'mail' ? 'mail' : 'ticketing')
+      : ['sets','releases'].includes(section) ? 'music'
+      : ['pages','blog','media','hero-slider','theme','seo'].includes(section) ? 'website'
+      : ['settings','security','system','backups'].includes(section) ? 'settings'
+      : section;
+    const menuRoute = activeRoot + ':' + section + ':' + tab + ':' + settings;
     if (lastMenuRoute !== menuRoute) {
-      if (memoriesActive) expandedMenus.media = true;
-      if (appearanceActive) expandedMenus.appearance = true;
+      if (EXPANDABLE_ROOTS.has(activeRoot)) expandedMenus.add(activeRoot);
       lastMenuRoute = menuRoute;
     }
-    return {visibleSection,memoriesActive,appearanceActive};
+    return {section,tab,settings,activeRoot};
   }
 
-  function addNavDivider(nav) {
-    const divider = document.createElement('div');
-    divider.className = 'ia-navdivider';
-    divider.setAttribute('role','separator');
-    divider.setAttribute('aria-orientation','horizontal');
-    nav.appendChild(divider);
+  function isVisibleMenuItem(root,item) {
+    if (root.key !== 'ticketing' && root.key !== 'mail') return true;
+    if (ticketAccess.status !== 'ready') return false;
+    if (item.privileged && !['superadmin','owner','root','platform_owner'].includes(ticketAccess.role)) return false;
+    return !item.ticketTab || ticketAccess.tabs.includes(item.ticketTab);
   }
 
-  function bindAppearanceDisclosure(button) {
+  function isVisibleRoot(root) {
+    if (root.key !== 'ticketing' && root.key !== 'mail') return true;
+    if (ticketAccess.status === 'denied') return false;
+    if (ticketAccess.status === 'unknown') return true; // aria-disabled pending resolution
+    return root.key === 'mail'
+      ? ticketAccess.tabs.includes('mail')
+      : ticketAccess.tabs.length > 0;
+  }
+
+  function activeChild(root, child, context) {
+    if (root.key === 'ticketing')
+      return child.key === context.tab && context.section === 'ticketing';
+    if (root.key === 'mail') return child.ticketTab === 'mail'
+      && context.section === 'ticketing' && context.tab === 'mail';
+    if (root.key === 'settings') {
+      if (child.route === 'system') return context.section === 'system'
+        && (child.systemView ? new URLSearchParams(location.search).get('view') === child.systemView
+                             : new URLSearchParams(location.search).get('view') !== 'backups');
+      return context.section === 'settings' && child.settingsTab === context.settings;
+    }
+    return child.route === context.section;
+  }
+
+  async function followMenuDestination(child) {
+    if (child.comingSoon) return false;
+    if (child.ticketTab) {
+      return window.BRVTALTicketing?.open?.({tab:child.ticketTab});
+    }
+    if (child.settingsTab) {
+      const wasSettings = String(window.state?.section || '') === 'settings';
+      const result = await window.go('settings');
+      if (result === false || window.state?.section !== 'settings') return false;
+      const url = new URL(location.href);
+      url.searchParams.set('module','settings');
+      url.searchParams.set('settings',child.settingsTab);
+      history[wasSettings ? 'pushState' : 'replaceState'](
+        {brvtalAdminRoute:'settings'},'',url
+      );
+      window.BRVTALSettingsV2?.activate?.(child.settingsTab);
+      rebuildNavigation();
+      return true;
+    }
+    if (child.route === 'system') {
+      const wasSystem = String(window.state?.section || '') === 'system';
+      const result = await window.tech?.('system');
+      if (result === false) return false;
+      const url = new URL(location.href);
+      if (child.systemView) url.searchParams.set('view',child.systemView);
+      else url.searchParams.delete('view');
+      history[wasSystem ? 'pushState' : 'replaceState'](
+        {brvtalAdminRoute:'system'},'',url
+      );
+      rebuildNavigation();
+      return true;
+    }
+    return window.go?.(child.route);
+  }
+
+  function rootButton(root, expanded, active) {
+    const button = document.createElement('button');
     button.type = 'button';
-    button.setAttribute('aria-controls','brvtal-nav-banners brvtal-nav-theme');
-    button.setAttribute('aria-expanded',String(expandedMenus.appearance));
-    if (button.dataset.iaToggleBound === '1') return;
-    button.addEventListener('click',() => {
-      expandedMenus.appearance = !expandedMenus.appearance;
-      rebuildNavigation();
-    });
-    button.dataset.iaToggleBound = '1';
+    button.className = 'ia-root-button';
+    button.dataset.adminNav = root.key;
+    button.dataset.iaRootButton = root.key;
+    button.textContent = root.label;
+    button.classList.toggle('active',active);
+    if ((root.key === 'ticketing' || root.key === 'mail') && ticketAccess.status !== 'ready') {
+      button.disabled = true;
+      button.setAttribute('aria-label',root.label + ' · verificando permisos');
+      return button;
+    }
+    if (!root.children) {
+      button.addEventListener('click',() => { followMenuDestination(root)?.catch?.(() => {}); });
+    } else if (root.key === 'ticketing') {
+      button.addEventListener('click',() => { window.BRVTALTicketing?.open?.({tab:'dashboard'})?.catch?.(() => {}); });
+    } else {
+      button.setAttribute('aria-expanded',String(expanded));
+      button.setAttribute('aria-controls','brvtal-menu-' + root.key);
+      button.addEventListener('click',() => toggleMenu(root.key));
+    }
+    return button;
   }
 
-  function appendMemoriesSubmenu(nav, memoriesButtons) {
-    const toggle = document.createElement('button');
-    toggle.type = 'button';
-    toggle.className = 'ia-nav-chevron';
-    toggle.dataset.iaToggle = 'media';
-    toggle.setAttribute('aria-controls','brvtal-nav-memories');
-    toggle.setAttribute('aria-expanded',String(expandedMenus.media));
-    toggle.setAttribute('aria-label',expandedMenus.media ? 'Collapse Media submenu' : 'Expand Media submenu');
-    toggle.addEventListener('click',() => {
-      expandedMenus.media = !expandedMenus.media;
-      rebuildNavigation();
-    });
-    nav.appendChild(toggle);
-    for (const child of memoriesButtons) {
-      child.id = 'brvtal-nav-memories';
-      child.hidden = !expandedMenus.media;
-      nav.appendChild(child);
+  function toggleMenu(key) {
+    if (expandedMenus.has(key)) expandedMenus.delete(key);
+    else expandedMenus.add(key);
+    storeMenuState();
+    const focus = '[data-ia-disclosure="' + key + '"]';
+    rebuildNavigation(focus);
+    // The canonical mobile shell closes on ANY nav button click. A disclosure
+    // changes only the tree; reopen the existing panel rather than hiding it.
+    const shell = document.querySelector('#app .shell');
+    if (matchMedia('(max-width: 850px)').matches && shell && !shell.classList.contains('admin-nav-open')) {
+      window.toggleAdminNav?.();
+      document.querySelector('.side .nav ' + focus)?.focus({preventScroll:true});
     }
   }
 
-  function appendNavigationButton(nav, key, button, memoriesButtons) {
-    if (key === 'appearance') bindAppearanceDisclosure(button);
-    if (key === 'hero-slider' || key === 'theme') {
-      button.id = key === 'hero-slider' ? 'brvtal-nav-banners' : 'brvtal-nav-theme';
-      button.hidden = !expandedMenus.appearance;
-    }
-    if (key === 'media' && memoriesButtons.length) button.dataset.iaHasChildren = '1';
-    else delete button.dataset.iaHasChildren;
-    nav.appendChild(button);
-    if (key === 'media' && memoriesButtons.length) appendMemoriesSubmenu(nav,memoriesButtons);
-  }
-
-  function appendNavigationGroups(nav, keyed, memoriesButtons) {
-    let visibleGroups = 0;
-    for (const keys of groups) {
-      if (!keys.some(key => (keyed.get(key) || []).length)) continue;
-      if (visibleGroups++) addNavDivider(nav);
-      for (const key of keys) {
-        for (const button of (keyed.get(key) || [])) {
-          appendNavigationButton(nav,key,button,memoriesButtons);
-        }
-        keyed.delete(key);
-      }
-    }
-    for (const list of keyed.values()) {
-      for (const button of list) nav.appendChild(button);
-    }
-  }
-
-  function synchronizeNavigationSelection(nav, context) {
-    const {visibleSection,memoriesActive,appearanceActive} = context;
-    for (const button of nav.querySelectorAll(':scope > button:not([data-ia-hidden="1"]):not([data-ia-toggle])')) {
-      const key = buttonKey(button);
-      if (key === 'media') {
-        const isMemories = button.dataset.memoriesNav === '1';
-        button.classList.toggle('active',visibleSection === 'media'
-          && (isMemories === memoriesActive || (!expandedMenus.media && !isMemories)));
-      } else if (key === 'appearance') {
-        button.classList.toggle('active',appearanceActive);
-      } else {
-        button.classList.toggle('active',key === visibleSection);
-      }
-    }
-  }
-
-  function rebuildNavigation() {
+  function rebuildNavigation(focusSelector = '') {
     if (applyingNav) return;
+    if (!window.state?.authed) {
+      ticketAccess = {status:'unknown',role:'',tabs:[]};
+      return;
+    }
     const nav = document.querySelector('.side .nav');
     if (!nav) return;
     applyingNav = true;
     navObserver?.disconnect();
+    const focus = focusSelector || (document.activeElement?.dataset?.iaRootButton
+      ? '[data-ia-root-button="' + document.activeElement.dataset.iaRootButton + '"]'
+      : document.activeElement?.dataset?.iaDisclosure
+        ? '[data-ia-disclosure="' + document.activeElement.dataset.iaDisclosure + '"]'
+        : document.activeElement?.dataset?.iaChild
+          ? '[data-ia-child="' + document.activeElement.dataset.iaChild + '"]' : '');
     try {
-      const restoreMediaToggleFocus = document.activeElement?.dataset?.iaToggle === 'media';
-      nav.querySelectorAll('.navgroup,.ia-navgroup,.ia-navdivider,[data-ia-toggle="media"]')
-        .forEach(node => node.remove());
-      const keyed = collectNavigationButtons(nav);
-      ensureAppearanceNav(keyed);
       const context = currentNavigationContext();
-      const mediaButtons = keyed.get('media') || [];
-      const memoriesButtons = mediaButtons.filter(button => button.dataset.memoriesNav === '1');
-      keyed.set('media',mediaButtons.filter(button => button.dataset.memoriesNav !== '1'));
-      appendNavigationGroups(nav,keyed,memoriesButtons);
-      synchronizeNavigationSelection(nav,context);
-      if (restoreMediaToggleFocus) nav.querySelector('[data-ia-toggle="media"]')?.focus();
+      const fragment = document.createDocumentFragment();
+      for (const root of NAV_TREE) {
+        if (!isVisibleRoot(root)) continue;
+        const expanded = expandedMenus.has(root.key);
+        const entry = document.createElement('div');
+        entry.className = 'ia-root';
+        entry.dataset.iaRoot = root.key;
+        const row = document.createElement('div');
+        row.className = 'ia-root-row';
+        row.appendChild(rootButton(root,expanded,context.activeRoot === root.key));
+        if (root.children) {
+          const disclosure = document.createElement('button');
+          disclosure.type = 'button';
+          disclosure.className = 'ia-disclosure';
+          disclosure.dataset.iaDisclosure = root.key;
+          disclosure.setAttribute('aria-label',(expanded ? 'Contraer ' : 'Expandir ') + root.label);
+          disclosure.setAttribute('aria-expanded',String(expanded));
+          disclosure.setAttribute('aria-controls','brvtal-menu-' + root.key);
+          disclosure.addEventListener('click',() => toggleMenu(root.key));
+          row.appendChild(disclosure);
+        }
+        entry.appendChild(row);
+        if (root.children) {
+          const subnav = document.createElement('div');
+          subnav.className = 'ia-subnav';
+          subnav.id = 'brvtal-menu-' + root.key;
+          subnav.setAttribute('role','group');
+          subnav.setAttribute('aria-label',root.label);
+          subnav.hidden = !expanded;
+          for (const child of root.children) {
+            if (!isVisibleMenuItem(root,child)) continue;
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.dataset.iaChild = child.key;
+            button.textContent = child.label;
+            button.className = 'ia-child';
+            if (activeChild(root,child,context)) button.classList.add('active');
+            if (child.comingSoon) {
+              button.disabled = true;
+              button.title = 'Próximamente · módulo aún no disponible';
+              button.appendChild(document.createTextNode(' · Próximamente'));
+            } else {
+              button.addEventListener('click',() => { followMenuDestination(child)?.catch?.(() => {}); });
+            }
+            subnav.appendChild(button);
+          }
+          entry.appendChild(subnav);
+        }
+        fragment.appendChild(entry);
+      }
+      nav.replaceChildren(fragment);
+      if (focus) nav.querySelector(focus)?.focus({preventScroll:true});
     } finally {
       applyingNav = false;
       observeNavigation();
     }
+    requestTicketAccess();
+  }
+
+  function observeNavigation() {
+    navObserver?.observe(document.documentElement,{childList:true,subtree:true});
   }
 
   function scheduleNavigation() {

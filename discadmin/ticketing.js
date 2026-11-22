@@ -14,6 +14,17 @@ window.BRVTALTicketing = (() => {
     door:'Puerta', finance:'Finanzas', promos:'Promos', promoters:'Promotores',
     mail:'Correos', settings:'Ajustes'
   };
+  const allowedTabs = new Set(['dashboard','orders','entries','buyers','door','finance','promos','promoters','mail','settings']);
+  function tabFromUrl() {
+    const value = new URLSearchParams(location.search).get('tab');
+    return allowedTabs.has(value) ? value : 'dashboard';
+  }
+  function updateTabUrl(key, replace = false) {
+    const url = new URL(location.href);
+    url.searchParams.set('module','ticketing');
+    url.searchParams.set('tab',key);
+    history[replace ? 'replaceState' : 'pushState']({brvtalAdminRoute:'ticketing'},'',url);
+  }
   let stopDoor = null;
   let selectionGeneration = 0;
   function element(tag, text, className) {
@@ -156,7 +167,7 @@ window.BRVTALTicketing = (() => {
     if (!list) return;
     list.addEventListener('click', e => {
       const tab = e.target.closest('[data-ticketing-tab]');
-      if (tab && list.contains(tab)) select(root, tab.dataset.ticketingTab);
+      if (tab && list.contains(tab) && select(root, tab.dataset.ticketingTab)) updateTabUrl(tab.dataset.ticketingTab);
     });
     list.addEventListener('keydown', e => {
       if (!['ArrowRight','ArrowLeft','Home','End'].includes(e.key)) return;
@@ -171,10 +182,12 @@ window.BRVTALTicketing = (() => {
         case 'ArrowRight': next = (current + 1) % tabs.length; break;
         case 'ArrowLeft': next = (current - 1 + tabs.length) % tabs.length; break;
       }
-      select(root, tabs[next].dataset.ticketingTab, true);
+      if (select(root, tabs[next].dataset.ticketingTab, true)) updateTabUrl(tabs[next].dataset.ticketingTab);
     });
     const first = list.querySelector('[aria-selected="true"]') || list.querySelector('[data-ticketing-tab]');
-    if (first) select(root, first.dataset.ticketingTab);
+    const requested = list.querySelector('[data-ticketing-tab="' + tabFromUrl() + '"]');
+    if (requested) select(root, requested.dataset.ticketingTab);
+    else if (first) select(root, first.dataset.ticketingTab);
   }
   async function mount() {
     const host = document.getElementById('admin-module-host');
@@ -213,11 +226,21 @@ window.BRVTALTicketing = (() => {
   }
   async function open(options = {}) {
     if (typeof window.go !== 'function') return false;
-    const result = await window.go('ticketing');
-    if (result === false || window.state?.section !== 'ticketing') return false;
-    const url = new URL(location.href);
-    url.searchParams.set('module', 'ticketing');
-    history[options.replace ? 'replaceState' : 'pushState']({brvtalAdminRoute:'ticketing'}, '', url);
+    const current = document.querySelector('[data-admin-module="ticketing"]');
+    const sameWorkspace = window.state?.section === 'ticketing' && !!current;
+    if (!sameWorkspace) {
+      const result = await window.go('ticketing');
+      if (result === false || window.state?.section !== 'ticketing') return false;
+    }
+    const root = document.querySelector('[data-admin-module="ticketing"]');
+    // The PHP fragment filters tabs by staff capability. Do not make a URL
+    // point to a forbidden tab, even when a caller supplied an arbitrary key.
+    const key = allowedTabs.has(options.tab) ? options.tab : tabFromUrl();
+    const tab = root?.querySelector('[data-ticketing-tab="' + key + '"]');
+    if (tab) select(root,key);
+    else if (options.tab) return false;
+    const selected = root?.querySelector('[data-ticketing-tab][aria-selected="true"]');
+    if (selected) updateTabUrl(selected.dataset.ticketingTab,options.replace || !sameWorkspace);
     return true;
   }
   document.addEventListener('click', e => {
