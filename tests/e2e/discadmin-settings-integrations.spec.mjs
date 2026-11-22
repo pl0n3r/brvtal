@@ -21,7 +21,7 @@ async function setup(page,{writable=true}={}) {
     window.state={rows:[]};
     window.csrf='synthetic-csrf-token';
     window.req=async()=>({data:[]});
-    window.integrationFixture={values:{},writes:[],writable,responses:[]};
+    window.integrationFixture={values:{},writes:[],writable,responses:[],holdWrites:false,pendingWrites:[],testMailRequests:[]};
     const fields=[
       ['BRVTAL_TICKET_MAIL_API_KEY','resend','api_key'],
       ['BRVTAL_TICKET_MAIL_DOMAIN','resend','domain'],
@@ -48,12 +48,17 @@ async function setup(page,{writable=true}={}) {
       const method=options.method||'GET';
       if(pathname==='/api/index.php/auth')
         return json({ok:true,authenticated:true,csrf:'synthetic-csrf-token'});
+      if(pathname==='/api/admin-integration-test-mail.php'){
+        window.integrationFixture.testMailRequests.push({method});
+        return json({ok:false,error:'MAIL_TEST_UNAVAILABLE'},503);
+      }
       if(pathname==='/api/admin-integration-secrets.php'){
         const state=window.integrationFixture;
         if(method!=='GET'){
           const body=JSON.parse(options.body||'{}');
           state.writes.push({method,key:body.key,csrf:options.headers?.['X-CSRF-Token'],
             hasValue:Object.hasOwn(body,'value'),value:body.value});
+          if(state.holdWrites)await new Promise(resolve=>state.pendingWrites.push(resolve));
           if(!state.writable)return json({ok:false,error:'SECRET_WRITE_DISABLED'},403);
           if(options.headers?.['X-CSRF-Token']!=='synthetic-csrf-token')
             return json({ok:false,error:'CSRF'},403);
@@ -237,4 +242,87 @@ test('AC-01: System status es solo lectura y enlaza a Settings',async({page})=>{
   await expect(page.locator('[data-secret-action]')).toHaveCount(0);
   const link=page.getByRole('link',{name:'Configurar en Settings'});
   await expect(link).toHaveAttribute('href','/discadmin/?settings=integrations');
+});
+
+test('AC-01/03: un POST multiclave pendiente conserva el bloqueo tras remontar Settings',async({page},testInfo)=>{
+  const dir=resolve(process.cwd(),'test-results/public-concept05-fidelity-discadmin-integrations');
+  mkdirSync(dir,{recursive:true});
+  for(const width of [390,1440]){
+    await page.setViewportSize({width,height:900});
+    await setup(page);
+    const resend=page.locator('[data-integration-provider="resend"]');
+    const before=await page.screenshot({fullPage:true});
+    writeFileSync(join(dir,'antes-serializacion-'+width+'.png'),before);
+    await testInfo.attach('antes-serializacion-'+width+'.png',{body:before,contentType:'image/png'});
+    await page.evaluate(()=>{window.integrationFixture.holdWrites=true;});
+    await resend.locator('[data-secret-key="BRVTAL_TICKET_MAIL_API_KEY"]').fill('re_old_synthetic_'+width);
+    await resend.locator('[data-secret-key="BRVTAL_TICKET_MAIL_DOMAIN"]').fill('old'+width+'.synthetic.invalid');
+    await resend.getByRole('button',{name:'Guardar',exact:true}).click();
+    await expect.poll(()=>page.evaluate(()=>window.integrationFixture.writes.length)).toBe(1);
+    await page.evaluate(()=>{document.getElementById('fixture').innerHTML=window.settingsHome();});
+    await expect(resend).toHaveAttribute('aria-busy','true');
+    await expect(resend.getByRole('button',{name:'Guardar',exact:true})).toBeDisabled();
+    await expect(resend.locator('[data-secret-feedback]')).toContainText('Guardando');
+    const after=await page.screenshot({fullPage:true});
+    writeFileSync(join(dir,'despues-serializacion-'+width+'.png'),after);
+    await testInfo.attach('despues-serializacion-'+width+'.png',{body:after,contentType:'image/png'});
+    await page.evaluate(()=>{
+      document.querySelector('[data-secret-provider-save="resend"]').dispatchEvent(new MouseEvent('click',{bubbles:true}));
+    });
+    expect(await page.evaluate(()=>window.integrationFixture.writes.length)).toBe(1);
+    await page.evaluate(()=>{
+      const f=window.integrationFixture;f.holdWrites=false;
+      f.pendingWrites.splice(0).forEach(resolve=>resolve());
+    });
+    await expect(resend.locator('[data-secret-feedback]')).toContainText('2 claves guardadas');
+    await expect(resend).toHaveAttribute('aria-busy','false');
+    const old=await page.evaluate(()=>window.integrationFixture.writes);
+    expect(old.map(w=>w.key)).toEqual(['BRVTAL_TICKET_MAIL_API_KEY','BRVTAL_TICKET_MAIL_DOMAIN']);
+    expect(old.every(w=>w.csrf==='synthetic-csrf-token')).toBe(true);
+    await resend.locator('[data-secret-key="BRVTAL_TICKET_MAIL_API_KEY"]').fill('re_new_synthetic_'+width);
+    await resend.getByRole('button',{name:'Guardar',exact:true}).click();
+    await expect(resend.locator('[data-secret-feedback]')).toContainText('Clave guardada');
+    const final=await page.evaluate(()=>window.integrationFixture);
+    expect(final.writes).toHaveLength(3);
+    expect(final.values.BRVTAL_TICKET_MAIL_API_KEY).toBe('re_new_synthetic_'+width);
+    expect(final.values.BRVTAL_TICKET_MAIL_DOMAIN).toBe('old'+width+'.synthetic.invalid');
+    expect(final.responses.every(response=>!response.includes('re_new_synthetic_'+width))).toBe(true);
+    expect(await page.locator('body').innerText()).not.toContain('re_new_synthetic_'+width);
+  }
+});
+
+test('AC-01: una eliminación pendiente bloquea guardar y correo de prueba tras remount',async({page})=>{
+  await setup(page);
+  await page.evaluate(()=>{
+    const f=window.integrationFixture;
+    f.values.BRVTAL_TICKET_MAIL_API_KEY='re_existing_synthetic';
+    f.holdWrites=true;
+  });
+  await page.evaluate(()=>window.BRVTALSettingsV2.reloadIntegrations());
+  const resend=page.locator('[data-integration-provider="resend"]');
+  await expect(resend.locator('[data-secret-delete]:visible')).toHaveCount(1);
+  page.once('dialog',dialog=>dialog.accept());
+  await resend.getByRole('button',{name:'Eliminar Clave de API'}).click();
+  await expect.poll(()=>page.evaluate(()=>window.integrationFixture.writes.length)).toBe(1);
+  await page.evaluate(()=>{document.getElementById('fixture').innerHTML=window.settingsHome();});
+  await expect(resend).toHaveAttribute('aria-busy','true');
+  await expect(resend.getByRole('button',{name:'Guardar',exact:true})).toBeDisabled();
+  await expect(resend.locator('[data-mail-test-send]')).toBeDisabled();
+  await page.evaluate(()=>{
+    document.querySelector('[data-secret-provider-save="resend"]').dispatchEvent(new MouseEvent('click',{bubbles:true}));
+    document.querySelector('[data-mail-test-send]').dispatchEvent(new MouseEvent('click',{bubbles:true}));
+  });
+  expect(await page.evaluate(()=>window.integrationFixture.writes.length)).toBe(1);
+  // Drain pending microtasks: an accidental mail request would otherwise be caught silently.
+  await page.evaluate(async()=>{await Promise.resolve();await Promise.resolve();});
+  expect(await page.evaluate(()=>window.integrationFixture.testMailRequests.length)).toBe(0);
+  await page.evaluate(()=>{
+    const f=window.integrationFixture;f.holdWrites=false;
+    f.pendingWrites.splice(0).forEach(resolve=>resolve());
+  });
+  await expect(resend.locator('[data-secret-feedback]')).toContainText('eliminado');
+  await expect(resend).toHaveAttribute('aria-busy','false');
+  const final=await page.evaluate(()=>({values:window.integrationFixture.values,writes:window.integrationFixture.writes}));
+  expect(final.writes.map(write=>write.method)).toEqual(['DELETE']);
+  expect(Object.hasOwn(final.values,'BRVTAL_TICKET_MAIL_API_KEY')).toBe(false);
 });

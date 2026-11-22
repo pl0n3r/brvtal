@@ -39,8 +39,13 @@ $db->exec((string)file_get_contents(__DIR__ . '/../../database/migration_buyer_a
 $db->exec((string)file_get_contents(__DIR__ . '/../../database/migration_buyer_auth_tokens_01.sql'));
 $db->exec((string)file_get_contents(__DIR__ . '/../../database/migration_ticketing_mail_outbox_01.sql'));
 $originalConfig = $GLOBALS['config'] ?? null;
-$GLOBALS['config'] = ['security'=>['encryption_key'=>str_repeat('synthetic-test-key-', 3)]];
-putenv('BRVTAL_TICKET_MAIL_TESTING=1');
+$oldMailApproval = getenv('BRVTAL_TICKET_MAIL_PRIVACY_APPROVED');
+$GLOBALS['config'] = [
+    'security'=>['encryption_key'=>str_repeat('synthetic-test-key-', 3)],
+    'ticketing'=>['mail'=>['testing'=>'0','privacy_approved'=>'0']],
+];
+putenv('BRVTAL_TICKET_MAIL_TESTING=0');
+putenv('BRVTAL_TICKET_MAIL_PRIVACY_APPROVED=0');
 putenv('BRVTAL_TICKET_MAIL_MODE=disabled');
 $rateDirectory = sys_get_temp_dir() . '/brvtal-buyer-rate-' . bin2hex(random_bytes(6));
 mkdir($rateDirectory, 0700);
@@ -50,7 +55,23 @@ register_shutdown_function(static function () use ($rateDirectory): void {
 });
 $input = ['name'=>'Persona Sintética', 'email'=>'buyer@example.test',
     'password'=>'SynthETIC-9345-safe-Long', 'terms_accepted'=>true,'consent_version'=>'0.1.277'];
+$deniedInput = $input;
+$deniedInput['email'] = 'privacy-denied@example.test';
+try {
+    brvtalBuyerAuthRegister($db, $deniedInput);
+    buyerAuthAssert(false, 'registration must abort when privacy is not approved');
+} catch (RuntimeException $error) {
+    buyerAuthAssert($error->getMessage() === 'MAIL_PRIVACY_NOT_APPROVED',
+        'private privacy denial remains fail-closed');
+}
+buyerAuthAssert((int)$db->query('SELECT COUNT(*) FROM ticket_buyers')->fetchColumn() === 0
+    && (int)$db->query('SELECT COUNT(*) FROM ticket_buyer_tokens')->fetchColumn() === 0
+    && (int)$db->query('SELECT COUNT(*) FROM ticket_mail_outbox')->fetchColumn() === 0,
+    'privacy rejection atomically rolls back buyer, token and outbox');
+$GLOBALS['config']['ticketing']['mail']['privacy_approved'] = '1';
 $a = brvtalBuyerAuthRegister($db, $input);
+// Use private synthetic mode for the rest of the multi-mail test suite.
+$GLOBALS['config']['ticketing']['mail']['testing'] = '1';
 $b = brvtalBuyerAuthRegister($db, $input);
 buyerAuthAssert($a === $b && $a === ['ok'=>true], 'duplicate is neutral');
 buyerAuthAssert((int)$db->query('SELECT COUNT(*) FROM ticket_buyers')->fetchColumn() === 1,
@@ -197,6 +218,8 @@ buyerAuthAssert((int)$db->query("SELECT COUNT(*) FROM ticket_buyers
 buyerAuthAssert(brvtalBuyerPurgeUnverified($db) === 0, 'second pass idempotent');
 
 putenv('BRVTAL_TICKET_MAIL_TESTING');
+putenv($oldMailApproval === false ? 'BRVTAL_TICKET_MAIL_PRIVACY_APPROVED'
+    : 'BRVTAL_TICKET_MAIL_PRIVACY_APPROVED=' . $oldMailApproval);
 $GLOBALS['config'] = $originalConfig;
 echo "BRVTAL buyer-auth MariaDB integration passed.\n";
 // #1877: all public form abuse bursts run from the existing buyer-auth CI entrypoint.

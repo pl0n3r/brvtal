@@ -217,7 +217,7 @@
     border:1px solid var(--line,#34383d);white-space:nowrap
   }
   .admin-data-grid-shell[data-grid-module="events"] .admin-grid-action[data-grid-action="lineup"]{
-    background:var(--accent,#ff2038);border-color:var(--accent,#ff2038);color:#fff;
+    background:var(--accent,#ff2038);border-color:var(--accent,#ff2038);color:#090b0c;
     font-weight:800
   }
   .admin-data-grid-shell[data-grid-module="events"] .admin-grid-action[data-grid-action="delete"]{

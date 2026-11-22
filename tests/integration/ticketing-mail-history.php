@@ -100,4 +100,9 @@ putenv('BRVTAL_TICKET_MAIL_PRIVACY_APPROVED=0');
 try {brvtal_mail_history_record($pdo,1);mail_t11_assert(false,'privacy denied');}
 catch (RuntimeException $e) {mail_t11_assert($e->getMessage()==='MAIL_PRIVACY_NOT_APPROVED','privacy gate');}
 
+// #1874: exercise the encrypted-secret CLI worker in the existing MariaDB T11 gate.
+// Keep local fixture state isolated from the webhook and subsequent buyer-auth tests.
+(static function (): void {
+    require __DIR__ . '/ticketing-mail-worker-secrets.php';
+})();
 echo "BRVTAL ticket-mail-history integration OK.\n";

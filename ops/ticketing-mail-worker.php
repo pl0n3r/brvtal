@@ -7,6 +7,18 @@ if (PHP_SAPI !== 'cli') {
     exit;
 }
 
+
+// The CLI worker owns the database connection. Reuse it for encrypted secrets:
+// the web bootstrap's db() is not otherwise available in a standalone process.
+if (!function_exists('db')) {
+    function db(): PDO
+    {
+        $pdo = $GLOBALS['brvtal_mail_worker_pdo'] ?? null;
+        if (!$pdo instanceof PDO) throw new RuntimeException('MAIL_WORKER_DB_UNAVAILABLE');
+        return $pdo;
+    }
+}
+
 $root = dirname(__DIR__);
 $configPath = $root . '/config/config.php';
 if (!is_file($configPath)) {
@@ -16,6 +28,12 @@ if (!is_file($configPath)) {
 $config = require $configPath;
 if (!is_array($config) || !is_array($config['db'] ?? null)) {
     fwrite(STDERR, "ticket_mail_config_invalid\n");
+    exit(2);
+}
+$GLOBALS['config'] = $config;
+require_once $root . '/config/integration_secrets_store.php';
+if (brvtalIntegrationSecretMasterKey($config) === null) {
+    fwrite(STDERR, "ticket_mail_secret_unavailable\n");
     exit(2);
 }
 $d = $config['db'];
@@ -28,6 +46,19 @@ try {
         [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
          PDO::ATTR_EMULATE_PREPARES => false]
     );
+    $GLOBALS['brvtal_mail_worker_pdo'] = $pdo;
+    require_once $root . '/config/secrets.php';
+    $mode = brvtal_secret_value('BRVTAL_TICKET_MAIL_MODE', null, $config, $pdo);
+    if (in_array($mode, ['live', 'mock'], true)) {
+        // A missing or undecryptable stored sender is a configuration error,
+        // never silently replaced with a blank provider credential.
+        foreach (['BRVTAL_TICKET_MAIL_API_KEY', 'BRVTAL_TICKET_MAIL_DOMAIN', 'BRVTAL_TICKET_MAIL_FROM'] as $key) {
+            if (brvtal_secret_value($key, null, $config, $pdo) === '') {
+                fwrite(STDERR, "ticket_mail_secret_unavailable\n");
+                exit(2);
+            }
+        }
+    }
     require_once $root . '/config/ticketing_mail_outbox.php';
     $result = brvtal_ticket_mail_deliver_one($pdo);
     // Deliberately print only a state, never recipient, body, key or token.
