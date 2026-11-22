@@ -62,7 +62,7 @@ test('AC-02: solo administrador con controles activos configura allowlist cifrad
   await expect(card.locator('[data-mail-allowlist-status]')).toHaveText('Lista guardada');
   await expect(recipients).toHaveValue('');
   await card.getByRole('button',{name:'Enviar correo de prueba'}).click();
-  await expect(card.locator('[data-secret-feedback]')).toContainText('Correo de prueba aceptado');
+  await expect(card.locator('[data-secret-feedback]')).toContainText('Correo de prueba enviado');
   const fixture=await page.evaluate(()=>window.mailFixture);
   expect(fixture.writes).toHaveLength(1);
   expect(fixture.writes[0]).toMatchObject({key:'BRVTAL_TICKET_MAIL_TEST_RECIPIENTS',csrf:'synthetic-csrf-1875'});
