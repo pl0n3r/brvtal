@@ -76,17 +76,17 @@ quick_win_assert(
 
 $indexCore = (string)file_get_contents(__DIR__ . '/../discadmin/index-core.php');
 $navItems = [
-    "['dashboard','DASHBOARD']",
-    "['pages','PAGES']",
+    "['dashboard','INICIO']",
+    "['pages','PÁGINAS']",
     "['blog','BLOG']",
-    "['media','MEDIA']",
-    "['events','EVENTS']",
-    "['artists','ARTISTS']",
-    "['releases','RELEASES']",
-    "['sets','SETS']",
+    "['media','MEDIOS']",
+    "['events','EVENTOS']",
+    "['artists','ARTISTAS']",
+    "['releases','LANZAMIENTOS']",
+    "['sets','SESIONES']",
 ];
 $navStart = strpos($indexCore, ' const editorialSections=[');
-$navEnd = strpos($indexCore, ' const moduleTitle=state.section');
+$navEnd = strpos($indexCore, ' const moduleTitles={');
 $navSource = $navStart !== false && $navEnd !== false && $navEnd > $navStart
     ? substr($indexCore, $navStart, $navEnd - $navStart)
     : '';
@@ -100,9 +100,9 @@ foreach ($navItems as $item) {
     }
     $lastPosition = $position;
 }
-$appearance = strpos($navSource, '>APPEARANCE</button>');
-$banners = strpos($navSource, '>BANNERS</button>');
-$theme = strpos($navSource, '>THEME STUDIO</button>');
+$appearance = strpos($navSource, '>APARIENCIA</button>');
+$banners = strpos($navSource, '>BANNERS DE PORTADA</button>');
+$theme = strpos($navSource, '>TEMA VISUAL</button>');
 $seo = strpos($navSource, '>SEO</button>');
 $settings = strpos($navSource, 'data-admin-nav="settings"');
 $system = strpos($navSource, 'data-admin-nav="system"');

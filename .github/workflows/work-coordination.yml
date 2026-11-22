@@ -95,7 +95,7 @@ jobs:
       operation: pr
       profile: en
       # Factory#2163: version-only bumps no longer serialize leaves (#1811).
-      shared_version_paths: '["config/version.php","package.json"]'
+      shared_version_paths: '["config/version.php","package.json","revision-juridica/00-LEEME.md"]'
       pr_number: ${{ github.event.pull_request.number }}
       action: ${{ github.event.action }}
 

@@ -20,11 +20,11 @@ async function login(page) {
 test('Dashboard navigation mounts the canonical Events Content Core workspace', async ({ page }) => {
   await login(page);
   await page.goto(`${baseUrl}/discadmin/`, {waitUntil:'domcontentloaded'});
-  await expect(page.locator('.main .top h1')).toHaveText('DASHBOARD', {timeout:10_000});
+  await expect(page.locator('.main .top h1')).toHaveText('INICIO', {timeout:10_000});
 
   await page.locator('[data-admin-nav="events"]').click();
   await expect(page.locator('[data-admin-nav="events"].active')).toBeVisible({timeout:10_000});
-  await expect(page.locator('.main .top h1')).toHaveText('EVENTS', {timeout:10_000});
+  await expect(page.locator('.main .top h1')).toHaveText('EVENTOS', {timeout:10_000});
 
   const core = page.locator('#admin-module-host [data-admin-module="content-core"][data-ia-context="events"]');
   await expect(core).toBeAttached({timeout:10_000});
@@ -43,12 +43,12 @@ test('Content Core saves Event, Tickets, roster and SEO through one atomic workf
     await page.goto(`${baseUrl}/discadmin/?module=events`, {waitUntil:'domcontentloaded'});
     const core = page.locator('[data-admin-module="content-core"]');
     await expect(core).toBeAttached({timeout:10_000});
-    await expect(page.locator('.main .top h1')).toHaveText('EVENTS');
+    await expect(page.locator('.main .top h1')).toHaveText('EVENTOS');
     await expect(page.locator('.main .toolbar .search:visible')).toHaveCount(1);
     await expect(core.locator('.wrap')).toBeHidden();
 
     const step = number => page.locator(`#eventModal [data-step="${number}"]`);
-    await page.getByRole('button', {name:'+ NEW EVENT', exact:true}).click();
+    await page.getByRole('button', {name:'+ NUEVO EVENTO', exact:true}).click();
     await expect(page.locator('#eventModal')).toHaveClass(/open/);
     await page.locator('#e_title').fill(title);
     await page.locator('.event-advanced > summary').click();
@@ -405,7 +405,7 @@ test('Media remains mounted when a stale Dashboard navigation completes', async 
   await login(page);
 
   await page.goto(`${baseUrl}/discadmin/`, {waitUntil:'domcontentloaded'});
-  await expect(page.locator('.main .top h1')).toHaveText('DASHBOARD', {timeout:10_000});
+  await expect(page.locator('.main .top h1')).toHaveText('INICIO', {timeout:10_000});
   await expect(page.locator('#brvtal-dashboard-v2 .dashboard-v2-hero')).toBeVisible({timeout:10_000});
 
   let releaseStaleDashboard;
@@ -433,7 +433,7 @@ test('Media remains mounted when a stale Dashboard navigation completes', async 
   releaseStaleDashboard();
   await page.evaluate(() => window.__staleDashboardNavigation);
   await expectMediaMounted(page, 5_000);
-  await expect(page.locator('.main .top h1')).toHaveText('MEDIA');
+  await expect(page.locator('.main .top h1')).toHaveText('MEDIOS');
 });
 
 test('Media mounts from its canonical deep link', async ({ page }) => {
@@ -441,7 +441,7 @@ test('Media mounts from its canonical deep link', async ({ page }) => {
 
   await page.goto(`${baseUrl}/discadmin/?module=media`, {waitUntil:'domcontentloaded'});
   await expectMediaMounted(page);
-  await expect(page.locator('.main .top h1')).toHaveText('MEDIA');
+  await expect(page.locator('.main .top h1')).toHaveText('MEDIOS');
   await expect(page.getByRole('button', {name:/REGISTER EXTERNAL/i})).toHaveCount(0);
 });
 

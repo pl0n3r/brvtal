@@ -361,7 +361,7 @@ test('v2 admin defers Media until Settings resolves and keeps picker asynchronou
     .toEqual(['settings:start','settings:resolved','media:start']);
   await expect(page.locator('.hero-manager')).toBeVisible();
   await page.locator('[data-add-slide]').click();
-  await expect(page.locator('button[data-media-picker="desktopSrc"]')).toHaveText('SELECT MEDIA');
+  await expect(page.locator('button[data-media-picker="desktopSrc"]')).toHaveText('ELEGIR ARCHIVO');
   await expect(page.locator('button[data-media-picker="desktopSrc"]')).toBeEnabled();
   await expect(page.locator('[data-save-slider]')).toBeEnabled();
 });
@@ -484,7 +484,7 @@ test('v2 admin blocks enabled slides without valid primary media before save', a
 
   await expect.poll(() => page.evaluate(() => window.__heroSavePayloads.length)).toBe(0);
   await expect(page.locator('[data-save-slider]')).toBeEnabled();
-  await expect(page.locator('[data-save-slider]')).toHaveText('SAVE');
+  await expect(page.locator('[data-save-slider]')).toHaveText('GUARDAR');
 });
 
 test('v2 admin accepts a published Media Library asset as primary media', async ({ page }) => {
@@ -565,7 +565,7 @@ test('v2 admin autosaves Hero changes locally without a server mutation and rest
   await openAdminUidHarness(page, { serverConfig:heroDraftServerConfig });
   await page.locator('[data-field="name"]').fill('Local recovery banner');
 
-  await expect(page.locator('[data-hero-draft-state]')).toHaveText('Draft saved locally');
+  await expect(page.locator('[data-hero-draft-state]')).toHaveText('Borrador guardado localmente');
   expect(await page.evaluate(() => window.__heroSavePayloads.length)).toBe(0);
   expect(await page.evaluate(async () => (await BRVTALDrafts.load('hero-slider','home.hero.slider'))?.data?.slides?.[0]?.name))
     .toBe('Local recovery banner');
@@ -584,7 +584,7 @@ test('v2 admin autosaves Hero changes locally without a server mutation and rest
 test('v2 admin warns when the server snapshot changed before local draft restore', async ({ page }) => {
   await openAdminUidHarness(page, { serverConfig:heroDraftServerConfig });
   await page.locator('[data-field="name"]').fill('Local conflicting banner');
-  await expect(page.locator('[data-hero-draft-state]')).toHaveText('Draft saved locally');
+  await expect(page.locator('[data-hero-draft-state]')).toHaveText('Borrador guardado localmente');
 
   page.once('dialog', dialog => dialog.accept());
   await page.evaluate(() => window.go('dashboard'));
@@ -599,18 +599,18 @@ test('v2 admin warns when the server snapshot changed before local draft restore
   const recovery = page.locator('[data-hero-draft-recovery]');
   await expect(recovery).toBeVisible();
   await expect(recovery).toHaveAttribute('data-conflict','1');
-  await expect(recovery).toContainText('SERVER CHANGED');
+  await expect(recovery).toContainText('EL SERVIDOR CAMBIÓ');
   await expect(page.locator('[data-field="name"]')).toHaveValue('Server changed banner');
 });
 
 test('v2 admin keeps a recoverable local draft when explicit Save fails', async ({ page }) => {
   await openAdminUidHarness(page, { serverConfig:heroDraftServerConfig, failSave:true });
   await page.locator('[data-field="name"]').fill('Retry this banner');
-  await expect(page.locator('[data-hero-draft-state]')).toHaveText('Draft saved locally');
+  await expect(page.locator('[data-hero-draft-state]')).toHaveText('Borrador guardado localmente');
 
   await page.locator('[data-save-slider]').click();
   await expect.poll(() => page.evaluate(() => window.__heroSaveStarted)).toBe(1);
-  await expect(page.locator('[data-hero-draft-state]')).toContainText('Save failed');
+  await expect(page.locator('[data-hero-draft-state]')).toContainText('Error al guardar');
   await expect(page.locator('[data-field="name"]')).toHaveValue('Retry this banner');
   expect(await page.evaluate(async () => (await BRVTALDrafts.load('hero-slider','home.hero.slider'))?.data?.slides?.[0]?.name))
     .toBe('Retry this banner');
@@ -619,18 +619,18 @@ test('v2 admin keeps a recoverable local draft when explicit Save fails', async 
 test('v2 admin preserves edits made while the server Save request is in flight', async ({ page }) => {
   await openAdminUidHarness(page, { serverConfig:heroDraftServerConfig, holdSave:true });
   await page.locator('[data-field="name"]').fill('Submitted banner');
-  await expect(page.locator('[data-hero-draft-state]')).toHaveText('Draft saved locally');
+  await expect(page.locator('[data-hero-draft-state]')).toHaveText('Borrador guardado localmente');
 
   await page.locator('[data-save-slider]').click();
   await expect.poll(() => page.evaluate(() => window.__heroSaveStarted)).toBe(1);
   await expect.poll(() => page.evaluate(() => typeof window.__heroReleaseSave === 'function')).toBe(true);
   await page.locator('[data-field="name"]').fill('Newer local banner');
-  await expect(page.locator('[data-hero-draft-state]')).toHaveText('Unsaved');
+  await expect(page.locator('[data-hero-draft-state]')).toHaveText('Sin guardar');
 
   await page.evaluate(() => window.__heroReleaseSave());
   await expect.poll(() => page.evaluate(() => window.__heroSavePayloads.length)).toBe(1);
   await expect(page.locator('[data-field="name"]')).toHaveValue('Newer local banner');
-  await expect(page.locator('[data-hero-draft-state]')).toContainText('newer edits remain unsaved');
+  await expect(page.locator('[data-hero-draft-state]')).toContainText('aún hay cambios sin publicar');
   expect(await page.evaluate(() => window.__heroSettingsConfig.slides[0].name)).toBe('Submitted banner');
   expect(await page.evaluate(async () => (await BRVTALDrafts.load('hero-slider','home.hero.slider'))?.data?.slides?.[0]?.name))
     .toBe('Newer local banner');
@@ -639,7 +639,7 @@ test('v2 admin preserves edits made while the server Save request is in flight',
 test('v2 admin clears Hero recovery at the auth session boundary', async ({ page }) => {
   await openAdminUidHarness(page, { serverConfig:heroDraftServerConfig });
   await page.locator('[data-field="name"]').fill('Session-bound banner');
-  await expect(page.locator('[data-hero-draft-state]')).toHaveText('Draft saved locally');
+  await expect(page.locator('[data-hero-draft-state]')).toHaveText('Borrador guardado localmente');
 
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('brvtal:auth-required')));
   await expect.poll(() => page.evaluate(() => BRVTALDrafts.load('hero-slider','home.hero.slider'))).toBe(null);
@@ -672,7 +672,7 @@ test('v2 admin keeps the recovery revision stable for legacy server configs with
 
   await openAdminUidHarness(page, { serverConfig:legacyConfig });
   await page.locator('[data-field="name"]').fill('Recovered legacy banner');
-  await expect(page.locator('[data-hero-draft-state]')).toHaveText('Draft saved locally');
+  await expect(page.locator('[data-hero-draft-state]')).toHaveText('Borrador guardado localmente');
 
   page.once('dialog', dialog => dialog.accept());
   await page.evaluate(() => window.go('dashboard'));
@@ -681,5 +681,5 @@ test('v2 admin keeps the recovery revision stable for legacy server configs with
   const recovery = page.locator('[data-hero-draft-recovery]');
   await expect(recovery).toBeVisible();
   await expect(recovery).toHaveAttribute('data-conflict','0');
-  await expect(recovery).not.toContainText('SERVER CHANGED');
+  await expect(recovery).not.toContainText('EL SERVIDOR CAMBIÓ');
 });

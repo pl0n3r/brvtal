@@ -189,7 +189,9 @@ test('Admin Activity discards stale pages and History preserves the selected ver
   await page.getByRole('button', { name: 'LOAD MORE' }).click();
   await page.locator('[data-activity-filter]').selectOption('artists');
   await expect(page.locator('#brvtal-admin-activity')).toContainText('PL0N3R');
+  // The late 80ms bootstrap and observer retry may not reset an already filtered list.
   await page.waitForTimeout(120);
+  await expect(page.locator('[data-activity-filter]')).toHaveValue('artists');
   await expect(page.locator('#brvtal-admin-activity')).toContainText('PL0N3R');
   await expect(page.locator('#brvtal-admin-activity')).not.toContainText('GENESIS');
 
