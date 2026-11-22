@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const css = readFileSync(join(process.cwd(), 'discadmin/admin-data-grid.css'), 'utf8');
@@ -87,8 +87,14 @@ test('browser captures real baseline and after at 390px and 1440px',async ({page
   for(const width of [390,1440]){
     await page.setViewportSize({width,height:900});
     await mount(page,baseline);
-    await testInfo.attach('before-'+width+'.png',{body:await page.screenshot({fullPage:true}),contentType:'image/png'});
+    const folder=join(process.cwd(),'artifacts/discadmin-grid-visual');
+    mkdirSync(folder,{recursive:true});
+    const before=await page.screenshot({fullPage:true});
+    writeFileSync(join(folder,'before-'+width+'.png'),before);
+    await testInfo.attach('before-'+width+'.png',{body:before,contentType:'image/png'});
     await mount(page,css);
-    await testInfo.attach('after-'+width+'.png',{body:await page.screenshot({fullPage:true}),contentType:'image/png'});
+    const after=await page.screenshot({fullPage:true});
+    writeFileSync(join(folder,'after-'+width+'.png'),after);
+    await testInfo.attach('after-'+width+'.png',{body:after,contentType:'image/png'});
   }
 });

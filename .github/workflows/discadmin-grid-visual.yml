@@ -65,7 +65,7 @@ jobs:
               else if(e.name.endsWith('.png'))files.push(p);
             }
           };
-          walk('test-results');
+          walk('artifacts/discadmin-grid-visual');
           const expected=['before-390','after-390','before-1440','after-1440'];
           const captures=expected.map(name=>{
             const matches=files.filter(f=>path.basename(f).startsWith(name)&&f.endsWith('.png'));
@@ -88,7 +88,6 @@ jobs:
         with:
           name: discadmin-grid-visual-${{ github.event.pull_request.head.sha }}-${{ github.run_id }}
           path: |
-            test-results/**/*
-            artifacts/discadmin-grid-visual/manifest.json
+            artifacts/discadmin-grid-visual/*
           if-no-files-found: error
           retention-days: 14
