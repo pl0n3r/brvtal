@@ -86,8 +86,9 @@ function buyerAuthMissingMailKeyHttpCheck(
             }
             $options['header'] = implode("\r\n", $requestHeaders);
             $context = stream_context_create(['http' => $options]);
+            $http_response_header = [];
             $response = @file_get_contents($url . $path, false, $context);
-            $receivedHeaders = $http_response_header ?? [];
+            $receivedHeaders = $http_response_header;
             preg_match('~^HTTP/\S+ ([0-9]{3})~', (string) ($receivedHeaders[0] ?? ''), $matches);
             return [
                 'status' => (int) ($matches[1] ?? 0),

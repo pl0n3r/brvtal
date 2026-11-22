@@ -6,8 +6,6 @@ require_once __DIR__ . '/../../config/buyer_auth_flows.php';
 require_once __DIR__ . '/../../config/public_abuse_guard.php';
 
 // The required bootstrap loads and validates this configuration.
-/** @var array<string, mixed> $config */
-
 /**
  * Whitelist internal diagnostic codes only; arbitrary exception messages can
  * contain user-controlled email, password, token or provider details.
@@ -21,6 +19,8 @@ function brvtalBuyerAuthLogFailure(string $event, Throwable $error): void
     }
     brvtal_log($event, 'Buyer authentication operation failed.', $context);
 }
+
+/** @var array<string, mixed> $config */
 
 
 header('Cache-Control: no-store, private');
