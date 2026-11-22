@@ -479,7 +479,7 @@ test('Media writes stay behind the canonical integrity boundary in the real stac
     const filePath = String(uploaded?.data?.file_path || '');
     expect(mediaId).toBeGreaterThan(0);
     expect(filePath).toMatch(/^\/uploads\/media\//);
-    expect(uploaded?.data?.status).toBe('draft');
+    expect(uploaded?.data?.status).toBe('published'); // Uploaded Media is immediately reusable.
 
     const duplicate = await page.request.post(`${baseUrl}/api/media-library.php?action=register`, {
       headers,
@@ -487,6 +487,57 @@ test('Media writes stay behind the canonical integrity boundary in the real stac
     });
     expect(duplicate.status()).toBe(409);
     expect(await duplicate.json()).toMatchObject({ok:false,error:'LOCAL_MEDIA_ALREADY_REGISTERED',media_id:mediaId});
+
+    // A legacy draft used by Banners is promoted only when a full save commits.
+    // Rejections must never publish the asset or alter the previously saved slider.
+    const settingKey='home.hero.slider';
+    const previousResponse=await page.request.get(
+      `${baseUrl}/api/index.php/settings?key=${encodeURIComponent(settingKey)}`
+    );
+    expect(previousResponse.ok()).toBe(true);
+    const previous=(await previousResponse.json()).data?.[0] ?? null;
+    const slide={id:'ci-media-promote',enabled:true,mediaType:'image',name:'CI LEGACY DRAFT',
+      desktopSrc:filePath,mobileSrc:'',poster:'',layers:[]};
+    const saveConfig=async slides=>page.request.post(`${baseUrl}/api/index.php/settings`,{
+      headers,data:{setting_key:settingKey,setting_value:JSON.stringify({enabled:true,slides}),is_json:1}
+    });
+    const asset=async()=> (await (await page.request.get(
+      `${baseUrl}/api/media-library.php?action=detail&id=${mediaId}`
+    )).json()).data;
+    try {
+      const legacyDraft=await page.request.put(
+        `${baseUrl}/api/media-library.php?action=update&id=${mediaId}`,
+        {headers,data:{status:'draft'}}
+      );
+      expect(legacyDraft.ok(),await legacyDraft.text()).toBe(true);
+      expect((await asset()).status).toBe('draft');
+      const invalid=await saveConfig([{...slide,mobileSrc:'/uploads/ci/hero-missing.jpg'}]);
+      expect(invalid.status()).toBe(422);
+      const invalidResponse = await invalid.json();
+      expect(invalidResponse.field).toBe('slides.0.mobileSrc');
+      // A synthetic unlinked uploads path may be present in fixture rows but
+      // never exists on disk: both explicit integrity failures are fail-closed.
+      expect([
+        'HERO_SLIDER_MEDIA_NOT_REGISTERED',
+        'HERO_SLIDER_MEDIA_FILE_MISSING',
+      ]).toContain(invalidResponse.error);
+      expect((await asset()).status).toBe('draft');
+      const saved=await saveConfig([slide]);
+      expect(saved.ok(),await saved.text()).toBe(true);
+      expect((await asset()).status).toBe('published');
+    } finally {
+      // Do not rely on a Settings DELETE route: restore an asset-free disabled config.
+      const restore = previous===null
+        ? {enabled:false,slides:[]}
+        : null;
+      const restored = await page.request.post(`${baseUrl}/api/index.php/settings`,{
+        headers,data:{setting_key:settingKey,
+          setting_value:restore!==null
+            ? JSON.stringify(restore) : String(previous.setting_value??''),
+          is_json:restore!==null ? 1 : Number(previous.is_json??0)}
+      });
+      expect(restored.ok(), await restored.text()).toBe(true);
+    }
 
     const canonicalDelete = await page.request.delete(`${baseUrl}/api/media-library.php?id=${mediaId}`, {headers});
     expect(canonicalDelete.ok()).toBeTruthy();

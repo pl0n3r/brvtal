@@ -101,8 +101,8 @@ admin_read_expect(
     'Hero picker Media reads must exclude unrelated audio/document records'
 );
 admin_read_expect(
-    str_contains((string)($mediaPlan['sql'] ?? ''), "status='published'"),
-    'Hero picker Media reads must expose only published assets'
+    !str_contains((string)($mediaPlan['sql'] ?? ''), "status='published'"),
+    'Hero picker must include registered legacy drafts, with type/exists checked on save'
 );
 admin_read_expect(
     str_contains((string)($mediaPlan['sql'] ?? ''), 'LIMIT ' . BRVTAL_ADMIN_HERO_MEDIA_LIMIT),

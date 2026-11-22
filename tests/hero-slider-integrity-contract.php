@@ -32,7 +32,7 @@ $assert($error === ['error'=>'HERO_SLIDER_MEDIA_NOT_REGISTERED','field'=>'slides
 $error = brvtalHeroSliderConfigError($config([
     'enabled'=>true,'mediaType'=>'image','desktopSrc'=>'/uploads/hero/draft.jpg',
 ]), $resolver);
-$assert($error === ['error'=>'HERO_SLIDER_MEDIA_NOT_PUBLISHED','field'=>'slides.0.desktopSrc'], 'draft media must not back enabled slides');
+$assert($error === null, 'legacy draft media may be used by an enabled slide; save publishes referenced drafts');
 
 $error = brvtalHeroSliderConfigError($config([
     'enabled'=>true,'mediaType'=>'image','desktopSrc'=>'/uploads/hero/missing-file.jpg',

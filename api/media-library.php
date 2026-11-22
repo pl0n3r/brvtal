@@ -56,14 +56,31 @@ function brvtalMediaCleanupFailedUploadOrThrow(string $absolute, Throwable $caus
 
 function brvtalMediaReuseUpload(PDO $pdo, array $row, string $contentHash, string $source): never
 {
-    $fresh = brvtal_media_find($pdo, (int)($row['id'] ?? 0)) ?? $row;
+    // A duplicate upload of a legacy draft is also ready to use.
+    $pdo->beginTransaction();
+    try {
+        $fresh = brvtal_media_find($pdo, (int)($row['id'] ?? 0), true);
+        if (!is_array($fresh)) {
+            throw new RuntimeException('MEDIA_DUPLICATE_NOT_FOUND');
+        }
+        if (($fresh['status'] ?? '') === 'draft') {
+            $pdo->prepare("UPDATE media SET status='published' WHERE id=? AND status='draft'")
+                ->execute([(int)$fresh['id']]);
+            $after = $fresh;
+            $after['status'] = 'published';
+            brvtal_activity_record($pdo, 'auto_publish', 'media', (int)$fresh['id'],
+                $fresh, $after, ['source'=>'duplicate_media_upload']);
+            $fresh = $after;
+        }
+        $pdo->commit();
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $error;
+    }
     brvtal_media_json_response([
-        'ok' => true,
-        'duplicate' => true,
-        'reused' => true,
-        'dedupe_source' => $source,
-        'content_hash' => $contentHash,
-        'data' => brvtal_media_asset_payload($fresh),
+        'ok' => true, 'duplicate' => true, 'reused' => true,
+        'dedupe_source'=>$source, 'content_hash'=>$contentHash,
+        'data'=>brvtal_media_asset_payload($fresh),
     ]);
 }
 
@@ -198,12 +215,12 @@ try {
                     'INSERT INTO media(type,title,file_path,mime_type,file_size,content_hash,alt_text,status) ' .
                     'VALUES(?,?,?,?,?,?,?,?)'
                 );
-                $st->execute([$type, $title, $publicPath, $mime, $size, $contentHash, $alt, 'draft']);
+                $st->execute([$type, $title, $publicPath, $mime, $size, $contentHash, $alt, 'published']);
             } else {
                 $st = $pdo->prepare(
                     'INSERT INTO media(type,title,file_path,mime_type,file_size,alt_text,status) VALUES(?,?,?,?,?,?,?)'
                 );
-                $st->execute([$type, $title, $publicPath, $mime, $size, $alt, 'draft']);
+                $st->execute([$type, $title, $publicPath, $mime, $size, $alt, 'published']);
             }
             $mediaId = (int)$pdo->lastInsertId();
         } catch (PDOException $e) {

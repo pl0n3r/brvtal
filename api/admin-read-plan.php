@@ -68,7 +68,7 @@ function brvtalAdminCollectionReadPlan(string $resource, array $query): ?array
     ) {
         return [
             'sql' => 'SELECT id,type,title,file_path,status FROM media '
-                . "WHERE type IN ('image','video') AND status='published' ORDER BY id DESC LIMIT "
+                . "WHERE type IN ('image','video') ORDER BY id DESC LIMIT "
                 . BRVTAL_ADMIN_HERO_MEDIA_LIMIT,
             'params' => [],
             'error' => null,

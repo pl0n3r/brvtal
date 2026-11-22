@@ -810,6 +810,25 @@ try {
                         }
                     }
                 }
+                // Validate the final snapshot under row locks before promoting only used drafts.
+                if ($key === BRVTAL_HERO_SLIDER_SETTING_KEY) {
+                    $draftAssets = [];
+                    $heroError = brvtalHeroSliderSettingError($pdo, $value, $isJson, $draftAssets);
+                    if ($heroError !== null) {
+                        $pdo->rollBack();
+                        json_response(['ok'=>false,'error'=>$heroError['error'],'field'=>$heroError['field']],422);
+                    }
+                    foreach ($draftAssets as $beforeMedia) {
+                        $mediaId = (int)$beforeMedia['id'];
+                        $update = $pdo->prepare("UPDATE media SET status='published' WHERE id=? AND status='draft'");
+                        $update->execute([$mediaId]);
+                        if ($update->rowCount() !== 1) throw new RuntimeException('HERO_SLIDER_MEDIA_PROMOTION_CONFLICT');
+                        $afterMedia = $beforeMedia;
+                        $afterMedia['status'] = 'published';
+                        brvtal_activity_record($pdo,'auto_publish','media',$mediaId,
+                            $beforeMedia,$afterMedia,['source'=>'hero_slider_setting','setting_key'=>$key]);
+                    }
+                }
                 $st = $pdo->prepare(
                     'INSERT INTO settings(setting_key,setting_value,is_json) VALUES(?,?,?) '
                     . 'ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value),is_json=VALUES(is_json)'

@@ -8,7 +8,7 @@ const BRVTAL_HERO_SLIDER_SETTING_KEY = 'home.hero.slider';
 /**
  * Validate one Hero Slider media reference.
  *
- * Local references must be canonical published Media Library assets whose
+ * Local references must be canonical registered Media Library assets whose
  * source file still exists under /uploads. HTTPS references are explicitly
  * external and are not fetched server-side.
  *
@@ -43,9 +43,6 @@ function brvtalHeroSliderMediaReferenceError(
     $media = $resolveLocal($reference);
     if (!is_array($media)) {
         return ['error' => 'HERO_SLIDER_MEDIA_NOT_REGISTERED', 'field' => $field];
-    }
-    if ((string)($media['status'] ?? '') !== 'published') {
-        return ['error' => 'HERO_SLIDER_MEDIA_NOT_PUBLISHED', 'field' => $field];
     }
     if ((string)($media['type'] ?? '') !== $expectedType) {
         return ['error' => 'HERO_SLIDER_MEDIA_TYPE_MISMATCH', 'field' => $field];
@@ -122,7 +119,7 @@ function brvtalHeroSliderConfigError(array $config, callable $resolveLocal): ?ar
 }
 
 /** @return array{error:string,field:string}|null */
-function brvtalHeroSliderSettingError(PDO $pdo, string $value, int $isJson): ?array
+function brvtalHeroSliderSettingError(PDO $pdo, string $value, int $isJson, ?array &$referencedDrafts = null): ?array
 {
     if ($isJson !== 1) {
         return ['error' => 'HERO_SLIDER_JSON_REQUIRED', 'field' => 'setting_value'];
@@ -133,11 +130,13 @@ function brvtalHeroSliderSettingError(PDO $pdo, string $value, int $isJson): ?ar
         return ['error' => 'INVALID_SETTING_JSON', 'field' => 'setting_value'];
     }
 
+    $lock = $pdo->inTransaction() ? ' FOR UPDATE' : '';
     $statement = $pdo->prepare(
-        'SELECT id,type,file_path,status FROM media WHERE file_path=? ORDER BY id ASC LIMIT 1'
+        'SELECT id,type,file_path,status FROM media WHERE file_path=? ORDER BY id ASC LIMIT 1' . $lock
     );
+    $drafts = [];
 
-    $resolveLocal = static function (string $path) use ($statement): ?array {
+    $resolveLocal = static function (string $path) use ($statement, &$drafts): ?array {
         $statement->execute([$path]);
         $row = $statement->fetch(PDO::FETCH_ASSOC);
         if (!is_array($row)) {
@@ -146,8 +145,15 @@ function brvtalHeroSliderSettingError(PDO $pdo, string $value, int $isJson): ?ar
 
         $absolute = brvtal_media_local_absolute($path);
         $row['exists'] = $absolute !== null && is_file($absolute);
+        if ($row['exists'] && ($row['status'] ?? '') === 'draft') {
+            $drafts[(int)$row['id']] = $row;
+        }
         return $row;
     };
 
-    return brvtalHeroSliderConfigError($config, $resolveLocal);
+    $error = brvtalHeroSliderConfigError($config, $resolveLocal);
+    if ($error === null && $referencedDrafts !== null) {
+        $referencedDrafts = array_values($drafts);
+    }
+    return $error;
 }

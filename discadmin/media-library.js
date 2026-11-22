@@ -355,7 +355,6 @@ window.BRVTALMediaLibrary = (() => {
       ${item.content_hash ? `<div class="media-inspector-path"><b>SHA-256</b> · ${esc(item.content_hash)}</div>` : ''}
       <label for="media-edit-title">TITLE</label><input id="media-edit-title" value="${esc(item.title || '')}">
       <label for="media-edit-alt">ALT TEXT</label><input id="media-edit-alt" value="${esc(item.alt_text || '')}">
-      <label for="media-edit-status">PUBLICATION</label><select id="media-edit-status"><option value="published" ${item.status==='published'?'selected':''}>PUBLISHED</option><option value="draft" ${item.status==='draft'?'selected':''}>DRAFT</option></select>
       <div class="media-engine">${engine}</div>
       ${optimizationHtml}
       ${cropHtml}
@@ -472,8 +471,7 @@ window.BRVTALMediaLibrary = (() => {
     if (!store.selected || !store.root) return;
     const payload = {
       title: store.root.querySelector('#media-edit-title')?.value || '',
-      alt_text: store.root.querySelector('#media-edit-alt')?.value || '',
-      status: store.root.querySelector('#media-edit-status')?.value || 'published'
+      alt_text: store.root.querySelector('#media-edit-alt')?.value || ''
     };
     try {
       notify('processing', 'Saving media metadata…');

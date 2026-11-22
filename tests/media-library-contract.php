@@ -79,10 +79,10 @@ $registerStart = strpos($api, "if (\$method === 'POST' && \$action === 'register
 media_assert($uploadStart !== false && $registerStart !== false && $registerStart > $uploadStart, 'upload source block must remain discoverable');
 $uploadSource = substr($api, $uploadStart, $registerStart - $uploadStart);
 media_assert(
-    str_contains($uploadSource, "\$st->execute([\$type, \$title, \$publicPath, \$mime, \$size, \$contentHash, \$alt, 'draft']);"),
-    'new physical uploads must be persisted as draft'
+    str_contains($uploadSource, "\$st->execute([\$type, \$title, \$publicPath, \$mime, \$size, \$contentHash, \$alt, 'published']);"),
+    'new physical uploads must become published Media assets immediately'
 );
-media_assert(!str_contains($uploadSource, "'published'"), 'upload path must not silently publish newly uploaded assets');
+media_assert(!str_contains($uploadSource, "\$alt, 'draft']);"), 'physical uploads must not require a separate Publish action');
 media_assert(preg_match("/FROM media\\s+WHERE status='published'/", $publicApi) === 1, 'public Media must remain limited to explicitly published records');
 media_assert(str_contains($mediaConfig, "in_array(\$mime, ['image/jpeg', 'image/png'], true)"), 'JPEG and PNG uploads must generate a generic preserve-aspect WebP');
 media_assert(
@@ -157,7 +157,7 @@ media_assert(str_contains($controller, 'PHYSICAL FOOTPRINT'), 'Media inspector m
 media_assert(str_contains($controller, 'Optimization up to date · existing variants reused.'), 'focal regeneration must not pretend reused variants were freshly encoded');
 media_assert(str_contains($controller, "['square','card','hero']"), 'inspector must preview supported delivery contexts');
 media_assert(str_contains($controller, "?action=transform&id="), 'focal-point changes must use the protected transform endpoint');
-media_assert(str_contains($controller, 'media-edit-status') && str_contains($controller, "?action=update&id="), 'Media inspector must keep an explicit publication control for draft uploads');
+media_assert(!str_contains($controller, 'media-edit-status') && str_contains($controller, "?action=update&id="), 'Media inspector must save metadata without a separate publication control');
 media_assert(str_contains($publicPage, "brvtal_public_media_variant((string)\$seo['image'], 'hero')"), 'public heroes must select the hero context variant');
 media_assert(str_contains($publicPage, "brvtal_public_media_variant((string)\$item['image'], 'card')"), 'public related cards must select the card context variant');
 media_assert(str_contains($publicIndex, 'data-public-media-search') && str_contains($publicIndex, 'data-public-media-type="image"'), 'public Media must expose search and type filters');
