@@ -33,6 +33,8 @@ register_shutdown_function(static function()use($server,$name):void{
 $db=new PDO("mysql:host=".$host.";port=".$port.";dbname=".$name.";charset=utf8mb4",$user,$pass,$options);
 $db->exec((string)file_get_contents(__DIR__.'/../../database/migration_ticketing_mail_outbox_01.sql'));
 $old=$GLOBALS['config']??null;
+$oldTesting=getenv('BRVTAL_TICKET_MAIL_TESTING');
+$oldMode=getenv('BRVTAL_TICKET_MAIL_MODE');
 $GLOBALS['config']=['security'=>['encryption_key'=>str_repeat('fixture-only-encryption-key-32-',2)],
     'ticketing'=>['mail'=>['testing'=>'1','mode'=>'mock','from'=>'Fixture BRVTAL <test@brvtal.invalid>',
         'domain'=>'brvtal.invalid','privacy_approved'=>'1']]];
@@ -101,6 +103,26 @@ try {
     } catch(RuntimeException $error) {
         mail_delivery_assert($error->getMessage()==='MAIL_TEMPLATE_DOCUMENT_CORRUPTED','opaque corrupt failure');
     }
+    // The actual outbox worker sends the original HTML/text snapshot, not the
+    // currently published revision after the editor changed it.
+    $db->exec("UPDATE ticket_mail_outbox SET state='accepted' WHERE message_key<>'test:published'");
+    $transportSnapshot=null;
+    $dispatched=brvtal_ticket_mail_deliver_one($db,
+        static function(array $payload,array $headers)use(&$transportSnapshot):array{
+            $transportSnapshot=$payload;
+            return ['status'=>200,'body'=>'{"id":"synthetic-published-1889"}'];
+        });
+    mail_delivery_assert($dispatched==='accepted'
+        && $transportSnapshot['text']===$before['body_text']
+        && $transportSnapshot['html']===$before['body_html'],
+        'worker sends immutable snapshot, not current published revision');
+    try {
+        brvtal_mail_delivery_render($db,'verify_account',
+            ['link'=>'https://untrusted.invalid/mi-cuenta/restablecer?accion=verify&token='.str_repeat('Z',43)]);
+        mail_delivery_assert(false,'foreign bearer links must be rejected');
+    } catch (InvalidArgumentException $error) {
+        mail_delivery_assert($error->getMessage()==='MAIL_LINK_INVALID','host rejected safely');
+    }
     $token=str_repeat('A',43);
     foreach(['verify_account','reset_password'] as $kind) {
         $mail=brvtalBuyerMailContent($kind,$token);
@@ -127,7 +149,7 @@ try {
     }
 } finally {
     if($old===null)unset($GLOBALS['config']);else $GLOBALS['config']=$old;
-    putenv('BRVTAL_TICKET_MAIL_TESTING');
-    putenv('BRVTAL_TICKET_MAIL_MODE');
+    putenv($oldTesting===false ? 'BRVTAL_TICKET_MAIL_TESTING' : 'BRVTAL_TICKET_MAIL_TESTING='.$oldTesting);
+    putenv($oldMode===false ? 'BRVTAL_TICKET_MAIL_MODE' : 'BRVTAL_TICKET_MAIL_MODE='.$oldMode);
 }
 echo "BRVTAL mail-template delivery synthetic MariaDB integration OK.\n";
