@@ -52,7 +52,7 @@ mail_test_assert(brvtal_ticket_resend_send($job, $request)['state'] === 'suppres
     'empty list fails closed');
 
 $GLOBALS['config']['ticketing']['mail']['test_recipients'] = 'allowed@example.test';
-$GLOBALS['config']['ticketing']['mail']['api_key'] = '';
+$GLOBALS['config']['ticketing']['mail']['api_key'] = ' '; // blank after transport normalization
 mail_test_assert(brvtal_ticket_resend_send($job, $request)['code'] === 'invalid_configuration',
     'test mode needs real configured transport credentials');
 mail_test_assert(count($calls) === 1, 'missing key never invokes provider');

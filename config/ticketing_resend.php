@@ -81,7 +81,7 @@ function brvtal_ticket_resend_send(array $job, ?callable $request = null): array
     }
     $domain = strtolower(trim((string)brvtal_secret_value('BRVTAL_TICKET_MAIL_DOMAIN')));
     $from = trim((string)brvtal_secret_value('BRVTAL_TICKET_MAIL_FROM'));
-    $apiKey = (string)brvtal_secret_value('BRVTAL_TICKET_MAIL_API_KEY');
+    $apiKey = trim((string)brvtal_secret_value('BRVTAL_TICKET_MAIL_API_KEY'));
     if ($mock) {
         // A mock must never pass a configured production secret to callbacks.
         $apiKey = '';
