@@ -221,6 +221,9 @@ function brvtalMigrationProofSpecifications(): array
                 ['uq_mail_provider_webhook','idx_mail_provider_email'], true
             )
         ),
+        'migration_buyer_auth_tokens_01.sql' => brvtalMigrationObjectRequirements(
+            'ticket_buyers', ['full_name'], [], true
+        ),
         'migration_ticketing_mail_outbox_01.sql' => brvtalMigrationObjectRequirements(
             'ticket_mail_outbox',
             [
@@ -747,6 +750,7 @@ function brvtalMigrationOrderDependencyActions(array $actions): array
 {
     $parent = 'migration_ticketing_orders_01.sql';
     $dependents = [
+        'migration_buyer_auth_tokens_01.sql',
         'migration_ticketing_entries_01.sql',
         'migration_ticketing_reservations_01.sql',
         'migration_ticketing_webhook_01.sql',
