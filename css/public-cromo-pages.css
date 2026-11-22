@@ -84,6 +84,14 @@ body.cromo-page main h1{
   -webkit-text-stroke:.06em #030303;paint-order:stroke fill;text-shadow:0 .05em 0 #030303;
   overflow-wrap:anywhere;text-wrap:balance;
 }
+/* Event detail CSS is loaded before this file but has a more specific
+   Barlow heading rule. Match its specificity here to restore the shared Cromo
+   display face without changing the event's sizing, layout or body type. */
+body.cromo-page.entity-page--event .entity-hero h1,
+body.cromo-page.entity-page--event main h1{
+  font-family:var(--display);
+  font-weight:400;
+}
 body.cromo-page .entity-facts{display:flex;flex-wrap:wrap;gap:12px;margin:0}
 body.cromo-page .entity-facts > *{
   display:grid;gap:6px;min-width:150px;padding:12px 18px;background:var(--cromo-plate);border:2px solid rgba(244,241,232,.5);color:#fff;
