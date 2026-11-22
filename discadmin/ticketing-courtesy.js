@@ -76,9 +76,8 @@ export function mount(panel) {
           : issued ? 'Operación registrada. No hubo pagos ni correos enviados.'
             : 'Operación registrada sin QR nuevo; no se presume un secreto recuperable.';
       } else {
-        if (body.action==='revoke'&&displayedInvite===Number(body.invite_id)) concealQr();
         status.textContent=body.action==='resend'
-          ? 'Reenvío registrado sin enviar correos.':'Revocación registrada.';
+          ? 'Reenvío registrado sin enviar correos.':'Revocación registrada. El QR visible ya no es válido; ocúltalo al terminar.';
       }
     } catch {
       if (section.isConnected) status.textContent=body.action==='issue'

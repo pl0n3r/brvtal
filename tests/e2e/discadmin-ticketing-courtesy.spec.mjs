@@ -64,10 +64,15 @@ test('T25 integration contract: restricted action and common QR scan',()=>{
 });
 
 test('T25 mantiene QR tras revocación fallida y reenvío sin QR nuevo',async({page})=>{
+  let revokeAttempts=0;
   await start(page,route=>{
     const action=route.request().postDataJSON().action;
-    if (action==='revoke') return route.fulfill({status:403,contentType:'application/json',
-      body:'{"ok":false,"error":"FORBIDDEN"}'});
+    if (action==='revoke') {
+      revokeAttempts++;
+      return revokeAttempts===1
+        ? route.fulfill({status:403,contentType:'application/json',body:'{"ok":false,"error":"FORBIDDEN"}'})
+        : route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:{invite_id:5,status:'revoked',sent:false}})});
+    }
     return route.fulfill({contentType:'application/json',body:JSON.stringify(
       action==='issue'
         ? {ok:true,data:{invite_id:5,replayed:false,sent:false,qr:'BRVTAL:T1:solo-una-vez'}}
@@ -88,6 +93,9 @@ test('T25 mantiene QR tras revocación fallida y reenvío sin QR nuevo',async({p
   await expect(qr).toHaveText('BRVTAL:T1:solo-una-vez');
   await page.getByRole('button',{name:'Registrar reenvío (sin envío)'}).click();
   await expect(page.locator('[data-courtesy-status]')).toContainText('Reenvío registrado');
+  await expect(qr).toHaveText('BRVTAL:T1:solo-una-vez');
+  await page.getByRole('button',{name:'Revocar'}).click();
+  await expect(page.locator('[data-courtesy-status]')).toContainText('Revocación registrada');
   await expect(qr).toHaveText('BRVTAL:T1:solo-una-vez');
   await page.getByRole('button',{name:'Ocultar QR'}).click();
   await expect(qr).toBeHidden();
