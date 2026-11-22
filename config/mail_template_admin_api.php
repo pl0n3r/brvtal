@@ -173,10 +173,21 @@ function brvtalMailAdminDispatch(
         if ($view === 'draft') {
             $draft = brvtal_mail_template_read_draft($pdo, $key, $scope, $request['version_id']);
             if ($draft === null) throw new DomainException('MAIL_TEMPLATE_VERSION_UNKNOWN');
+            // Attribute IDs belong in Admin Activity, not in read API responses.
+            unset($draft['author_admin_id']);
             return $draft;
         }
         if ($view === 'history') {
-            return ['items'=>brvtal_mail_template_versions($pdo, $key, $scope)];
+            // Version metadata only: never return author/discarder identifiers.
+            $versions = brvtal_mail_template_versions($pdo, $key, $scope);
+            return ['items'=>array_map(static fn(array $v): array => [
+                'version_id'=>(int)$v['id'],
+                'revision'=>(int)$v['version_number'],
+                'kind'=>(string)$v['kind'],
+                'created_at'=>$v['created_at'],
+                'first_published_at'=>$v['first_published_at'],
+                'discarded_at'=>$v['discarded_at'],
+            ], $versions)];
         }
         if ($view === 'active') {
             $resolved = brvtal_mail_template_resolve($pdo, $key, $scope);
