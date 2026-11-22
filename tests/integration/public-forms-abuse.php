@@ -104,16 +104,17 @@ abuseAssert($contactAllowed===5,'contact endpoint existing cap');
 /** Inventory every syntactically public API POST entrypoint from source. */
 $root = dirname(__DIR__,2);
 $public = [
-    'api/buyer/auth.php' => 'brvtal_public_abuse_check',
-    'api/buyer/account.php' => 'brvtalBuyerCsrfValid',
-    'api/buyer/refunds.php' => 'brvtalBuyer',
-    'api/contact.php' => 'brvtal_contact_consume_rate_limit',
-    'api/ticketing/checkout.php' => 'brvtal',
-    'api/ticketing/inventory.php' => 'brvtal',
-    'api/ticketing/waitlist.php' => 'brvtal_public_abuse_check',
-    'api/ticketing/checkin.php' => 'brvtal',
-    'api/ticketing/webhook-resend.php' => 'brvtal',
-    'api/ticketing/webhook-wompi.php' => 'brvtal',
+    // A generic project prefix is NOT evidence of abuse protection.
+    'api/buyer/auth.php' => ['brvtal_public_abuse_check(', 'brvtalBuyerCsrfValid('],
+    'api/buyer/account.php' => ['brvtalBuyerAccountAuthorized(', 'brvtalBuyerCsrfValid('],
+    'api/buyer/refunds.php' => ['brvtalBuyerAccountAuthorized(', 'brvtalBuyerCsrfValid('],
+    'api/contact.php' => ['brvtal_contact_consume_rate_limit(', 'brvtal_public_abuse_check('],
+    'api/ticketing/checkout.php' => ['brvtalBuyerSessionStart(', 'brvtalBuyerCsrfValid('],
+    'api/ticketing/inventory.php' => ['INVENTORY_ENDPOINT_NOT_ENABLED'],
+    'api/ticketing/waitlist.php' => ['brvtal_public_abuse_check('],
+    'api/ticketing/checkin.php' => ['brvtal_admin_require(', 'brvtal_admin_require_csrf('],
+    'api/ticketing/webhook-resend.php' => ['brvtal_mail_webhook_verify(', 'svix-signature'],
+    'api/ticketing/webhook-wompi.php' => ['brvtal_wompi_hook_verify(', 'HTTP_X_EVENT_CHECKSUM'],
 ];
 $found = [];
 $files = array_merge(glob($root.'/api/buyer/*.php') ?: [],
@@ -130,10 +131,17 @@ foreach (array_unique($files) as $path) {
     if (!isset($public[$relative])) {
         throw new RuntimeException('PUBLIC_POST_UNCLASSIFIED: '.$relative);
     }
-    abuseAssert(str_contains($source, $public[$relative]),
-        'missing public POST control: '.$relative);
+    foreach ($public[$relative] as $control) {
+        abuseAssert(str_contains($source, $control),
+            'missing public POST control '.$control.' in '.$relative);
+    }
     $found[]=$relative;
 }
+// This library endpoint is intentionally non-public; a future POST handler must
+// be classified explicitly rather than silently inheriting the placeholder.
+$inventory = (string)file_get_contents($root.'/api/ticketing/inventory.php');
+abuseAssert(str_contains($inventory,'INVENTORY_ENDPOINT_NOT_ENABLED'),
+    'internal inventory stub must stay closed to public requests');
 abuseAssert(in_array('api/buyer/auth.php',$found,true)
     && in_array('api/ticketing/waitlist.php',$found,true)
     && in_array('api/contact.php',$found,true), 'core public endpoints indexed');
