@@ -50,11 +50,20 @@ test('Banners uses bounded bootstrap reads on the authenticated real stack', asy
   });
 
   await page.goto(`${baseUrl}/discadmin/`);
-  const appearance = page.locator('[data-admin-nav="appearance"][data-ia-key="appearance"]');
-  await expect(appearance).toBeVisible();
-  await appearance.click();
-  await expect(appearance).toHaveAttribute('aria-expanded','true');
-  await page.getByRole('button', {name:'BANNERS'}).click();
+  // V3 places Banners beneath Sitio web; legacy #1864 used Apariencia.
+  const websiteDisclosure = page.locator('[data-ia-disclosure="website"]');
+  if (await websiteDisclosure.count()) {
+    await expect(websiteDisclosure).toBeVisible();
+    await websiteDisclosure.click();
+    await expect(websiteDisclosure).toHaveAttribute('aria-expanded', 'true');
+    await page.locator('[data-ia-child="hero-slider"]').click();
+  } else {
+    const appearance = page.locator('[data-admin-nav="appearance"][data-ia-key="appearance"]');
+    await expect(appearance).toBeVisible();
+    await appearance.click();
+    await expect(appearance).toHaveAttribute('aria-expanded','true');
+    await page.getByRole('button', {name:'BANNERS'}).click();
+  }
   await expect(page.locator('.hero-manager')).toBeVisible();
 
   expect(observed).toContain('/api/index.php/settings?key=home.hero.slider');

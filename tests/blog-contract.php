@@ -63,10 +63,20 @@ blog_assert(str_contains($adminModules, 'dataset.adminNav = section'), 'dynamic 
 
 $adminCss = (string)file_get_contents(__DIR__ . '/../discadmin/admin-modules.css');
 $adminIa = (string)file_get_contents(__DIR__ . '/../discadmin/admin-information-architecture.js');
+$legacyOrder = str_contains($adminIa, "'pages','blog','media','events'");
+$websiteStart = strpos($adminIa, "{key:'website'");
+$settingsStart = $websiteStart !== false ? strpos($adminIa, "{key:'settings'", $websiteStart) : false;
+$v3Website = $websiteStart !== false && $settingsStart !== false
+    ? substr($adminIa, $websiteStart, $settingsStart - $websiteStart) : '';
+$pagesPos = strpos($v3Website, "{key:'pages'");
+$blogPos = strpos($v3Website, "{key:'blog'");
+$mediaPos = strpos($v3Website, "{key:'media'");
+$v3Order = $pagesPos !== false && $blogPos !== false && $mediaPos !== false
+    && $pagesPos < $blogPos && $blogPos < $mediaPos;
 blog_assert(
-    str_contains($adminIa, "'pages','blog','media','events'")
+    ($legacyOrder || $v3Order)
         && preg_match('/\\.nav\\s*>\\s*button[^{}]*\\{\\s*order\\s*:/', $adminCss) !== 1,
-    'Blog must follow Pages in canonical sidebar order, without a conflicting CSS flex order'
+    'Blog must follow Pages within Site web (V3 or legacy), without a conflicting CSS flex order'
 );
 
 $media = (string)file_get_contents(__DIR__ . '/../config/media.php');
