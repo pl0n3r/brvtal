@@ -78,3 +78,54 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
 .main p{text-wrap:pretty}
 .nav button:active,.btn:active,.iconbtn:active,.admin-menu-toggle:active{transform:scale(.96)}
 @media(prefers-reduced-motion:reduce){.nav button:active,.btn:active,.iconbtn:active,.admin-menu-toggle:active{transform:none}}
+
+/* #1865 — one AA-safe BRVTAL red for primary actions, selection and focus.
+   Success remains semantic green.  White on #c41832 = 5.96:1 (WCAG AA). */
+html[data-discadmin-appearance]{
+  --admin-brand-accent:#c41832;
+  --red:var(--admin-brand-accent);
+}
+html[data-discadmin-appearance] #app .shell{
+  /* Override Frecuencia's mutable green signal ONLY inside DISCADMIN's
+     application chrome; its independent data visualization stays intact. */
+  --console-accent:var(--admin-brand-accent);
+  --console-accent-ink:#fff;
+}
+html[data-discadmin-appearance] #app .side .nav button.active{
+  box-shadow:inset 3px 0 0 var(--admin-brand-accent);
+}
+html[data-discadmin-appearance] #app .ticketing-tabs button[aria-selected="true"]{
+  background:var(--admin-brand-accent);
+  border-color:var(--admin-brand-accent);
+  color:#fff;
+}
+html[data-discadmin-appearance] #app :is(.btn.red,.dashboard-v2-button.accent):focus-visible{
+  outline:3px solid var(--admin-focus,#fff);
+  outline-offset:3px;
+}
+
+/* Personal appearance preference lives in Settings, not the navigation rail. */
+html[data-discadmin-appearance] #app .settings-v2 .discadmin-appearance-preferences{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(200px,350px);
+  align-items:center;
+  gap:16px;
+  margin:18px 0;
+  padding:16px 18px;
+  border:1px solid var(--admin-border);
+  border-radius:10px;
+  background:var(--admin-surface-raised);
+}
+html[data-discadmin-appearance] #app .settings-v2 .discadmin-appearance-preferences .discadmin-appearance-label{
+  margin:0;
+  color:var(--admin-text);
+  font-weight:700;
+  letter-spacing:.02em;
+}
+@media(max-width:640px){
+  html[data-discadmin-appearance] #app .settings-v2 .discadmin-appearance-preferences{
+    grid-template-columns:minmax(0,1fr);
+    gap:12px;
+    padding:14px;
+  }
+}
