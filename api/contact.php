@@ -19,7 +19,7 @@ if ($method === 'GET') {
     try {
         json_response(['ok' => true, 'data' => brvtal_contact_issue_challenge($config)]);
     } catch (Throwable $e) {
-        brvtal_log('CONTACT_CHALLENGE_ERROR', 'Unable to issue contact challenge', ['class' => get_class($e)]);
+        brvtal_log('CONTACT_CHALLENGE_ERROR', 'Unable to issue contact challenge', ['class' => $e::class]);
         json_response(['ok' => false, 'error' => 'CONTACT_UNAVAILABLE'], 503);
     }
 }
@@ -61,6 +61,6 @@ try {
 
     json_response(['ok' => true, 'message' => 'MESSAGE_SENT']);
 } catch (Throwable $e) {
-    brvtal_log('CONTACT_ERROR', 'Unexpected public contact error', ['class' => get_class($e)]);
+    brvtal_log('CONTACT_ERROR', 'Unexpected public contact error', ['class' => $e::class]);
     json_response(['ok' => false, 'error' => 'CONTACT_UNAVAILABLE'], 503);
 }

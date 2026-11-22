@@ -219,7 +219,7 @@ function brvtalBuyerPurgeUnverified(PDO $pdo, int $limit = 25): int
               AND b.created_at<DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 72 HOUR)
               AND NOT EXISTS (SELECT 1 FROM ticket_orders o WHERE o.buyer_id=b.id)
             ORDER BY b.id LIMIT ' . $limit . ' FOR UPDATE');
-        $ids = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+        $ids = array_map(intval(...), $stmt->fetchAll(PDO::FETCH_COLUMN));
         if (!$ids) return 0;
         $tokens = $pdo->prepare('UPDATE ticket_buyer_tokens
             SET revoked_at_utc=UTC_TIMESTAMP(6) WHERE buyer_id=?
