@@ -1,0 +1,86 @@
+name: DISCADMIN accent visual evidence
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - 'discadmin/admin-shell.css'
+      - 'discadmin/admin-appearance.js'
+      - 'tests/e2e/discadmin-accent-contrast.spec.mjs'
+      - '.github/workflows/discadmin-accent-visual.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: discadmin-accent-visual-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  visual-evidence:
+    name: Capturas Chromium 390/1440
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact PR HEAD
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify exact HEAD
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+      - name: Install project browser dependencies
+        run: npm install --prefer-offline --no-audit --no-fund
+      - name: Ensure Chromium runtime
+        shell: bash
+        run: |
+          npx playwright install chromium
+          if ! node --input-type=module - <<'JS'
+          import { chromium } from '@playwright/test';
+          const browser = await chromium.launch();
+          await browser.close();
+          JS
+          then
+            npx playwright install-deps chromium
+          fi
+      - name: Run contrast, preferences and screenshot acceptance
+        run: npx playwright test tests/e2e/discadmin-accent-contrast.spec.mjs --project=chromium --reporter=list
+      - name: Verify four PNG captures and write exact-SHA manifest
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          node <<'JS'
+          const fs=require('node:fs');
+          const path=require('node:path');
+          const crypto=require('node:crypto');
+          const root='artifacts/discadmin-accent-visual';
+          const names=['before-synthetic-390.png','after-cromo-390.png','before-synthetic-1440.png','after-cromo-1440.png'];
+          const signature=Buffer.from('89504e470d0a1a0a','hex');
+          const captures=names.map(name=>{
+            const bytes=fs.readFileSync(path.join(root,name));
+            const width=Number(name.match(/(390|1440)\.png$/)[1]);
+            const height=bytes.readUInt32BE(20);
+            if(!bytes.subarray(0,8).equals(signature)||bytes.readUInt32BE(16)!==width||height<200)
+              throw Error('Invalid Chromium screenshot: '+name);
+            return {name,width,height,sha256:crypto.createHash('sha256').update(bytes).digest('hex')};
+          });
+          fs.writeFileSync(path.join(root,'manifest.json'),JSON.stringify({
+            version:1,head:process.env.EXPECTED_HEAD,
+            provenance:'Actual Chromium screenshots of a synthetic source-derived fixture; before simulates prior CSS, not production',
+            captures
+          },null,2));
+          JS
+      - name: Publish four before/after screenshots and provenance
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: discadmin-accent-visual-${{ github.event.pull_request.head.sha }}-${{ github.run_id }}
+          path: artifacts/discadmin-accent-visual/*
+          if-no-files-found: error
+          retention-days: 14

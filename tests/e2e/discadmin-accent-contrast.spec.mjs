@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const root = process.cwd();
@@ -136,10 +136,14 @@ test('before/after 390 and 1440 captures and no horizontal overflow', async ({pa
     'html[data-discadmin-appearance] #app .side .nav button.active{box-shadow:inset 3px 0 0 #b8ff00;}',
     'html[data-discadmin-appearance] #app .ticketing-tabs button[aria-selected="true"]{background:#b20f29;border-color:#b20f29;}',
   ].join('\n');
+  const evidenceDir = join(root,'artifacts/discadmin-accent-visual');
+  mkdirSync(evidenceDir,{recursive:true});
   for (const width of [390,1440]) {
     await page.setViewportSize({width,height:width===390?844:900});
     const before = await page.addStyleTag({content:beforeCss});
-    await testInfo.attach('before-synthetic-' + width + '.png',{body:await page.screenshot({fullPage:true}),contentType:'image/png'});
+    const beforePng = await page.screenshot({fullPage:true});
+    writeFileSync(join(evidenceDir,'before-synthetic-' + width + '.png'),beforePng);
+    await testInfo.attach('before-synthetic-' + width + '.png',{body:beforePng,contentType:'image/png'});
     const oldButton = await colors(page.locator('[data-primary="events"]'));
     expect(contrast(oldButton.bg,oldButton.fg)).toBeLessThan(4.5);
     await before.evaluate(node => node.remove());
@@ -151,6 +155,8 @@ test('before/after 390 and 1440 captures and no horizontal overflow', async ({pa
     expect(bounds.body).toBeLessThanOrEqual(bounds.viewport + 1);
     const afterButton = await colors(page.locator('[data-primary="events"]'));
     expect(contrast(afterButton.bg,afterButton.fg)).toBeGreaterThanOrEqual(4.5);
-    await testInfo.attach('after-cromo-' + width + '.png',{body:await page.screenshot({fullPage:true}),contentType:'image/png'});
+    const afterPng = await page.screenshot({fullPage:true});
+    writeFileSync(join(evidenceDir,'after-cromo-' + width + '.png'),afterPng);
+    await testInfo.attach('after-cromo-' + width + '.png',{body:afterPng,contentType:'image/png'});
   }
 });

@@ -75,7 +75,9 @@
 
   function createSelector(location) {
     const root = document.createElement('section');
-    root.className = 'discadmin-appearance' + (location === 'login' ? ' discadmin-appearance-login' : location === 'preferences' ? ' discadmin-appearance-preferences' : '');
+    root.className = 'discadmin-appearance';
+    if (location === 'login') root.className += ' discadmin-appearance-login';
+    else if (location === 'preferences') root.className += ' discadmin-appearance-preferences';
     root.dataset.appearanceSelector = location;
     root.setAttribute('aria-label', location === 'preferences' ? 'Preferencias de apariencia' : 'Admin appearance');
     root.innerHTML = selectorMarkup(location);
