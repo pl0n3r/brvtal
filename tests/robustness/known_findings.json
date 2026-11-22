@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "findings": [
+    {
+      "fingerprint": "POST /api/index.php/artists [html-script]:server-5xx",
+      "issue": "https://github.com/pl0n3r/brvtal/issues/1900"
+    },
+    {
+      "fingerprint": "POST /api/index.php/artists [rtl]:server-5xx",
+      "issue": "https://github.com/pl0n3r/brvtal/issues/1900"
+    },
+    {
+      "fingerprint": "POST /api/index.php/artists [sql-metacharacters]:server-5xx",
+      "issue": "https://github.com/pl0n3r/brvtal/issues/1900"
+    },
+    {
+      "fingerprint": "POST /api/index.php/artists [unicode-emoji]:server-5xx",
+      "issue": "https://github.com/pl0n3r/brvtal/issues/1900"
+    },
+    {
+      "fingerprint": "POST /api/index.php/events [extreme-numbers]:server-5xx",
+      "issue": "https://github.com/pl0n3r/brvtal/issues/1900"
+    },
+    {
+      "fingerprint": "POST /api/index.php/events [html-script]:server-5xx",
+      "issue": "https://github.com/pl0n3r/brvtal/issues/1900"
+    },
+    {
+      "fingerprint": "POST /api/index.php/events [nul-byte]:server-5xx",
+      "issue": "https://github.com/pl0n3r/brvtal/issues/1900"
+    },
+    {
+      "fingerprint": "POST /api/index.php/events [rtl]:server-5xx",
+      "issue": "https://github.com/pl0n3r/brvtal/issues/1900"
+    },
+    {
+      "fingerprint": "POST /api/index.php/events [sql-metacharacters]:server-5xx",
+      "issue": "https://github.com/pl0n3r/brvtal/issues/1900"
+    },
+    {
+      "fingerprint": "POST /api/index.php/events [unicode-emoji]:server-5xx",
+      "issue": "https://github.com/pl0n3r/brvtal/issues/1900"
+    },
+    {
+      "fingerprint": "POST /api/index.php/sets [extreme-numbers]:server-5xx",
+      "issue": "https://github.com/pl0n3r/brvtal/issues/1900"
+    },
+    {
+      "fingerprint": "POST /api/index.php/sets [html-script]:server-5xx",
+      "issue": "https://github.com/pl0n3r/brvtal/issues/1900"
+    },
+    {
+      "fingerprint": "POST /api/index.php/sets [nul-byte]:server-5xx",
+      "issue": "https://github.com/pl0n3r/brvtal/issues/1900"
+    },
+    {
+      "fingerprint": "POST /api/index.php/sets [rtl]:server-5xx",
+      "issue": "https://github.com/pl0n3r/brvtal/issues/1900"
+    },
+    {
+      "fingerprint": "POST /api/index.php/sets [sql-metacharacters]:server-5xx",
+      "issue": "https://github.com/pl0n3r/brvtal/issues/1900"
+    },
+    {
+      "fingerprint": "POST /api/index.php/sets [unicode-emoji]:server-5xx",
+      "issue": "https://github.com/pl0n3r/brvtal/issues/1900"
+    },
+    {
+      "fingerprint": "POST /api/index.php/ticket_types [extreme-numbers]:server-5xx",
+      "issue": "https://github.com/pl0n3r/brvtal/issues/1900"
+    },
+    {
+      "fingerprint": "POST /api/index.php/ticket_types [html-script]:server-5xx",
+      "issue": "https://github.com/pl0n3r/brvtal/issues/1900"
+    },
+    {
+      "fingerprint": "POST /api/index.php/ticket_types [rtl]:server-5xx",
+      "issue": "https://github.com/pl0n3r/brvtal/issues/1900"
+    },
+    {
+      "fingerprint": "POST /api/index.php/ticket_types [sql-metacharacters]:server-5xx",
+      "issue": "https://github.com/pl0n3r/brvtal/issues/1900"
+    },
+    {
+      "fingerprint": "POST /api/index.php/ticket_types [unicode-emoji]:server-5xx",
+      "issue": "https://github.com/pl0n3r/brvtal/issues/1900"
+    }
+  ]
+}
