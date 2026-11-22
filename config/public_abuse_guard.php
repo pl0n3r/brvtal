@@ -11,7 +11,7 @@ require_once __DIR__ . '/password_rate_limit.php';
  */
 function brvtal_public_abuse_scopes(): array
 {
-    return ['login', 'register', 'request-reset', 'resend-verification', 'verify',
+    return ['contact', 'login', 'register', 'request-reset', 'resend-verification', 'verify',
         'confirm-reset', 'waitlist-subscribe', 'waitlist-unsubscribe'];
 }
 
