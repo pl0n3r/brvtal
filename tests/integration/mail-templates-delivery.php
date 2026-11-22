@@ -32,6 +32,12 @@ register_shutdown_function(static function()use($server,$name):void{
 });
 $db=new PDO("mysql:host=".$host.";port=".$port.";dbname=".$name.";charset=utf8mb4",$user,$pass,$options);
 $db->exec((string)file_get_contents(__DIR__.'/../../database/migration_ticketing_mail_outbox_01.sql'));
+$old=$GLOBALS['config']??null;
+$GLOBALS['config']=['security'=>['encryption_key'=>str_repeat('fixture-only-encryption-key-32-',2)],
+    'ticketing'=>['mail'=>['testing'=>'1','mode'=>'mock','from'=>'Fixture BRVTAL <test@brvtal.invalid>',
+        'domain'=>'brvtal.invalid','privacy_approved'=>'1']]];
+putenv('BRVTAL_TICKET_MAIL_TESTING=1');
+putenv('BRVTAL_TICKET_MAIL_MODE=mock');
 // Safe text-only fallback before the additive HTML columns exist.
 $legacy=brvtal_mail_delivery_render($db,'order_pending',
     ['event'=>'Legacy event','link'=>'https://brvtal.invalid/buyer/orders']);
@@ -46,12 +52,6 @@ mail_delivery_assert((int)$db->query("SELECT COUNT(*) FROM information_schema.CO
     WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='ticket_mail_outbox'
     AND COLUMN_NAME IN ('body_html','template_key','template_version')")->fetchColumn()===3,
     'idempotent additive columns');
-$old=$GLOBALS['config']??null;
-$GLOBALS['config']=['security'=>['encryption_key'=>str_repeat('fixture-only-encryption-key-32-',2)],
-    'ticketing'=>['mail'=>['testing'=>'1','mode'=>'mock','from'=>'Fixture BRVTAL <test@brvtal.invalid>',
-        'domain'=>'brvtal.invalid','privacy_approved'=>'1']]];
-putenv('BRVTAL_TICKET_MAIL_TESTING=1');
-putenv('BRVTAL_TICKET_MAIL_MODE=mock');
 try {
     $event=['event'=>'Noche de prueba','link'=>'https://brvtal.invalid/buyer/orders'];
     foreach(['order_pending','order_rejected','payment_approved','reminder','refund'] as $kind) {
