@@ -61,6 +61,14 @@ RewriteRule ^preview/([a-f0-9]{48})/?$ preview.php?token=$1 [L,QSA,NC]
 RewriteRule ^releases/?$ index.php?page=releases [L,QSA,NC]
 RewriteRule ^(events|artists|sets|releases|blog|pages)/([a-z0-9-]+)/?$ index.php?type=$1&slug=$2 [L,QSA,NC]
 
+# Present a branded Cromo exit for unknown public URLs; keep 403s as 403s.
+ErrorDocument 404 /errors/404.php
+
+# These landing destinations are Home sections, not separate directory indexes.
+# NE preserves the fragment (#) and QSD drops stale query parameters.
+RewriteRule ^events/?$ /#noches [R=301,L,NE,QSD,NC]
+RewriteRule ^artists/?$ /#artistas [R=301,L,NE,QSD,NC]
+
 # Compress text responses at the web-server layer. LiteSpeed is Apache-compatible
 # here, so this covers rendered PHP/HTML plus static CSS/JS/JSON/XML/SVG without
 # wasting CPU on already-compressed photos, video or font binaries.
