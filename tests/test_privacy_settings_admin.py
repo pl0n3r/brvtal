@@ -58,11 +58,12 @@ class PrivacySettingsAdminTests(unittest.TestCase):
         self.assertNotIn("'setting_value' => $value", self.api)
         self.assertNotRegex(self.activity, r"'privacy\.controller_email'\s*=>")
 
-    def test_public_page_preserves_pending_placeholders(self):
+    def test_public_page_preserves_private_settings_without_leaking_legal_status(self):
         for field in ('controller_name','controller_email','response_time'):
             self.assertIn("'" + field + "'", self.public)
         self.assertIn('BRVTAL_PRIVACY_OWNER_PLACEHOLDER', self.public)
-        self.assertIn('BRVTAL_PRIVACY_LEGAL_STATUS', self.public)
+        self.assertNotIn('BRVTAL_PRIVACY_LEGAL_STATUS', self.public)
+        self.assertIn('data-privacy-contact-update', self.public)
         self.assertNotIn('value="[COMPLETAR', self.ui)
 
     def test_two_distinct_colombian_rights_procedures(self):
@@ -72,7 +73,8 @@ class PrivacySettingsAdminTests(unittest.TestCase):
             self.assertIn("'" + key + "'", self.api)
         self.assertIn("data-privacy-consultation-time", self.public)
         self.assertIn("data-privacy-claim-time", self.public)
-        self.assertIn("BRVTAL_PRIVACY_LEGAL_STATUS", self.public)
+        self.assertNotIn('BRVTAL_PRIVACY_LEGAL_STATUS', self.public)
+        self.assertIn('data-privacy-consultation-time', self.public)
         self.assertIn("if($method!=='GET')brvtal_admin_require_csrf();", self.api)
 
     def test_extended_privacy_activity_logs_metadata_only(self):
