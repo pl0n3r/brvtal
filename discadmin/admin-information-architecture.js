@@ -572,7 +572,7 @@
     if (title) {
       const navLabel = [...document.querySelectorAll('.side .nav button')]
         .find(button => buttonKey(button) === section)?.textContent?.trim();
-      title.textContent = navLabel || section.toUpperCase();
+      title.textContent = (navLabel || section).toUpperCase();
     }
     document.querySelectorAll('.side .nav > button').forEach(button => {
       button.classList.toggle('active', buttonKey(button) === section);
@@ -856,9 +856,20 @@
     applyUrlRoute().catch(() => {});
   });
 
+  // Only replace the navigation tree when the *shell* is recreated.
+  // Watching every workspace mutation caused continuous detaches: live
+  // dashboard telemetry could repaint the sidebar between pointerdown/click.
   navObserver = new MutationObserver(mutations => {
     if (applyingNav) return;
-    if (mutations.some(mutation => mutation.addedNodes.length || mutation.removedNodes.length)) {
+    const replacedShell = mutations.some(mutation =>
+      [...mutation.addedNodes, ...mutation.removedNodes].some(node =>
+        node.nodeType === 1 && (
+          node.matches?.('#app,.shell,.side,.nav')
+          || !!node.querySelector?.('.shell .side .nav')
+        )
+      )
+    );
+    if (replacedShell) {
       scheduleNavigation();
       scheduleInitialRoute();
     }
