@@ -149,3 +149,5 @@ require __DIR__ . '/ticketing-mail-history.php';
 
 // T34: run the buyer-auth synthetic MariaDB contracts in the canonical database gate.
 require __DIR__ . '/buyer-auth-flows.php';
+// #1877: canonical database gate runs public POST anti-bot burst + inventory.
+require __DIR__ . '/public-forms-abuse.php';
