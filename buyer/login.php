@@ -188,7 +188,8 @@
         if (result.error === 'INVALID_CREDENTIALS') form.elements.namedItem('email').focus();
         if (result.error === 'CAPTCHA_INVALID' || result.error === 'CAPTCHA_UNAVAILABLE') {
           await initialize();
-          form.elements.namedItem('captcha_answer')?.setAttribute('value', '');
+          const answer = form.elements.namedItem('captcha_answer');
+          if (answer) answer.value = '';
         }
       } finally { busy = false; button.disabled = false; }
     });
