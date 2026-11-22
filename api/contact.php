@@ -3,6 +3,10 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../config/bootstrap.php';
 require_once __DIR__ . '/../config/public_contact.php';
+require_once __DIR__ . '/../config/public_abuse_guard.php';
+
+// The required bootstrap loads and validates this configuration.
+/** @var array<string, mixed> $config */
 
 if (!headers_sent()) {
     header('Cache-Control: no-store');
@@ -15,7 +19,7 @@ if ($method === 'GET') {
     try {
         json_response(['ok' => true, 'data' => brvtal_contact_issue_challenge($config)]);
     } catch (Throwable $e) {
-        brvtal_log('CONTACT_CHALLENGE_ERROR', 'Unable to issue contact challenge', ['class' => get_class($e)]);
+        brvtal_log('CONTACT_CHALLENGE_ERROR', 'Unable to issue contact challenge', ['class' => $e::class]);
         json_response(['ok' => false, 'error' => 'CONTACT_UNAVAILABLE'], 503);
     }
 }
@@ -37,6 +41,12 @@ if (!$rate['allowed']) {
 
 try {
     $input = input_json();
+    $gate = brvtal_public_abuse_check('contact', $input, $config);
+    if (!$gate['allowed']) {
+        $headers = $gate['retry_after'] > 0
+            ? ['Retry-After' => (string)$gate['retry_after']] : [];
+        json_response(['ok'=>false,'error'=>$gate['error']],$gate['status'],$headers);
+    }
     $validation = brvtal_contact_validate_payload($input, $config);
     if (!$validation['ok']) {
         json_response(['ok' => false, 'error' => 'VALIDATION_FAILED', 'fields' => $validation['errors']], 422);
@@ -51,6 +61,6 @@ try {
 
     json_response(['ok' => true, 'message' => 'MESSAGE_SENT']);
 } catch (Throwable $e) {
-    brvtal_log('CONTACT_ERROR', 'Unexpected public contact error', ['class' => get_class($e)]);
+    brvtal_log('CONTACT_ERROR', 'Unexpected public contact error', ['class' => $e::class]);
     json_response(['ok' => false, 'error' => 'CONTACT_UNAVAILABLE'], 503);
 }

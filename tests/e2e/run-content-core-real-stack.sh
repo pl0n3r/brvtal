@@ -213,3 +213,9 @@ BULK_FIXTURE_SQL="${RUNNER_TEMP:-/tmp}/brvtal-bulk-cursor-fixtures.sql"
 "${mysql_db[@]}" < "$BULK_FIXTURE_SQL"
 
 npx playwright test tests/e2e/discadmin-bulk-actions-cursor.spec.mjs --project=chromium --workers=1
+
+# #1868: fail closed on new writing bugs, then verify persisted UTF-8.
+# Both scripts enforce loopback + disposable brvtal_test* database.
+python3 tests/robustness/discadmin_save_fuzz.py --self-test
+python3 tests/robustness/discadmin_save_fuzz.py
+python3 tests/robustness/discadmin_roundtrip_fuzz.py

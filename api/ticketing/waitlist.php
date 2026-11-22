@@ -4,6 +4,10 @@ declare(strict_types=1);
 require_once __DIR__ . '/../../config/bootstrap.php';
 require_once __DIR__ . '/../../config/buyer_auth.php';
 require_once __DIR__ . '/../../config/ticketing_waitlist.php';
+require_once __DIR__ . '/../../config/public_abuse_guard.php';
+
+// The required bootstrap loads and validates this configuration.
+/** @var array<string, mixed> $config */
 
 header('Cache-Control: no-store, private');
 header('Referrer-Policy: no-referrer');
@@ -12,6 +16,15 @@ header('Content-Type: application/json; charset=utf-8');
 
 // GET only displays a confirmation form; mail-link prefetchers MUST NOT unsubscribe.
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'GET') {
+    // Return an action-bound signed challenge, never a subscription or mail.
+    if (isset($_GET['challenge']) && count($_GET) === 1 && $_GET['challenge'] === '1') {
+        try {
+            json_response(['ok' => true,
+                'challenge' => brvtal_public_abuse_challenge($config, 'waitlist-subscribe')]);
+        } catch (Throwable) {
+            json_response(['ok' => false, 'error' => 'CAPTCHA_UNAVAILABLE'], 503);
+        }
+    }
     // Public, read-only catalog. Never expose buyers, token hashes or waitlist
     // status; anonymous reads do not create a subscription, hold or offer.
     if (array_key_exists('catalog', $_GET)) {
@@ -85,6 +98,12 @@ try {
         json_response(['ok'=>false,'error'=>'INVALID_REQUEST'],422);
     }
     if ($body['action'] === 'unsubscribe' && count($body) === 2) {
+        $gate = brvtal_public_abuse_check('waitlist-unsubscribe', $body, $config);
+        if (!$gate['allowed']) {
+            $headers = $gate['retry_after'] > 0
+                ? ['Retry-After' => (string)$gate['retry_after']] : [];
+            json_response(['ok'=>false,'error'=>$gate['error']],$gate['status'],$headers);
+        }
         // Opaque link token: unsubscribe only, no account, seat or payment authority.
         brvtal_waitlist_unsubscribe(db(),(string)($body['token'] ?? ''));
         if ($isForm) {
@@ -98,7 +117,7 @@ try {
         }
         json_response(['ok'=>true,'status'=>'unsubscribe_processed'],200);
     }
-    if ($body['action'] !== 'subscribe' || count($body) !== 5) {
+    if ($body['action'] !== 'subscribe' || count($body) !== 7) {
         json_response(['ok'=>false,'error'=>'INVALID_REQUEST'],422);
     }
     brvtalBuyerSessionStart();
@@ -110,6 +129,13 @@ try {
     if (!is_int($body['event_id'] ?? null) || !is_int($body['ticket_type_id'] ?? null)
         || !is_string($body['consent'] ?? null) || !is_string($body['website'] ?? null)) {
         json_response(['ok'=>false,'error'=>'INVALID_REQUEST'],422);
+    }
+    $guardPayload = $body + ['buyer_id' => $buyerId];
+    $gate = brvtal_public_abuse_check('waitlist-subscribe', $guardPayload, $config);
+    if (!$gate['allowed']) {
+        $headers = $gate['retry_after'] > 0
+            ? ['Retry-After' => (string)$gate['retry_after']] : [];
+        json_response(['ok'=>false,'error'=>$gate['error']],$gate['status'],$headers);
     }
     $state=brvtal_waitlist_subscribe(db(),$body['event_id'],$body['ticket_type_id'],
         $buyerId,$body['consent'],$body['website']);
