@@ -45,6 +45,7 @@ register_shutdown_function(static function () use ($server, $dbName, $sandbox): 
     catch (Throwable) {}
     foreach (['ops/ticketing-mail-worker.php', 'ops/admin-password-mail-worker.php',
         'config/ticketing_mail_outbox.php', 'config/admin_password_security.php',
+        'config/integration_secrets_store.php', 'config/secrets.php',
         'config/config.php'] as $file) @unlink($sandbox . '/' . $file);
     @rmdir($sandbox . '/ops'); @rmdir($sandbox . '/config'); @rmdir($sandbox);
 });
@@ -85,7 +86,8 @@ foreach (['ticketing-mail-worker.php','admin-password-mail-worker.php'] as $file
     worker_secret_assert(copy($repo . '/ops/' . $file, $sandbox . '/ops/' . $file),
         'copy worker entrypoint');
 }
-foreach (['ticketing_mail_outbox.php','admin_password_security.php'] as $file) {
+foreach (['ticketing_mail_outbox.php','admin_password_security.php',
+    'integration_secrets_store.php','secrets.php'] as $file) {
     worker_secret_assert(symlink($repo . '/config/' . $file, $sandbox . '/config/' . $file),
         'link production module read-only');
 }
