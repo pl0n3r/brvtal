@@ -29,7 +29,13 @@ try {
             'master_key_configured'=>$masterAvailable, 'items'=>brvtalIntegrationSecretStatus($pdo)]);
     }
 
-    brvtal_admin_require_csrf();
+    // Normalize rejected write CSRF to 403 for the documented API contract.
+    $providedCsrf = (string)($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
+    $expectedCsrf = brvtal_admin_csrf_token();
+    if ($providedCsrf === '' || $expectedCsrf === '' || !hash_equals($expectedCsrf, $providedCsrf)) {
+        json_response(['ok'=>false,'error'=>'CSRF'], 403);
+    }
+    brvtal_admin_require_csrf($providedCsrf);
     if (!$writeEnabled || !$masterAvailable) {
         json_response(['ok'=>false,'error'=>'SECRET_WRITE_DISABLED'], 403);
     }
