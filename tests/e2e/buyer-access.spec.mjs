@@ -34,7 +34,7 @@ async function setup(page, onAction = () => ({ status: 503, error: 'BUYER_MAIL_P
   await page.route('**/api/buyer/auth.php', async route => {
     if (route.request().method() === 'GET') {
       await route.fulfill({ contentType: 'application/json',
-        body: JSON.stringify({ ok: true, csrf: 'csrf-sintetico', authenticated: false }) });
+        body: JSON.stringify({ ok: true, csrf: 'csrf-sintetico', authenticated: false, challenges: { register: { question: '2 + 3 = ?', captcha_token: 'synthetic-register-token' }, 'request-reset': { question: '4 + 5 = ?', captcha_token: 'synthetic-reset-token' }, 'resend-verification': { question: '1 + 2 = ?', captcha_token: 'synthetic-resend-token' } } }) });
       return;
     }
     const payload = route.request().postDataJSON();
@@ -146,18 +146,23 @@ test('crear y recuperar respetan MAIL_PENDING, sin inventar envíos o cuentas', 
   await page.locator('#crear-email').fill('sintetica@example.test');
   await page.locator('#crear-password').fill('UnaFraseDeAcceso1234');
   await page.locator('#crear-acepto').check();
+  await expect(page.locator('#crear-captcha-question')).toContainText('2 + 3');
+  await page.locator('#crear-captcha').fill('5');
   await page.getByRole('button', { name: /Crear cuenta/i }).click();
   await expect(page.locator('#access-message')).toContainText('Pronto podrás crear tu cuenta aquí');
   await expect(page.locator('#access-message')).not.toContainText('Revisa tu correo');
   expect(actions[0]).toMatchObject({ action: 'register', terms_accepted: true,
-    email: 'sintetica@example.test' });
+    email: 'sintetica@example.test', captcha_token: 'synthetic-register-token',
+    captcha_answer: '5', website: '' });
   await page.getByRole('link', { name: 'Entrar', exact: true }).click();
   await page.getByRole('link', { name: '¿Olvidaste tu contraseña?' }).click();
   await page.locator('#recuperar-email').fill('sintetica@example.test');
+  await page.locator('#recuperar-captcha').fill('9');
   await page.getByRole('button', { name: /Recuperar acceso/i }).click();
   await expect(page.locator('#access-message')).toContainText('Pronto podrás');
   await expect(page.locator('#access-message')).not.toContainText('te enviamos un enlace');
-  expect(actions[1].action).toBe('request-reset');
+  expect(actions[1]).toMatchObject({action:'request-reset',
+    captcha_token:'synthetic-reset-token',captcha_answer:'9',website:''});
 });
 
 test('recuperación neutral ante respuesta afirmativa y errores humanos de login', async ({ page }) => {
@@ -165,6 +170,7 @@ test('recuperación neutral ante respuesta afirmativa y errores humanos de login
     ? { status: 401, error: 'INVALID_CREDENTIALS' } : {});
   await page.goto(base + '/mi-cuenta/acceso?vista=recuperar');
   await page.locator('#recuperar-email').fill('desconocida@example.test');
+  await page.locator('#recuperar-captcha').fill('9');
   await page.getByRole('button', { name: /Recuperar acceso/i }).click();
   await expect(page.locator('#access-message')).toHaveText(
     'Si hay una cuenta con ese correo, te enviamos un enlace para crear una nueva contraseña.');
