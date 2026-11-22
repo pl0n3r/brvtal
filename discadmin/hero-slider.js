@@ -13,6 +13,7 @@
   const DRAFT_ID = KEY;
   const DRAFT_DEBOUNCE_MS = 650;
   const layerTypes = ['text','image','logo','cta'];
+  const layerTypeLabel = type => ({text:'TEXTO',image:'IMAGEN',logo:'LOGO',cta:'BOTÓN'})[type] || String(type).toUpperCase();
   const animations = ['none','fade','slide-up','slide-left','zoom'];
   const defaultConfig = () => ({enabled:false,autoplay:true,interval:7000,slides:[]});
   let config = defaultConfig();
@@ -29,7 +30,7 @@
   let heroSaveInFlight = false;
   let heroDraftBaseRevision = '';
   let heroDraftRecovery = null;
-  let heroDraftState = {label:'Saved to server',kind:'server'};
+  let heroDraftState = {label:'Guardado en el servidor',kind:'server'};
   let lastLoadDiagnostics = {status:'idle',reason:'',revision:0,settingsAttempts:0,hostRecovered:false,error:'',failureClass:'',httpStatus:0,code:'',authRevalidated:false,authRevalidationAttempted:0,authRevalidationSucceeded:0,authRevalidationFailed:0};
 
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
@@ -61,7 +62,7 @@
     return {
       id: String(input.id || uid('layer')),
       type,
-      name: String(input.name || (type === 'cta' ? 'Button' : type === 'image' ? 'Image' : type === 'logo' ? 'Logo' : 'Text')),
+      name: String(input.name || (type === 'cta' ? 'Botón' : type === 'image' ? 'Imagen' : type === 'logo' ? 'Logo' : 'Texto')),
       text: String(input.text || ''),
       src: String(input.src || ''),
       mobileSrc: String(input.mobileSrc || ''),
@@ -84,7 +85,7 @@
     return {
       id: String(input.id || uid('slide')),
       enabled: input.enabled !== false,
-      name: String(input.name || input.title || 'New slide'),
+      name: String(input.name || input.title || 'Nueva diapositiva'),
       mediaType: input.mediaType === 'video' ? 'video' : 'image',
       desktopSrc: String(input.desktopSrc || ''),
       mobileSrc: String(input.mobileSrc || ''),
@@ -313,7 +314,7 @@
   }
 
   function heroDraftStatusMarkup() {
-    return `<div class="hero-draft-status" role="status" aria-live="polite"><span data-hero-draft-state data-kind="${esc(heroDraftState.kind)}">${esc(heroDraftState.label)}</span><small>Local recovery only · server Save remains explicit.</small></div>`;
+    return `<div class="hero-draft-status" role="status" aria-live="polite"><span data-hero-draft-state data-kind="${esc(heroDraftState.kind)}">${esc(heroDraftState.label)}</span><small>Borrador local de recuperación. Publica con el botón Guardar.</small></div>`;
   }
 
   function heroDraftConflict() {
@@ -324,45 +325,45 @@
   function heroDraftRecoveryMarkup() {
     if (!heroDraftRecovery) return '';
     const conflict = heroDraftConflict();
-    const savedAt = heroDraftRecovery.saved_at ? new Date(heroDraftRecovery.saved_at).toLocaleString() : 'recently';
-    return `<div class="hero-draft-recovery" data-hero-draft-recovery data-conflict="${conflict ? '1' : '0'}" role="region" aria-label="Recover local Hero Slider draft"><div><strong>LOCAL DRAFT AVAILABLE${conflict ? ' · SERVER CHANGED' : ''}</strong><small>Saved ${esc(savedAt)}. Restore changes only this editor; nothing is published until Save.</small></div><div class="hero-draft-recovery-actions"><button type="button" class="btn ghost" data-hero-draft-discard>DISCARD</button><button type="button" class="btn ghost" data-hero-draft-restore>RESTORE</button></div></div>`;
+    const savedAt = heroDraftRecovery.saved_at ? new Date(heroDraftRecovery.saved_at).toLocaleString('es-CO') : 'hace poco';
+    return `<div class="hero-draft-recovery" data-hero-draft-recovery data-conflict="${conflict ? '1' : '0'}" role="region" aria-label="Recuperar borrador local de banners"><div><strong>BORRADOR LOCAL DISPONIBLE${conflict ? ' · EL SERVIDOR CAMBIÓ' : ''}</strong><small>Guardado ${esc(savedAt)}. Recuperarlo solo modifica este editor; nada se publica hasta pulsar Guardar.</small></div><div class="hero-draft-recovery-actions"><button type="button" class="btn ghost" data-hero-draft-discard>DESCARTAR</button><button type="button" class="btn ghost" data-hero-draft-restore>RECUPERAR</button></div></div>`;
   }
 
   async function persistHeroDraft() {
     clearHeroDraftTimer();
     const api = draftApi();
     if (!api) {
-      setHeroDraftState('Save failed · local recovery unavailable', 'error');
+      setHeroDraftState('Error al guardar · recuperación local no disponible', 'error');
       return false;
     }
     const payload = normalizeConfig(config);
     const submittedSnapshot = configSnapshot(payload);
     if (cleanConfigSnapshot !== null && submittedSnapshot === cleanConfigSnapshot) {
-      setHeroDraftState('Saved to server', 'server');
+      setHeroDraftState('Guardado en el servidor', 'server');
       return true;
     }
-    setHeroDraftState('Saving', 'saving');
+    setHeroDraftState('Guardando', 'saving');
     try {
       await api.save(DRAFT_SCOPE, DRAFT_ID, {
         base_revision: heroDraftBaseRevision,
         data: payload
       });
       if (configSnapshot() !== submittedSnapshot) {
-        setHeroDraftState('Unsaved', 'unsaved');
+        setHeroDraftState('Sin guardar', 'unsaved');
         heroDraftTimer = window.setTimeout(() => { void persistHeroDraft(); }, DRAFT_DEBOUNCE_MS);
       } else {
-        setHeroDraftState('Draft saved locally', 'saved');
+        setHeroDraftState('Borrador guardado localmente', 'saved');
       }
       return true;
     } catch (error) {
       if (error?.name === 'AbortError') return false;
-      setHeroDraftState('Save failed · keep this workspace open', 'error');
+      setHeroDraftState('Error al guardar · mantén abierto el editor', 'error');
       return false;
     }
   }
 
   function markHeroDraftDirty() {
-    setHeroDraftState('Unsaved', 'unsaved');
+    setHeroDraftState('Sin guardar', 'unsaved');
     clearHeroDraftTimer();
     if (heroSaveInFlight) return;
     heroDraftTimer = window.setTimeout(() => { void persistHeroDraft(); }, DRAFT_DEBOUNCE_MS);
@@ -371,7 +372,7 @@
   async function loadHeroDraftRecovery(serverRevisionSource = config) {
     clearHeroDraftTimer();
     heroDraftRecovery = null;
-    setHeroDraftState('Saved to server', 'server');
+    setHeroDraftState('Guardado en el servidor', 'server');
     heroDraftBaseRevision = await configRevision(serverRevisionSource);
     const api = draftApi();
     if (!api) return;
@@ -382,7 +383,7 @@
       return;
     }
     heroDraftRecovery = draft;
-    setHeroDraftState('Draft saved locally', 'saved');
+    setHeroDraftState('Borrador guardado localmente', 'saved');
   }
 
   function normalizeSelection() {
@@ -396,7 +397,7 @@
     config = normalizeConfig(heroDraftRecovery.data);
     heroDraftRecovery = null;
     normalizeSelection();
-    setHeroDraftState('Draft saved locally', 'saved');
+    setHeroDraftState('Borrador guardado localmente', 'saved');
     renderManager();
   }
 
@@ -407,7 +408,7 @@
       try { await api.remove(DRAFT_SCOPE, DRAFT_ID); } catch (_) {}
     }
     heroDraftRecovery = null;
-    setHeroDraftState('Saved to server', 'server');
+    setHeroDraftState('Guardado en el servidor', 'server');
     renderManager();
   }
 
@@ -417,8 +418,8 @@
 
   function requestNavigation(section) {
     if (!bannersWorkspaceActive() || !hasUnsavedChanges()) return true;
-    const action = section === 'hero-slider' ? 'reload Banners' : 'leave Banners';
-    return window.confirm(`You have unsaved changes in Banners. Discard them and ${action}?`);
+    const action = section === 'hero-slider' ? 'recargar Banners' : 'salir de Banners';
+    return window.confirm(`Tienes cambios sin guardar en Banners. ¿Quieres descartarlos y ${action}?`);
   }
 
   function commitNavigation(section) {
@@ -443,7 +444,7 @@
       button = document.createElement('button');
       button.type = 'button';
       button.dataset.adminNav = 'hero-slider';
-      button.textContent = 'BANNERS';
+      button.textContent = 'BANNERS DE PORTADA';
       button.addEventListener('click', () => window.go('hero-slider'));
       const dashboard = [...nav.querySelectorAll('button')].find(node => node.textContent.trim().toUpperCase() === 'DASHBOARD');
       if (dashboard?.nextSibling) nav.insertBefore(button,dashboard.nextSibling); else nav.prepend(button);
@@ -460,7 +461,7 @@
     const top = main.querySelector('.top');
     if (top) {
       top.querySelector('.eyebrow') && (top.querySelector('.eyebrow').textContent = 'HOME / EXPERIENCE');
-      top.querySelector('h1') && (top.querySelector('h1').textContent = 'BANNERS');
+      top.querySelector('h1') && (top.querySelector('h1').textContent = 'BANNERS DE PORTADA');
     }
     [...main.children].forEach(child => { if (child !== top) child.remove(); });
     const host = document.createElement('div');
@@ -516,7 +517,7 @@
     const revision = ++loadRevision;
     const diagnostics = {status:'loading',reason:'',revision,settingsAttempts:0,hostRecovered:false,error:'',failureClass:'',httpStatus:0,code:'',authRevalidated:false,authRevalidationAttempted:0,authRevalidationSucceeded:0,authRevalidationFailed:0};
     lastLoadDiagnostics = diagnostics;
-    host.innerHTML = '<div class="hero-slider-loading">LOADING HERO MANAGER…</div>';
+    host.innerHTML = '<div class="hero-slider-loading">CARGANDO BANNERS…</div>';
     media = [];
     mediaReady = false;
     mediaLoadError = '';
@@ -583,7 +584,7 @@
         errorHost.replaceChildren();
         const errorNode = document.createElement('div');
         errorNode.className = 'hero-slider-error';
-        errorNode.textContent = `Unable to load Banners: ${diagnostics.error}`;
+        errorNode.textContent = `No se pudieron cargar los banners: ${diagnostics.error}`;
         errorHost.appendChild(errorNode);
       }
       ignoreMediaPromise(mediaPromise);
@@ -592,50 +593,50 @@
   }
 
   function slideList() {
-    if (!config.slides.length) return '<div class="hero-slider-empty">NO SLIDES YET<br><span>Create the first banner; the original hero remains the fallback.</span></div>';
-    return config.slides.map((slide,index) => `<button type="button" class="hero-slide-row ${slide.id === selectedId ? 'active' : ''}" data-select-slide="${esc(slide.id)}"><span class="hero-slide-index">${String(index+1).padStart(2,'0')}</span><span class="hero-slide-row-copy"><strong>${esc(slide.name)}</strong><small>${esc(slide.mediaType.toUpperCase())} · ${slide.layers.length} LAYERS · ${slide.enabled ? 'ENABLED' : 'HIDDEN'}</small></span><span class="hero-slide-row-actions"><i data-move="up" data-id="${esc(slide.id)}">↑</i><i data-move="down" data-id="${esc(slide.id)}">↓</i></span></button>`).join('');
+    if (!config.slides.length) return '<div class="hero-slider-empty">TODAVÍA NO HAY BANNERS<br><span>Crea el primer banner. Si no hay contenido publicado, se conserva la portada original.</span></div>';
+    return config.slides.map((slide,index) => `<button type="button" class="hero-slide-row ${slide.id === selectedId ? 'active' : ''}" data-select-slide="${esc(slide.id)}"><span class="hero-slide-index">${String(index+1).padStart(2,'0')}</span><span class="hero-slide-row-copy"><strong>${esc(slide.name)}</strong><small>${esc(slide.mediaType.toUpperCase())} · ${slide.layers.length} CAPAS · ${slide.enabled ? 'ACTIVA' : 'OCULTA'}</small></span><span class="hero-slide-row-actions"><i data-move="up" data-id="${esc(slide.id)}">↑</i><i data-move="down" data-id="${esc(slide.id)}">↓</i></span></button>`).join('');
   }
 
   function layerList(slide) {
     if (!slide) return '';
-    const rows = slide.layers.map((layer,index) => `<button type="button" class="hero-layer-row ${layer.id === selectedLayerId ? 'active' : ''}" data-select-layer="${esc(layer.id)}"><span>${String(index+1).padStart(2,'0')}</span><strong>${esc(layer.name)}</strong><small>${esc(layer.type.toUpperCase())}</small></button>`).join('');
-    return `<div class="hero-layer-list"><div class="hero-layer-list-head"><strong>LAYERS</strong><span>${slide.layers.length}/${MAX_LAYERS}</span></div>${rows || '<p class="hero-layer-empty">No layers. Legacy title/body remain available.</p>'}<div class="hero-layer-add">${layerTypes.map(type => `<button type="button" data-add-layer="${type}">+ ${type.toUpperCase()}</button>`).join('')}</div></div>`;
+    const rows = slide.layers.map((layer,index) => `<button type="button" class="hero-layer-row ${layer.id === selectedLayerId ? 'active' : ''}" data-select-layer="${esc(layer.id)}"><span>${String(index+1).padStart(2,'0')}</span><strong>${esc(layer.name)}</strong><small>${esc(layerTypeLabel(layer.type))}</small></button>`).join('');
+    return `<div class="hero-layer-list"><div class="hero-layer-list-head"><strong>CAPAS</strong><span>${slide.layers.length}/${MAX_LAYERS}</span></div>${rows || '<p class="hero-layer-empty">Sin capas. Puedes utilizar los campos de título y descripción.</p>'}<div class="hero-layer-add">${layerTypes.map(type => `<button type="button" data-add-layer="${type}">+ ${layerTypeLabel(type)}</button>`).join('')}</div></div>`;
   }
 
   function legacyEditor(slide) {
-    if (!slide) return '<div class="hero-slider-no-selection"><strong>CREATE A SLIDE</strong><p>Add a banner, then optionally build it with visual layers.</p></div>';
-    return `<div class="hero-editor-head"><div><span class="hero-kicker">SLIDE SETTINGS</span><strong>${esc(slide.name)}</strong></div><div><button type="button" class="btn ghost" data-duplicate-slide>DUPLICATE</button><button type="button" class="btn ghost" data-delete-slide>DELETE</button></div></div>
+    if (!slide) return '<div class="hero-slider-no-selection"><strong>CREA UNA DIAPOSITIVA</strong><p>Añade un banner y, si lo necesitas, incorpora capas visuales.</p></div>';
+    return `<div class="hero-editor-head"><div><span class="hero-kicker">CONFIGURACIÓN DEL BANNER</span><strong>${esc(slide.name)}</strong></div><div><button type="button" class="btn ghost" data-duplicate-slide>DUPLICAR</button><button type="button" class="btn ghost" data-delete-slide>ELIMINAR</button></div></div>
       <div class="hero-form-grid">
-        <label><span>Internal name</span><input data-field="name" value="${esc(slide.name)}"></label>
-        <label class="hero-switch"><input type="checkbox" data-field="enabled" ${slide.enabled ? 'checked' : ''}><span>Slide enabled</span></label>
-        <label><span>Media type</span><select data-field="mediaType"><option value="image" ${slide.mediaType==='image'?'selected':''}>Image</option><option value="video" ${slide.mediaType==='video'?'selected':''}>Video</option></select></label>
-        <label><span>Transition</span><select data-field="transition">${['fade','slide','zoom'].map(v => `<option value="${v}" ${slide.transition===v?'selected':''}>${v}</option>`).join('')}</select></label>
-        <label class="full"><span>Desktop media <em>Media Library or external HTTPS</em></span><div class="hero-media-pair"><input data-field="desktopSrc" value="${esc(slide.desktopSrc)}"><button type="button" class="media-picker-btn" data-media-picker="desktopSrc" data-media-type="${slide.mediaType === 'video' ? 'video' : 'image'}">SELECT MEDIA</button></div></label>
-        <label class="full"><span>Mobile override <em>optional · Media Library or external HTTPS</em></span><div class="hero-media-pair"><input data-field="mobileSrc" value="${esc(slide.mobileSrc)}"><button type="button" class="media-picker-btn" data-media-picker="mobileSrc" data-media-type="${slide.mediaType === 'video' ? 'video' : 'image'}">SELECT MEDIA</button></div></label>
-        ${slide.mediaType==='video'?`<label class="full"><span>Video poster</span><div class="hero-media-pair"><input data-field="poster" value="${esc(slide.poster)}"><button type="button" class="media-picker-btn" data-media-picker="poster" data-media-type="image">SELECT MEDIA</button></div></label>`:''}
-        <label class="full"><span>Legacy kicker</span><input data-field="kicker" value="${esc(slide.kicker)}"></label>
-        <label class="full"><span>Legacy title</span><input data-field="title" value="${esc(slide.title)}"></label>
-        <label class="full"><span>Legacy body</span><textarea data-field="body">${esc(slide.body)}</textarea></label>
-        <label><span>Legacy CTA label</span><input data-field="ctaLabel" value="${esc(slide.ctaLabel)}"></label>
-        <label><span>Legacy CTA URL</span><input data-field="ctaUrl" value="${esc(slide.ctaUrl)}"></label>
-        <label class="full"><span>Dark overlay · <b data-overlay-value>${slide.overlay}%</b></span><input type="range" min="0" max="85" step="5" data-field="overlay" value="${slide.overlay}"></label>
+        <label><span>Nombre para identificar el banner</span><input data-field="name" value="${esc(slide.name)}"></label>
+        <label class="hero-switch"><input type="checkbox" data-field="enabled" ${slide.enabled ? 'checked' : ''}><span>Banner activo</span></label>
+        <label><span>Tipo de archivo</span><select data-field="mediaType"><option value="image" ${slide.mediaType==='image'?'selected':''}>Imagen</option><option value="video" ${slide.mediaType==='video'?'selected':''}>Vídeo</option></select></label>
+        <label><span>Transición</span><select data-field="transition">${['fade','slide','zoom'].map(v => `<option value="${v}" ${slide.transition===v?'selected':''}>${v}</option>`).join('')}</select></label>
+        <label class="full"><span>Archivo para escritorio <em>Biblioteca de medios o enlace HTTPS</em></span><div class="hero-media-pair"><input data-field="desktopSrc" value="${esc(slide.desktopSrc)}"><button type="button" class="media-picker-btn" data-media-picker="desktopSrc" data-media-type="${slide.mediaType === 'video' ? 'video' : 'image'}">ELEGIR ARCHIVO</button></div></label>
+        <label class="full"><span>Archivo para móvil <em>Opcional · Biblioteca de medios o enlace HTTPS</em></span><div class="hero-media-pair"><input data-field="mobileSrc" value="${esc(slide.mobileSrc)}"><button type="button" class="media-picker-btn" data-media-picker="mobileSrc" data-media-type="${slide.mediaType === 'video' ? 'video' : 'image'}">ELEGIR ARCHIVO</button></div></label>
+        ${slide.mediaType==='video'?`<label class="full"><span>Portada del vídeo</span><div class="hero-media-pair"><input data-field="poster" value="${esc(slide.poster)}"><button type="button" class="media-picker-btn" data-media-picker="poster" data-media-type="image">ELEGIR ARCHIVO</button></div></label>`:''}
+        <label class="full"><span>Antetítulo alternativo</span><input data-field="kicker" value="${esc(slide.kicker)}"></label>
+        <label class="full"><span>Título alternativo</span><input data-field="title" value="${esc(slide.title)}"></label>
+        <label class="full"><span>Descripción alternativa</span><textarea data-field="body">${esc(slide.body)}</textarea></label>
+        <label><span>Texto del botón alternativo</span><input data-field="ctaLabel" value="${esc(slide.ctaLabel)}"></label>
+        <label><span>Enlace del botón alternativo</span><input data-field="ctaUrl" value="${esc(slide.ctaUrl)}"></label>
+        <label class="full"><span>Oscurecimiento · <b data-overlay-value>${slide.overlay}%</b></span><input type="range" min="0" max="85" step="5" data-field="overlay" value="${slide.overlay}"></label>
       </div>${layerList(slide)}${layerEditor(selectedLayer())}`;
   }
 
   function layerEditor(layer) {
     if (!layer) return '';
     const imageFields = layer.type === 'image' || layer.type === 'logo';
-    return `<div class="hero-layer-editor"><div class="hero-editor-head"><div><span class="hero-kicker">SELECTED LAYER</span><strong>${esc(layer.name)}</strong></div><button type="button" class="btn ghost" data-delete-layer>DELETE LAYER</button></div><div class="hero-form-grid">
-      <label><span>Name</span><input data-layer-field="name" value="${esc(layer.name)}"></label>
-      <label><span>Type</span><input value="${esc(layer.type)}" disabled></label>
-      ${imageFields?`<label class="full"><span>Desktop asset</span><div class="hero-media-pair"><input data-layer-field="src" value="${esc(layer.src)}"><button type="button" class="media-picker-btn" data-layer-media="src" data-media-type="image">SELECT MEDIA</button></div></label><label class="full"><span>Mobile asset override</span><div class="hero-media-pair"><input data-layer-field="mobileSrc" value="${esc(layer.mobileSrc)}"><button type="button" class="media-picker-btn" data-layer-media="mobileSrc" data-media-type="image">SELECT MEDIA</button></div></label>`:`<label class="full"><span>Text</span><textarea data-layer-field="text">${esc(layer.text)}</textarea></label>`}
-      ${layer.type==='cta'?`<label class="full"><span>Link URL</span><input data-layer-field="url" value="${esc(layer.url)}"></label>`:''}
+    return `<div class="hero-layer-editor"><div class="hero-editor-head"><div><span class="hero-kicker">CAPA SELECCIONADA</span><strong>${esc(layer.name)}</strong></div><button type="button" class="btn ghost" data-delete-layer>ELIMINAR CAPA</button></div><div class="hero-form-grid">
+      <label><span>Nombre</span><input data-layer-field="name" value="${esc(layer.name)}"></label>
+      <label><span>Tipo</span><input value="${esc(layer.type)}" disabled></label>
+      ${imageFields?`<label class="full"><span>Imagen para escritorio</span><div class="hero-media-pair"><input data-layer-field="src" value="${esc(layer.src)}"><button type="button" class="media-picker-btn" data-layer-media="src" data-media-type="image">ELEGIR ARCHIVO</button></div></label><label class="full"><span>Imagen para móvil</span><div class="hero-media-pair"><input data-layer-field="mobileSrc" value="${esc(layer.mobileSrc)}"><button type="button" class="media-picker-btn" data-layer-media="mobileSrc" data-media-type="image">ELEGIR ARCHIVO</button></div></label>`:`<label class="full"><span>Texto</span><textarea data-layer-field="text">${esc(layer.text)}</textarea></label>`}
+      ${layer.type==='cta'?`<label class="full"><span>Enlace</span><input data-layer-field="url" value="${esc(layer.url)}"></label>`:''}
       <label><span>X %</span><input type="number" min="0" max="100" data-layer-field="x" value="${layer.x}"></label><label><span>Y %</span><input type="number" min="0" max="100" data-layer-field="y" value="${layer.y}"></label>
-      <label><span>Width %</span><input type="number" min="5" max="100" data-layer-field="width" value="${layer.width}"></label><label><span>Align</span><select data-layer-field="align">${['left','center','right'].map(v=>`<option value="${v}" ${layer.align===v?'selected':''}>${v}</option>`).join('')}</select></label>
-      <label><span>Animation</span><select data-layer-field="animation">${animations.map(v=>`<option value="${v}" ${layer.animation===v?'selected':''}>${v}</option>`).join('')}</select></label><label><span>Delay ms</span><input type="number" min="0" max="10000" step="50" data-layer-field="delay" value="${layer.delay}"></label>
-      <label><span>Duration ms</span><input type="number" min="100" max="5000" step="50" data-layer-field="duration" value="${layer.duration}"></label><label class="hero-switch"><input type="checkbox" data-layer-field="hiddenMobile" ${layer.hiddenMobile?'checked':''}><span>Hide on mobile</span></label>
-      <label><span>Mobile X %</span><input type="number" min="0" max="100" data-layer-field="mobileX" value="${layer.mobileX ?? ''}" placeholder="inherit"></label><label><span>Mobile Y %</span><input type="number" min="0" max="100" data-layer-field="mobileY" value="${layer.mobileY ?? ''}" placeholder="inherit"></label>
-      <label><span>Mobile width %</span><input type="number" min="5" max="100" data-layer-field="mobileWidth" value="${layer.mobileWidth ?? ''}" placeholder="inherit"></label>
+      <label><span>Ancho %</span><input type="number" min="5" max="100" data-layer-field="width" value="${layer.width}"></label><label><span>Alineación</span><select data-layer-field="align">${['left','center','right'].map(v=>`<option value="${v}" ${layer.align===v?'selected':''}>${v}</option>`).join('')}</select></label>
+      <label><span>Animación</span><select data-layer-field="animation">${animations.map(v=>`<option value="${v}" ${layer.animation===v?'selected':''}>${v}</option>`).join('')}</select></label><label><span>Espera (ms)</span><input type="number" min="0" max="10000" step="50" data-layer-field="delay" value="${layer.delay}"></label>
+      <label><span>Duración (ms)</span><input type="number" min="100" max="5000" step="50" data-layer-field="duration" value="${layer.duration}"></label><label class="hero-switch"><input type="checkbox" data-layer-field="hiddenMobile" ${layer.hiddenMobile?'checked':''}><span>Ocultar en móvil</span></label>
+      <label><span>Posición X móvil (%)</span><input type="number" min="0" max="100" data-layer-field="mobileX" value="${layer.mobileX ?? ''}" placeholder="Heredar"></label><label><span>Posición Y móvil (%)</span><input type="number" min="0" max="100" data-layer-field="mobileY" value="${layer.mobileY ?? ''}" placeholder="Heredar"></label>
+      <label><span>Ancho móvil (%)</span><input type="number" min="5" max="100" data-layer-field="mobileWidth" value="${layer.mobileWidth ?? ''}" placeholder="Heredar"></label>
     </div></div>`;
   }
 
@@ -651,7 +652,7 @@
     if (!src) {
       const empty = document.createElement('div');
       empty.className = 'hero-preview-media-empty';
-      empty.textContent = 'SELECT MEDIA';
+      empty.textContent = 'ELEGIR ARCHIVO';
       stage.appendChild(empty);
       return;
     }
@@ -794,7 +795,7 @@
     const host = root();
     if (!host) return;
     const slide = selectedSlide();
-    host.innerHTML = `<section class="hero-manager"><div class="hero-manager-toolbar"><div><span class="hero-kicker">HOME / HERO</span><h2>SLIDER MANAGER V2</h2><p>LayerSlider-inspired visual layers with safe mobile overrides.</p></div><div class="hero-manager-actions"><label class="hero-switch"><input type="checkbox" data-config-field="enabled" ${config.enabled?'checked':''}><span>Publish slider</span></label><button type="button" class="btn ghost" data-add-slide>+ ADD SLIDE</button><button type="button" class="btn red" data-save-slider ${mediaReady?'':'disabled'}>${mediaSaveLabel()}</button></div></div><div class="hero-manager-global"><label class="hero-switch"><input type="checkbox" data-config-field="autoplay" ${config.autoplay?'checked':''}><span>Autoplay</span></label><label><span>Slide duration</span><select data-config-field="interval">${intervalOptions()}</select></label><span class="hero-manager-fallback">SAFE FALLBACK · original BRVTAL hero remains if managed content is unavailable.</span></div><div class="hero-manager-grid"><aside class="hero-slide-list"><div class="hero-slide-list-head"><strong>SLIDES</strong><span>${config.slides.length}/${MAX_SLIDES}</span></div>${slideList()}</aside><section class="hero-slide-editor">${legacyEditor(slide)}</section><section class="hero-preview-panel"><div class="hero-preview-head"><strong>LIVE PREVIEW · drag selected layers</strong><div><button type="button" data-preview="desktop" class="${previewMode==='desktop'?'active':''}">DESKTOP</button><button type="button" data-preview="mobile" class="${previewMode==='mobile'?'active':''}">MOBILE</button></div></div><div class="hero-preview-frame ${previewMode === 'mobile' ? 'mobile' : 'desktop'}"></div></section></div></section>`;
+    host.innerHTML = `<section class="hero-manager"><div class="hero-manager-toolbar"><div><span class="hero-kicker">PORTADA</span><h2>Banners de portada</h2><p>Organiza banners y capas con ajustes independientes para móvil.</p></div><div class="hero-manager-actions"><label class="hero-switch"><input type="checkbox" data-config-field="enabled" ${config.enabled?'checked':''}><span>Publicar banners</span></label><button type="button" class="btn ghost" data-add-slide>+ NUEVO BANNER</button><button type="button" class="btn red" data-save-slider ${mediaReady?'':'disabled'}>${mediaSaveLabel()}</button></div></div><div class="hero-manager-global"><label class="hero-switch"><input type="checkbox" data-config-field="autoplay" ${config.autoplay?'checked':''}><span>Reproducción automática</span></label><label><span>Duración de cada banner</span><select data-config-field="interval">${intervalOptions()}</select></label><span class="hero-manager-fallback">Si no hay banners disponibles, se muestra la portada original de BRVTAL.</span></div><div class="hero-manager-grid"><aside class="hero-slide-list"><div class="hero-slide-list-head"><strong>BANNERS</strong><span>${config.slides.length}/${MAX_SLIDES}</span></div>${slideList()}</aside><section class="hero-slide-editor">${legacyEditor(slide)}</section><section class="hero-preview-panel"><div class="hero-preview-head"><strong>VISTA PREVIA · arrastra la capa seleccionada</strong><div><button type="button" data-preview="desktop" class="${previewMode==='desktop'?'active':''}">ESCRITORIO</button><button type="button" data-preview="mobile" class="${previewMode==='mobile'?'active':''}">MÓVIL</button></div></div><div class="hero-preview-frame ${previewMode === 'mobile' ? 'mobile' : 'desktop'}"></div></section></div></section>`;
     const draftAnchor = host.querySelector('.hero-manager-global');
     draftAnchor?.insertAdjacentHTML('beforebegin', heroDraftStatusMarkup() + heroDraftRecoveryMarkup());
     syncMediaControls(host);
@@ -1057,18 +1058,18 @@
         return;
       }
       heroDraftRecovery = null;
-      setHeroDraftState('Saved to server', 'server');
-      window.BRVTALFeedback?.success?.('Hero Slider saved. Public fallback remains protected.','hero-slider-save');
+      setHeroDraftState('Guardado en el servidor', 'server');
+      window.BRVTALFeedback?.success?.('Banners guardados. La portada alternativa permanece disponible.','hero-slider-save');
       renderManager();
       return;
     }
 
     const persisted = await persistHeroDraft();
     setHeroDraftState(
-      persisted ? 'Draft saved locally · newer edits remain unsaved' : 'Save failed · newer edits are not stored locally',
+      persisted ? 'Borrador local guardado · aún hay cambios sin publicar' : 'No se guardaron los cambios recientes en el borrador local',
       persisted ? 'saved' : 'error'
     );
-    window.BRVTALFeedback?.success?.('Hero Slider saved; newer edits remain local.','hero-slider-save');
+    window.BRVTALFeedback?.success?.('Banners guardados. Los cambios recientes permanecen en el borrador local.','hero-slider-save');
     renderManager();
   }
 
@@ -1098,7 +1099,7 @@
     const persisted = await persistHeroDraft();
     const detail = humanMediaSaveError(error);
     setHeroDraftState(
-      `Save failed · ${detail} · ${persisted ? 'borrador guardado localmente' : 'mantén abierto el editor'}`,
+      `Error al guardar · ${detail} · ${persisted ? 'borrador guardado localmente' : 'mantén abierto el editor'}`,
       'error'
     );
     window.BRVTALFeedback?.error?.('No se pudo guardar Banners: ' + detail,'hero-slider-save');
@@ -1112,7 +1113,7 @@
     const button = root()?.querySelector('[data-save-slider]');
     if (button) {
       button.disabled = true;
-      button.textContent = 'SAVING…';
+      button.textContent = 'GUARDANDO…';
     }
     clearHeroDraftTimer();
     heroSaveInFlight = true;

@@ -223,7 +223,7 @@ function nativeListUrl(module,page=1,query=''){
  const search=String(query||'').trim();if(search)params.set('q',search);
  return '/'+module+'?'+params.toString();
 }
-async function login(e){e.preventDefault();const f=new FormData(e.target),btn=e.target.querySelector('button[type=submit],button');btn.disabled=true;btn.textContent='AUTHENTICATING...';try{const d=await req('/auth',{method:'POST',body:JSON.stringify({email:f.get('email'),password:f.get('password')})});csrf=d.csrf||'';window.BRVTALAdminAuthBoundary?.rememberAuth?.({authenticated:true,csrf});window.BRVTALDashboardV2?.invalidate?.();state.authed=true;await go('dashboard')}catch(x){const er=document.querySelector('.error');if(er)er.textContent=x.message==='AUTH_REQUIRED'?'Sesión no válida.':'Credenciales inválidas o error de servidor.';btn.disabled=false;btn.textContent='ENTER'}}
+async function login(e){e.preventDefault();const f=new FormData(e.target),btn=e.target.querySelector('button[type=submit],button');btn.disabled=true;btn.textContent='VERIFICANDO…';try{const d=await req('/auth',{method:'POST',body:JSON.stringify({email:f.get('email'),password:f.get('password')})});csrf=d.csrf||'';window.BRVTALAdminAuthBoundary?.rememberAuth?.({authenticated:true,csrf});window.BRVTALDashboardV2?.invalidate?.();state.authed=true;await go('dashboard')}catch(x){const er=document.querySelector('.error');if(er)er.textContent=x.message==='AUTH_REQUIRED'?'Sesión no válida.':'Credenciales inválidas o error de servidor.';btn.disabled=false;btn.textContent='ENTRAR'}}
 async function restoreSession(){
  try {
   const d=window.BRVTALAdminAuthBoundary?.auth
@@ -326,10 +326,10 @@ function openModal(type,id=null){state.editing=id;document.getElementById('modal
  const existingKeep=document.getElementById('saveKeepOpenBtn');existingKeep?.remove();
  const saveButton=document.getElementById('saveBtn');
  if(type==='sets'){
-   const keep=document.createElement('button');keep.id='saveKeepOpenBtn';keep.className='btn ghost';keep.type='button';keep.textContent='SAVE';
+   const keep=document.createElement('button');keep.id='saveKeepOpenBtn';keep.className='btn ghost';keep.type='button';keep.textContent='GUARDAR';
    keep.onclick=()=>window.save('sets',state.editing,{close:false});
    saveButton?.before(keep);
-   saveButton.textContent='SAVE & CLOSE';
+   saveButton.textContent='GUARDAR Y CERRAR';
    saveButton.onclick=()=>window.save('sets',state.editing,{close:true});
  }document.getElementById('notice').className='notice';document.getElementById('mtitle').textContent=(id?'EDIT ':'NEW ')+type.toUpperCase();if(type!=='sets')document.getElementById('saveBtn').onclick=()=>save(type,id);let r=id?state.rows.find(x=>Number(x.id)===Number(id)):null;
  if(type==='events')eventForm(r);else if(type==='artists')artistForm(r);else if(type==='sets')setForm(r);else if(type==='media')mediaForm(r);else if(type==='pages')pageForm(r);else settingsForm(r);
@@ -1069,7 +1069,7 @@ function settingsHome(rows){
       <input class="settings-search" id="settings-filter" placeholder="Search settings..." oninput="filterSettingsHome(this.value)">
     </div>
     <div class="settings-grid" id="settings-grid">
-      ${categories.map(c=>`<article class="settings-card" data-setting-card="${c[0]}"><div><div class="icon">${c[1]}</div><h3>${c[2]}</h3><p>${c[3]}</p><div class="meta">${c[0]==='theme.active'?'ACTIVE: '+(settingRecord('theme.active')?.setting_value||'CORE'):settingSummary(c[0])}</div></div><div class="actions"><button class="iconbtn" onclick="openSettingByKey('${c[0]}')">EDIT</button>${c[0]==='theme.active'?`<button class="iconbtn" onclick="go('theme')">THEME STUDIO</button>`:''}</div></article>`).join('')}
+      ${categories.map(c=>`<article class="settings-card" data-setting-card="${c[0]}"><div><div class="icon">${c[1]}</div><h3>${c[2]}</h3><p>${c[3]}</p><div class="meta">${c[0]==='theme.active'?'ACTIVE: '+(settingRecord('theme.active')?.setting_value||'CORE'):settingSummary(c[0])}</div></div><div class="actions"><button class="iconbtn" onclick="openSettingByKey('${c[0]}')">EDIT</button>${c[0]==='theme.active'?`<button class="iconbtn" onclick="go('theme')">TEMA VISUAL</button>`:''}</div></article>`).join('')}
     </div>
     <details class="settings-advanced">
       <summary>ADVANCED / RAW SETTINGS · ${extra.length} ITEMS · ${themeCount} THEME RECORDS</summary>
@@ -1158,10 +1158,10 @@ if(state.section==='settings')return settingsHome(state.rows||[]);
   let button = `<button class="btn red" onclick="openModal('${state.section}')">
    + NEW ${state.section.slice(0,-1).toUpperCase()}
   </button>`;
-  if(state.section==='events')button='<button class="btn red" onclick="openModal(\'events\')">+ NEW EVENT</button>';
-  if(state.section==='artists')button='<button class="btn red" onclick="openModal(\'artists\')">+ NEW ARTIST</button>';
-  if(state.section==='sets')button='<button class="btn red" onclick="openModal(\'sets\')">+ NEW SET</button>';
-  if(state.section==='pages')button='<button class="btn red" onclick="openModal(\'pages\')">+ NEW PAGE</button>';
+  if(state.section==='events')button='<button class="btn red" onclick="openModal(\'events\')">+ NUEVO EVENTO</button>';
+  if(state.section==='artists')button='<button class="btn red" onclick="openModal(\'artists\')">+ NUEVO ARTISTA</button>';
+  if(state.section==='sets')button='<button class="btn red" onclick="openModal(\'sets\')">+ NUEVA SESIÓN</button>';
+  if(state.section==='pages')button='<button class="btn red" onclick="openModal(\'pages\')">+ NUEVA PÁGINA</button>';
   return `
    <div class="toolbar admin-grid-toolbar">
     <input
@@ -1177,12 +1177,12 @@ if(state.section==='settings')return settingsHome(state.rows||[]);
   `;
  }
  const r=state.rows||[];let button=`<button class="btn red" onclick="openModal('${state.section}')">+ NEW ${state.section.slice(0,-1).toUpperCase()}</button>`;
- if(state.section==='events')button='<button class="btn red" onclick="openModal(\'events\')">+ NEW EVENT</button>';
- if(state.section==='artists')button='<button class="btn red" onclick="openModal(\'artists\')">+ NEW ARTIST</button>';
- if(state.section==='sets')button='<button class="btn red" onclick="openModal(\'sets\')">+ NEW SET</button>';
- if(state.section==='media')button='<button class="btn red" onclick="openModal(\'media\')">+ NEW MEDIA</button>';
- if(state.section==='pages')button='<button class="btn red" onclick="openModal(\'pages\')">+ NEW PAGE</button>';
- if(state.section==='settings')button='<button class="btn ghost" onclick="openModal(\'settings\')">+ ADVANCED SETTING</button>';
+ if(state.section==='events')button='<button class="btn red" onclick="openModal(\'events\')">+ NUEVO EVENTO</button>';
+ if(state.section==='artists')button='<button class="btn red" onclick="openModal(\'artists\')">+ NUEVO ARTISTA</button>';
+ if(state.section==='sets')button='<button class="btn red" onclick="openModal(\'sets\')">+ NUEVA SESIÓN</button>';
+ if(state.section==='media')button='<button class="btn red" onclick="openModal(\'media\')">+ NUEVO ARCHIVO</button>';
+ if(state.section==='pages')button='<button class="btn red" onclick="openModal(\'pages\')">+ NUEVA PÁGINA</button>';
+ if(state.section==='settings')button='<button class="btn ghost" onclick="openModal(\'settings\')">+ AJUSTE AVANZADO</button>';
  let rows='';
  if(state.section==='events')rows=r.map(x=>`<div class="tr"><div class="thumbcell">${thumb(x.cover_image,x.title)}<div><div class="title">${esc(x.title)}</div><div class="meta">${esc(x.slug)}</div></div></div><div>${esc(x.event_date||'—')}</div><div>${esc(x.city||x.venue||'—')}</div><div><span class="pill">${esc(x.status)}</span></div><div class="actions"><button class="iconbtn" onclick="openLineup(${x.id})">LINEUP</button><button class="iconbtn" onclick="openModal('events',${x.id})">EDIT</button><button class="iconbtn" onclick="del('events',${x.id})">DEL</button></div></div>`).join('');
  else if(state.section==='artists')rows=r.map(artistOrderRow).join('');
@@ -1270,18 +1270,18 @@ function render(){
 <div class="login">
  <form class="loginbox" onsubmit="login(event)">
   <h1>BRVTAL</h1>
-  <div class="sub">DISCADMIN / CONTROL ROOM</div>
+  <div class="sub">DISCADMIN / ACCESO</div>
   <div class="syscheck">
-   <div class="sysrow"><span>WEB / PHP</span><b class="sysok">ONLINE</b></div>
-   <div class="sysrow"><span>API</span><b id="st_api" class="syswait">CHECKING</b></div>
-   <div class="sysrow"><span>DATABASE</span><b id="st_db" class="syswait">CHECKING</b></div>
-   <div class="sysrow"><span>SESSION</span><b class="sysok">READY</b></div>
+   <div class="sysrow"><span>WEB / PHP</span><b class="sysok">EN LÍNEA</b></div>
+   <div class="sysrow"><span>API</span><b id="st_api" class="syswait">COMPROBANDO</b></div>
+   <div class="sysrow"><span>BASE DE DATOS</span><b id="st_db" class="syswait">COMPROBANDO</b></div>
+   <div class="sysrow"><span>SESIÓN</span><b class="sysok">LISTA</b></div>
   </div>
-  <label class="eyebrow" for="admin-login-email">EMAIL</label>
+  <label class="eyebrow" for="admin-login-email">CORREO ELECTRÓNICO</label>
   <input id="admin-login-email" name="email" type="email" required>
-  <label class="eyebrow" for="admin-login-password">PASSWORD</label>
+  <label class="eyebrow" for="admin-login-password">CONTRASEÑA</label>
   <input id="admin-login-password" name="password" type="password" required>
-  <button class="btn" type="submit" style="width:100%">ENTER</button>
+  <button class="btn" type="submit" style="width:100%">ENTRAR</button>
   <a class="login-recovery" href="/discadmin/forgot-password.php">¿OLVIDASTE TU CONTRASEÑA?</a>
   <div class="error"></div>
  </form>
@@ -1293,14 +1293,14 @@ function render(){
  document.body.classList.remove('admin-nav-open');
  const visibleSection=state.section==='security'?'settings':state.section;
  const editorialSections=[
-  ['dashboard','DASHBOARD'],
-  ['pages','PAGES'],
+  ['dashboard','INICIO'],
+  ['pages','PÁGINAS'],
   ['blog','BLOG'],
-  ['media','MEDIA'],
-  ['events','EVENTS'],
-  ['artists','ARTISTS'],
-  ['releases','RELEASES'],
-  ['sets','SETS'],
+  ['media','MEDIOS'],
+  ['events','EVENTOS'],
+  ['artists','ARTISTAS'],
+  ['releases','LANZAMIENTOS'],
+  ['sets','SESIONES'],
   ['ticketing','BOLETERÍA']
  ];
  const editorialNav=editorialSections.map(([key,label])=>{
@@ -1314,62 +1314,63 @@ function render(){
   editorialNav,
   `<button type="button" data-admin-nav="appearance" aria-expanded="${appearanceActive}"
     aria-controls="brvtal-nav-banners brvtal-nav-theme"
-    class="${appearanceActive?'active':''}">APPEARANCE</button>`,
+    class="${appearanceActive?'active':''}">APARIENCIA</button>`,
   `<button id="brvtal-nav-banners" class="${state.section==='hero-slider'?'active':''}"
     data-ia-subnav="1" data-admin-nav="hero-slider"
-    onclick="go('hero-slider')" >BANNERS</button>`,
+    onclick="go('hero-slider')" >BANNERS DE PORTADA</button>`,
   `<button id="brvtal-nav-theme" class="${state.section==='theme'?'active':''}"
     data-ia-subnav="1" data-admin-nav="theme"
-    onclick="go('theme')" >THEME STUDIO</button>`,
+    onclick="go('theme')" >TEMA VISUAL</button>`,
   `<button class="${visibleSection==='seo'?'active':''}" data-admin-nav="seo" onclick="go('seo')">SEO</button>`,
-  `<button class="${settingsActive}" data-admin-nav="settings" onclick="go('settings')">SETTINGS</button>`,
-  `<button class="${systemActive}" data-admin-nav="system" onclick="tech('system')">SYSTEM STATUS</button>`
+  `<button class="${settingsActive}" data-admin-nav="settings" onclick="go('settings')">CONFIGURACIÓN</button>`,
+  `<button class="${systemActive}" data-admin-nav="system" onclick="tech('system')">ESTADO DEL SISTEMA</button>`
  ].join('');
- const moduleTitle=state.section==='content-core'
-  ?'CONTENT CORE'
-  :state.section==='security'
-   ?'SECURITY / 2FA'
-   :state.section==='hero-slider'
-    ?'BANNERS'
-    :state.section.toUpperCase();
+ const moduleTitles={
+  dashboard:'INICIO',pages:'PÁGINAS',blog:'BLOG',media:'MEDIOS',
+  events:'EVENTOS',artists:'ARTISTAS',releases:'LANZAMIENTOS',
+  sets:'SESIONES',ticketing:'BOLETERÍA','hero-slider':'BANNERS DE PORTADA',
+  theme:'TEMA VISUAL',settings:'CONFIGURACIÓN',system:'ESTADO DEL SISTEMA',
+  seo:'SEO','content-core':'GESTIÓN DE CONTENIDO',security:'SEGURIDAD / 2FA'
+ };
+ const moduleTitle=moduleTitles[state.section]||state.section.toUpperCase();
  const moduleBody=state.section==='content-core'||state.section==='security'||state.section==='ticketing'
-  ?'<div id="admin-module-host" aria-live="polite">LOADING…</div>'
+  ?'<div id="admin-module-host" aria-live="polite">CARGANDO…</div>'
   :content();
  root.innerHTML=`
 <div class="shell">
  <button
   type="button"
   class="admin-nav-scrim"
-  aria-label="Close navigation"
+  aria-label="Cerrar navegación"
   onclick="closeAdminNav()"
  ></button>
- <aside class="side" id="admin-primary-nav" aria-label="Primary navigation">
+ <aside class="side" id="admin-primary-nav" aria-label="Navegación principal">
   <div class="logo">BRVTAL</div>
-  <div class="sub">DISCADMIN / CONTROL</div>
+  <div class="sub">DISCADMIN</div>
   <div class="nav">
    ${navHtml}
   </div>
   <div class="sidefoot">
    <div class="brvtal-admin-release">
-    <span class="version" data-testid="admin-product-version">
-     BRVTAL v<?= htmlspecialchars(BRVTAL_APP_VERSION, ENT_QUOTES, "UTF-8") ?>
+    <span class="version" data-testid="admin-product-version" data-release="<?= htmlspecialchars(BRVTAL_APP_VERSION, ENT_QUOTES, 'UTF-8') ?>">
+     BRVTAL
     </span>
     <span class="build" data-testid="admin-product-environment">
-     <?= htmlspecialchars(ucfirst(strtolower(BRVTAL_APP_ENV)), ENT_QUOTES, "UTF-8") ?>
+     <?= BRVTAL_APP_ENV === 'PRODUCTION' ? 'Producción' : htmlspecialchars(ucfirst(strtolower(BRVTAL_APP_ENV)), ENT_QUOTES, 'UTF-8') ?>
     </span>
-    <span
+    <span hidden style="display:none"
      class="build"
      data-testid="admin-deploy-source"
      title="<?= brvtalDeploymentIsExact()
-      ? 'Exact deployed source: ' . htmlspecialchars(brvtal_deployment_sha(), ENT_QUOTES, "UTF-8")
-      : 'Exact deployed Git SHA unavailable; release fallback metadata is not shown as deployed source.' ?>"
+      ? 'Origen exacto de la versión: ' . htmlspecialchars(brvtal_deployment_sha(), ENT_QUOTES, "UTF-8")
+      : 'La fuente exacta del despliegue no está confirmada.' ?>"
     >
      <?= brvtalDeploymentIsExact()
-      ? 'SOURCE ' . htmlspecialchars(brvtalDeploymentCacheKey(), ENT_QUOTES, "UTF-8")
+      ? 'FUENTE ' . htmlspecialchars(brvtalDeploymentCacheKey(), ENT_QUOTES, "UTF-8")
       : 'SOURCE UNAVAILABLE' ?>
     </span>
    </div>
-   <button class="btn ghost" data-admin-logout style="width:100%" onclick="logout()">LOG OUT</button>
+   <button class="btn ghost" data-admin-logout style="width:100%" onclick="logout()">CERRAR SESIÓN</button>
   </div>
  </aside>
  <main class="main">
@@ -1381,10 +1382,10 @@ function render(){
     aria-expanded="false"
     onclick="toggleAdminNav()"
    >
-    <span aria-hidden="true">☰</span><span>MENU</span>
+    <span aria-hidden="true">☰</span><span>MENÚ</span>
    </button>
    <div class="admin-page-title">
-    <div class="eyebrow">BRVTAL CMS</div>
+    <div class="eyebrow">ADMINISTRACIÓN</div>
     <h1>${moduleTitle}</h1>
    </div>
   </div>
