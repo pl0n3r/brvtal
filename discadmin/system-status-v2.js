@@ -3,6 +3,7 @@
 
   const TECH = '/discadmin/technical.php?action=overview';
   const INTEGRATIONS = '/api/admin-system-status.php';
+  const AUTH = '/api/index.php/auth';
   const HEALTH = '/api/content-health.php';
   const ACTIVITY = '/api/admin-activity.php?limit=5';
   const LOGS = '/discadmin/technical.php?action=logs';
