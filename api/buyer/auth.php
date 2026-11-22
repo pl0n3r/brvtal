@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../../config/bootstrap.php';
 require_once __DIR__ . '/../../config/buyer_auth_flows.php';
+require_once __DIR__ . '/../../config/public_abuse_guard.php';
 
 header('Cache-Control: no-store, private');
 header('Referrer-Policy: no-referrer');
@@ -15,8 +16,18 @@ try {
 }
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 if ($method === 'GET') {
+    try {
+        $challenge = [
+            'register' => brvtal_public_abuse_challenge($config, 'register'),
+            'request-reset' => brvtal_public_abuse_challenge($config, 'request-reset'),
+            'resend-verification' => brvtal_public_abuse_challenge($config, 'resend-verification'),
+        ];
+    } catch (Throwable) {
+        json_response(['ok' => false, 'error' => 'CAPTCHA_UNAVAILABLE'], 503);
+    }
     json_response(['ok' => true, 'csrf' => $_SESSION['buyer_csrf'],
-        'authenticated' => (int)($_SESSION['buyer_id'] ?? 0) > 0]);
+        'authenticated' => (int)($_SESSION['buyer_id'] ?? 0) > 0,
+        'challenges' => $challenge]);
 }
 if ($method !== 'POST') {
     json_response(['ok' => false, 'error' => 'METHOD_NOT_ALLOWED'], 405, ['Allow' => 'GET, POST']);
@@ -33,6 +44,13 @@ if ($action === 'logout') {
 if (!in_array($action, ['login','register','verify','request-reset','confirm-reset',
     'resend-verification'], true)) {
     json_response(['ok' => false, 'error' => 'UNKNOWN_ACTION'], 400);
+}
+// Mandatory rate protection happens before opening a DB transaction.
+$gate = brvtal_public_abuse_check($action, $body, $config);
+if (!$gate['allowed']) {
+    $headers = $gate['retry_after'] > 0
+        ? ['Retry-After' => (string)$gate['retry_after']] : [];
+    json_response(['ok' => false, 'error' => $gate['error']], $gate['status'], $headers);
 }
 try {
     $pdo = db();
