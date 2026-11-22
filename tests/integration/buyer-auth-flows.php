@@ -56,6 +56,14 @@ buyerAuthAssert($a === $b && $a === ['ok'=>true], 'duplicate is neutral');
 buyerAuthAssert((int)$db->query('SELECT COUNT(*) FROM ticket_buyers')->fetchColumn() === 1,
     'one buyer after duplicate');
 $row = $db->query('SELECT id,full_name,password_hash,email_verified_at,security_epoch FROM ticket_buyers')->fetch();
+// Match the 12..4096-character policy without silent bcrypt 72-byte truncation.
+if (defined('PASSWORD_ARGON2ID')) {
+    $longPassword = str_repeat('SYNTHETIC-secure-4829-', 7);
+    $longHash = brvtalBuyerAuthPassword($longPassword);
+    buyerAuthAssert(password_verify($longPassword, $longHash)
+        && !password_verify(substr($longPassword, 0, 72), $longHash),
+        'long password preserves all bytes with Argon2id');
+}
 buyerAuthAssert($row['full_name'] === $input['name']
     && $row['password_hash'] !== $input['password']
     && password_verify($input['password'], $row['password_hash'])

@@ -26,11 +26,17 @@ function brvtalBuyerAuthTransaction(PDO $pdo, callable $operation): mixed
 
 function brvtalBuyerAuthPassword(mixed $password, string $oldHash = ''): string
 {
-    if (!is_string($password) || strlen($password) > 72
+    if (!is_string($password)
         || ($error = brvtal_admin_password_error($password, $oldHash)) !== null) {
         throw new InvalidArgumentException($error ?? 'PASSWORD_INVALID');
     }
-    $hash = password_hash($password, PASSWORD_DEFAULT);
+    // Bcrypt silently truncates after 72 bytes. Use Argon2id for longer valid
+    // passwords instead of accepting two distinct phrases as one credential.
+    if (strlen($password) > 72 && !defined('PASSWORD_ARGON2ID')) {
+        throw new InvalidArgumentException('PASSWORD_INVALID');
+    }
+    $algorithm = strlen($password) > 72 ? PASSWORD_ARGON2ID : PASSWORD_DEFAULT;
+    $hash = password_hash($password, $algorithm);
     if (!is_string($hash) || $hash === '') {
         throw new RuntimeException('BUYER_PASSWORD_HASH_FAILED');
     }
