@@ -49,9 +49,9 @@ try {
     $value = $method === 'POST' ? ($input['value'] ?? null) : null;
     brvtalIntegrationSecretMutate($pdo, $method, $key, is_string($value) ? $value : null, $actorId);
     json_response(['ok'=>true,'items'=>brvtalIntegrationSecretStatus($pdo)]);
-} catch (InvalidArgumentException | JsonException $e) {
+} catch (InvalidArgumentException | JsonException) {
     json_response(['ok'=>false,'error'=>'SECRET_FORMAT_INVALID'], 422);
-} catch (DomainException $e) {
+} catch (DomainException) {
     json_response(['ok'=>false,'error'=>'SECRET_WRITE_DISABLED'], 403);
 } catch (Throwable $e) {
     // Neither exception messages nor request bodies may reach telemetry.
