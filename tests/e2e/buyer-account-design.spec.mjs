@@ -78,7 +78,7 @@ test('AC-01: comprador sintético, selector por nombre y fecha de Colombia, sin 
   await expect(page.locator('link[href^="/css/buyer-account.css"]')).toHaveCount(1);
   const selector=page.getByRole('combobox',{name:'Evento'});
   await expect(selector.locator('option')).toHaveCount(3);
-  await expect(selector.locator('option',{hasText:'BRVTAL Noche industrial'})).toHaveValue('13');
+  await expect(selector.locator('option',{hasText:'BRVTAL Noche industrial'})).toHaveAttribute('value','13');
   await expect(page.getByText('Comprado el 22 de noviembre', {exact:false})).toBeVisible();
   const content=await page.locator('body').innerText();
   expect(content).not.toMatch(/\bUTC\b|Evento \(ID\)|Fecha UTC|vinculación de invitados/i);

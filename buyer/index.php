@@ -52,22 +52,22 @@
           <div class="account-section-head"><h2 id="purchases-title">Tus pedidos</h2></div>
           <p id="feedback" class="account-feedback" role="status" aria-live="polite" aria-atomic="true"></p>
           <div id="orders" class="account-orders" aria-label="Pedidos"><p class="account-loading">Cargando compras…</p></div>
-          <button id="more" class="account-secondary" hidden type="button">Ver más compras</button>
+          <button id="more" class="account-secondary" hidden type="button">Ver más pedidos</button>
         </section>
         <section id="refund-list" class="account-panel account-refunds" aria-labelledby="refund-title">
           <div class="account-section-head"><h2 id="refund-title">Devoluciones</h2></div>
           <div id="refund-items" aria-live="polite"><p>Cargando solicitudes…</p></div>
         </section>
-        <section id="qr" class="account-panel account-qr" hidden aria-labelledby="qr-title">
-          <h2 id="qr-title">Tu entrada</h2>
-          <p>Ten a mano la clave original que recibiste con tu entrada para mostrarla aquí.</p>
+        <section id="qr" class="account-panel account-qr" hidden aria-label="Entrada QR">
+          <h2 id="qr-title">Entrada protegida</h2>
+          <p>Usa la credencial original recibida al emitir tu entrada. BRVTAL no conserva el secreto en claro.</p>
           <form id="qr-form">
-            <label class="account-field" for="token">Clave original
+            <label class="account-field" for="token">Credencial original
               <input id="token" type="password" required autocomplete="off" spellcheck="false" minlength="43" maxlength="43"></label>
-            <button type="submit">Mostrar entrada</button>
+            <button type="submit">Mostrar QR</button>
           </form>
-          <div id="qr-output" role="img" aria-label="Código de tu entrada" hidden></div>
-          <button id="download" type="button" hidden>Descargar entrada</button>
+          <div id="qr-output" role="img" aria-label="Código QR de entrada" hidden></div>
+          <button id="download" type="button" hidden>Descargar QR SVG</button>
           <p id="qr-feedback" role="status" aria-live="polite"></p>
         </section>
       </div>
