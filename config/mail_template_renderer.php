@@ -52,6 +52,33 @@ function brvtal_mail_delivery_document(PDO $pdo, string $kind): array
 }
 
 /** Server-only variables and CTA; the published document cannot provide its own URL. */
+/**
+ * Ticket links carry the QR secret only in the URL fragment, which browsers
+ * never send to a server. Only the paid-order message may include them.
+ *
+ * @return list<array{label:string,url:string}>
+ */
+function brvtal_mail_delivery_tickets(string $kind, mixed $tickets, bool $fixture): array
+{
+    if ($tickets === null) return [];
+    if ($kind !== 'payment_approved' || !is_array($tickets) || !array_is_list($tickets)
+        || $tickets === [] || count($tickets) > 400) {
+        throw new InvalidArgumentException('MAIL_TICKETS_INVALID');
+    }
+    $hosts = $fixture ? 'brvtal\.invalid' : '(?:www\.)?brvtal\.com\.co';
+    $out = [];
+    foreach ($tickets as $ticket) {
+        $label = is_array($ticket) ? trim((string)($ticket['label'] ?? '')) : '';
+        $url = is_array($ticket) ? (string)($ticket['url'] ?? '') : '';
+        if ($label === '' || strlen($label) > 160 || preg_match('/[\x00-\x1f]/', $label)
+            || !preg_match('~^https://' . $hosts . '/mi-cuenta/boleta#BRVTAL:T1:[a-f0-9]{32}:[A-Za-z0-9_-]{43}$~D', $url)) {
+            throw new InvalidArgumentException('MAIL_TICKETS_INVALID');
+        }
+        $out[] = ['label'=>$label, 'url'=>$url];
+    }
+    return $out;
+}
+
 function brvtal_mail_delivery_render(PDO $pdo, string $kind, array $data): array
 {
     $definition = brvtal_mail_template_definition($kind, 'ticketing');
@@ -88,6 +115,7 @@ function brvtal_mail_delivery_render(PDO $pdo, string $kind, array $data): array
             throw new InvalidArgumentException('MAIL_LINK_NOT_PROTECTED');
         }
     }
+    $tickets = brvtal_mail_delivery_tickets($kind, $data['tickets'] ?? null, $fixture);
     $resolved = brvtal_mail_delivery_document($pdo,$kind);
     $copy = $resolved['document'];
     $replace = static fn(string $value): string => str_replace('{{event_name}}',$event,$value);
@@ -106,7 +134,23 @@ function brvtal_mail_delivery_render(PDO $pdo, string $kind, array $data): array
     $heroMarkup=$hero===null ? '' : '<p><img alt="" src="'.$escape($hero).'"
         style="max-width:100%;height:auto" width="560"></p>';
     $eventText=$event!=='' ? "Evento: ".$event."\n\n" : '';
-    $text=$title."\n\n".$eventText.$message."\n\n".$cta.': '.$link."\n\n".$footer;
+    $ticketText='';
+    $ticketHtml='';
+    foreach ($tickets as $ticket) {
+        $ticketText.=$ticket['label'].': '.$ticket['url']."\n";
+        $ticketHtml.='<p style="padding:6px 0"><a href="'.$escape($ticket['url']).'"'
+            .' style="display:inline-block;padding:14px 18px;border:2px solid '.$theme['accent']
+            .';color:'.$theme['foreground'].';text-decoration:underline;font-weight:bold">'
+            .$escape($ticket['label']).'</a></p>';
+    }
+    if ($tickets !== []) {
+        $ticketText="Tus boletas (abre cada enlace en la puerta para mostrar el QR; no lo compartas):\n"
+            .$ticketText."\n";
+        $ticketHtml='<p style="line-height:1.6"><strong>Tus boletas.</strong> Abre cada enlace en la puerta'
+            .' para mostrar el código QR. No compartas este correo: quien tenga el enlace puede entrar.</p>'
+            .$ticketHtml;
+    }
+    $text=$title."\n\n".$eventText.$message."\n\n".$ticketText.$cta.': '.$link."\n\n".$footer;
     $html='<!doctype html><html lang="es"><head><meta charset="utf-8">'
         .'<meta name="viewport" content="width=device-width,initial-scale=1"></head>'
         .'<body style="margin:0;padding:0;background:'.$theme['background'].';color:'.$theme['foreground'].';font-family:Arial,sans-serif">'
@@ -118,6 +162,7 @@ function brvtal_mail_delivery_render(PDO $pdo, string $kind, array $data): array
         .'<h1 style="font-size:26px;line-height:1.3">'.$escape($title).'</h1>'
         .($event!==''?'<p><strong>Evento:</strong> '.$escape($event).'</p>':'')
         .'<p style="white-space:pre-line;line-height:1.6">'.nl2br($escape($message),false).'</p>'
+        .$ticketHtml
         .'<p style="padding:18px 0"><a href="'.$escape($link).'"'
         .' style="display:inline-block;padding:14px 18px;background:'.$theme['accent']
         .';color:'.$theme['background'].';text-decoration:underline;font-weight:bold">'

@@ -97,8 +97,16 @@ function brvtal_ticket_mail_queue_order(
         }
     }
     $rendered = brvtal_ticket_mail_render($kind, $data, $db);
+    $text = $rendered['text'];
+    $html = $rendered['html'];
+    if (isset($data['tickets'])) {
+        // QR links are bearer credentials: never store them in clear text.
+        require_once __DIR__ . '/buyer_auth_mail_templates.php';
+        $text = brvtalBuyerMailSeal($text, 50000);
+        $html = brvtalBuyerMailSeal($html, 50000);
+    }
     $id = brvtal_ticket_mail_enqueue($db, "order:{$orderId}:{$kind}", "order:{$orderId}",
-        $recipient, $rendered['subject'], $rendered['text'], $rendered['html'],
+        $recipient, $rendered['subject'], $text, $html,
         $kind, $rendered['template_version']);
     brvtal_mail_history_record($db, $id, ['event_id'=>(int)$order['event_id'],
         'buyer_id'=>(int)$order['buyer_id'],'order_id'=>$orderId,'template_key'=>$kind]);

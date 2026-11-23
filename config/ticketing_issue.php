@@ -8,7 +8,7 @@ declare(strict_types=1);
  * only their SHA-256 digests are persisted. A lost secret must be reissued
  * under a separate, audited owner-authorized flow, never inferred from its hash.
  */
-function brvtal_ticket_issue_consume(PDO $db, int $outboxId): array
+function brvtal_ticket_issue_consume(PDO $db, int $outboxId, ?callable $deliver = null): array
 {
     if ($outboxId < 1 || $db->inTransaction()) {
         throw new DomainException('ISSUE_INVALID_REQUEST');
@@ -105,6 +105,11 @@ function brvtal_ticket_issue_consume(PDO $db, int $outboxId): array
             $finish->execute([$outboxId]);
             if ($finish->rowCount() !== 1) {
                 throw new DomainException('ISSUE_BUSY');
+            }
+            // The one-time secrets reach the delivery layer inside this same
+            // transaction: if delivery cannot be queued, nothing is issued.
+            if ($deliver !== null) {
+                $deliver($db, (int)$orderId, $tickets);
             }
             $db->commit();
             return ['state'=>'issued', 'tickets'=>$tickets];

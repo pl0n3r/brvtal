@@ -1,0 +1,44 @@
+/* #1945: entry pass shown at the door. The QR sits on a white plate with a
+   quiet zone so cheap scanners read it in a dark club. */
+.ticket-shell{
+  max-width:420px;
+  margin:0 auto;
+  padding:24px 16px 40px;
+  position:relative;
+  z-index:1;
+}
+.ticket-pass,.ticket-error{display:grid;gap:14px;justify-items:center;text-align:center}
+.ticket-pass[hidden],.ticket-error[hidden]{display:none}
+.ticket-title{
+  margin:0;
+  font-family:"Broken Glass","Barlow Condensed",sans-serif;
+  font-weight:400;
+  font-size:clamp(40px,11vw,64px);
+  line-height:.95;
+  text-wrap:balance;
+}
+.ticket-lead{margin:0;max-width:34ch;color:var(--access-muted,#b6b2ab);font-size:18px;text-wrap:pretty}
+.ticket-code{
+  display:grid;
+  place-items:center;
+  padding:20px;
+  background:#fff;
+  border-radius:8px;
+  box-shadow:0 0 0 1px rgba(255,255,255,.1),0 24px 60px -24px rgba(0,0,0,.9);
+}
+.ticket-code img,.ticket-code canvas{display:block;max-width:100%;height:auto}
+.ticket-ref{margin:0;font-size:16px;letter-spacing:.04em}
+.ticket-ref-id{font-variant-numeric:tabular-nums;font-weight:700}
+.ticket-tips{
+  margin:6px 0 0;
+  padding:0;
+  list-style:none;
+  display:grid;
+  gap:8px;
+  max-width:34ch;
+  font-size:16px;
+  line-height:1.4;
+  color:var(--access-muted,#b6b2ab);
+}
+.ticket-actions{margin:8px 0 0}
+.ticket-actions .access-submit{min-height:44px;display:inline-flex;align-items:center;padding:0 20px}
