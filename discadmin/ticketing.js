@@ -15,6 +15,7 @@ window.BRVTALTicketing = (() => {
     mail:'Correos', settings:'Ajustes'
   };
   let stopDoor = null;
+  let stopMail = null;
   let selectionGeneration = 0;
   function element(tag, text, className) {
     const node = document.createElement(tag);
@@ -36,6 +37,7 @@ window.BRVTALTicketing = (() => {
     panel.setAttribute('aria-labelledby', active.id);
     const generation = ++selectionGeneration;
     if (stopDoor) { stopDoor(); stopDoor = null; }
+    if (stopMail) { stopMail(); stopMail = null; }
     panel.replaceChildren(element('h2', titles[key]), element('p', descriptions[key], 'ticketing-empty'));
     if (key === 'door') {
       const launch = element('button', 'Abrir lector móvil de puerta', 'btn ghost');
@@ -128,6 +130,31 @@ window.BRVTALTicketing = (() => {
       }).catch(() => {
         if (panel.isConnected && panel.getAttribute('aria-labelledby') === active.id)
           panel.replaceChildren(element('p', 'Promos no disponibles.', 'ticketing-error'));
+      });
+    }
+    if (key === 'mail') {
+      // Load one editor surface under the existing ticketing panel; no second shell.
+      if (!document.querySelector('link[data-brvtal-ticketing-mail]')) {
+        const style = document.createElement('link');
+        style.rel = 'stylesheet';
+        style.href = '/discadmin/ticketing-mail-templates.css';
+        style.dataset.brvtalTicketingMail = '1';
+        document.head.append(style);
+      }
+      import('/discadmin/ticketing-mail-templates.js').then(mod => {
+        if (!panel.isConnected || panel.getAttribute('aria-labelledby') !== active.id
+            || generation !== selectionGeneration) return;
+        stopMail = mod.mount(panel, () => panel.isConnected
+          && panel.getAttribute('aria-labelledby') === active.id
+          && generation === selectionGeneration, root.dataset.ticketingRole || '');
+      }).catch(() => {
+        if (panel.isConnected && panel.getAttribute('aria-labelledby') === active.id
+            && generation === selectionGeneration) {
+          const retry = element('button', 'Reintentar editor de correos', 'btn ghost');
+          retry.type = 'button';
+          retry.addEventListener('click', () => select(root, 'mail'));
+          panel.replaceChildren(element('p', 'No se pudo cargar el editor de correos.', 'ticketing-error'), retry);
+        }
       });
     }
     if (key === 'settings') {
