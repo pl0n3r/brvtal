@@ -9,10 +9,13 @@ header('Cache-Control: no-store, private');
 header('X-Content-Type-Options: nosniff');
 brvtal_admin_require();
 $method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
-if (!in_array($method, ['GET','POST'], true)) {
+$writingInventory = $method === 'POST';
+if (!$writingInventory && $method !== 'GET') {
     json_response(['ok'=>false,'error'=>'METHOD_NOT_ALLOWED'], 405, ['Allow'=>'GET, POST']);
 }
-if ($method === 'POST') brvtal_admin_require_csrf();
+if ($writingInventory) {
+    brvtal_admin_require_csrf();
+}
 try {
     $pdo = db();
     $q = $pdo->prepare('SELECT staff_role FROM admins WHERE id=? AND is_active=1 LIMIT 1');
@@ -25,12 +28,17 @@ try {
     if ($method === 'GET') {
         json_response(['ok'=>true] + brvtal_ticket_inventory_admin_read($pdo, $eventId));
     }
-    if (!str_starts_with(strtolower((string)($_SERVER['CONTENT_TYPE'] ?? '')), 'application/json')
-        || (int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 8192) {
+    $typeHeader = (string)($_SERVER['CONTENT_TYPE'] ?? '');
+    $mimeType = strtolower(trim(explode(';', $typeHeader, 2)[0]));
+    $maximumBytes = 8192;
+    if ($mimeType !== 'application/json'
+        || (int)($_SERVER['CONTENT_LENGTH'] ?? 0) > $maximumBytes) {
         json_response(['ok'=>false,'error'=>'INVALID_CONTENT_TYPE'], 415);
     }
-    $raw = file_get_contents('php://input', false, null, 0, 8193);
-    if (!is_string($raw) || strlen($raw) > 8192) throw new InvalidArgumentException('INVENTORY_INVALID_INPUT');
+    $raw = file_get_contents('php://input', false, null, 0, $maximumBytes + 1);
+    if (!is_string($raw) || strlen($raw) > $maximumBytes) {
+        throw new InvalidArgumentException('INVENTORY_INVALID_INPUT');
+    }
     $input = json_decode($raw, true, 8, JSON_THROW_ON_ERROR);
     json_response(['ok'=>true] + brvtal_ticket_inventory_admin_save($pdo, $eventId, $input));
 } catch (InvalidArgumentException | JsonException) {
