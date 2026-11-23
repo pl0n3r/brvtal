@@ -25,4 +25,16 @@ foreach (['function brvtal_public_ticket_checkout_prepare_cart', 'function brvta
 }
 checkoutSessionAssert(str_contains($source, "SET SESSION innodb_lock_wait_timeout = 5"), 'lock wait capped at 5 s');
 checkoutSessionAssert(substr_count($http, 'brvtal_public_ticket_checkout_log($error') >= 3, 'every failure path is logged');
+// #1943: without a session the guest path requires same-origin, a validated buyer and a rate limit;
+// with a session the CSRF token is still required.
+$guestAt = strpos($http, "array_key_exists('buyer', \$body)");
+checkoutSessionAssert($guestAt !== false, 'guest path present');
+$guestBlock = substr($http, $guestAt, (int)strpos($http, 'brvtal_public_ticket_checkout_prepare(') - $guestAt);
+foreach (['brvtal_public_ticket_checkout_same_origin()', 'brvtal_public_ticket_checkout_guest_input(',
+    'brvtal_password_rate_limit_failure(', 'brvtal_public_ticket_checkout_guest_buyer('] as $piece) {
+    checkoutSessionAssert(str_contains($guestBlock, $piece), "guest path uses {$piece}");
+}
+checkoutSessionAssert(strpos($guestBlock, 'same_origin()') < strpos($guestBlock, 'guest_buyer('), 'origin checked before any buyer write');
+checkoutSessionAssert(str_contains($guestBlock, "elseif (!\$csrfValid)"), 'signed-in buyers still need CSRF');
+checkoutSessionAssert(str_contains($http, "unset(\$body['buyer'])"), 'buyer field never reaches the order input');
 echo "BRVTAL #1940 checkout session/lock contract passed\n";

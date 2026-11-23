@@ -473,6 +473,96 @@ function brvtal_public_ticket_checkout_log(Throwable $error, string $action): vo
     ]);
 }
 
+/** #1943 · Consent recorded for buyers who check out without an account. */
+const BRVTAL_GUEST_CHECKOUT_CONSENT = 'checkout-v1';
+
+/** Strict guest buyer input: {email, name, consent: true, website: ""} (website is a honeypot). */
+function brvtal_public_ticket_checkout_guest_input(mixed $guest): array
+{
+    require_once __DIR__ . '/buyer_auth.php';
+    if (!is_array($guest) || array_is_list($guest) || array_diff(array_keys($guest), ['email','name','consent','website'])) {
+        throw new InvalidArgumentException('GUEST_INVALID');
+    }
+    if (($guest['website'] ?? '') !== '') throw new InvalidArgumentException('GUEST_INVALID');
+    $email = brvtalBuyerEmail($guest['email'] ?? null);
+    if ($email === null) throw new InvalidArgumentException('GUEST_EMAIL_INVALID');
+    $name = is_string($guest['name'] ?? null) ? trim((string)preg_replace('/\s+/u', ' ', $guest['name'])) : '';
+    if (mb_strlen($name) < 2 || mb_strlen($name) > 120 || preg_match('/\p{C}/u', $name) === 1) {
+        throw new InvalidArgumentException('GUEST_NAME_INVALID');
+    }
+    if (($guest['consent'] ?? null) !== true) throw new InvalidArgumentException('GUEST_CONSENT_REQUIRED');
+    return ['email'=>$email, 'name'=>$name];
+}
+
+/**
+ * #1943 · The buyer for a checkout without an account: the existing account for this
+ * email (never a blocked one) or a new 'guest' with name and consent. Tickets are only
+ * ever delivered to this email, so reusing an account does not need its password.
+ */
+function brvtal_public_ticket_checkout_guest_buyer(PDO $db, array $guest): int
+{
+    if ($db->inTransaction()) throw new LogicException('GUEST_TRANSACTION_ALREADY_ACTIVE');
+    for ($attempt = 0; $attempt < 2; $attempt++) {
+        $db->beginTransaction();
+        try {
+            $q = $db->prepare('SELECT id,status,full_name FROM ticket_buyers WHERE email=? FOR UPDATE');
+            $q->execute([$guest['email']]);
+            $row = $q->fetch(PDO::FETCH_ASSOC);
+            if ($row) {
+                if ($row['status'] === 'blocked') throw new DomainException('BUYER_BLOCKED');
+                if (trim((string)($row['full_name'] ?? '')) === '') {
+                    $db->prepare('UPDATE ticket_buyers SET full_name=? WHERE id=?')->execute([$guest['name'], (int)$row['id']]);
+                }
+                $db->commit();
+                return (int)$row['id'];
+            }
+            $db->prepare("INSERT INTO ticket_buyers(public_id,email,full_name,status,consent_version,consent_recorded_at)
+                VALUES (?,?,?,'guest',?,UTC_TIMESTAMP(6))")
+                ->execute([random_bytes(16), $guest['email'], $guest['name'], BRVTAL_GUEST_CHECKOUT_CONSENT]);
+            $id = (int)$db->lastInsertId();
+            $db->commit();
+            return $id;
+        } catch (PDOException $e) {
+            if ($db->inTransaction()) $db->rollBack();
+            // A concurrent first purchase created the same email: read it on the next pass.
+            if ((int)($e->errorInfo[1] ?? 0) !== 1062 || $attempt > 0) throw $e;
+        } catch (Throwable $e) {
+            if ($db->inTransaction()) $db->rollBack();
+            throw $e;
+        }
+    }
+    throw new DomainException('CHECKOUT_RETRYABLE');
+}
+
+/** #1943 · Without a session there is no CSRF token: only accept requests from this site. */
+function brvtal_public_ticket_checkout_same_origin(): bool
+{
+    $site = strtolower((string)($_SERVER['HTTP_SEC_FETCH_SITE'] ?? ''));
+    if ($site !== '') return $site === 'same-origin';
+    $origin = (string)($_SERVER['HTTP_ORIGIN'] ?? '');
+    $host = (string)($_SERVER['HTTP_HOST'] ?? '');
+    return $host !== '' && hash_equals('https://' . strtolower($host), strtolower($origin));
+}
+
+/** #1943 · Opaque per-order token (the order's random public_id) for status without a session. */
+function brvtal_public_ticket_checkout_order_token(PDO $db, int $orderId): string
+{
+    $q = $db->prepare('SELECT LOWER(HEX(public_id)) FROM ticket_orders WHERE id=?');
+    $q->execute([$orderId]);
+    return (string)$q->fetchColumn();
+}
+
+function brvtal_public_ticket_checkout_state_by_token(PDO $db, int $eventId, string $token): string
+{
+    if (!preg_match('/^[a-f0-9]{32}$/D', $token)) return 'unverified';
+    $q = $db->prepare('SELECT status FROM ticket_orders WHERE public_id=UNHEX(?) AND event_id=? LIMIT 1');
+    $q->execute([$token, $eventId]);
+    return match ($q->fetchColumn()) {
+        'paid' => 'approved', 'failed' => 'failed', 'cancelled' => 'cancelled',
+        'draft','pending' => 'pending', default => 'unverified',
+    };
+}
+
 /** Only verified database state, updated by the signed T08 webhook, is authoritative. */
 function brvtal_public_ticket_checkout_state(PDO $db, int $eventId, int $buyerId, int $orderId): string
 {
@@ -503,24 +593,46 @@ function brvtal_public_ticket_checkout_http(PDO $db, int $eventId): void
         // #1940: nothing below writes the session; releasing its lock means a slow
         // checkout can never block the buyer's other requests.
         if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
-        if ($buyerId < 1) json_response(['ok'=>false,'error'=>'AUTH_REQUIRED'],401);
         if ($action==='status') {
-            if (($_SERVER['REQUEST_METHOD']??'')!=='GET'
-                || !preg_match('/^[1-9][0-9]{0,17}$/D',(string)($_GET['order_id']??''))) {
+            if (($_SERVER['REQUEST_METHOD']??'')!=='GET') json_response(['ok'=>false,'error'=>'INVALID_REQUEST'],422);
+            // #1943: a guest checks its order with the opaque order token, no session needed.
+            $token = (string)($_GET['order_token'] ?? '');
+            if ($token !== '') {
+                json_response(['ok'=>true,'state'=>brvtal_public_ticket_checkout_state_by_token($db,$eventId,$token)],200);
+            }
+            if ($buyerId < 1) json_response(['ok'=>false,'error'=>'AUTH_REQUIRED'],401);
+            if (!preg_match('/^[1-9][0-9]{0,17}$/D',(string)($_GET['order_id']??''))) {
                 json_response(['ok'=>false,'error'=>'INVALID_REQUEST'],422);
             }
             $state = brvtal_public_ticket_checkout_state($db,$eventId,$buyerId,(int)$_GET['order_id']);
             json_response(['ok'=>true,'state'=>$state],200);
         }
-        if (($_SERVER['REQUEST_METHOD']??'')!=='POST' || !$csrfValid) {
+        if (($_SERVER['REQUEST_METHOD']??'')!=='POST') {
             json_response(['ok'=>false,'error'=>'CSRF_OR_METHOD'],403);
         }
         $body = input_json();
+        if ($buyerId < 1) {
+            // #1943: checkout without an account; the buyer is identified by email.
+            if (!array_key_exists('buyer', $body)) json_response(['ok'=>false,'error'=>'AUTH_REQUIRED'],401);
+            if (!brvtal_public_ticket_checkout_same_origin()) json_response(['ok'=>false,'error'=>'CSRF_OR_METHOD'],403);
+            $guest = brvtal_public_ticket_checkout_guest_input($body['buyer']);
+            require_once __DIR__ . '/password_rate_limit.php';
+            $limit = brvtal_password_rate_limit_failure('__buyer_guest_checkout_email__' . $guest['email'],
+                __DIR__ . '/../storage/buyer_rate_limits', null, '__account__');
+            if ($limit['limited']) json_response(['ok'=>false,'error'=>'RATE_LIMITED'],429);
+            $buyerId = brvtal_public_ticket_checkout_guest_buyer($db, $guest);
+        } elseif (!$csrfValid) {
+            json_response(['ok'=>false,'error'=>'CSRF_OR_METHOD'],403);
+        }
+        unset($body['buyer']); // A signed-in buyer keeps their account; the field is ignored.
         $result = brvtal_public_ticket_checkout_prepare($db,$eventId,$buyerId,$body);
+        $result['order_token'] = brvtal_public_ticket_checkout_order_token($db, (int)$result['order_id']);
         json_response(['ok'=>true]+$result,200);
     } catch (InvalidArgumentException $error) {
         brvtal_public_ticket_checkout_log($error, $action);
-        json_response(['ok'=>false,'error'=>'INVALID_REQUEST'],422);
+        $code = $error->getMessage();
+        // Guest field errors are safe to name so the form can point at the field.
+        json_response(['ok'=>false,'error'=>str_starts_with($code, 'GUEST_') ? $code : 'INVALID_REQUEST'],422);
     } catch (DomainException $error) {
         brvtal_public_ticket_checkout_log($error, $action);
         $reason = $error->getMessage();
