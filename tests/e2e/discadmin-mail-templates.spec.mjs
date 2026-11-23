@@ -1,5 +1,5 @@
 import {test, expect} from '@playwright/test';
-import {readFileSync} from 'node:fs';
+import {readFileSync,mkdirSync,writeFileSync} from 'node:fs';
 
 const shellScript = readFileSync('discadmin/ticketing.js','utf8');
 const moduleScript = readFileSync('discadmin/ticketing-mail-templates.js','utf8');
@@ -140,8 +140,12 @@ test('AC-01/AC-04: editor real en el shell a 390/1440, preview HTML/texto y foco
     await expect(editor.getByText(/enlaces de verificación y recuperación/)).toBeVisible();
     await expect(editor.locator('[data-mail-preview-frame]').contentFrame().locator('h1'))
       .toContainText('Tu compra está confirmada');
-    await info.attach('1888-antes-'+width+'.png',{body:await page.screenshot({fullPage:true}),
-      contentType:'image/png'});
+    // The existing CI visual-artifact uploader collects this ephemeral test-results prefix.
+    const visualDir='test-results/public-concept05-fidelity-mail-1888';
+    mkdirSync(visualDir,{recursive:true});
+    const before=await page.screenshot({fullPage:true});
+    writeFileSync(visualDir+'/brvtal-correo-1888-'+width+'-antes.png',before);
+    await info.attach('1888-antes-'+width+'.png',{body:before,contentType:'image/png'});
     await editor.getByRole('textbox',{name:'Título'}).fill('Bienvenidos al concierto');
     await editor.getByRole('button',{name:'{{event_name}}'}).click();
     await editor.getByRole('button',{name:'Móvil'}).click();
@@ -165,8 +169,9 @@ test('AC-01/AC-04: editor real en el shell a 390/1440, preview HTML/texto y foco
     await expect(editor.getByRole('tab',{name:'Historial'})).toBeFocused();
     await editor.getByRole('tab',{name:'Plantillas'}).click();
     await expect(editor.getByRole('textbox',{name:'Título'})).toHaveValue('Bienvenidos al concierto');
-    await info.attach('1888-despues-'+width+'.png',{body:await page.screenshot({fullPage:true}),
-      contentType:'image/png'});
+    const after=await page.screenshot({fullPage:true});
+    writeFileSync(visualDir+'/brvtal-correo-1888-'+width+'-despues.png',after);
+    await info.attach('1888-despues-'+width+'.png',{body:after,contentType:'image/png'});
     expect(state.requests.some(x=>x.action==='preview')).toBe(true);
   }
 });
