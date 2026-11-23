@@ -59,10 +59,11 @@ test('dashboard PHP runtime label comes from the server runtime instead of a fix
   expect(indexPhp).not.toContain("$phpRuntime = '8.3+'");
 });
 
-test('admin release metadata preserves diagnostics without showing internal jargon', async () => {
+test('admin release metadata shows the product version and keeps diagnostics hidden', async () => {
   expect(indexCore).toContain('data-testid="admin-product-version"');
   expect(indexCore).toContain('data-release="<?= htmlspecialchars(BRVTAL_APP_VERSION');
-  expect(indexCore).not.toContain('BRVTAL v<?= htmlspecialchars(BRVTAL_APP_VERSION');
+  // #1925: the owner wants the deployed product version visible in the sidebar footer.
+  expect(indexCore).toContain("BRVTAL v<?= htmlspecialchars(BRVTAL_APP_VERSION, ENT_QUOTES, 'UTF-8') ?>");
   expect(indexCore).toContain('data-testid="admin-product-environment"');
   expect(indexCore).toContain('data-testid="admin-deploy-source"');
   expect(indexCore).toContain('SOURCE UNAVAILABLE');

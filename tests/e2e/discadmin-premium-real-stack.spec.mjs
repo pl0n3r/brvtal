@@ -40,7 +40,7 @@ test('real DISCADMIN shows the canonical product version across navigation and r
 
   const expected = expectedProductVersion;
   await expect(page.getByTestId('admin-product-version')).toHaveAttribute('data-release', expected);
-  await expect(page.getByTestId('admin-product-version')).toContainText('BRVTAL');
+  await expect(page.getByTestId('admin-product-version')).toContainText(`BRVTAL v${expected}`);
 
   await page.evaluate(async () => {
     if (typeof window.go !== 'function') throw new Error('DISCADMIN navigation is unavailable');

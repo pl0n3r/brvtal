@@ -41,7 +41,8 @@ html[data-discadmin-appearance] .side .sub{
   letter-spacing:.04em;
   color:var(--admin-muted);
 }
-html[data-discadmin-appearance] .ia-navgroup,
+/* Group heading only. The V3 menu's .ia-navgroup is a plain wrapper around
+   each root; giving it this heading margin stretched every root by ~24px. */
 html[data-discadmin-appearance] .navgroup{
   margin:18px 10px 6px;
   font-size:11px;

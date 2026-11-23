@@ -1338,7 +1338,7 @@ function render(){
   <div class="sidefoot">
    <div class="brvtal-admin-release">
     <span class="version" data-testid="admin-product-version" data-release="<?= htmlspecialchars(BRVTAL_APP_VERSION, ENT_QUOTES, 'UTF-8') ?>">
-     BRVTAL
+     BRVTAL v<?= htmlspecialchars(BRVTAL_APP_VERSION, ENT_QUOTES, 'UTF-8') ?>
     </span>
     <span class="build" data-testid="admin-product-environment">
      <?= BRVTAL_APP_ENV === 'PRODUCTION' ? 'Producción' : htmlspecialchars(ucfirst(strtolower(BRVTAL_APP_ENV)), ENT_QUOTES, 'UTF-8') ?>
