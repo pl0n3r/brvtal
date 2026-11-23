@@ -163,6 +163,8 @@ test('AC-01/AC-04: editor real en el shell a 390/1440, preview HTML/texto y foco
     await editor.getByRole('tab',{name:'Plantillas'}).focus();
     await page.keyboard.press('ArrowRight');
     await expect(editor.getByRole('tab',{name:'Historial'})).toBeFocused();
+    await editor.getByRole('tab',{name:'Plantillas'}).click();
+    await expect(editor.getByRole('textbox',{name:'Título'})).toHaveValue('Bienvenidos al concierto');
     await info.attach('1888-despues-'+width+'.png',{body:await page.screenshot({fullPage:true}),
       contentType:'image/png'});
     expect(state.requests.some(x=>x.action==='preview')).toBe(true);

@@ -43,12 +43,12 @@ const make = (tag, text, className) => {
 const validColor = value => /^#[0-9a-fA-F]{6}$/.test(String(value));
 const allowedPath = path => {
   const value = String(path || '');
-  return /^\/?uploads\/[a-zA-Z0-9._/-]+\.(?:png|jpe?g|gif|webp)$/i.test(value)
-    && !value.includes('..') ? (value.startsWith('/') ? value : '/' + value) : '';
+  if (!/^\/?uploads\/[a-z0-9._/-]+\.(?:png|jpe?g|gif|webp)$/i.test(value) || value.includes('..')) return '';
+  return value.startsWith('/') ? value : '/' + value;
 };
 const textContrast = hex => {
   if (!validColor(hex)) return '#111111';
-  const colors = [1,3,5].map(i => parseInt(hex.slice(i,i+2),16)/255);
+  const colors = [1,3,5].map(i => Number.parseInt(hex.slice(i,i+2),16)/255);
   const lum = colors.map(x => x<=0.04045 ? x/12.92 : Math.pow((x+0.055)/1.055,2.4));
   return 0.2126*lum[0]+0.7152*lum[1]+0.0722*lum[2] > 0.179 ? '#111111' : '#ffffff';
 };
@@ -62,9 +62,13 @@ async function getCsrf() {
 }
 async function request(view, data, options = {}) {
   const post = !!data;
-  const url = post ? ENDPOINT : ENDPOINT + '?view=' + encodeURIComponent(view)
-    + (options.key ? '&key=' + encodeURIComponent(options.key) + '&scope=' + encodeURIComponent(options.scope) : '')
-    + (options.versionId ? '&version_id=' + options.versionId : '');
+  const params = new URLSearchParams({view});
+  if (options.key) {
+    params.set('key',options.key);
+    params.set('scope',options.scope);
+  }
+  if (options.versionId) params.set('version_id',String(options.versionId));
+  const url = post ? ENDPOINT : ENDPOINT + '?' + params;
   const headers = post ? {'Content-Type':'application/json','X-CSRF-Token':await getCsrf()} : {};
   const response = await fetch(url,{
     method:post?'POST':'GET',credentials:'same-origin',cache:'no-store',headers,
@@ -87,11 +91,11 @@ function emailHtml(doc, assets) {
   const buttonText = textContrast(accent);
   const logo = assets.get(Number(theme.logo_media_id));
   const hero = assets.get(Number(theme.hero_media_id));
-  const image = (item,alt,width) => item && item.path
+  const image = (item,alt,width) => item?.path
     ? '<img src="' + safe(item.path) + '" alt="' + safe(alt) +
       '" width="' + width + '" style="display:block;max-width:100%;height:auto;border:0;margin:0 auto 20px;">'
     : '';
-  const isTheme = !Object.prototype.hasOwnProperty.call(doc,'subject');
+  const isTheme = !Object.hasOwn(doc,'subject');
   return '<!doctype html><html lang="es"><head><meta charset="utf-8">'
     + '<meta name="viewport" content="width=device-width,initial-scale=1">'
     + '<meta http-equiv="Content-Security-Policy" content="default-src &#39;none&#39;; img-src https: http:; style-src &#39;unsafe-inline&#39;">'
@@ -113,6 +117,11 @@ function emailHtml(doc, assets) {
     + '</p><p style="font-size:11px;line-height:1.5;margin:14px 0 0;color:' + fg
     + ';">Los enlaces de seguridad no se pueden editar: se generan en el servidor al enviar.</p>'
     + '</td></tr></table></body></html>';
+}
+function plainText(copy) {
+  if(!copy)return '';
+  return ['Asunto: '+(copy.subject||'Vista de marca'),copy.preheader||'',copy.title||'',copy.message||'',copy.cta||'',copy.footer||'',
+    'Los enlaces privados se generan en el servidor; no aparecen en esta prueba.'].join('\n\n');
 }
 export function mount(panel, active = () => true, role = '') {
   if (!panel) return () => {};
@@ -179,7 +188,10 @@ export function mount(panel, active = () => true, role = '') {
     hex.dataset.mailColor=name;hex.value=picker.value;hex.spellcheck=false;
     picker.disabled=!writable;hex.disabled=!writable;
     picker.addEventListener('input',()=>{hex.value=picker.value;onEdit();});
-    hex.addEventListener('input',()=>{if(validColor(hex.value))picker.value=hex.value;onEdit();});
+    hex.addEventListener('input',()=>{
+      if(validColor(hex.value)) picker.value=hex.value;
+      onEdit();
+    });
     row.append(picker,hex);wrap.append(row);return wrap;
   }
   function mediaControl(name,label) {
@@ -228,12 +240,12 @@ export function mount(panel, active = () => true, role = '') {
       el.disabled=busy || !writable || (el.dataset.mailAction==='publish'&&(!draftId||dirty));
     }
     const state=workspace.querySelector('[data-mail-draft-state]');
-    if(state)state.textContent=dirty?'Sin guardar':draftId?'Borrador #'+draftId:'Plantilla activa o predeterminada';
-  }
-  function plainText(copy) {
-    if(!copy)return '';
-    return ['Asunto: '+(copy.subject||'Vista de marca'),copy.preheader||'',copy.title||'',copy.message||'',copy.cta||'',copy.footer||'',
-      'Los enlaces privados se generan en el servidor; no aparecen en esta prueba.'].join('\n\n');
+    if(state){
+      let label='Plantilla activa o predeterminada';
+      if(draftId) label='Borrador #'+draftId;
+      if(dirty) label='Sin guardar';
+      state.textContent=label;
+    }
   }
   function paintPreview(){
     const iframe=workspace.querySelector('[data-mail-preview-frame]');
@@ -358,7 +370,7 @@ export function mount(panel, active = () => true, role = '') {
     const reload=make('button','Recargar','btn ghost');reload.type='button';
     reload.addEventListener('click',()=>{
       if(dirty&&!window.confirm('¿Descartar cambios sin guardar?'))return;
-      selectItem(current);
+      void selectItem(current);
     });
     const test=make('button','Enviar prueba','btn ghost');test.type='button';test.disabled=true;
     test.title='Solo disponible cuando la integración segura de pruebas esté habilitada y autorizada.';
@@ -397,7 +409,7 @@ export function mount(panel, active = () => true, role = '') {
     }
     choose.addEventListener('change',()=>{
       const selected=catalog.find(entry=>entry.key===choose.value);
-      if(selected)selectItem(selected,'history');
+      if(selected) void selectItem(selected,'history');
     });
     header.append(choose);
     const list=make('div',undefined,'mail-templates__history-list');
@@ -405,7 +417,9 @@ export function mount(panel, active = () => true, role = '') {
     for(const item of history){
       const row=make('div',undefined,'mail-templates__history-item');
       const meta=make('div');
-      const label=item.kind==='draft'?'Borrador':item.kind==='rollback'?'Restauración':'Publicada';
+      let label='Publicada';
+      if(item.kind==='draft')label='Borrador';
+      if(item.kind==='rollback')label='Restauración';
       meta.append(make('strong',label+' · versión '+item.revision),
         make('small','ID '+item.version_id+' · '+(item.created_at||'Fecha no disponible')));
       row.append(meta);
@@ -420,6 +434,10 @@ export function mount(panel, active = () => true, role = '') {
     content.append(header,list);
   }
   function activateTab(tab) {
+    // Cambiar entre subpestañas no descarta cambios locales pendientes.
+    if(tab==='history' && dirty && workspace.querySelector('[data-mail-color]')){
+      documentCopy=collect();
+    }
     for(const button of workspace.querySelectorAll('[data-mail-tab]')){
       const selected=button.dataset.mailTab===tab;
       button.setAttribute('aria-selected',String(selected));button.tabIndex=selected?0:-1;
@@ -430,43 +448,68 @@ export function mount(panel, active = () => true, role = '') {
   }
   async function readHistory(item) {
     try{
-      const data=await request('history',null,selection()||{key:item.key,scope:item.scope});
+      const data=await request('history',null,{key:item.key,scope:item.scope});
       return Array.isArray(data.items)?data.items:[];
     }catch{return [];}
+  }
+  const isCurrent=id=>alive && active() && id===epoch;
+  async function loadUnpublishedDraft(item,id) {
+    const latest=history.find(x=>x.kind==='draft'&&!x.first_published_at&&!x.discarded_at);
+    if(!latest)return;
+    try{
+      const stored=await request('draft',null,{
+        key:item.key,scope:item.scope,versionId:latest.version_id
+      });
+      if(!isCurrent(id))return;
+      if(stored.document){
+        documentCopy=structuredClone(stored.document);
+        draftId=latest.version_id;
+      }
+    }catch{
+      if(isCurrent(id))showStatus('No se pudo cargar el borrador; se usa la versión activa.',true);
+    }
+  }
+  async function hydrateItem(item,id,tab) {
+    const [activeData,historyData]=await Promise.all([
+      request('active',null,{key:item.key,scope:item.scope}),
+      request('history',null,{key:item.key,scope:item.scope}).catch(()=>({items:[]}))
+    ]);
+    if(!isCurrent(id))return;
+    revision=Number(activeData.revision)||0;
+    activeId=activeData.version_id||null;
+    history=Array.isArray(historyData.items)?historyData.items:[];
+    item.lastVersion=history.length?history[0].revision:(activeId||'base');
+    documentCopy=structuredClone(activeData.document||item.defaults);
+    await loadUnpublishedDraft(item,id);
+    if(!isCurrent(id))return;
+    activateTab(tab);
+    if(!status.textContent.includes('No se pudo')){
+      showStatus('Versión cargada. Guardar borrador no publica.');
+    }
   }
   async function selectItem(item,tab='templates'){
     if(busy)return;
     if(dirty && !window.confirm('Hay cambios sin guardar. ¿Descartarlos para abrir otra plantilla?'))return;
-    const id=++epoch;current=item;dirty=false;previewPayload=null;draftId=null;history=[];
-    showStatus('Cargando '+(NAMES[item.key]||item.key)+'…');setBusy(true);
+    const id=++epoch;
+    current=item;dirty=false;previewPayload=null;draftId=null;history=[];
+    showStatus('Cargando '+(NAMES[item.key]||item.key)+'…');
+    setBusy(true);
     try{
-      const [activeData,historyData]=await Promise.all([
-        request('active',null,{key:item.key,scope:item.scope}),
-        request('history',null,{key:item.key,scope:item.scope}).catch(()=>({items:[]}))
-      ]);
-      if(!alive||!active()||id!==epoch)return;
-      revision=Number(activeData.revision)||0;activeId=activeData.version_id||null;
-      history=Array.isArray(historyData.items)?historyData.items:[];
-      item.lastVersion=history.length?history[0].revision:(activeId||'base');
-      documentCopy=structuredClone(activeData.document||item.defaults);
-      const latest=history.find(x=>x.kind==='draft'&&!x.first_published_at&&!x.discarded_at);
-      if(latest){
-        try{
-          const stored=await request('draft',null,{key:item.key,scope:item.scope,versionId:latest.version_id});
-          if(!alive||!active()||id!==epoch)return;
-          if(stored.document){documentCopy=structuredClone(stored.document);draftId=latest.version_id;}
-        }catch{showStatus('No se pudo cargar el borrador; se usa la versión activa.',true);}
-      }
-      if(!alive||!active()||id!==epoch)return;
-      activateTab(tab);
-      if(!status.textContent.includes('No se pudo'))showStatus('Versión cargada. Guardar borrador no publica.');
+      await hydrateItem(item,id,tab);
     }catch(error){
-      if(id!==epoch||!alive||!active())return;
+      if(!isCurrent(id))return;
       content.replaceChildren(make('p',errorMessage(error),'mail-templates__error'));
-      const retry=make('button','Reintentar','btn ghost');retry.type='button';
-      retry.addEventListener('click',()=>selectItem(item,tab));
-      content.append(retry);showStatus(errorMessage(error),true);
-    }finally{if(id===epoch){setBusy(false);updateActions();}}
+      const retry=make('button','Reintentar','btn ghost');
+      retry.type='button';
+      retry.addEventListener('click',()=>{void selectItem(item,tab);});
+      content.append(retry);
+      showStatus(errorMessage(error),true);
+    }finally{
+      if(id===epoch){
+        setBusy(false);
+        updateActions();
+      }
+    }
   }
   async function saveDraft(){
     if(busy||!writable)return;
@@ -524,8 +567,10 @@ export function mount(panel, active = () => true, role = '') {
     const tabs=[...workspace.querySelectorAll('[data-mail-tab]')];
     const index=tabs.indexOf(document.activeElement);if(index<0)return;
     event.preventDefault();
-    const next=event.key==='Home'?0:event.key==='End'?tabs.length-1:
-      (index+(event.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;
+    let next=index;
+    if(event.key==='Home')next=0;
+    else if(event.key==='End')next=tabs.length-1;
+    else next=(index+(event.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;
     tabs[next].click();tabs[next].focus();
   });
   const start=async()=>{
@@ -533,7 +578,7 @@ export function mount(panel, active = () => true, role = '') {
     try{
       const response=await request('catalog');
       if(!alive||!active())return;
-      catalog=Array.isArray(response.items)?response.items.filter(x=>x&&x.key&&x.scope&&x.defaults):[];
+      catalog=Array.isArray(response.items)?response.items.filter(x=>x?.key&&x.scope&&x.defaults):[];
       if(!catalog.length)throw new Error('MAIL_API_UNAVAILABLE');
       setBusy(false);await selectItem(catalog[0]);
     }catch(error){
@@ -543,7 +588,7 @@ export function mount(panel, active = () => true, role = '') {
       retry.addEventListener('click',start);content.replaceChildren(retry);
     }
   };
-  start();
+  void start();
   return ()=>{
     alive=false;++epoch;
     if(previewTimer!==null)clearTimeout(previewTimer);

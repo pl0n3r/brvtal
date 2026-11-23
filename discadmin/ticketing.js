@@ -141,7 +141,7 @@ window.BRVTALTicketing = (() => {
         style.dataset.brvtalTicketingMail = '1';
         document.head.append(style);
       }
-      import('/discadmin/ticketing-mail-templates.js').then(mod => {
+      import('./ticketing-mail-templates.js').then(mod => {
         if (!panel.isConnected || panel.getAttribute('aria-labelledby') !== active.id
             || generation !== selectionGeneration) return;
         stopMail = mod.mount(panel, () => panel.isConnected
