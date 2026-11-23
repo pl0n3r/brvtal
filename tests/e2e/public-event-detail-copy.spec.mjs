@@ -18,7 +18,8 @@ test('future event has real purchase options without internal jargon or sold-out
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.setContent(render());
   await expect(page.locator('.entity-actions .event-buy-button')).toContainText('Comprar boletas');
-  await expect(page.locator('.entity-actions .event-buy-button')).toContainText('desde $31.000');
+  // #1935 Flyer: the price moves from the button to the offer line next to it.
+  await expect(page.locator('.event-flyer-offer')).toContainText('$31.000');
   await expect(page.locator('.entity-actions .event-buy-button')).toBeInViewport();
   await expect(page.locator('.entity-actions .event-secondary')).toContainText('Ver line-up');
   await expect(page.locator('#boletas .event-ticket-card')).toHaveCount(2);
@@ -31,12 +32,15 @@ test('future event has real purchase options without internal jargon or sold-out
   expect(await page.locator('.entity-image img').evaluate(el => getComputedStyle(el).objectFit)).toBe('contain');
 });
 
-test('mobile first-view copy comes before poster, title has no glitch and sticky purchase respects footer', async ({ page }) => {
+test('mobile flyer: poster first, purchase still in the first view, title has no glitch and sticky purchase respects footer', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.setContent(render({ title: 'Activación lujuria' }));
   const image = await page.locator('.entity-image').boundingBox();
   const copy = await page.locator('.entity-copy').boundingBox();
-  expect(image && copy && copy.y + copy.height <= image.y + 1).toBeTruthy();
+  // #1935 (approved alternative A): the poster leads; the main action stays above the fold.
+  expect(image && copy && image.y + image.height <= copy.y + 1).toBeTruthy();
+  const cta = await page.locator('.entity-actions .event-buy-button').boundingBox();
+  expect(cta && cta.y + cta.height <= 844).toBeTruthy();
   const title = page.locator('main h1');
   expect(await title.evaluate(el => getComputedStyle(el, '::before').content)).toBe('none');
   expect(await title.evaluate(el => getComputedStyle(el, '::after').content)).toBe('none');

@@ -43,7 +43,7 @@ test('#1929 390/1440: carrito de varios tipos con cupo del servidor, teclado y t
     await open(page);
     const cart = page.locator('#brvtal-ticket-cart');
     await expect(cart).toBeVisible();
-    await expect(page.locator('.event-buy-button').first()).toHaveAttribute('href','#boletas');
+    await expect(page.locator('.event-buy-button').first()).toHaveAttribute('href','/events/t13-fixture#boletas');
     await expect(payButton(page)).toBeDisabled();
     await expect(page.locator('[data-cart-total]')).toHaveText('$0');
     await plus(page, 5).click();

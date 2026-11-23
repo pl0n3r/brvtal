@@ -87,7 +87,7 @@ test('venta en línea apagada: se ven las boletas y un aviso, sin botón de pago
   await expect(page.locator('#boletas .event-ticket-card').first()).toContainText('25,000 COP');
   await expect(page.locator('#boletas .event-buy-note')).toContainText('todavía no está abierta');
   await expect(page.locator('.entity-actions .event-buy-button')).toHaveText('Ver boletas');
-  await expect(page.locator('.entity-actions .event-buy-button')).toHaveAttribute('href', '#boletas');
+  await expect(page.locator('.entity-actions .event-buy-button')).toHaveAttribute('href', '/events/cart-fixture#boletas');
   await expect(page.locator('[data-cart-pay]')).toHaveCount(0);
 });
 
