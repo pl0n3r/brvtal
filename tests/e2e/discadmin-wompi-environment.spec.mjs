@@ -196,6 +196,10 @@ test('#1933: recorta espacios al guardar y explica el prefijo esperado sin envia
     const error = wompi.locator('[data-secret-row="BRVTAL_TICKET_WOMPI_INTEGRITY_SECRET"] [data-secret-error]');
     await expect(error).toHaveText(/Debe empezar por test_integrity_/);
     await expect(integrity).toHaveAttribute('aria-invalid', 'true');
+    // The visible error is programmatically tied to its field for screen readers.
+    const errorId = await error.getAttribute('id');
+    expect(errorId).toBeTruthy();
+    await expect(integrity).toHaveAttribute('aria-errormessage', errorId);
     await expect(integrity).toBeFocused();
     expect(await page.evaluate(() => window.wompiFixture.writes.length)).toBe(0);
     await integrity.scrollIntoViewIfNeeded();
