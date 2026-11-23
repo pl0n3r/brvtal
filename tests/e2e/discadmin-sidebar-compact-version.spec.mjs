@@ -38,6 +38,12 @@ for (const [width, height] of [[1440, 900], [390, 844]]) {
   test(`V3 menu roots stay compact at ${width}px`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width, height });
     await mount(page);
+    // On phones the sidebar is an off-canvas drawer: open it like the menu button does.
+    await page.evaluate(() => {
+      document.querySelector('.shell').classList.add('admin-nav-open');
+      document.body.classList.add('admin-nav-open');
+    });
+    await expect(page.locator('#admin-primary-nav')).toBeVisible();
     const tops = await page.locator('.nav[data-ia-tree="v3"] .ia-navhead').evaluateAll(heads =>
       heads.map(head => head.getBoundingClientRect().top));
     expect(tops).toHaveLength(roots.length);
@@ -47,6 +53,6 @@ for (const [width, height] of [[1440, 900], [390, 844]]) {
     expect(margin).toBe('0px');
     const rootHeight = await page.locator('.ia-nav-parent').first().evaluate(el => el.getBoundingClientRect().height);
     expect(rootHeight).toBeGreaterThanOrEqual(40);
-    await testInfo.attach(`sidebar-${width}`, { body: await page.screenshot(), contentType: 'image/png' });
+    await testInfo.attach(`sidebar-${width}`, { body: await page.locator('#admin-primary-nav').screenshot(), contentType: 'image/png' });
   });
 }
