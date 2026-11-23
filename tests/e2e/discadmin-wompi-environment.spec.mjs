@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 
 // #1927: Integraciones keeps Wompi test and production key sets apart and lets the
 // owner pick the sale mode; Production asks for explicit confirmation.
@@ -7,13 +8,39 @@ const settingsSource = readFileSync(new URL('../../discadmin/settings-v2.js', im
 const settingsCss = readFileSync(new URL('../../discadmin/settings-v2.css', import.meta.url), 'utf8');
 const url = 'http://127.0.0.1:4173/discadmin/wompi-fixture.html?settings=integrations';
 
+// Immutable reference: the real settings code and CSS before this PR, not a mock drawing.
+const visualBaseSha = '05c80a8d5851f120d49fb00e2229a82a9e9fd38a';
+let baseFetched = false;
+function beforeSource(path) {
+  const show = () => execFileSync('git', ['show', visualBaseSha + ':' + path],
+    { encoding: 'utf8', maxBuffer: 4 * 1024 * 1024 });
+  try { return show(); }
+  catch {
+    if (!baseFetched) {
+      execFileSync('git', ['fetch', '--no-tags', '--depth=1', 'origin', visualBaseSha],
+        { stdio: 'ignore', timeout: 60000 });
+      baseFetched = true;
+    }
+    return show();
+  }
+}
+
+// Export only synthetic fixtures, not production data or credentials, to CI logs.
+// The payload is chunked so evidence can be materialized as stable PR PNG attachments.
+function emitVisual(name, bytes) {
+  const encoded = bytes.toString('base64');
+  for (let at = 0; at < encoded.length; at += 4000) {
+    console.log('BRVTAL_VISUAL|' + name + '|' + at + '|' + encoded.slice(at, at + 4000));
+  }
+}
+
 const WOMPI_KEYS = [
   'PUBLIC_KEY', 'PRIVATE_KEY', 'INTEGRITY_SECRET', 'EVENTS_SECRET',
   'PROD_PUBLIC_KEY', 'PROD_PRIVATE_KEY', 'PROD_INTEGRITY_SECRET', 'PROD_EVENTS_SECRET',
   'ENABLED_METHODS', 'RETURN_URL', 'MODE',
 ].map(suffix => 'BRVTAL_TICKET_WOMPI_' + suffix);
 
-async function setup(page, { prodComplete = true } = {}) {
+async function setup(page, { prodComplete = true, source = settingsSource, styles = settingsCss } = {}) {
   await page.route('**/discadmin/wompi-fixture.html?*', route => route.fulfill({
     contentType: 'text/html',
     body: '<!doctype html><html lang="es"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head>'
@@ -81,8 +108,8 @@ async function setup(page, { prodComplete = true } = {}) {
       if (section === 'settings') document.getElementById('fixture').innerHTML = window.settingsHome();
     };
   }, { keys: WOMPI_KEYS, prodComplete });
-  await page.addStyleTag({ content: settingsCss });
-  await page.addScriptTag({ content: settingsSource });
+  await page.addStyleTag({ content: styles });
+  await page.addScriptTag({ content: source });
   await page.evaluate(() => { document.getElementById('fixture').innerHTML = window.settingsHome(); });
   const wompi = page.locator('[data-integration-provider="wompi"]');
   await expect(wompi).toBeVisible();
@@ -136,4 +163,25 @@ test('Producción incompleta se rechaza con un motivo claro', async ({ page }) =
   await wompi.getByRole('button', { name: 'Aplicar modo' }).click();
   await expect(wompi.locator('[data-secret-feedback]')).toContainText('llaves de producción');
   await expect(wompi.locator('[data-provider-state]')).toHaveText('Pruebas activas');
+});
+
+test('AC-03: capturas reales antes/después de Wompi desde main y HEAD a 390/1440', async ({ page }, testInfo) => {
+  const baseJs = beforeSource('discadmin/settings-v2.js');
+  const baseCss = beforeSource('discadmin/settings-v2.css');
+  for (const [width, height] of [[390, 844], [1440, 900]]) {
+    await page.setViewportSize({ width, height });
+    const before = await setup(page, { source: baseJs, styles: baseCss });
+    const beforeBytes = await before.screenshot();
+    await testInfo.attach('antes-wompi-' + width + 'px.png',
+      { body: beforeBytes, contentType: 'image/png' });
+    emitVisual('antes-' + width, beforeBytes);
+
+    const after = await setup(page);
+    await expect(after.locator('.sv2-secret-group'))
+      .toHaveText(['Llaves de pruebas', 'Llaves de producción', 'Cobro']);
+    const afterBytes = await after.screenshot();
+    await testInfo.attach('despues-wompi-' + width + 'px.png',
+      { body: afterBytes, contentType: 'image/png' });
+    emitVisual('despues-' + width, afterBytes);
+  }
 });
