@@ -131,3 +131,9 @@
   [data-admin-module="content-core"] .ticket-inventory-state{grid-column:1/-1;text-align:left}
   [data-admin-module="content-core"] .ticket-inventory-actions .btn{width:100%}
 }
+
+/* #1939 · Server verdict on online sale, with reasons. */
+[data-admin-module="content-core"] .ticket-inventory-sale{margin:0 0 14px;padding:12px 14px;border:1px solid #6b3a3d;background:#150b0c;font-size:12px;line-height:1.55;color:#f1d4d3}
+[data-admin-module="content-core"] .ticket-inventory-sale.is-ready{border-color:#2d6e50;background:#0b1510;color:#cfeedd}
+[data-admin-module="content-core"] .ticket-inventory-sale strong{display:block;font-size:13px;letter-spacing:.4px;color:#fff}
+[data-admin-module="content-core"] .ticket-inventory-sale ul{margin:8px 0 0;padding-left:18px}
