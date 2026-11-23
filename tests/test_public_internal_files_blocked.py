@@ -108,6 +108,9 @@ class PublicInternalFilesBlockedTests(unittest.TestCase):
         self.assertIn("https://www.google-analytics.com", directives["connect-src"])
         self.assertIn("https://w.soundcloud.com", directives["frame-src"])
         self.assertIn("https:", directives["img-src"])
+        # The ticket checkout submits a GET form to Wompi's hosted page; any
+        # other external form target stays blocked.
+        self.assertEqual(directives["form-action"], ["'self'", "https://checkout.wompi.co"])
         self.assertIn("blob:", directives["media-src"])
 
     def test_script_src_allows_every_host_the_runtime_loader_uses(self):
