@@ -54,6 +54,6 @@
     "test:no-deepl-references": "python3 -m unittest tests/test_no_deepl_references.py"
   },
   "devDependencies": {
-    "@playwright/test": "1.63.0"
+    "@playwright/test": "1.65.1"
   }
 }
