@@ -14,3 +14,109 @@
 
 /* A recovered order can be queried without offering another purchase. */
 .event-ticket-checkout[hidden] { display: none; }
+
+/* #1929 · Purchase panel with a multi-type cart. Desktop: sticky column beside the
+   event; mobile: right after the hero, with a bottom bar for the total. Scoped to
+   cromo event pages so it outranks the generic Cromo stylesheet loaded later. */
+body.cromo-page.entity-page--event .event-buy-layout{
+  display:grid;grid-template-columns:minmax(0,1fr) minmax(340px,27rem);
+  align-items:start;border-bottom:1px solid var(--line,#333)
+}
+body.cromo-page.entity-page--event .event-buy-main{min-width:0}
+body.cromo-page.entity-page--event .event-buy-panel{
+  position:sticky;top:88px;margin:clamp(20px,2.4vw,36px);padding:clamp(20px,2vw,28px);
+  background:#0b0b0b;border:1px solid #3d3d3d;color:#fff;
+  box-shadow:0 18px 40px -24px rgba(0,0,0,.9);font-variant-numeric:tabular-nums
+}
+body.cromo-page.entity-page--event .event-buy-panel h2{
+  margin:0 0 18px;font:800 clamp(38px,3.4vw,52px)/.95 "Barlow Condensed",sans-serif;
+  letter-spacing:.01em;text-transform:uppercase;text-wrap:balance
+}
+body.cromo-page.entity-page--event .event-buy-panel ::selection{background:var(--event-signal);color:var(--event-ink,#050505)}
+.event-cart{display:flex;flex-direction:column;gap:20px}
+.event-cart-types{list-style:none;margin:0;padding:0;border-top:1px solid #333}
+.event-cart-type{
+  display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"info price" "info stepper";
+  gap:10px 16px;padding:16px 0;border-bottom:1px solid #333
+}
+.event-cart-type-info{grid-area:info;min-width:0;display:flex;flex-direction:column;gap:6px}
+.event-cart-type h3{margin:0;font:800 26px/1.05 "Barlow Condensed",sans-serif;overflow-wrap:anywhere}
+.event-cart-type p,.event-cart-type small{margin:0;font:400 13px/1.5 "Space Mono",monospace;color:#bdbdbd}
+.event-cart-type .event-cart-flag{color:#ff8a94}
+.event-cart-price{grid-area:price;justify-self:end;font:800 26px/1 "Barlow Condensed",sans-serif;color:var(--event-signal)}
+.event-cart-stepper{grid-area:stepper;justify-self:end;display:inline-flex;align-items:stretch;border:1px solid #6a6a6a}
+.event-cart-stepper button{
+  display:grid;place-items:center;width:44px;height:44px;padding:0;border:0;
+  background:transparent;color:#fff;cursor:pointer;
+  transition:background-color .15s ease-out,color .15s ease-out,transform .15s ease-out
+}
+.event-cart-stepper button:hover:not(:disabled){background:#1d1d1d}
+.event-cart-stepper button:active:not(:disabled){transform:scale(.96)}
+.event-cart-stepper button:disabled{color:#555;cursor:not-allowed}
+.event-cart-stepper output{
+  display:grid;place-items:center;min-width:3ch;padding:0 4px;
+  border-inline:1px solid #6a6a6a;font:700 16px "Space Mono",monospace
+}
+.event-cart-type.is-selected .event-cart-stepper{border-color:var(--event-signal)}
+.event-cart-type.is-selected .event-cart-stepper output{border-color:var(--event-signal);color:var(--event-signal)}
+.event-cart-summary{display:flex;flex-direction:column;gap:10px}
+.event-cart-lines{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+.event-cart-lines li{display:flex;justify-content:space-between;gap:12px;font:400 14px/1.45 "Space Mono",monospace;color:#d6d6d6}
+.event-cart-lines:empty{display:none}
+.event-cart-total{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:0;padding-top:12px;border-top:1px solid #333}
+.event-cart-total span{font:700 13px "Space Mono",monospace;text-transform:uppercase;letter-spacing:.08em;color:#bdbdbd}
+.event-cart-total strong{font:800 clamp(36px,3vw,44px)/1 "Barlow Condensed",sans-serif}
+.event-cart-summary small{font:400 12px/1.5 "Space Mono",monospace;color:#a8a8a8}
+.event-cart-methods{margin:0;padding:0;border:0;display:flex;flex-wrap:wrap;gap:8px}
+.event-cart-methods legend{margin-bottom:10px;padding:0;font:700 13px "Space Mono",monospace;text-transform:uppercase;letter-spacing:.08em;color:#bdbdbd}
+.event-cart-method{position:relative;flex:1 1 0;min-width:84px}
+.event-cart-method input{position:absolute;inset:0;margin:0;opacity:0;cursor:pointer}
+.event-cart-method span{
+  display:grid;place-items:center;min-height:44px;padding:8px 12px;border:1px solid #5a5a5a;
+  font:700 15px "Space Mono",monospace;transition:background-color .15s ease-out,border-color .15s ease-out,color .15s ease-out
+}
+.event-cart-method:hover span{border-color:#9a9a9a}
+.event-cart-method input:checked+span{background:#fff;border-color:#fff;color:#050505}
+.event-cart-method input:focus-visible+span{outline:3px solid var(--event-signal);outline-offset:3px}
+.event-cart-pay{
+  min-height:58px;padding:14px 20px;border:2px solid var(--event-signal);background:var(--event-signal);
+  color:var(--event-ink,#050505);font:800 22px/1.1 "Barlow Condensed",sans-serif;letter-spacing:.015em;cursor:pointer;
+  transition:background-color .15s ease-out,border-color .15s ease-out,color .15s ease-out,transform .15s ease-out
+}
+.event-cart-pay:hover:not(:disabled){background:#fff;border-color:#fff}
+.event-cart-pay:active:not(:disabled){transform:scale(.96)}
+.event-cart-pay:disabled{background:#1f1f1f;border-color:#333;color:#9a9a9a;cursor:not-allowed}
+.event-cart-account,.event-buy-note{margin:0;font:400 13px/1.55 "Space Mono",monospace;color:#bdbdbd}
+.event-cart-account a,.event-buy-note a{color:#fff;text-decoration:underline;text-decoration-color:var(--event-signal);text-underline-offset:3px}
+body.cromo-page.entity-page--event .event-buy-panel :is(button,a,input):focus-visible{outline:3px solid var(--event-signal);outline-offset:3px}
+body.cromo-page.entity-page--event .event-buy-panel .event-tickets-grid{grid-template-columns:minmax(0,1fr);gap:12px}
+body.cromo-page.entity-page--event .event-buy-panel .event-ticket-card{padding:18px;gap:10px}
+body.cromo-page.entity-page--event .event-buy-panel .event-ticket-card h3{font-size:30px}
+body.cromo-page.entity-page--event .event-buy-panel .event-ticket-price{font-size:28px}
+body.cromo-page.entity-page--event .event-buy-panel .event-ticket-card :is(p,small){font-size:13px}
+body.cromo-page.entity-page--event .event-buy-note{margin-top:16px;padding-top:14px;border-top:1px solid #333}
+body.cromo-page.entity-page--event .event-buy-panel .event-ticket-checkout{margin:16px 0 0;padding:0;max-width:none;background:none;border:0}
+body.cromo-page.entity-page--event .event-buy-panel .event-ticket-checkout:has(#ticket-checkout-status:empty):not(:has(form)){display:none}
+body.cromo-page.entity-page--event .event-buy-panel #ticket-checkout-status{margin:0;min-height:0;font:400 13px/1.55 "Space Mono",monospace;color:#fff}
+/* Cart state toggles the sticky choose/pay actions; [hidden] must beat the button styles. */
+body.cromo-page.entity-page--event .event-sticky-buy [hidden]{display:none!important}
+.event-sticky-summary{margin:0;font:700 14px/1.3 "Space Mono",monospace;color:#fff;white-space:nowrap}
+@media(max-width:900px){
+  body.cromo-page.entity-page--event .event-buy-layout{grid-template-columns:minmax(0,1fr)}
+  body.cromo-page.entity-page--event .event-buy-panel{order:-1;position:static;margin:0;border-inline:0;border-top:0;box-shadow:none}
+}
+@media(max-width:620px){
+  body.cromo-page.entity-page--event .event-buy-panel{padding:24px 20px}
+  body.cromo-page.entity-page--event .event-sticky-buy{justify-content:space-between;align-items:center;gap:12px}
+  body.cromo-page.entity-page--event .event-sticky-buy:has(.event-sticky-summary) a,
+  body.cromo-page.entity-page--event .event-sticky-buy:has(.event-sticky-summary) button{width:auto;flex:0 0 auto;min-height:48px;font-size:18px}
+}
+@media(prefers-reduced-motion:reduce){
+  .event-cart-stepper button,.event-cart-method span,.event-cart-pay{transition:none}
+  .event-cart-stepper button:active,.event-cart-pay:active{transform:none}
+}
+body.cromo-page.entity-page--event .event-sticky-buy button.event-buy-button{
+  display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:12px 18px;
+  background:var(--event-signal);border:2px solid var(--event-signal);color:var(--event-ink,#050505);
+  font:800 18px/1.1 "Barlow Condensed",sans-serif;cursor:pointer
+}

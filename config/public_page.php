@@ -503,35 +503,59 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
     $internalMethods = (array)($page['checkout']['methods'] ?? []);
     $internalEnabled = $internal !== [] && $internalMethods !== [];
     $checkoutPanel = '';
+    $cartForm = '';
+    $money = static fn(int|float $value): string => '$' . number_format((float)$value, 0, ',', '.');
+    // Editorial details (description, sale deadline) come from the public ticket rows.
+    $ticketInfo = [];
+    foreach ($offers as $ticket) {
+        if (is_array($ticket) && isset($ticket['ticket_type_id'])) $ticketInfo[(int)$ticket['ticket_type_id']] = $ticket;
+    }
+    $icon = static fn(string $path): string => '<svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true" focusable="false">'
+        . '<path d="' . $path . '" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"/></svg>';
     if ($internalEnabled) {
-        $options = '';
+        $rows = '';
         foreach ($internal as $option) {
             $id = (int)($option['id'] ?? 0);
             $price = (int)($option['price_cop'] ?? 0);
-            $available = (int)($option['available'] ?? 0);
-            if ($id < 1 || $price < 1 || $available < 1) continue;
+            $available = max(0, min(20, (int)($option['available'] ?? 0)));
+            $inviteOnly = !empty($option['invite_only']);
+            if ($id < 1 || $price < 1 || ($available < 1 && !$inviteOnly)) continue;
             $name = $escape($option['title'] ?? '');
-            $options .= '<option value="' . $id . '" data-price="' . $price
-                . '" data-available="' . min(20,$available) . '">' . $name . ' · '
-                . number_format($price,0,',','.') . ' COP</option>';
+            $info = $ticketInfo[$id] ?? [];
+            $until = !empty($info['available_until']) && strtotime((string)$info['available_until']) !== false
+                ? '<small>Venta hasta ' . $escape(date('d/m/Y', strtotime((string)$info['available_until']))) . '</small>' : '';
+            $description = !empty($info['description']) ? '<p>' . $escape($info['description']) . '</p>' : '';
+            $state = $inviteOnly ? '<small class="event-cart-flag">Agotado · solo con invitación</small>' : '';
+            $rows .= '<li class="event-cart-type" data-cart-type="' . $id . '" data-price="' . $price
+                . '" data-available="' . ($inviteOnly ? 0 : $available) . '" data-name="' . $name . '">'
+                . '<div class="event-cart-type-info"><h3>' . $name . '</h3>' . $description . $until . $state . '</div>'
+                . '<strong class="event-cart-price">' . $escape($money($price)) . '</strong>'
+                . '<div class="event-cart-stepper" role="group" aria-label="Cantidad de ' . $name . '">'
+                . '<button type="button" data-cart-step="-1" aria-label="Quitar una boleta ' . $name . '" disabled>' . $icon('M4 10h12') . '</button>'
+                . '<output data-cart-qty aria-live="polite">0</output>'
+                . '<button type="button" data-cart-step="1" aria-label="Añadir una boleta ' . $name . '"' . ($inviteOnly ? ' disabled' : '') . '>' . $icon('M4 10h12M10 4v12') . '</button>'
+                . '</div></li>';
         }
+        $methodNames = ['CARD' => 'Tarjeta', 'NEQUI' => 'Nequi', 'PSE' => 'PSE'];
         $methods = '';
         foreach ($internalMethods as $method) {
-            if (!in_array($method,['CARD','NEQUI','PSE'],true)) continue;
-            $methods .= '<option value="' . $method . '">' . $escape($method) . '</option>';
+            if (!isset($methodNames[$method])) continue;
+            $methods .= '<label class="event-cart-method"><input type="radio" name="method" value="' . $method . '"'
+                . ($methods === '' ? ' checked' : '') . '><span>' . $methodNames[$method] . '</span></label>';
         }
-        $internalEnabled = $options !== '' && $methods !== '';
+        $internalEnabled = $rows !== '' && $methods !== '';
         if ($internalEnabled) {
-            $checkoutPanel = '<section class="event-ticket-checkout" id="checkout-boletas" aria-label="Checkout seguro">'
-                . '<h2>Escoge tus boletas</h2><p>El cupo, precio final y reserva se verifican de nuevo en el servidor. Sin recargos BRVTAL.</p>'
-                . '<form id="brvtal-ticket-checkout"><label>Tipo<select name="ticket_type_id">' . $options . '</select></label>'
-                . '<label>Cantidad<input name="quantity" type="number" value="1" min="1" max="20" step="1" inputmode="numeric"></label>'
-                . '<label>Método<select name="method">' . $methods . '</select></label>'
-                . '<output id="ticket-checkout-total" class="checkout-total" aria-live="polite"></output>'
-                . '<button type="submit">Continuar al pago</button></form>'
-                . '<p id="ticket-checkout-status" role="status" aria-live="polite">Pago pendiente hasta verificación del servidor.</p>'
-                . '<p>¿Ya tienes cuenta? <a href="/mi-cuenta/acceso">Inicia sesión o recupera el acceso</a>.'
-                . ' Compradores invitados: el checkout está pendiente de habilitación segura.</p></section>';
+            $cartForm = '<form id="brvtal-ticket-cart" class="event-cart" novalidate>'
+                . '<ul class="event-cart-types">' . $rows . '</ul>'
+                . '<div class="event-cart-summary"><ul class="event-cart-lines" data-cart-lines></ul>'
+                . '<p class="event-cart-total"><span>Total</span><strong data-cart-total>' . $escape($money(0)) . '</strong></p>'
+                . '<small>Sin recargos BRVTAL. El cupo y el precio se confirman al reservar.</small></div>'
+                . '<fieldset class="event-cart-methods"><legend>Método de pago</legend>' . $methods . '</fieldset>'
+                . '<button type="submit" class="event-cart-pay" data-cart-pay disabled>Elige tus boletas</button>'
+                . '<p class="event-cart-account">Para pagar necesitas tu cuenta BRVTAL. <a href="/mi-cuenta/acceso">Inicia sesión o créala</a>.</p>'
+                . '</form>';
+            $checkoutPanel = '<section class="event-ticket-checkout" id="checkout-boletas" aria-label="Estado de compra">'
+                . '<p id="ticket-checkout-status" role="status" aria-live="polite"></p></section>';
         }
     }
     // A prior order remains inspectable after the last unit is reserved or sold.
@@ -546,7 +570,7 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
     $saleableRecord = !in_array(strtoupper($recordStatus), ['SOLD OUT','CANCELLED','CANCELED','FINISHED'], true);
     $canBuy = $isEvent && $recordState === 'active' && $saleableRecord
         && ($hasPurchasableTicket || $fallbackOffer || $internalEnabled);
-    $buyHref = $internalEnabled ? '#checkout-boletas' : ($ticketUrl !== '' ? $ticketUrl : ($fallbackTicketUrl !== '' && $canBuy ? $fallbackTicketUrl : '#boletas'));
+    $buyHref = $internalEnabled ? '#boletas' : ($ticketUrl !== '' ? $ticketUrl : ($fallbackTicketUrl !== '' && $canBuy ? $fallbackTicketUrl : '#boletas'));
     $buyTarget = preg_match('#^https?://#i', $buyHref) ? ' target="_blank" rel="noopener noreferrer"' : '';
     if ($internalEnabled) {
         $internalPrices = array_map(static fn(array $item): int => (int)$item['price_cop'], $internal);
@@ -566,7 +590,11 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
         : '';
     $links = '';
     if ($isEvent) {
-        $links = $canBuy ? $buyButton : $notifyButton;
+        // Visible tickets without online sale: the hero leads to the panel, which explains it.
+        $hasTicketRows = array_filter($offers, static fn($ticket): bool => is_array($ticket)
+            && brvtal_public_ticket_type_is_available($ticket)) !== [];
+        $links = $canBuy ? $buyButton : ($hasTicketRows
+            ? '<a class="event-buy-button" href="#boletas">Ver boletas</a>' : $notifyButton);
         if ($recordState === 'active' && !empty($page['related']['LINEUP'])) {
             $links .= '<a class="event-secondary" href="#lineup">Ver line-up <span aria-hidden="true">→</span></a>';
         }
@@ -579,7 +607,11 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
         if ($connectedUrl !== '') $links .= '<a href="' . $escape($connectedUrl) . '">EXPLORAR CONEXIONES ↗</a>';
     }
     $repeatBuy = $canBuy ? '<div class="event-repeat-buy">' . $buyButton . '</div>' : '';
-    $mobileBuy = $canBuy ? '<div class="event-sticky-buy" id="event-sticky-buy" hidden>' . $buyButton . '</div>' : '';
+    $mobileBuy = $canBuy ? '<div class="event-sticky-buy" id="event-sticky-buy" hidden>' . ($internalEnabled
+        ? '<p class="event-sticky-summary" data-cart-sticky-summary>' . $escape(ucfirst(trim($buyPrice, ' ·'))) . '</p>'
+          . '<a class="event-buy-button" href="#boletas" data-cart-sticky-choose>Elegir boletas</a>'
+          . '<button type="submit" form="brvtal-ticket-cart" class="event-buy-button" data-cart-sticky-pay hidden>Pagar</button>'
+        : $buyButton) . '</div>' : '';
     $purchaseScript = '';
     if ($canBuy) {
         $purchaseScript = <<<'JS'
@@ -588,9 +620,13 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
   const bar = document.getElementById('event-sticky-buy');
   const hero = document.querySelector('.entity-hero');
   const footer = document.querySelector('body > footer');
+  const pay = document.querySelector('[data-cart-pay]');
   if (!bar || !hero || !('IntersectionObserver' in window)) return;
-  let heroVisible = true, footerVisible = false;
-  const refresh = () => { bar.hidden = heroVisible || footerVisible; };
+  let heroVisible = true, footerVisible = false, payVisible = false;
+  const refresh = () => { bar.hidden = heroVisible || footerVisible || payVisible; };
+  if (pay) new IntersectionObserver(entries => {
+    payVisible = entries[0]?.isIntersecting ?? false; refresh();
+  }, { threshold: 0 }).observe(pay);
   new IntersectionObserver(entries => {
     heroVisible = entries[0]?.isIntersecting ?? true; refresh();
   }, { threshold: 0 }).observe(hero);
@@ -608,6 +644,7 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
 JS;
     }
     $related = '';
+    $ticketList = '';
     $historicalHeadings = [
         'LINEUP' => 'LINEUP / RECORD',
         'TIMETABLE' => 'TIMETABLE / RECORD',
@@ -624,8 +661,10 @@ JS;
                 $closedSale = !$saleableRecord;
                 $purchaseUnavailable = $soldOut || $closedSale;
                 $name = $escape($ticket['title'] ?? '');
+                $ticketCurrency = strtoupper((string)($ticket['currency'] ?? ''));
                 $price = isset($ticket['price']) && is_numeric($ticket['price'])
-                    ? number_format((float)$ticket['price'], 0, '.', ',') . ' ' . $escape(strtoupper((string)($ticket['currency'] ?? '')))
+                    ? ($ticketCurrency === 'COP' ? $escape($money((float)$ticket['price']))
+                        : number_format((float)$ticket['price'], 0, '.', ',') . ' ' . $escape($ticketCurrency))
                     : '';
                 $typeUrl = $purchaseUnavailable ? '' : $safeUrl($ticket['url'] ?? '');
                 $instructions = $purchaseUnavailable ? '' : trim((string)($ticket['payment_instructions'] ?? ''));
@@ -645,7 +684,7 @@ JS;
                     . ($qrHref !== '' ? '<img class="event-ticket-qr" src="' . $qrHref . '" alt="Código QR para ' . $name . '" loading="lazy">' : '')
                     . '</article>';
             }
-            if ($ticketCards !== '') $related .= '<section class="event-tickets" id="boletas" aria-label="Opciones de boletas"><div class="entity-section-label">Boletas</div><div class="event-tickets-grid">' . $ticketCards . '</div></section>';
+            $ticketList = $ticketCards;
             continue;
         }
         $cards = '';
@@ -684,7 +723,8 @@ JS;
             ? count($items) . (count($items) === 1 ? ' artista' : ' artistas')
             : str_pad((string)count($items), 2, '0', STR_PAD_LEFT);
         $related .= '<section class="entity-related"' . ($isEvent && $heading === 'LINEUP' ? ' id="lineup"' : '') . '><div class="entity-section-label" data-text="' . $escape(brvtalPublicEntityEs((string)$displayHeading)) . '">' . $escape(brvtalPublicEntityEs((string)$displayHeading)) . ' / ' . $escape($relatedCount) . '</div><div class="entity-grid">' . $cards . '</div></section>';
-        if ($isEvent && $heading === 'LINEUP') $related .= $repeatBuy;
+        // The purchase panel replaces the repeated CTA after the line-up.
+        if ($isEvent && $heading === 'LINEUP' && !$internalEnabled && $ticketList === '') $related .= $repeatBuy;
     }
     $body = brvtalPublicTextFormat((string)($entity['description'] ?? ''));
     $statementBody = '<div class="entity-rich-body">' . ($body !== '' ? $body : '<p>BRVTAL / RAVE TILL GRAVE</p>') . '</div>';
@@ -731,6 +771,21 @@ JS;
     $statementSection = (!$isEvent || $body !== '')
         ? '<section class="entity-statement"><div class="entity-section-label" data-text="' . $statementLabel . '">' . $statementLabel . '</div>' . $statementBody . '</section>'
         : '';
+    // #1929: one purchase panel beside the event (desktop) or right after the hero (mobile).
+    $buyPanel = '';
+    if ($isEvent && $recordState === 'active' && ($internalEnabled || $ticketList !== '')) {
+        $buyNote = '';
+        if (!$internalEnabled && !$hasPurchasableTicket && !$fallbackOffer) {
+            $buyNote = '<p class="event-buy-note">La venta en línea de este evento todavía no está abierta.'
+                . ($notifyButton !== '' ? ' <a href="/contact">Avísame cuando abra</a>.' : '') . '</p>';
+        }
+        $buyPanel = '<aside class="event-buy-panel" id="boletas" aria-labelledby="event-buy-title">'
+            . '<h2 id="event-buy-title">Boletas</h2>'
+            . ($internalEnabled ? $cartForm : '<div class="event-tickets-grid">' . $ticketList . '</div>' . $buyNote)
+            . $checkoutPanel . '</aside>';
+        $checkoutPanel = '';
+        if ($repeatBuy !== '') $related = str_replace($repeatBuy, '', $related);
+    }
     $recordBand = '';
     if ($isEvent) {
         $bandLabel = $recordState === 'historical' ? 'EVENTO PASADO' : 'PRÓXIMO EVENTO';
@@ -746,6 +801,9 @@ JS;
         $recordBand = '<section class="event-record-band" aria-label="Estado del evento"><div><span>' . $escape($bandLabel) . '</span><strong>' . $escape($bandValue) . '</strong></div><p>BRVTAL / ' . $entityTitle . '</p></section>';
     }
 
+    $layoutOpen = $buyPanel !== '' ? '<div class="event-buy-layout"><div class="event-buy-main">' : '';
+    $layoutClose = $buyPanel !== '' ? '</div>' . $buyPanel . '</div>' : '';
+    $repeatBuyTail = $buyPanel !== '' ? '' : $repeatBuy;
     $mapSection = '';
     $mapScript = '';
     if ($isEvent) {
@@ -829,12 +887,14 @@ JS;
       <div class="entity-copy"><div class="entity-kicker">BRVTAL / {$kindLabel} / {$entityId}</div><h1 data-text="{$entityTitle}">{$entityTitle}</h1><div class="entity-facts">{$facts}</div><div class="entity-actions">{$links}</div></div>
     </article>
     {$recordBand}
+    {$layoutOpen}
     {$statementSection}
     {$degradedNotice}
     {$related}
     {$checkoutPanel}
     {$mapSection}
-    {$repeatBuy}
+    {$repeatBuyTail}
+    {$layoutClose}
   </main>
   {$mobileBuy}
   <footer><strong>BRVTAL</strong><span>PEREIRA / COLOMBIA</span><span>RAVE TILL GRAVE</span></footer>

@@ -120,8 +120,150 @@ function brvtal_public_ticket_checkout_stage_quote(
 }
 
 /** Transactional UI adapter: same idempotency key => one order + one hold. */
+/**
+ * #1929 cart: validate `lines` as 1..10 distinct ticket types with 1..20 units each and
+ * at most 20 units in total. Returns lines sorted by ticket type id (canonical order).
+ */
+function brvtal_public_ticket_checkout_cart_lines(mixed $lines): array
+{
+    if (!is_array($lines) || !array_is_list($lines) || $lines === [] || count($lines) > 10) {
+        throw new InvalidArgumentException('INVALID_CHECKOUT');
+    }
+    $byType = [];
+    foreach ($lines as $line) {
+        if (!is_array($line) || array_is_list($line) || count($line) !== 2
+            || !is_int($line['ticket_type_id'] ?? null) || $line['ticket_type_id'] < 1
+            || !is_int($line['quantity'] ?? null) || $line['quantity'] < 1 || $line['quantity'] > 20
+            || isset($byType[$line['ticket_type_id']])) {
+            throw new InvalidArgumentException('INVALID_CHECKOUT');
+        }
+        $byType[$line['ticket_type_id']] = $line['quantity'];
+    }
+    if (array_sum($byType) > 20) throw new InvalidArgumentException('INVALID_CHECKOUT');
+    ksort($byType);
+    return $byType;
+}
+
+/**
+ * #1929 cart: one order with one item and one T05 hold per ticket type, in ONE
+ * transaction. Prices and availability come from the server; a retry with the same
+ * idempotency key must carry exactly the same lines. Promo codes and waitlist
+ * invitations stay single-type and use brvtal_public_ticket_checkout_prepare().
+ */
+function brvtal_public_ticket_checkout_prepare_cart(PDO $db, int $eventId, int $buyerId, array $input): array
+{
+    $key = $input['idempotency_key'] ?? null;
+    $method = $input['method'] ?? null;
+    if ($buyerId < 1 || $eventId < 1 || count($input) !== 3
+        || !is_string($key) || !preg_match('/^[A-Za-z0-9:_-]{16,128}$/D', $key) || !is_string($method)) {
+        throw new InvalidArgumentException('INVALID_CHECKOUT');
+    }
+    $lines = brvtal_public_ticket_checkout_cart_lines($input['lines'] ?? null);
+    $settings = brvtal_ticket_wompi_config();
+    if (!in_array($method, $settings['methods'], true)) {
+        throw new InvalidArgumentException('INVALID_CHECKOUT_METHOD');
+    }
+    $digest = hash('sha256', 't13|' . $buyerId . '|' . $eventId . '|' . $key);
+    if ($db->inTransaction()) throw new LogicException('CHECKOUT_TRANSACTION_ALREADY_ACTIVE');
+    $db->beginTransaction();
+    try {
+        // Event row FIRST: the same global mutex order as T05 holds.
+        $lock = $db->prepare('SELECT id FROM events WHERE id=? FOR UPDATE');
+        $lock->execute([$eventId]);
+        if (!$lock->fetchColumn()) throw new DomainException('CHECKOUT_UNAVAILABLE');
+        $q = $db->prepare('SELECT id,status,event_id,buyer_id,expires_at_utc,total_cop FROM ticket_orders
+            WHERE checkout_key_hash=? FOR UPDATE');
+        $q->execute([$digest]);
+        $prior = $q->fetch(PDO::FETCH_ASSOC);
+        if ($prior && ((int)$prior['buyer_id'] !== $buyerId || (int)$prior['event_id'] !== $eventId
+            || !in_array($prior['status'], ['draft','pending'], true))) {
+            throw new DomainException('CHECKOUT_RETRY_CONFLICT');
+        }
+        if ($prior && (string)($prior['expires_at_utc'] ?? '') !== ''
+            && (string)$prior['expires_at_utc'] <= gmdate('Y-m-d H:i:s')) {
+            throw new DomainException('CHECKOUT_EXPIRED');
+        }
+        if ($prior) {
+            // A retry binds the original immutable snapshot and the exact same lines.
+            $orderId = (int)$prior['id'];
+            $q = $db->prepare('SELECT ticket_type_id,quantity,unit_price_cop,subtotal_cop
+                FROM ticket_order_items WHERE order_id=? ORDER BY ticket_type_id');
+            $q->execute([$orderId]);
+            $saved = [];
+            $total = 0;
+            foreach ($q->fetchAll(PDO::FETCH_ASSOC) as $item) {
+                $qty = (int)$item['quantity'];
+                if (brvtal_ticket_checkout_price($item['unit_price_cop'], $qty) !== (int)$item['subtotal_cop']) {
+                    throw new DomainException('CHECKOUT_RETRY_CONFLICT');
+                }
+                $saved[(int)$item['ticket_type_id']] = $qty;
+                $total += (int)$item['subtotal_cop'];
+            }
+            if ($saved !== $lines || $total !== (int)$prior['total_cop']) {
+                throw new DomainException('CHECKOUT_RETRY_CONFLICT');
+            }
+            brvtalPromoRejectUncodedReplay($db, $orderId);
+        } else {
+            $typeQuery = $db->prepare('SELECT id,name,price,currency FROM event_ticket_types
+                WHERE id=? AND event_id=?');
+            $items = [];
+            $total = 0;
+            foreach ($lines as $typeId => $quantity) {
+                $typeQuery->execute([$typeId, $eventId]);
+                $type = $typeQuery->fetch(PDO::FETCH_ASSOC);
+                if (!$type || $type['currency'] !== 'COP') throw new DomainException('CHECKOUT_UNAVAILABLE');
+                // Dormant outside disposable integration DBs, exactly like the single path.
+                $quote = brvtal_public_ticket_checkout_stage_quote($db, $eventId, $typeId, $quantity);
+                $price = $quote['unit_price_cop'] ?? $type['price'];
+                $subtotal = brvtal_ticket_checkout_price($price, $quantity);
+                $items[] = [$typeId, mb_substr((string)$type['name'], 0, 120), $quantity, (int)$price, $subtotal];
+                $total += $subtotal;
+            }
+            if ($total > 10000000) throw new DomainException('CHECKOUT_UNAVAILABLE');
+            $q = $db->prepare("INSERT INTO ticket_orders
+                (public_id,buyer_id,event_id,checkout_key_hash,status,currency,total_cop,expires_at_utc)
+                VALUES (?,?,?,?,'draft','COP',?,DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 10 MINUTE))");
+            $q->execute([random_bytes(16), $buyerId, $eventId, $digest, $total]);
+            $orderId = (int)$db->lastInsertId();
+            $insert = $db->prepare("INSERT INTO ticket_order_items
+                (order_id,event_id,ticket_type_id,ticket_name_snapshot,quantity,
+                 unit_price_cop,subtotal_cop,currency) VALUES (?,?,?,?,?,?,?,'COP')");
+            foreach ($items as [$typeId, $name, $quantity, $price, $subtotal]) {
+                $insert->execute([$orderId, $eventId, $typeId, $name, $quantity, $price, $subtotal]);
+            }
+        }
+        foreach ($lines as $typeId => $quantity) {
+            try {
+                // Matching idempotent retries reuse the existing holds.
+                brvtal_ticket_inventory_hold($db, $orderId, $typeId, $quantity);
+            } catch (DomainException $error) {
+                if ($prior && $error->getMessage() === 'INVENTORY_HOLD_CONFLICT') {
+                    throw new DomainException('CHECKOUT_EXPIRED', 0, $error);
+                }
+                throw $error;
+            }
+        }
+        $checkout = brvtal_ticket_wompi_prepare($db, $buyerId, $orderId, $key, $method, $settings);
+        $db->commit();
+        return ['order_id'=>$orderId, 'checkout'=>$checkout];
+    } catch (PDOException $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        if (in_array((int)($e->errorInfo[1] ?? 0), [1062, 1213, 1205], true)
+            || (string)$e->getCode() === '40001') {
+            throw new DomainException('CHECKOUT_RETRYABLE', 0, $e);
+        }
+        throw $e;
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        throw $e;
+    }
+}
+
 function brvtal_public_ticket_checkout_prepare(PDO $db, int $eventId, int $buyerId, array $input): array
 {
+    if (array_key_exists('lines', $input)) {
+        return brvtal_public_ticket_checkout_prepare_cart($db, $eventId, $buyerId, $input);
+    }
     $typeId = $input['ticket_type_id'] ?? null;
     $quantity = $input['quantity'] ?? null;
     $key = $input['idempotency_key'] ?? null;

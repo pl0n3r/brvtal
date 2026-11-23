@@ -42,7 +42,9 @@ test('mobile first-view copy comes before poster, title has no glitch and sticky
   expect(await title.evaluate(el => getComputedStyle(el, '::after').content)).toBe('none');
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(391);
   await expect(page.locator('.event-sticky-buy')).toBeHidden();
-  await page.locator('#boletas').scrollIntoViewIfNeeded();
+  // #1929: the purchase panel now sits right after the hero on phones; the bar
+  // appears once the visitor has scrolled past it (e.g. to the line-up).
+  await page.locator('#lineup').scrollIntoViewIfNeeded();
   await expect(page.locator('.event-sticky-buy')).toBeVisible();
   await page.locator('body > footer').scrollIntoViewIfNeeded();
   await expect(page.locator('.event-sticky-buy')).toBeHidden();
