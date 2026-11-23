@@ -120,3 +120,21 @@ body.cromo-page.entity-page--event .event-sticky-buy button.event-buy-button{
   background:var(--event-signal);border:2px solid var(--event-signal);color:var(--event-ink,#050505);
   font:800 18px/1.1 "Barlow Condensed",sans-serif;cursor:pointer
 }
+/* #1935 · The panel sits under the measured navigation (two rows at ~1280px). */
+body.cromo-page.entity-page--event .event-buy-panel{top:calc(var(--event-nav-h,76px) + 16px)}
+.event-buy-notify{
+  display:flex;align-items:center;justify-content:center;min-height:48px;margin-top:12px;
+  border:2px solid #fff;color:#fff;text-decoration:none;font:800 20px/1.1 "Barlow Condensed",sans-serif;
+  transition:background-color .15s ease-out,color .15s ease-out
+}
+.event-buy-notify:hover{background:#fff;color:#050505}
+.event-buy-notify:focus-visible{outline:3px solid var(--event-signal);outline-offset:3px}
+@media(max-width:900px){
+  /* Phones: flyer block first, then the panel, then everything else. */
+  body.cromo-page.entity-page--event .event-buy-layout{display:flex;flex-direction:column}
+  body.cromo-page.entity-page--event .event-buy-main{display:contents}
+  body.cromo-page.entity-page--event .event-buy-main > .entity-hero{order:1}
+  body.cromo-page.entity-page--event .event-buy-layout .event-buy-panel{order:2}
+  body.cromo-page.entity-page--event .event-buy-main > :not(.entity-hero){order:3}
+}
+@media(prefers-reduced-motion:reduce){.event-buy-notify{transition:none}}

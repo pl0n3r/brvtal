@@ -461,6 +461,9 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
     $kind = strtoupper(rtrim($routeTypeRaw, 'S'));
     $kindLabel = brvtalPublicEntityEs($isEvent && $recordState === 'historical' ? 'EVENT RECORD' : $kind);
     $canonicalParts = parse_url((string)$seo['canonical']);
+    // #1935: the document declares <base href="/">, so a bare "#id" resolves to the home
+    // page. In-page links carry this page's own path.
+    $selfPath = $escape(is_string($canonicalParts['path'] ?? null) ? $canonicalParts['path'] : '/');
     $base = (($canonicalParts['scheme'] ?? 'https') . '://' . ($canonicalParts['host'] ?? 'www.brvtal.com.co'));
     $image = $escape(brvtal_public_absolute_url(brvtal_public_media_variant((string)$seo['image'], 'hero'), $base));
     $facts = '';
@@ -570,7 +573,7 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
     $saleableRecord = !in_array(strtoupper($recordStatus), ['SOLD OUT','CANCELLED','CANCELED','FINISHED'], true);
     $canBuy = $isEvent && $recordState === 'active' && $saleableRecord
         && ($hasPurchasableTicket || $fallbackOffer || $internalEnabled);
-    $buyHref = $internalEnabled ? '#boletas' : ($ticketUrl !== '' ? $ticketUrl : ($fallbackTicketUrl !== '' && $canBuy ? $fallbackTicketUrl : '#boletas'));
+    $buyHref = $internalEnabled ? $selfPath . '#boletas' : ($ticketUrl !== '' ? $ticketUrl : ($fallbackTicketUrl !== '' && $canBuy ? $fallbackTicketUrl : $selfPath . '#boletas'));
     $buyTarget = preg_match('#^https?://#i', $buyHref) ? ' target="_blank" rel="noopener noreferrer"' : '';
     if ($internalEnabled) {
         $internalPrices = array_map(static fn(array $item): int => (int)$item['price_cop'], $internal);
@@ -580,7 +583,29 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
     $buyPrice = $minimumPrice === null ? '' : ' · desde '
         . ($minimumCurrency === 'COP' ? '$' : ($minimumCurrency !== '' ? $minimumCurrency . ' ' : ''))
         . number_format($minimumPrice, 0, ',', '.');
-    $buyText = 'Comprar boletas' . $buyPrice;
+    // #1935 Flyer: price and pre-sale deadline sit next to the main button.
+    $flyerOffer = '';
+    if ($isEvent && $recordState === 'active' && $saleableRecord) {
+        $cheapest = null;
+        foreach ($offers as $ticket) {
+            if (!is_array($ticket) || strtolower((string)($ticket['status'] ?? '')) !== 'active'
+                || !brvtal_public_ticket_type_is_available($ticket)
+                || !isset($ticket['price']) || !is_numeric($ticket['price'])
+                || strtoupper((string)($ticket['currency'] ?? '')) !== 'COP') continue;
+            if ($cheapest === null || (float)$ticket['price'] < (float)$cheapest['price']) $cheapest = $ticket;
+        }
+        if ($cheapest !== null) {
+            $until = !empty($cheapest['available_until']) ? strtotime((string)$cheapest['available_until']) : false;
+            $days = ['dom','lun','mar','mié','jue','vie','sáb'];
+            $months = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+            $deadline = $until !== false && $until !== null
+                ? ' · hasta ' . $days[(int)date('w', $until)] . ' ' . date('j', $until) . ' ' . $months[(int)date('n', $until) - 1]
+                : '';
+            $flyerOffer = '<p class="event-flyer-offer"><span>' . $escape((string)($cheapest['title'] ?? 'Boleta')) . $escape($deadline)
+                . '</span><strong>$' . number_format((float)$cheapest['price'], 0, ',', '.') . '</strong></p>';
+        }
+    }
+    $buyText = $flyerOffer !== '' ? 'Comprar boletas' : 'Comprar boletas' . $buyPrice;
     $buyButton = $canBuy ? '<a class="event-buy-button" href="' . $buyHref . '"' . $buyTarget . ' data-ticket-type="' . $escape($primaryTicketType) . '">' . $escape($buyText) . ' <span aria-hidden="true">→</span></a>' : '';
     // Una consulta voluntaria sustituye a una compra cuando todavía no hay
     // enlace/checkout habilitado; nunca se presenta como venta efectiva.
@@ -594,9 +619,9 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
         $hasTicketRows = array_filter($offers, static fn($ticket): bool => is_array($ticket)
             && brvtal_public_ticket_type_is_available($ticket)) !== [];
         $links = $canBuy ? $buyButton : ($hasTicketRows
-            ? '<a class="event-buy-button" href="#boletas">Ver boletas</a>' : $notifyButton);
+            ? '<a class="event-buy-button" href="' . $selfPath . '#boletas">Ver boletas</a>' : $notifyButton);
         if ($recordState === 'active' && !empty($page['related']['LINEUP'])) {
-            $links .= '<a class="event-secondary" href="#lineup">Ver line-up <span aria-hidden="true">→</span></a>';
+            $links .= '<a class="event-secondary" href="' . $selfPath . '#lineup">Ver line-up <span aria-hidden="true">→</span></a>';
         }
     } else {
         foreach ($page['links'] as $label => $url) {
@@ -609,7 +634,7 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
     $repeatBuy = $canBuy ? '<div class="event-repeat-buy">' . $buyButton . '</div>' : '';
     $mobileBuy = $canBuy ? '<div class="event-sticky-buy" id="event-sticky-buy" hidden>' . ($internalEnabled
         ? '<p class="event-sticky-summary" data-cart-sticky-summary>' . $escape(ucfirst(trim($buyPrice, ' ·'))) . '</p>'
-          . '<a class="event-buy-button" href="#boletas" data-cart-sticky-choose>Elegir boletas</a>'
+          . '<a class="event-buy-button" href="' . $selfPath . '#boletas" data-cart-sticky-choose>Elegir boletas</a>'
           . '<button type="submit" form="brvtal-ticket-cart" class="event-buy-button" data-cart-sticky-pay hidden>Pagar</button>'
         : $buyButton) . '</div>' : '';
     $purchaseScript = '';
@@ -668,10 +693,14 @@ JS;
                 $instructions = $purchaseUnavailable ? '' : trim((string)($ticket['payment_instructions'] ?? ''));
                 $qr = $purchaseUnavailable ? '' : trim((string)($ticket['qr_image'] ?? ''));
                 $qrHref = $safeInternalUrl($qr) ?: $safeUrl($qr);
+                // #1935: a visible ticket nobody can buy online is not "Disponible".
+                $onlineSoon = !$internalEnabled && !$hasPurchasableTicket && !$fallbackOffer
+                    && trim((string)($ticket['url'] ?? '')) === '';
                 $status = $closedSale ? 'Venta cerrada' : ($soldOut ? 'Agotado'
-                    : (strtoupper($recordStatus) === 'LAST TICKETS' ? 'Últimas boletas' : 'Disponible'));
+                    : ($onlineSoon ? 'Venta en línea pronto'
+                    : (strtoupper($recordStatus) === 'LAST TICKETS' ? 'Últimas boletas' : 'Disponible')));
                 $ticketCards .= '<article class="event-ticket-card' . ($purchaseUnavailable ? ' is-sold-out' : '') . '">'
-                    . '<span class="event-ticket-status">' . $status . '</span><h3>' . $name . '</h3>'
+                    . '<span class="event-ticket-status' . ($onlineSoon ? ' is-soon' : '') . '">' . $status . '</span><h3>' . $name . '</h3>'
                     . ($price !== '' ? '<strong class="event-ticket-price">' . $price . '</strong>' : '')
                     . (!empty($ticket['description']) ? '<p>' . $escape($ticket['description']) . '</p>' : '')
                     . (!empty($ticket['available_until']) && strtotime((string)$ticket['available_until']) !== false
@@ -775,7 +804,7 @@ JS;
         $buyNote = '';
         if (!$internalEnabled && !$hasPurchasableTicket && !$fallbackOffer) {
             $buyNote = '<p class="event-buy-note">La venta en línea de este evento todavía no está abierta.'
-                . ($notifyButton !== '' ? ' <a href="/contact">Avísame cuando abra</a>.' : '') . '</p>';
+                . '</p>' . ($notifyButton !== '' ? '<a class="event-buy-notify" href="/contact">Avísame cuando abra</a>' : '');
         }
         $buyPanel = '<aside class="event-buy-panel" id="boletas" aria-labelledby="event-buy-title">'
             . '<h2 id="event-buy-title">Boletas</h2>'
@@ -800,6 +829,21 @@ JS;
     }
 
     $layoutOpen = $buyPanel !== '' ? '<div class="event-buy-layout"><div class="event-buy-main">' : '';
+    $flyerOfferHtml = $buyPanel !== '' ? $flyerOffer : '';
+    // #1935: the sticky purchase panel sits under the real navigation height, which
+    // wraps to two rows on narrower desktops.
+    $navHeightScript = $buyPanel === '' ? '' : <<<'JS'
+<script>
+(function () {
+  const nav = document.querySelector('.entity-nav');
+  if (!nav) return;
+  const sync = () => document.documentElement.style.setProperty('--event-nav-h', nav.getBoundingClientRect().height + 'px');
+  sync();
+  if ('ResizeObserver' in window) new ResizeObserver(sync).observe(nav);
+  else window.addEventListener('resize', sync);
+}());
+</script>
+JS;
     $layoutClose = $buyPanel !== '' ? '</div>' . $buyPanel . '</div>' : '';
     $repeatBuyTail = $buyPanel !== '' ? '' : $repeatBuy;
     $mapSection = '';
@@ -856,6 +900,12 @@ JS;
         $topbar = str_replace('<div class="cp-tools">', $mobileMenu . '<div class="cp-tools">', $topbar);
     }
 
+    // A plain fragment would resolve to the homepage because this template sets
+    // <base href="/">. Preserve the legacy literal for non-event entity pages.
+    $skipLink = $isEvent
+        ? '<a class="skip-link" href="' . $selfPath . '#main-content">IR AL CONTENIDO</a>'
+        : '<a class="skip-link" href="#main-content">IR AL CONTENIDO</a>';
+
     return <<<HTML
 <!doctype html>
 <html lang="es">
@@ -877,15 +927,15 @@ JS;
   <link rel="stylesheet" href="/css/public-cromo-pages.css">
 </head>
 <body {$bodyAttributes}>
-  <a class="skip-link" href="#main-content">IR AL CONTENIDO</a>
+  {$skipLink}
   {$topbar}
   <main id="main-content" tabindex="-1">
+    {$layoutOpen}
     <article class="entity-hero">
       <div class="entity-image"><img src="{$image}" alt="{$entityTitle}" loading="eager" fetchpriority="high" decoding="async"><span>{$kindLabel} / BRVTAL</span></div>
-      <div class="entity-copy"><div class="entity-kicker">BRVTAL / {$kindLabel} / {$entityId}</div><h1 data-text="{$entityTitle}">{$entityTitle}</h1><div class="entity-facts">{$facts}</div><div class="entity-actions">{$links}</div></div>
+      <div class="entity-copy"><div class="entity-kicker">BRVTAL / {$kindLabel} / {$entityId}</div><h1 data-text="{$entityTitle}">{$entityTitle}</h1><div class="entity-facts">{$facts}</div>{$flyerOfferHtml}<div class="entity-actions">{$links}</div></div>
     </article>
     {$recordBand}
-    {$layoutOpen}
     {$statementSection}
     {$degradedNotice}
     {$related}
@@ -898,6 +948,7 @@ JS;
   <footer><strong>BRVTAL</strong><span>PEREIRA / COLOMBIA</span><span>RAVE TILL GRAVE</span></footer>
   {$mapScript}
   {$purchaseScript}
+  {$navHeightScript}
   {$checkoutScript}
   <script src="/js/public-cromo.js" defer></script>
   <script src="/js/public-cromo-sound.js" defer></script>
