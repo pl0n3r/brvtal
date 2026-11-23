@@ -74,6 +74,9 @@
 .sv2-secret-field input::-ms-reveal{display:none}
 .sv2-secret-field input::-webkit-credentials-auto-fill-button{visibility:hidden;display:none!important}
 .sv2-secret-help{display:block;margin-top:7px;min-height:17px;color:#c0c5c7;font-size:12px;line-height:1.45}
+.sv2-secret-error{display:block;margin-top:6px;color:#ffb4b8;font-size:12px;line-height:1.45}
+.sv2-secret-error[hidden]{display:none}
+.sv2-secret-field :is(input,textarea)[aria-invalid="true"]{border-color:#ff6b74}
 .sv2-secret-field-meta{
   display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;
   gap:8px;margin-top:8px;min-height:44px;

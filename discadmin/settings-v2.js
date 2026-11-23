@@ -318,6 +318,7 @@
        <label class="sv2-secret-label" for="${id}">${esc(field.label)}</label>
        ${input}
        <small class="sv2-secret-help">${esc(field.help)}</small>
+       <small class="sv2-secret-error" data-secret-error role="alert" hidden></small>
        <div class="sv2-secret-field-meta">
          <small data-secret-stored>${stored?"Guardada · "+updated:updated}</small>
          <button type="button" class="sv2-secret-delete" data-secret-delete="${esc(field.key)}" aria-label="Eliminar ${esc(field.label)}" ${stored?"":"hidden"} ${writable?"":"disabled"}>Eliminar</button>
@@ -529,23 +530,56 @@
     if(feedback)feedback.textContent=message;
   }
 
+  // #1933: the expected prefix comes from the field example (pub_test_…, test_integrity_…).
+  function integrationFieldPrefix(field){
+    const match=/^([a-z][a-z0-9]*(?:_[a-z0-9]+)*_)…$/.exec(String(field?.example||''));
+    return match?match[1]:'';
+  }
+  function definitionsLabel(key){
+    return INTEGRATION_PROVIDERS.flatMap(provider=>provider.fields).find(item=>item.key===key)?.label||'';
+  }
+  function integrationFieldError(element,message){
+    const row=element.closest('[data-secret-row]');
+    const slot=row?.querySelector('[data-secret-error]');
+    if(!slot)return;
+    slot.textContent=message;
+    slot.hidden=!message;
+    element.setAttribute('aria-invalid',message?'true':'false');
+  }
+
   async function saveIntegrationProvider(id){
     const card=integrationCardFor(id);
     if(!card || !V2.integrationWritable || integrationOperations.has(id))return;
     const fields=Array.from(card.querySelectorAll('[data-secret-input], [data-mail-allowlist]'))
       .filter(field=>field.value.trim().length>0
         && (!field.hasAttribute('data-public-original') || field.value!==field.dataset.publicOriginal))
-      .map(field=>({element:field,key:field.dataset.secretKey,value:field.value}));
+      .map(field=>({element:field,key:field.dataset.secretKey,
+        // Single-line values are trimmed: dashboards often copy a trailing space or newline.
+        value:field.tagName==='TEXTAREA'?field.value:field.value.trim()}));
     const feedback=card.querySelector('[data-secret-feedback]');
     if(!feedback)return;
     if(!fields.length){feedback.textContent="Escribe al menos un valor. Los campos vacíos se conservan.";return;}
+    const definitions=INTEGRATION_PROVIDERS.flatMap(provider=>provider.fields);
+    card.querySelectorAll('[data-secret-input]').forEach(input=>integrationFieldError(input,''));
+    for(const field of fields){
+      const definition=definitions.find(item=>item.key===field.key);
+      const prefix=integrationFieldPrefix(definition);
+      if(prefix && !field.value.startsWith(prefix)){
+        // Checked locally: a value with the wrong prefix never leaves the browser.
+        integrationFieldError(field.element,`Debe empezar por ${prefix}. Revisa que copiaste el valor de este entorno en el panel del proveedor.`);
+        field.element.focus();
+        feedback.textContent=`${definition.label}: el formato no coincide. Nada se guardó.`;
+        return;
+      }
+    }
     // Lock synchronously, even while CSRF negotiation is awaiting network.
     integrationOperations.set(id,"Guardando…");
     integrationBusy(card,true);
     feedback.textContent="Guardando…";
-    let saved=0, latestItems=null, message="", savedKeys=[];
+    let saved=0, latestItems=null, message="", savedKeys=[], current=null;
     try{
       for(const field of fields){
+        current=field;
         latestItems=await integrationMutation("POST",field.key,field.value);
         field.element.value="";
         savedKeys.push(field.key);
@@ -553,7 +587,11 @@
       }
       message=saved===1?"Clave guardada. Los demás valores no se modificaron.":`${saved} claves guardadas. Los demás valores no se modificaron.`;
     }catch(error){
-      message=(saved?`${saved} claves guardadas. `:"")+integrationError(error);
+      const label=definitionsLabel(current?.key);
+      if(String(error?.message)==="SECRET_FORMAT_INVALID" && current){
+        integrationFieldError(current.element,"El servidor rechazó este valor. Revisa el ejemplo del campo.");
+      }
+      message=(saved?`${saved} claves guardadas. `:"")+(label?label+": ":"")+integrationError(error);
     }finally{
       integrationFinished(id,message,latestItems,savedKeys);
     }
@@ -992,6 +1030,11 @@
   }
 
   function bind() {
+    // #1933: editing a credential clears its previous format error.
+    document.addEventListener('input', event => {
+      const input = event.target.closest?.('[data-secret-input]');
+      if (input?.getAttribute('aria-invalid') === 'true') integrationFieldError(input, '');
+    });
     document.addEventListener('click', event => {
       if(handleIntegrationClick(event))return;
       const tab = event.target.closest('[data-settings-tab]');

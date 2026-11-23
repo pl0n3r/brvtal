@@ -39,6 +39,7 @@ $pdo->exec("INSERT INTO admins(id,email,password_hash,name,staff_role)
     VALUES (1,'owner@synthetic.invalid','synthetic','Owner','owner'),
            (2,'staff@synthetic.invalid','synthetic','Staff','admin')");
 $pdo->exec((string)file_get_contents(__DIR__ . '/../../database/migration_integration_secrets_01.sql'));
+$pdo->exec((string)file_get_contents(__DIR__ . '/../../database/migration_admin_activity_01.sql'));
 require_once __DIR__ . '/../../config/integration_secrets_store.php';
 $masterHex = bin2hex(random_bytes(32));
 $masterKey = hex2bin($masterHex);
@@ -101,6 +102,15 @@ define('BRVTAL_SENTRY_TESTING', true);
 $GLOBALS['brvtalBootstrapConfigPath'] = $argv[1];
 require_once $argv[2] . '/config/admin_auth.php';
 $_SERVER['REQUEST_METHOD'] = 'GET';
+if ($argv[3] === 'trim') {
+    // #1933: the real write path trims a pasted value before validating and encrypting it.
+    brvtal_admin_session_start();
+    $_SESSION['admin_id'] = 1;
+    $db = db();
+    brvtalIntegrationSecretMutate($db, 'POST', 'BRVTAL_TICKET_WOMPI_INTEGRITY_SECRET', " test_integrity_TRIMMED_FIXTURE \n", 1);
+    echo json_encode(['stored' => brvtalIntegrationSecretRead('BRVTAL_TICKET_WOMPI_INTEGRITY_SECRET', $db)]);
+    exit(0);
+}
 if (str_starts_with($argv[3], 'guard:')) {
     // #1927: the production switch guard reads the encrypted store like the API does.
     require_once $argv[2] . '/config/ticketing_wompi_client.php';
@@ -172,4 +182,9 @@ publicValuesAssert(array_key_exists('error', $guard) && $guard['error'] === null
 foreach ($private as $key => $secret) {
     publicValuesAssert(!str_contains($json, $secret), $key . ' cannot leak after production keys are stored');
 }
+$config['security']['integration_secret_write'] = true;
+file_put_contents($configFile, '<?php return ' . var_export($config, true) . ';');
+[$trimmed] = $invoke('trim');
+publicValuesAssert(($trimmed['stored'] ?? null) === 'test_integrity_TRIMMED_FIXTURE',
+    'pasted secret with outer whitespace is stored trimmed');
 echo "Settings public values integration OK (authenticated allowlist, no secrets).\n";
