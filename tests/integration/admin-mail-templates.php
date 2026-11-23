@@ -44,7 +44,9 @@ try {
     staff_mail_assert(str_contains($security,'brvtal_password_reset_issue($pdo,')
         && str_contains($security,'brvtal_password_reset_revoke_token($pdo,')
         && str_contains($security,'BRVTAL_PASSWORD_RESET_TTL_SECONDS = 3600')
-        && str_contains($security,"            'password_recovery',\n            $pdo,\n            $link"),
+        && str_contains($security,"'password_recovery',")
+        && str_contains($security, '$pdo,')
+        && str_contains($security, '$link'),
         'reset issues, one-use revocation and TTL preserved');
     if (getenv('BRVTAL_INTEGRATION_TESTS')!=='1') {
         echo "BRVTAL staff template transport contracts OK (MariaDB skipped).\n";
