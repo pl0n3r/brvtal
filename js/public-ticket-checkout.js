@@ -25,6 +25,31 @@
     try { sessionStorage.removeItem(storageKey); } catch { /* Private mode. */ }
   };
   const say = message => { status.textContent = message; };
+  // Hosted Wompi checkout. Each environment only accepts its own public key prefix.
+  // The redirect never means the payment was confirmed: only the signed webhook does.
+  function goToWompi(checkout) {
+    const keyPrefix = { sandbox: 'pub_test_', production: 'pub_prod_' }[checkout?.environment];
+    if (!keyPrefix || checkout.currency !== 'COP'
+      || !checkout.public_key?.startsWith(keyPrefix)) throw new Error('INVALID_ENVIRONMENT');
+    const fields = {
+      'public-key': checkout.public_key, currency: 'COP',
+      'amount-in-cents': String(checkout.amount_in_cents),
+      reference: checkout.reference, 'signature:integrity': checkout.signature_integrity,
+      'redirect-url': checkout.redirect_url,
+    };
+    const hosted = document.createElement('form');
+    hosted.action = 'https://checkout.wompi.co/p/';
+    hosted.method = 'GET';
+    for (const [name, value] of Object.entries(fields)) {
+      const field = document.createElement('input');
+      field.type = 'hidden';
+      field.name = name;
+      field.value = value;
+      hosted.append(field);
+    }
+    document.body.append(hosted);
+    hosted.submit();
+  }
   async function json(response) {
     const payload = await response.json();
     if (!response.ok || !payload.ok) throw new Error(payload.error || 'CHECKOUT_UNAVAILABLE');
@@ -176,6 +201,151 @@
     }
   };
 
+  // #1929 cart: several ticket types in one order. Prices shown here are a preview;
+  // the server recomputes prices and capacity, and only the signed webhook confirms payment.
+  const initCart = () => {
+    const form = document.getElementById('brvtal-ticket-cart');
+    if (!form || form.dataset.cartInitialized === '1') return;
+    form.dataset.cartInitialized = '1';
+    const currency = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
+    // Same "$25.000" shape the server renders (Intl inserts a space after the symbol).
+    const money = { format: value => currency.format(value).replace(/\s/gu, '') };
+    const rows = Array.from(form.querySelectorAll('[data-cart-type]')).map(row => ({
+      row, id: Number(row.dataset.cartType), name: row.dataset.name || '',
+      price: Number(row.dataset.price), available: Math.min(20, Number(row.dataset.available) || 0),
+      output: row.querySelector('[data-cart-qty]'),
+      minus: row.querySelector('[data-cart-step="-1"]'), plus: row.querySelector('[data-cart-step="1"]'),
+    })).filter(item => Number.isSafeInteger(item.id) && item.id > 0 && Number.isSafeInteger(item.price) && item.price > 0);
+    const quantities = new Map(rows.map(item => [item.id, 0]));
+    const totalEl = form.querySelector('[data-cart-total]');
+    const linesEl = form.querySelector('[data-cart-lines]');
+    const pay = form.querySelector('[data-cart-pay]');
+    const stickySummary = document.querySelector('[data-cart-sticky-summary]');
+    const stickyChoose = document.querySelector('[data-cart-sticky-choose]');
+    const stickyPay = document.querySelector('[data-cart-sticky-pay]');
+    const stickyIdle = stickySummary?.textContent || '';
+    let submitting = false;
+    const method = () => form.querySelector('input[name="method"]:checked')?.value || '';
+    const lines = () => rows.filter(item => quantities.get(item.id) > 0)
+      .map(item => ({ ticket_type_id: item.id, quantity: quantities.get(item.id) }));
+    const units = () => Array.from(quantities.values()).reduce((sum, value) => sum + value, 0);
+    const sameLines = (a, b) => Array.isArray(a) && Array.isArray(b) && a.length === b.length
+      && a.every(line => b.some(other => other.ticket_type_id === line.ticket_type_id && other.quantity === line.quantity));
+    if (Array.isArray(record?.lines)) {
+      // Rehydrate the immutable intent after a lost response or reload.
+      for (const line of record.lines) {
+        const item = rows.find(candidate => candidate.id === line?.ticket_type_id);
+        if (item && Number.isInteger(line.quantity) && line.quantity >= 1 && line.quantity <= item.available) {
+          quantities.set(item.id, line.quantity);
+        }
+      }
+      const saved = form.querySelector(`input[name="method"][value="${record.method}"]`);
+      if (saved) saved.checked = true;
+    }
+    function update() {
+      const count = units();
+      let total = 0;
+      const summary = [];
+      for (const item of rows) {
+        const qty = quantities.get(item.id);
+        total += qty * item.price;
+        item.output.textContent = String(qty);
+        item.row.classList.toggle('is-selected', qty > 0);
+        item.minus.disabled = submitting || qty < 1;
+        item.plus.disabled = submitting || qty >= item.available || count >= 20;
+        if (qty > 0) {
+          const li = document.createElement('li');
+          const label = document.createElement('span');
+          label.textContent = `${qty} × ${item.name}`;
+          const amount = document.createElement('span');
+          amount.textContent = money.format(qty * item.price);
+          li.append(label, amount);
+          summary.push(li);
+        }
+      }
+      linesEl?.replaceChildren(...summary);
+      if (totalEl) totalEl.textContent = money.format(total);
+      const ready = count > 0 && method() !== '';
+      pay.disabled = submitting || !ready;
+      pay.textContent = submitting ? 'Reservando…' : (count > 0 ? `Pagar ${money.format(total)}` : 'Elige tus boletas');
+      form.querySelectorAll('input[name="method"]').forEach(input => { input.disabled = submitting; });
+      if (stickySummary) stickySummary.textContent = count > 0
+        ? `${count} ${count === 1 ? 'boleta' : 'boletas'} · ${money.format(total)}` : stickyIdle;
+      if (stickyChoose) stickyChoose.hidden = count > 0;
+      if (stickyPay) { stickyPay.hidden = count < 1; stickyPay.disabled = pay.disabled; }
+    }
+    function newPurchase() {
+      if (submitting) return; // Never discard an in-flight key on input.
+      intent = null;
+      clear();
+      update();
+    }
+    form.addEventListener('click', event => {
+      const step = event.target.closest('[data-cart-step]');
+      if (!step || step.disabled) return;
+      const item = rows.find(candidate => candidate.row.contains(step));
+      if (!item) return;
+      const next = quantities.get(item.id) + Number(step.dataset.cartStep);
+      if (next < 0 || next > item.available || (next > quantities.get(item.id) && units() >= 20)) return;
+      quantities.set(item.id, next);
+      newPurchase();
+    });
+    form.addEventListener('change', event => {
+      if (event.target.name === 'method') newPurchase();
+    });
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      if (submitting || pay.disabled) return;
+      const selection = { lines: lines(), method: method() };
+      submitting = true;
+      update();
+      say('Verificando acceso y cupo…');
+      try {
+        const auth = await json(await fetch('/api/buyer/auth.php', { credentials: 'same-origin', cache: 'no-store' }));
+        if (!auth.authenticated) {
+          say('Inicia sesión para pagar. Si olvidaste tu clave, recupera el acceso desde tu cuenta BRVTAL.');
+          return;
+        }
+        if (record?.lines && (!sameLines(record.lines, selection.lines) || record.method !== selection.method)) {
+          say('Tu selección cambió. Ajusta las boletas para empezar una nueva compra.');
+          return;
+        }
+        intent ||= 'T13-' + crypto.randomUUID();
+        const pending = { intent, lines: selection.lines, method: selection.method,
+          ...(record?.order_id ? { order_id: record.order_id } : {}) };
+        if (!save(pending)) {
+          say('No se pudo guardar tu reserva para reintentos. Activa el almacenamiento de sesión.');
+          return;
+        }
+        const result = await json(await fetch(location.pathname, {
+          method: 'POST', credentials: 'same-origin', cache: 'no-store',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': auth.csrf,
+            'X-BRVTAL-TICKET-CHECKOUT': 'prepare' },
+          body: JSON.stringify({ lines: selection.lines, method: selection.method, idempotency_key: intent }),
+        }));
+        save({ ...pending, order_id: String(result.order_id) });
+        if (result.checkout?.environment === 'mock') { // Synthetic mode never charges.
+          say('Reserva preparada. El pago sigue pendiente hasta la confirmación del servidor.');
+          return;
+        }
+        say('Reserva lista. Te llevamos a Wompi para pagar; el pago queda pendiente hasta que el servidor lo confirme.');
+        goToWompi(result.checkout);
+      } catch (error) {
+        if (error.message === 'CHECKOUT_EXPIRED') {
+          say('La reserva expiró. Cambia tu selección para iniciar una nueva compra.');
+        } else if (error.message === 'CHECKOUT_RETRYABLE') {
+          say('Otra solicitud está preparando tu reserva. Vuelve a intentarlo sin cambiar la selección.');
+        } else {
+          say('No fue posible reservar. Puede que ya no haya cupo; revisa tu selección y vuelve a intentarlo.');
+        }
+      } finally {
+        submitting = false;
+        update();
+      }
+    });
+    update();
+  };
+
   // No new tickets may be sold, yet a previously created order can still be queried.
   const initCheckout = () => {
   const form = document.getElementById('brvtal-ticket-checkout');
@@ -325,28 +495,7 @@
       if (promo) promo.value = ''; // Never retain raw coupon after confirmed prepare.
       say('Reserva preparada. El pago sigue pendiente hasta confirmación del servidor.');
       if (checkout.environment === 'mock') return; // Synthetic mode NEVER charges.
-      // Each environment only accepts its own public key prefix (test vs production).
-      const keyPrefix = { sandbox: 'pub_test_', production: 'pub_prod_' }[checkout.environment];
-      if (!keyPrefix || checkout.currency !== 'COP'
-        || !checkout.public_key?.startsWith(keyPrefix)) throw new Error('INVALID_ENVIRONMENT');
-      const fields = {
-        'public-key': checkout.public_key, currency: 'COP',
-        'amount-in-cents': String(checkout.amount_in_cents),
-        reference: checkout.reference, 'signature:integrity': checkout.signature_integrity,
-        'redirect-url': checkout.redirect_url,
-      };
-      const hosted = document.createElement('form');
-      hosted.action = 'https://checkout.wompi.co/p/';
-      hosted.method = 'GET';
-      for (const [name, value] of Object.entries(fields)) {
-        const field = document.createElement('input');
-        field.type = 'hidden';
-        field.name = name;
-        field.value = value;
-        hosted.append(field);
-      }
-      document.body.append(hosted);
-      hosted.submit(); // Redirect never means payment was confirmed.
+      goToWompi(checkout);
     } catch (error) {
       if (error.message === 'CHECKOUT_EXPIRED') {
         say('La reserva expiró. Cambia tu selección para iniciar una nueva compra.');
@@ -363,5 +512,6 @@
   update();
   };
   initCheckout();
+  initCart();
   void mountWaitlists();
 })();
