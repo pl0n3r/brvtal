@@ -222,3 +222,7 @@ body.cromo-page.entity-page--event .event-ticket-status.is-soon{color:#d6d6d6}
   body.cromo-page.entity-page--event .event-buy-main .entity-hero h1{font-size:clamp(52px,15vw,72px)}
   body.cromo-page.entity-page--event .event-buy-main .entity-actions a.event-buy-button{flex:1 1 100%}
 }
+
+/* #1937 · In-page jumps (Comprar/Ver boletas, Ver line-up, skip link) land below the
+   fixed navigation, whose measured height is --event-nav-h. */
+body.cromo-page.entity-page--event :is(#boletas,#lineup,#main-content){scroll-margin-top:calc(var(--event-nav-h,76px) + 12px)}
