@@ -121,6 +121,17 @@ function brvtalIntegrationSecretValidReturnUrl(string $value): bool
         && !isset($parts['fragment']) && filter_var($value, FILTER_VALIDATE_URL) !== false;
 }
 
+/**
+ * #1933: values pasted from provider dashboards often carry a trailing space or
+ * newline. Single-line credentials are trimmed before validation and encryption;
+ * multi-line values (PEM keys, recipient lists) keep their own handling.
+ */
+function brvtalIntegrationSecretNormalize(string $name, string $value): string
+{
+    return in_array($name, ['BRVTAL_GA4_PRIVATE_KEY','BRVTAL_TICKET_MAIL_TEST_RECIPIENTS'], true)
+        ? $value : trim($value);
+}
+
 function brvtalIntegrationSecretValidate(string $name, string $value): void
 {
     if (!isset(brvtalIntegrationSecretCatalog()[$name])) {
@@ -219,6 +230,7 @@ function brvtalIntegrationSecretMutate(PDO $pdo, string $method, string $name, ?
     }
     if ($method === 'POST') {
         if (!is_string($value)) throw new InvalidArgumentException('SECRET_FORMAT_INVALID');
+        $value = brvtalIntegrationSecretNormalize($name, $value);
         brvtalIntegrationSecretValidate($name, $value);
     }
     // Atomic persistence and audit: fail closed when audit storage is unavailable.

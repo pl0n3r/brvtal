@@ -185,3 +185,31 @@ test('AC-03: capturas reales antes/después de Wompi desde main y HEAD a 390/144
     emitVisual('despues-' + width, afterBytes);
   }
 });
+
+test('#1933: recorta espacios al guardar y explica el prefijo esperado sin enviar el valor', async ({ page }, testInfo) => {
+  for (const [width, height] of [[1440, 900], [390, 844]]) {
+    await page.setViewportSize({ width, height });
+    const wompi = await setup(page);
+    const integrity = wompi.locator('[data-secret-key="BRVTAL_TICKET_WOMPI_INTEGRITY_SECRET"]');
+    await integrity.fill('prod_integrity_fixture_wrong_slot');
+    await wompi.getByRole('button', { name: 'Guardar', exact: true }).click();
+    const error = wompi.locator('[data-secret-row="BRVTAL_TICKET_WOMPI_INTEGRITY_SECRET"] [data-secret-error]');
+    await expect(error).toHaveText(/Debe empezar por test_integrity_/);
+    await expect(integrity).toHaveAttribute('aria-invalid', 'true');
+    // The visible error is programmatically tied to its field for screen readers.
+    const errorId = await error.getAttribute('id');
+    expect(errorId).toBeTruthy();
+    await expect(integrity).toHaveAttribute('aria-errormessage', errorId);
+    await expect(integrity).toBeFocused();
+    expect(await page.evaluate(() => window.wompiFixture.writes.length)).toBe(0);
+    await integrity.scrollIntoViewIfNeeded();
+    await testInfo.attach(`prefijo-${width}`, { body: await page.screenshot(), contentType: 'image/png' });
+
+    await integrity.fill('test_integrity_fixture_ok  \n');
+    await expect(error).toBeHidden();
+    await wompi.getByRole('button', { name: 'Guardar', exact: true }).click();
+    await expect(wompi.locator('[data-secret-feedback]')).toContainText('guardada');
+    const writes = await page.evaluate(() => window.wompiFixture.writes);
+    expect(writes.at(-1)).toEqual({ key: 'BRVTAL_TICKET_WOMPI_INTEGRITY_SECRET', value: 'test_integrity_fixture_ok' });
+  }
+});

@@ -162,4 +162,19 @@ wompiEnvCheck(brvtal_ticket_wompi_mode_change_error('production', 'COBROS_REALES
 $api = (string) file_get_contents(__DIR__ . '/../api/admin-integration-secrets.php');
 wompiEnvCheck(str_contains($api, 'brvtal_ticket_wompi_mode_change_error('), 'admin API applies the mode guard');
 
+// #1933: pasted values with outer whitespace are trimmed before validation;
+// a value from the wrong environment is still rejected after trimming.
+wompiEnvCheck(brvtalIntegrationSecretNormalize('BRVTAL_TICKET_WOMPI_INTEGRITY_SECRET', " test_integrity_fixture_abc \n")
+    === 'test_integrity_fixture_abc', 'single-line secret is trimmed');
+brvtalIntegrationSecretValidate('BRVTAL_TICKET_WOMPI_EVENTS_SECRET',
+    brvtalIntegrationSecretNormalize('BRVTAL_TICKET_WOMPI_EVENTS_SECRET', "test_events_fixture_abc\r\n"));
+$pem = "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----\n";
+wompiEnvCheck(brvtalIntegrationSecretNormalize('BRVTAL_GA4_PRIVATE_KEY', $pem) === $pem, 'PEM keeps its own handling');
+try {
+    brvtalIntegrationSecretValidate('BRVTAL_TICKET_WOMPI_INTEGRITY_SECRET',
+        brvtalIntegrationSecretNormalize('BRVTAL_TICKET_WOMPI_INTEGRITY_SECRET', ' prod_integrity_fixture_abc '));
+    wompiEnvCheck(false, 'production secret accepted in the test slot after trimming');
+} catch (InvalidArgumentException) {
+}
+
 echo "BRVTAL Wompi test/production environment contract passed\n";

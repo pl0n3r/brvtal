@@ -311,13 +311,14 @@
    const current=isPublic?integrationPublicValue(field,item):'';
    const preset=isPublic?` value="${esc(current)}" data-public-original="${esc(current)}"`:'';
    const input=field.kind==="multiline"
-     ? `<textarea id="${id}" rows="5" data-secret-input data-secret-key="${esc(field.key)}" autocomplete="off" spellcheck="false" placeholder="${esc(field.example)}" ${disabled}></textarea>`
-     : `<input id="${id}" data-secret-input data-secret-key="${esc(field.key)}" type="${esc(field.kind)}" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(field.example)}"${preset} ${disabled}>`;
+     ? `<textarea id="${id}" rows="5" data-secret-input data-secret-key="${esc(field.key)}" aria-errormessage="${id}-error" autocomplete="off" spellcheck="false" placeholder="${esc(field.example)}" ${disabled}></textarea>`
+     : `<input id="${id}" data-secret-input data-secret-key="${esc(field.key)}" aria-errormessage="${id}-error" type="${esc(field.kind)}" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(field.example)}"${preset} ${disabled}>`;
    const updated=item?.updated_at ? "Actualizado: "+esc(item.updated_at) : "Sin valor guardado";
    return `<div class="sv2-secret-field" data-secret-row="${esc(field.key)}">
        <label class="sv2-secret-label" for="${id}">${esc(field.label)}</label>
        ${input}
        <small class="sv2-secret-help">${esc(field.help)}</small>
+       <small class="sv2-secret-error" id="${id}-error" data-secret-error role="alert" hidden></small>
        <div class="sv2-secret-field-meta">
          <small data-secret-stored>${stored?"Guardada · "+updated:updated}</small>
          <button type="button" class="sv2-secret-delete" data-secret-delete="${esc(field.key)}" aria-label="Eliminar ${esc(field.label)}" ${stored?"":"hidden"} ${writable?"":"disabled"}>Eliminar</button>
@@ -329,13 +330,14 @@
     if(provider.id!=="resend")return "";
     const item=items.find(row=>row.key==="BRVTAL_TICKET_MAIL_TEST_RECIPIENTS");
     const configured=item?.stored===true;
-    return `<div class="sv2-secret-field">
+    return `<div class="sv2-secret-field" data-secret-row="BRVTAL_TICKET_MAIL_TEST_RECIPIENTS">
       <label class="sv2-secret-label" for="sv2-mail-test-recipients">Destinatarios permitidos para pruebas</label>
-      <textarea id="sv2-mail-test-recipients" rows="2" data-mail-allowlist
+      <textarea id="sv2-mail-test-recipients" rows="2" data-mail-allowlist aria-errormessage="sv2-mail-test-recipients-error"
         data-secret-key="BRVTAL_TICKET_MAIL_TEST_RECIPIENTS" autocomplete="off"
         autocapitalize="off" spellcheck="false"
         placeholder="qa@ejemplo.co, pruebas@ejemplo.co" ${writable?"":"disabled"}></textarea>
       <small class="sv2-secret-help">Correos separados por comas. La lista se guarda cifrada y nunca se vuelve a mostrar.</small>
+      <small class="sv2-secret-error" id="sv2-mail-test-recipients-error" data-secret-error role="alert" hidden></small>
       <small data-mail-allowlist-status>${configured?"Lista guardada":"Lista no configurada"}</small>
     </div>`;
   }
@@ -529,23 +531,57 @@
     if(feedback)feedback.textContent=message;
   }
 
+  // #1933: the expected prefix comes from the field example (pub_test_…, test_integrity_…).
+  function integrationFieldPrefix(field){
+    const match=/^([a-z][a-z0-9]*(?:_[a-z0-9]+)*_)…$/.exec(String(field?.example||''));
+    return match?match[1]:'';
+  }
+  function definitionsLabel(key){
+    if(key==="BRVTAL_TICKET_MAIL_TEST_RECIPIENTS")return "Destinatarios permitidos para pruebas";
+    return INTEGRATION_PROVIDERS.flatMap(provider=>provider.fields).find(item=>item.key===key)?.label||'';
+  }
+  function integrationFieldError(element,message){
+    const row=element.closest('[data-secret-row]');
+    const slot=row?.querySelector('[data-secret-error]');
+    if(!slot)return;
+    slot.textContent=message;
+    slot.hidden=!message;
+    element.setAttribute('aria-invalid',message?'true':'false');
+  }
+
   async function saveIntegrationProvider(id){
     const card=integrationCardFor(id);
     if(!card || !V2.integrationWritable || integrationOperations.has(id))return;
     const fields=Array.from(card.querySelectorAll('[data-secret-input], [data-mail-allowlist]'))
       .filter(field=>field.value.trim().length>0
         && (!field.hasAttribute('data-public-original') || field.value!==field.dataset.publicOriginal))
-      .map(field=>({element:field,key:field.dataset.secretKey,value:field.value}));
+      .map(field=>({element:field,key:field.dataset.secretKey,
+        // Single-line values are trimmed: dashboards often copy a trailing space or newline.
+        value:field.tagName==='TEXTAREA'?field.value:field.value.trim()}));
     const feedback=card.querySelector('[data-secret-feedback]');
     if(!feedback)return;
     if(!fields.length){feedback.textContent="Escribe al menos un valor. Los campos vacíos se conservan.";return;}
+    const definitions=INTEGRATION_PROVIDERS.flatMap(provider=>provider.fields);
+    card.querySelectorAll('[data-secret-input], [data-mail-allowlist]').forEach(input=>integrationFieldError(input,''));
+    for(const field of fields){
+      const definition=definitions.find(item=>item.key===field.key);
+      const prefix=integrationFieldPrefix(definition);
+      if(prefix && !field.value.startsWith(prefix)){
+        // Checked locally: a value with the wrong prefix never leaves the browser.
+        integrationFieldError(field.element,`Debe empezar por ${prefix}. Revisa que copiaste el valor de este entorno en el panel del proveedor.`);
+        field.element.focus();
+        feedback.textContent=`${definition.label}: el formato no coincide. Nada se guardó.`;
+        return;
+      }
+    }
     // Lock synchronously, even while CSRF negotiation is awaiting network.
     integrationOperations.set(id,"Guardando…");
     integrationBusy(card,true);
     feedback.textContent="Guardando…";
-    let saved=0, latestItems=null, message="", savedKeys=[];
+    let saved=0, latestItems=null, message="", savedKeys=[], current=null;
     try{
       for(const field of fields){
+        current=field;
         latestItems=await integrationMutation("POST",field.key,field.value);
         field.element.value="";
         savedKeys.push(field.key);
@@ -553,7 +589,11 @@
       }
       message=saved===1?"Clave guardada. Los demás valores no se modificaron.":`${saved} claves guardadas. Los demás valores no se modificaron.`;
     }catch(error){
-      message=(saved?`${saved} claves guardadas. `:"")+integrationError(error);
+      const label=definitionsLabel(current?.key);
+      if(String(error?.message)==="SECRET_FORMAT_INVALID" && current){
+        integrationFieldError(current.element,"El servidor rechazó este valor. Revisa el ejemplo del campo.");
+      }
+      message=(saved?`${saved} claves guardadas. `:"")+(label?label+": ":"")+integrationError(error);
     }finally{
       integrationFinished(id,message,latestItems,savedKeys);
     }
@@ -992,6 +1032,11 @@
   }
 
   function bind() {
+    // #1933: editing a credential clears its previous format error.
+    document.addEventListener('input', event => {
+      const input = event.target.closest?.('[data-secret-input], [data-mail-allowlist]');
+      if (input?.getAttribute('aria-invalid') === 'true') integrationFieldError(input, '');
+    });
     document.addEventListener('click', event => {
       if(handleIntegrationClick(event))return;
       const tab = event.target.closest('[data-settings-tab]');
