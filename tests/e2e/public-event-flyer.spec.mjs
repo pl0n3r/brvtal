@@ -52,6 +52,13 @@ test('AC-01: los enlaces internos no salen del evento pese a <base href="/">', a
     await expect(page).toHaveURL(url + target);
     expect(new URL(page.url()).pathname).toBe('/events/flyer-fixture');
     await expect(page.locator(target)).toBeInViewport();
+    // #1937: the section heading lands below the fixed navigation, not under it.
+    await expect.poll(() => page.evaluate(id => {
+      const heading = document.querySelector(id + ' h2, ' + id + ' .entity-section-label');
+      const box = heading.getBoundingClientRect();
+      const hit = document.elementFromPoint(box.left + 10, box.top + Math.min(box.height / 2, 12));
+      return Boolean(hit && heading.contains(hit)) && !hit.closest('.entity-nav');
+    }, target)).toBe(true);
   }
 });
 
