@@ -79,7 +79,7 @@ async function setup(page,{width=1440,role='superadmin'}={}) {
     const body=request.postDataJSON();state.requests.push(body);
     expect(body).not.toHaveProperty('recipient');
     expect(body).not.toHaveProperty('token');
-    if(state.nextStatus){
+    if(state.nextStatus && body.action!=='preview'){
       const status=state.nextStatus;state.nextStatus=0;
       return route.fulfill(json({ok:false,error:status===403?'FORBIDDEN':
         status===409?'MAIL_TEMPLATE_CONFLICT':'MAIL_TEMPLATES_UNAVAILABLE'},status));
@@ -135,7 +135,7 @@ test('AC-01/AC-04: editor real en el shell a 390/1440, preview HTML/texto y foco
     const editor=page.locator('[data-mail-workspace]');
     await expect(editor.getByText('Correos transaccionales')).toBeVisible();
     await expect(editor.locator('[data-mail-catalog] button')).toHaveCount(3);
-    await expect(editor.getByText('Confirmación de pago')).toBeVisible();
+    await expect(editor.locator('[data-mail-catalog] button[data-mail-key="payment_approved"]')).toBeVisible();
     await expect(editor.getByRole('button',{name:'Enviar prueba'})).toBeDisabled();
     await expect(editor.getByText(/enlaces de verificación y recuperación/)).toBeVisible();
     await expect(editor.locator('[data-mail-preview-frame]').contentFrame().locator('h1'))
@@ -177,7 +177,7 @@ test('AC-02: guardar borrador no publica; publicar con confirmación, rol y CAS'
   await editor.getByRole('textbox',{name:'Asunto'}).fill('Noche BRVTAL');
   await expect(editor.getByRole('button',{name:'Publicar',exact:true})).toBeDisabled();
   await editor.getByRole('button',{name:'Guardar borrador'}).click();
-  await expect(editor.getByRole('status')).toContainText('Borrador guardado');
+  await expect(editor.locator('[data-mail-status]')).toContainText('Borrador guardado');
   expect(state.active.subject).toBe('Compra aprobada');
   expect(state.draft.copy.subject).toBe('Noche BRVTAL');
   await page.evaluate(()=>window.confirm=()=>false);
@@ -185,7 +185,7 @@ test('AC-02: guardar borrador no publica; publicar con confirmación, rol y CAS'
   expect(state.active.subject).toBe('Compra aprobada');
   await page.evaluate(()=>window.confirm=()=>true);
   await editor.getByRole('button',{name:'Publicar',exact:true}).click();
-  await expect(editor.getByRole('status')).toContainText('Plantilla publicada');
+  await expect(editor.locator('[data-mail-status]')).toContainText('Plantilla publicada');
   expect(state.active.subject).toBe('Noche BRVTAL');
   expect(state.requests.filter(x=>x.action==='save_draft')).toHaveLength(1);
   expect(state.requests.filter(x=>x.action==='publish')).toHaveLength(1);
@@ -207,14 +207,14 @@ test('AC-02/AC-03: 403/409/503 preservan ediciones; historial/restauración y pe
     expect(state.active.subject).toBe('Compra aprobada');
   }
   await editor.getByRole('button',{name:'Guardar borrador'}).click();
-  await expect(editor.getByRole('status')).toContainText('Borrador guardado');
+  await expect(editor.locator('[data-mail-status]')).toContainText('Borrador guardado');
   await page.evaluate(()=>window.confirm=()=>true);
   await editor.getByRole('button',{name:'Publicar',exact:true}).click();
-  await expect(editor.getByRole('status')).toContainText('publicada');
+  await expect(editor.locator('[data-mail-status]')).toContainText('publicada');
   await editor.getByRole('tab',{name:'Historial'}).click();
   await expect(editor.getByText('versión 1')).toBeVisible();
   await editor.getByRole('button',{name:'Restablecer versión'}).click();
-  await expect(editor.getByRole('status')).toContainText('Versión restaurada');
+  await expect(editor.locator('[data-mail-status]')).toContainText('Versión restaurada');
   expect(state.requests.some(x=>x.action==='restore')).toBe(true);
   await setup(page,{role:'mail_staff'});
   await expect(page.getByRole('button',{name:'Guardar borrador'})).toBeDisabled();
