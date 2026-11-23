@@ -1,0 +1,66 @@
+name: BRVTAL Mail Templates Admin API
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'api/admin-mail-templates.php'
+      - 'config/mail_template_admin_api.php'
+      - 'config/mail_template_store.php'
+      - 'config/mail_template_catalog.php'
+      - 'tests/integration/admin-mail-templates-api.php'
+      - '.github/workflows/mail-template-admin-api.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brvtal-mail-admin-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  synthetic-mariadb:
+    name: Mail Template Admin API / MariaDB
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      mariadb:
+        image: ghcr.io/mariadb/mariadb:11.4.13-noble@sha256:3cff57293253c640483e8a19ce506cf68bf8e4529385e64aeec700c02038e7ed
+        env:
+          MARIADB_ROOT_PASSWORD: brvtal_root
+          MARIADB_DATABASE: brvtal_test_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=15
+    env:
+      BRVTAL_INTEGRATION_TESTS: '1'
+      BRVTAL_TEST_DB_HOST: 127.0.0.1
+      BRVTAL_TEST_DB_PORT: '3306'
+      BRVTAL_TEST_DB_NAME: brvtal_test_ci
+      BRVTAL_TEST_DB_USER: root
+      BRVTAL_TEST_DB_PASS: brvtal_root
+    steps:
+      - name: Checkout source without retaining credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up PHP 8.5
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: '8.5'
+          extensions: pdo_mysql, mbstring
+          coverage: none
+          ini-file: production
+
+      - name: Verify executable contracts with synthetic data only
+        run: |
+          set -euo pipefail
+          php -l api/admin-mail-templates.php
+          php -l config/mail_template_admin_api.php
+          php -l tests/integration/admin-mail-templates-api.php
+          php tests/integration/admin-mail-templates-api.php
