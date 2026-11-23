@@ -28,9 +28,9 @@ return [
         'cta' => 'Ver estado del pedido',
     ],
     'payment_approved' => [
-        'subject' => 'BRVTAL | Pago aprobado y boletas disponibles',
+        'subject' => 'BRVTAL | Pago aprobado: tus boletas',
         'title' => 'Tu pago fue aprobado',
-        'message' => 'Tus boletas están disponibles en Mi Cuenta. Accede con tu sesión para consultar los códigos de ingreso; no se incluyen códigos QR en este correo.',
+        'message' => 'Aquí están tus boletas. Cada enlace muestra el código QR que se escanea en la puerta; guarda este correo y no lo reenvíes.',
         'cta' => 'Abrir Mi Cuenta',
     ],
     'reminder' => [
