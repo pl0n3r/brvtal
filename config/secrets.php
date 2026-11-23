@@ -72,15 +72,17 @@ function brvtal_provisioning_snapshot(?array $config = null): array
 {
     $value = static fn(string $key): string => brvtal_secret_value($key, null, $config);
     $all = (static fn(array $keys): bool => array_all($keys, fn($key) => !(trim($value($key)) === '')));
-    $wompi = $all([
-        'BRVTAL_TICKET_WOMPI_PUBLIC_KEY','BRVTAL_TICKET_WOMPI_PRIVATE_KEY',
-        'BRVTAL_TICKET_WOMPI_INTEGRITY_SECRET','BRVTAL_TICKET_WOMPI_EVENTS_SECRET',
+    $wompiMode = trim($value('BRVTAL_TICKET_WOMPI_MODE'));
+    $wompiPrefix = $wompiMode === 'production' ? 'BRVTAL_TICKET_WOMPI_PROD_' : 'BRVTAL_TICKET_WOMPI_';
+    $wompiReady = in_array($wompiMode, ['sandbox','production'], true) && $all([
+        $wompiPrefix . 'PUBLIC_KEY', $wompiPrefix . 'PRIVATE_KEY',
+        $wompiPrefix . 'INTEGRITY_SECRET', $wompiPrefix . 'EVENTS_SECRET',
         'BRVTAL_TICKET_WOMPI_RETURN_URL','BRVTAL_TICKET_WOMPI_ENABLED_METHODS',
-    ]) && $value('BRVTAL_TICKET_WOMPI_MODE') === 'sandbox'
-       && $value('BRVTAL_TICKET_WOMPI_SANDBOX_ENABLED') === '1';
+    ]);
+    $wompiStatus = !$wompiReady ? 'falta' : ($wompiMode === 'production' ? 'modo producción' : 'modo sandbox');
     return [
         'integrations' => [
-            ['id'=>'wompi','label'=>'Wompi','status'=>$wompi ? 'modo sandbox' : 'falta'],
+            ['id'=>'wompi','label'=>'Wompi','status'=>$wompiStatus],
             ['id'=>'resend','label'=>'Resend','status'=>$all(['BRVTAL_TICKET_MAIL_API_KEY','BRVTAL_TICKET_MAIL_DOMAIN','BRVTAL_TICKET_MAIL_FROM']) ? 'configurado':'falta'],
             ['id'=>'smtp','label'=>'SMTP','status'=>$all(['BRVTAL_SMTP_HOST','BRVTAL_SMTP_USER','BRVTAL_SMTP_PASSWORD','BRVTAL_MAIL_FROM']) ? 'configurado':'falta'],
             ['id'=>'ga4','label'=>'Google Analytics 4','status'=>$all(['BRVTAL_GA4_PROPERTY_ID','BRVTAL_GA4_CLIENT_EMAIL','BRVTAL_GA4_PRIVATE_KEY']) ? 'configurado':'falta'],

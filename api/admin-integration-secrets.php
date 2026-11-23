@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/admin_auth.php';
 require_once __DIR__ . '/../config/integration_secrets_store.php';
 require_once __DIR__ . '/../config/ticketing_staff_permissions.php';
+require_once __DIR__ . '/../config/ticketing_wompi_client.php';
 
 /**
  * Publish ONLY non-credential settings for authenticated administrators.
@@ -21,6 +22,9 @@ function brvtalIntegrationSecretPublicStatus(PDO $pdo): array
         'BRVTAL_MAIL_FROM',
         'BRVTAL_GA4_PROPERTY_ID',
         'BRVTAL_GA4_CLIENT_EMAIL',
+        'BRVTAL_TICKET_WOMPI_MODE',
+        'BRVTAL_TICKET_WOMPI_ENABLED_METHODS',
+        'BRVTAL_TICKET_WOMPI_RETURN_URL',
     ], true);
     foreach ($items as &$item) {
         $key = (string)($item['key'] ?? '');
@@ -53,7 +57,8 @@ try {
     $masterAvailable = brvtalIntegrationSecretMasterKey() !== null;
     if ($method === 'GET') {
         json_response(['ok'=>true,'write_enabled'=>$writeEnabled && $masterAvailable,
-            'master_key_configured'=>$masterAvailable, 'items'=>brvtalIntegrationSecretPublicStatus($pdo)]);
+            'master_key_configured'=>$masterAvailable, 'items'=>brvtalIntegrationSecretPublicStatus($pdo),
+            'wompi'=>brvtal_ticket_wompi_status()]);
     }
 
     // Normalize rejected write CSRF to 403 for the documented API contract.
@@ -80,8 +85,14 @@ try {
     }
     $key = $input['key'];
     $value = $method === 'POST' ? ($input['value'] ?? null) : null;
+    if ($method === 'POST' && $key === 'BRVTAL_TICKET_WOMPI_MODE') {
+        // Real charges need explicit confirmation and a complete, valid production key set.
+        $modeError = brvtal_ticket_wompi_mode_change_error((string)$value, $input['confirm'] ?? null);
+        if ($modeError !== null) json_response(['ok'=>false,'error'=>$modeError], 409);
+    }
     brvtalIntegrationSecretMutate($pdo, $method, $key, is_string($value) ? $value : null, $actorId);
-    json_response(['ok'=>true,'items'=>brvtalIntegrationSecretPublicStatus($pdo)]);
+    json_response(['ok'=>true,'items'=>brvtalIntegrationSecretPublicStatus($pdo),
+        'wompi'=>brvtal_ticket_wompi_status()]);
 } catch (InvalidArgumentException | JsonException) {
     json_response(['ok'=>false,'error'=>'SECRET_FORMAT_INVALID'], 422);
 } catch (DomainException) {

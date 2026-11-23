@@ -141,7 +141,8 @@ test('AC-02: cinco tarjetas, un Guardar por proveedor y etiquetas comprensibles'
   expect((await page.locator('[data-settings-integrations]').innerText()).toLowerCase())
     .not.toMatch(/\b(api key|webhook secret|from)\b/);
   await expect(page.locator('[data-secret-input][type="password"]')).not.toHaveCount(0);
-  await expect(page.locator('[data-secret-input][autocomplete="off"]')).toHaveCount(14);
+  // #1927: Wompi now holds test and production key sets plus methods and return page.
+  await expect(page.locator('[data-secret-input][autocomplete="off"]')).toHaveCount(22);
   await expect(page.locator('[data-secret-delete]:visible')).toHaveCount(0);
   await expect(page.locator('[data-integration-provider="wompi"] [data-provider-state]')).toHaveText('Falta');
 });

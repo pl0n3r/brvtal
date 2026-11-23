@@ -99,6 +99,37 @@
   outline:2px solid #fff;outline-offset:3px;
 }
 .sv2-secret-card :where(button):disabled{cursor:not-allowed;opacity:.6}
+/* #1927 · Wompi: key sets grouped by environment and an explicit sale mode. */
+.sv2-secret-group{
+  grid-column:1/-1;margin:8px 0 -6px;padding-top:16px;
+  border-top:1px solid var(--admin-border-subtle,#25292d);
+  color:#f1f1ef;font-size:13px;font-weight:700;line-height:1.4;
+}
+.sv2-secret-group:first-child{margin-top:0;padding-top:0;border-top:0}
+.sv2-wompi-mode{margin:22px 0 0;padding:0;border:0;min-width:0}
+.sv2-wompi-mode-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.sv2-wompi-mode-option{
+  position:relative;display:flex;gap:10px;align-items:flex-start;min-height:44px;
+  padding:12px 13px;border:1px solid #4c5358;background:#070809;cursor:pointer;
+  transition:border-color .15s ease-out,background-color .15s ease-out;
+}
+.sv2-wompi-mode-option:hover{border-color:#9ba6aa}
+.sv2-wompi-mode-option:has(input:checked){border-color:#f1f1ef;background:#14171a}
+.sv2-wompi-mode-option.is-live:has(input:checked){border-color:var(--red,#ff2038);background:#1d1012}
+.sv2-wompi-mode-option input{margin:3px 0 0;flex:none;width:16px;height:16px;accent-color:#f1f1ef}
+.sv2-wompi-mode-option.is-live input{accent-color:var(--red,#ff2038)}
+.sv2-wompi-mode-option span{display:flex;flex-direction:column;gap:4px;min-width:0}
+.sv2-wompi-mode-option strong{color:#f6f6f4;font-size:13px;line-height:1.35}
+.sv2-wompi-mode-option small{color:#c0c5c7;font-size:12px;line-height:1.45;text-wrap:pretty}
+.sv2-wompi-mode-option:has(input:focus-visible){outline:2px solid #fff;outline-offset:3px}
+.sv2-wompi-mode-foot{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:12px}
+.sv2-wompi-mode-foot p{margin:0;min-width:0;flex:1;color:#d8dddf;font-size:13px;line-height:1.5}
+.sv2-wompi-mode-foot .btn{min-height:44px;flex-shrink:0}
+@media(prefers-reduced-motion:reduce){.sv2-wompi-mode-option{transition:none}}
+@media(max-width:820px){.sv2-wompi-mode-options{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:600px){
+  .sv2-wompi-mode-foot{flex-direction:column;align-items:stretch}
+}
 .sv2-secret-disclaimer{
   margin:17px 0 0;max-width:65ch;font-size:12px;color:#c0c5c7;line-height:1.65;
 }

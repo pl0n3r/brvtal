@@ -225,10 +225,10 @@
     return ['general','social','seo','analytics','integrations','advanced'].includes(requested) ? requested : '';
   }
 
-    const INTEGRATION_PROVIDERS = [{"id":"resend","name":"Resend","description":"Envío de correos y confirmaciones de entradas.","fields":[{"key":"BRVTAL_TICKET_MAIL_API_KEY","label":"Clave de API","help":"Empieza por re_…","example":"re_…","kind":"password"},{"key":"BRVTAL_TICKET_MAIL_DOMAIN","label":"Dominio de envío","help":"Dominio verificado para enviar correos.","example":"correo.ejemplo.co","kind":"text"},{"key":"BRVTAL_TICKET_MAIL_FROM","label":"Remitente","help":"Correo que verán las personas al recibir un mensaje.","example":"entradas@ejemplo.co","kind":"email"},{"key":"BRVTAL_TICKET_MAIL_WEBHOOK_SECRET","label":"Secreto del webhook","help":"Clave de firma para verificar los eventos recibidos.","example":"whsec_…","kind":"password"}]},{"id":"wompi","name":"Wompi sandbox","description":"Pagos de prueba; estas claves no activan cobros reales.","fields":[{"key":"BRVTAL_TICKET_WOMPI_PUBLIC_KEY","label":"Clave pública","help":"Clave de pruebas para la integración.","example":"pub_test_…","kind":"password"},{"key":"BRVTAL_TICKET_WOMPI_PRIVATE_KEY","label":"Clave privada","help":"Guárdala de forma privada. No se mostrará otra vez.","example":"prv_test_…","kind":"password"}]},{"id":"smtp","name":"SMTP","description":"Servidor alternativo para el envío de correos.","fields":[{"key":"BRVTAL_SMTP_HOST","label":"Servidor","help":"Dirección del servidor de correo.","example":"smtp.ejemplo.co","kind":"text"},{"key":"BRVTAL_SMTP_USER","label":"Usuario","help":"Identificador de la cuenta de correo.","example":"cuenta@ejemplo.co","kind":"text"},{"key":"BRVTAL_SMTP_PASSWORD","label":"Contraseña","help":"Contraseña del servidor. No se mostrará después.","example":"Introduce una nueva contraseña","kind":"password"},{"key":"BRVTAL_MAIL_FROM","label":"Remitente","help":"Correo desde el que se envían los mensajes.","example":"hola@ejemplo.co","kind":"email"}]},{"id":"ga4","name":"Google Analytics 4","description":"Identidad de servicio para consultar métricas.","fields":[{"key":"BRVTAL_GA4_PROPERTY_ID","label":"ID de propiedad","help":"Solo los números del identificador de GA4.","example":"123456789","kind":"text"},{"key":"BRVTAL_GA4_CLIENT_EMAIL","label":"Correo de servicio","help":"Dirección de la cuenta de servicio.","example":"cuenta@proyecto.iam.gserviceaccount.com","kind":"email"},{"key":"BRVTAL_GA4_PRIVATE_KEY","label":"Clave privada (PEM)","help":"Pega el bloque PEM completo, con saltos de línea.","example":"-----BEGIN PRIVATE KEY-----","kind":"multiline"}]},{"id":"sentry","name":"Sentry","description":"Diagnóstico de errores del servidor.","fields":[{"key":"BRVTAL_SENTRY_DSN","label":"Dirección de conexión (DSN)","help":"Dirección HTTPS de tu proyecto.","example":"https://…@sentry.io/…","kind":"password"}]}];
+    const INTEGRATION_PROVIDERS = [{"id":"resend","name":"Resend","description":"Envío de correos y confirmaciones de entradas.","fields":[{"key":"BRVTAL_TICKET_MAIL_API_KEY","label":"Clave de API","help":"Empieza por re_…","example":"re_…","kind":"password"},{"key":"BRVTAL_TICKET_MAIL_DOMAIN","label":"Dominio de envío","help":"Dominio verificado para enviar correos.","example":"correo.ejemplo.co","kind":"text"},{"key":"BRVTAL_TICKET_MAIL_FROM","label":"Remitente","help":"Correo que verán las personas al recibir un mensaje.","example":"entradas@ejemplo.co","kind":"email"},{"key":"BRVTAL_TICKET_MAIL_WEBHOOK_SECRET","label":"Secreto del webhook","help":"Clave de firma para verificar los eventos recibidos.","example":"whsec_…","kind":"password"}]},{"id":"wompi","name":"Wompi","description":"Pagos de boletas. Guarda las llaves de pruebas y de producción y elige cuáles usa la venta.","fields":[{"key":"BRVTAL_TICKET_WOMPI_PUBLIC_KEY","label":"Llave pública","help":"Llave de pruebas del panel de Wompi.","example":"pub_test_…","kind":"password","group":"Llaves de pruebas"},{"key":"BRVTAL_TICKET_WOMPI_PRIVATE_KEY","label":"Llave privada","help":"No se mostrará otra vez.","example":"prv_test_…","kind":"password","group":"Llaves de pruebas"},{"key":"BRVTAL_TICKET_WOMPI_INTEGRITY_SECRET","label":"Secreto de integridad","help":"Firma el monto de cada pago.","example":"test_integrity_…","kind":"password","group":"Llaves de pruebas"},{"key":"BRVTAL_TICKET_WOMPI_EVENTS_SECRET","label":"Secreto de eventos","help":"Verifica los avisos de pago que envía Wompi.","example":"test_events_…","kind":"password","group":"Llaves de pruebas"},{"key":"BRVTAL_TICKET_WOMPI_PROD_PUBLIC_KEY","label":"Llave pública","help":"Llave de producción del panel de Wompi.","example":"pub_prod_…","kind":"password","group":"Llaves de producción"},{"key":"BRVTAL_TICKET_WOMPI_PROD_PRIVATE_KEY","label":"Llave privada","help":"No se mostrará otra vez.","example":"prv_prod_…","kind":"password","group":"Llaves de producción"},{"key":"BRVTAL_TICKET_WOMPI_PROD_INTEGRITY_SECRET","label":"Secreto de integridad","help":"Firma el monto de cada pago real.","example":"prod_integrity_…","kind":"password","group":"Llaves de producción"},{"key":"BRVTAL_TICKET_WOMPI_PROD_EVENTS_SECRET","label":"Secreto de eventos","help":"Verifica los avisos de pagos reales.","example":"prod_events_…","kind":"password","group":"Llaves de producción"},{"key":"BRVTAL_TICKET_WOMPI_ENABLED_METHODS","label":"Métodos de pago","help":"Separados por comas: CARD, NEQUI, PSE.","example":"CARD,NEQUI,PSE","kind":"text","group":"Cobro"},{"key":"BRVTAL_TICKET_WOMPI_RETURN_URL","label":"Página de regreso","help":"Dirección HTTPS a la que vuelve la persona tras pagar.","example":"https://www.brvtal.com.co/mi-cuenta","kind":"text","group":"Cobro"}]},{"id":"smtp","name":"SMTP","description":"Servidor alternativo para el envío de correos.","fields":[{"key":"BRVTAL_SMTP_HOST","label":"Servidor","help":"Dirección del servidor de correo.","example":"smtp.ejemplo.co","kind":"text"},{"key":"BRVTAL_SMTP_USER","label":"Usuario","help":"Identificador de la cuenta de correo.","example":"cuenta@ejemplo.co","kind":"text"},{"key":"BRVTAL_SMTP_PASSWORD","label":"Contraseña","help":"Contraseña del servidor. No se mostrará después.","example":"Introduce una nueva contraseña","kind":"password"},{"key":"BRVTAL_MAIL_FROM","label":"Remitente","help":"Correo desde el que se envían los mensajes.","example":"hola@ejemplo.co","kind":"email"}]},{"id":"ga4","name":"Google Analytics 4","description":"Identidad de servicio para consultar métricas.","fields":[{"key":"BRVTAL_GA4_PROPERTY_ID","label":"ID de propiedad","help":"Solo los números del identificador de GA4.","example":"123456789","kind":"text"},{"key":"BRVTAL_GA4_CLIENT_EMAIL","label":"Correo de servicio","help":"Dirección de la cuenta de servicio.","example":"cuenta@proyecto.iam.gserviceaccount.com","kind":"email"},{"key":"BRVTAL_GA4_PRIVATE_KEY","label":"Clave privada (PEM)","help":"Pega el bloque PEM completo, con saltos de línea.","example":"-----BEGIN PRIVATE KEY-----","kind":"multiline"}]},{"id":"sentry","name":"Sentry","description":"Diagnóstico de errores del servidor.","fields":[{"key":"BRVTAL_SENTRY_DSN","label":"Dirección de conexión (DSN)","help":"Dirección HTTPS de tu proyecto.","example":"https://…@sentry.io/…","kind":"password"}]}];
   
   // Only fields explicitly allowed by the server can be displayed in Settings.
-  const INTEGRATION_PUBLIC_KEYS = new Set(["BRVTAL_TICKET_MAIL_FROM","BRVTAL_TICKET_MAIL_DOMAIN","BRVTAL_SMTP_HOST","BRVTAL_SMTP_USER","BRVTAL_MAIL_FROM","BRVTAL_GA4_PROPERTY_ID","BRVTAL_GA4_CLIENT_EMAIL"]);
+  const INTEGRATION_PUBLIC_KEYS = new Set(["BRVTAL_TICKET_MAIL_FROM","BRVTAL_TICKET_MAIL_DOMAIN","BRVTAL_SMTP_HOST","BRVTAL_SMTP_USER","BRVTAL_MAIL_FROM","BRVTAL_GA4_PROPERTY_ID","BRVTAL_GA4_CLIENT_EMAIL","BRVTAL_TICKET_WOMPI_MODE","BRVTAL_TICKET_WOMPI_ENABLED_METHODS","BRVTAL_TICKET_WOMPI_RETURN_URL"]);
   function integrationPublicValue(field,item){
     if(!INTEGRATION_PUBLIC_KEYS.has(field.key) || !['text','email'].includes(field.kind))return '';
     return item?.stored===true && typeof item.value==='string' ? item.value : '';
@@ -243,7 +243,63 @@
   function integrationState(provider,items){
    const stored=provider.fields.some(field=>items.some(item=>item.key===field.key && item.stored===true));
    if(!stored)return "Falta";
-   return provider.id==="wompi" ? "Modo pruebas" : "Configurado";
+   return provider.id==="wompi" ? wompiStateLabel() : "Configurado";
+  }
+
+  // Effective mode reported by the server, not the radio the person is editing.
+  const WOMPI_MODES=[
+    {value:"off",label:"Apagado",help:"La venta en línea no se muestra."},
+    {value:"sandbox",label:"Pruebas",help:"Usa las llaves de pruebas. Ningún pago es real."},
+    {value:"production",label:"Producción",help:"Usa las llaves de producción. Los pagos son cobros reales."}
+  ];
+  const WOMPI_REASONS={
+    WOMPI_DISABLED:"La venta está apagada.",
+    WOMPI_CREDENTIALS_MISSING:"Faltan llaves de este modo o no tienen el prefijo correcto.",
+    WOMPI_METHODS_UNAVAILABLE:"Falta indicar los métodos de pago.",
+    WOMPI_RETURN_URL_INVALID:"Falta la página de regreso (HTTPS).",
+    WOMPI_CONFIG_UNAVAILABLE:"No se pudo leer la configuración."
+  };
+  function wompiStateLabel(){
+    const status=V2.wompiStatus;
+    if(!status)return "Sin estado";
+    if(status.ready!==true)return status.mode==="off"?"Apagado":"Incompleto";
+    return status.mode==="production"?"Producción · cobros reales":"Pruebas activas";
+  }
+  function wompiStatusText(){
+    const status=V2.wompiStatus;
+    if(!status)return "";
+    const mode=WOMPI_MODES.find(item=>item.value===status.mode)?.label||"Apagado";
+    if(status.ready===true)return status.mode==="production"
+      ? "Venta activa en Producción: los pagos son cobros reales."
+      : "Venta activa en Pruebas: los pagos no son reales.";
+    return `Modo ${mode}. ${WOMPI_REASONS[status.reason]||"La venta en línea está apagada."}`;
+  }
+  function wompiModeControl(provider,items,writable){
+    if(provider.id!=="wompi")return "";
+    const stored=items.find(item=>item.key==="BRVTAL_TICKET_WOMPI_MODE")?.value;
+    const current=V2.wompiStatus?.mode||stored||"off";
+    return `<fieldset class="sv2-wompi-mode" data-wompi-mode>
+      <legend class="sv2-secret-label">Modo de venta</legend>
+      <div class="sv2-wompi-mode-options">${WOMPI_MODES.map(mode=>`<label class="sv2-wompi-mode-option${mode.value==="production"?" is-live":""}">
+        <input type="radio" name="sv2-wompi-mode" value="${esc(mode.value)}" ${mode.value===current?"checked":""} ${writable?"":"disabled"}>
+        <span><strong>${esc(mode.label)}</strong><small>${esc(mode.help)}</small></span>
+      </label>`).join("")}</div>
+      <div class="sv2-wompi-mode-foot">
+        <p role="status" aria-live="polite" data-wompi-status>${esc(wompiStatusText())}</p>
+        <button type="button" class="btn ghost" data-wompi-mode-apply ${writable?"":"disabled"}>Aplicar modo</button>
+      </div>
+    </fieldset>`;
+  }
+  function integrationFieldsHtml(provider,items,writable){
+    let group="",html="";
+    for(const field of provider.fields){
+      if(field.group && field.group!==group){
+        group=field.group;
+        html+=`<h5 class="sv2-secret-group">${esc(group)}</h5>`;
+      }
+      html+=integrationField(field,items,writable);
+    }
+    return html;
   }
   
   function integrationField(field,items,writable){
@@ -293,7 +349,8 @@
        <div class="sv2-secret-card-info"><h4>${esc(provider.name)}</h4><p>${esc(provider.description)}</p></div>
        <div class="sv2-secret-card-meta"><span class="sv2-secret-badge ${state==="Falta"?"is-missing":"is-configured"}" data-provider-state>${esc(state)}</span><small data-provider-updated>${esc(updated)}</small></div>
      </header>
-     <div class="sv2-secret-fields">${provider.fields.map(field=>integrationField(field,items,writable)).join("")}</div>
+     ${wompiModeControl(provider,items,writable)}
+     <div class="sv2-secret-fields">${integrationFieldsHtml(provider,items,writable)}</div>
      ${provider.id==="resend"?`<div class="sv2-secret-field">
        <label class="sv2-secret-label" for="sv2-mail-test-to">Enviar prueba a</label>
        <input id="sv2-mail-test-to" type="email" data-mail-test-to autocomplete="email" inputmode="email"
@@ -334,6 +391,8 @@
      MAIL_TEST_RATE_LIMITED:"Solo se puede enviar un correo de prueba por minuto.",
      MAIL_TEST_NOT_ACCEPTED:"Resend no aceptó el correo. Revisa la clave, el dominio verificado y el remitente.",
      MAIL_TEST_UNAVAILABLE:"El correo de prueba no está disponible. Revisa la configuración.",
+     WOMPI_PRODUCTION_CONFIRMATION_REQUIRED:"Confirma que quieres activar cobros reales.",
+     WOMPI_PRODUCTION_KEYS_INCOMPLETE:"Guarda primero las cuatro llaves de producción, los métodos de pago y la página de regreso.",
      HTTP_401:"Debes iniciar sesión como administrador.",
      HTTP_403:"No tienes autorización para esta operación."
    };
@@ -357,6 +416,7 @@
      const writable=payload.write_enabled===true && payload.master_key_configured===true;
      V2.integrationWritable=writable;
      V2.integrationItems=payload.items.map(integrationPublicItem);
+     V2.wompiStatus=integrationWompiStatus(payload.wompi);
      host.innerHTML=(writable?"":'<p class="sv2-secret-locked" role="note">La escritura de claves está bloqueada en el servidor. Puedes consultar el estado, pero no modificarlas.</p>')+
        '<div class="sv2-secret-cards">'+INTEGRATION_PROVIDERS.map(provider=>integrationCard(provider,V2.integrationItems,writable)).join("")+"</div>"+
        '<p class="sv2-secret-disclaimer">Guardar una clave no activa envíos, cobros reales ni publicación del sitio.</p>';
@@ -377,12 +437,18 @@
    return String(data.csrf);
   }
   
-  async function integrationMutation(method,key,value){
+  // Only mode, readiness and a reason code; the server never sends keys here.
+  function integrationWompiStatus(raw){
+    if(!raw || typeof raw!=="object")return null;
+    return {mode:String(raw.mode||"off"),ready:raw.ready===true,reason:raw.reason?String(raw.reason):null};
+  }
+
+  async function integrationMutation(method,key,value,extra={}){
    const csrf=await integrationCsrf();
    const response=await fetch("/api/admin-integration-secrets.php",{
      method,credentials:"same-origin",cache:"no-store",
      headers:{"Content-Type":"application/json","X-CSRF-Token":csrf},
-     body:JSON.stringify(method==="POST"?{key,value}:{key})
+     body:JSON.stringify(method==="POST"?{key,value,...extra}:{key})
    });
    const payload=await response.json().catch(()=>({}));
    if(!response.ok || payload.ok!==true || !Array.isArray(payload.items)){
@@ -390,6 +456,7 @@
      if(["CSRF","AUTH_REQUIRED","HTTP_401","HTTP_403"].includes(error))delete window.csrf;
      throw new Error(error);
    }
+   V2.wompiStatus=integrationWompiStatus(payload.wompi)||V2.wompiStatus;
    // Only explicit public settings, never keys, ciphertext or private config.
    return payload.items.map(integrationPublicItem);
   }
@@ -400,6 +467,8 @@
    V2.integrationItems=items;
    const state=integrationState(provider,items);
    const badge=card.querySelector("[data-provider-state]");
+   const wompiStatus=card.querySelector("[data-wompi-status]");
+   if(wompiStatus)wompiStatus.textContent=wompiStatusText();
    if(badge){badge.textContent=state;badge.classList.toggle("is-missing",state==="Falta");badge.classList.toggle("is-configured",state!=="Falta");}
    const times=provider.fields.map(f=>items.find(x=>x.key===f.key)?.updated_at).filter(Boolean).sort((a,b)=>a.localeCompare(b));
    const meta=card.querySelector("[data-provider-updated]");
@@ -487,6 +556,31 @@
       message=(saved?`${saved} claves guardadas. `:"")+integrationError(error);
     }finally{
       integrationFinished(id,message,latestItems,savedKeys);
+    }
+  }
+
+  async function applyWompiMode(){
+    const id="wompi",card=integrationCardFor(id);
+    if(!card || !V2.integrationWritable || integrationOperations.has(id))return;
+    const mode=card.querySelector('input[name="sv2-wompi-mode"]:checked')?.value||"off";
+    const feedback=card.querySelector('[data-secret-feedback]');
+    if(!feedback)return;
+    const extra={};
+    if(mode==="production"){
+      if(!window.confirm("¿Activar Producción? Desde ese momento las compras de boletas serán cobros reales con tus llaves de producción de Wompi."))return;
+      extra.confirm="COBROS_REALES";
+    }
+    integrationOperations.set(id,"Aplicando modo…");
+    integrationBusy(card,true);
+    feedback.textContent="Aplicando modo…";
+    let items=null,message="";
+    try{
+      items=await integrationMutation("POST","BRVTAL_TICKET_WOMPI_MODE",mode,extra);
+      message=wompiStatusText()||"Modo guardado.";
+    }catch(error){
+      message=integrationError(error);
+    }finally{
+      integrationFinished(id,message,items);
     }
   }
 
@@ -888,6 +982,7 @@
 
   function handleIntegrationClick(event) {
     if(event.target.closest('[data-mail-test-send]')){void sendIntegrationTestMail();return true;}
+    if(event.target.closest('[data-wompi-mode-apply]')){void applyWompiMode();return true;}
     const save=event.target.closest('[data-secret-provider-save]');
     if(save){void saveIntegrationProvider(save.dataset.secretProviderSave);return true;}
     const remove=event.target.closest('[data-secret-delete]');

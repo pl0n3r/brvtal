@@ -18,7 +18,7 @@ if (realpath((string)($_SERVER['SCRIPT_FILENAME'] ?? '')) === __FILE__) {
     $db = null;
     try {
         $settings = brvtal_wompi_hook_config();
-        if ($settings['mode'] !== 'sandbox') throw new DomainException('WEBHOOK_DISABLED');
+        if (!in_array($settings['mode'], ['sandbox','production'], true)) throw new DomainException('WEBHOOK_DISABLED');
         $raw = file_get_contents('php://input', false, null, 0, 65537);
         $signed = brvtal_wompi_hook_verify((string)$raw,
             (string)($_SERVER['HTTP_X_EVENT_CHECKSUM'] ?? ''), $settings);

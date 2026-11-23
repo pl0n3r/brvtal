@@ -51,6 +51,10 @@ $public = [
     'BRVTAL_MAIL_FROM' => 'smtp@synthetic.invalid',
     'BRVTAL_GA4_PROPERTY_ID' => '123456789',
     'BRVTAL_GA4_CLIENT_EMAIL' => 'ga4@synthetic.invalid',
+    // #1927: the Wompi sale mode, methods and return page are visible settings.
+    'BRVTAL_TICKET_WOMPI_MODE' => 'sandbox',
+    'BRVTAL_TICKET_WOMPI_ENABLED_METHODS' => 'CARD,NEQUI',
+    'BRVTAL_TICKET_WOMPI_RETURN_URL' => 'https://www.synthetic.invalid/mi-cuenta',
 ];
 $private = [
     'BRVTAL_TICKET_MAIL_API_KEY' => 're_NEVER_EXPOSE_123456789',
@@ -59,6 +63,10 @@ $private = [
     'BRVTAL_SMTP_PASSWORD' => 'SMTP_NEVER_EXPOSE',
     'BRVTAL_TICKET_WOMPI_PUBLIC_KEY' => 'pub_test_NEVER_EXPOSE',
     'BRVTAL_TICKET_WOMPI_PRIVATE_KEY' => 'prv_test_NEVER_EXPOSE',
+    'BRVTAL_TICKET_WOMPI_INTEGRITY_SECRET' => 'test_integrity_NEVER_EXPOSE',
+    'BRVTAL_TICKET_WOMPI_EVENTS_SECRET' => 'test_events_NEVER_EXPOSE',
+    'BRVTAL_TICKET_WOMPI_PROD_PUBLIC_KEY' => 'pub_prod_NEVER_EXPOSE',
+    'BRVTAL_TICKET_WOMPI_PROD_PRIVATE_KEY' => 'prv_prod_NEVER_EXPOSE',
     'BRVTAL_GA4_PRIVATE_KEY' => '-----BEGIN PRIVATE KEY-----NEVER_EXPOSE',
     'BRVTAL_SENTRY_DSN' => 'https://NEVER_EXPOSE@sentry.invalid/1',
 ];
@@ -93,6 +101,13 @@ define('BRVTAL_SENTRY_TESTING', true);
 $GLOBALS['brvtalBootstrapConfigPath'] = $argv[1];
 require_once $argv[2] . '/config/admin_auth.php';
 $_SERVER['REQUEST_METHOD'] = 'GET';
+if (str_starts_with($argv[3], 'guard:')) {
+    // #1927: the production switch guard reads the encrypted store like the API does.
+    require_once $argv[2] . '/config/ticketing_wompi_client.php';
+    $confirm = substr($argv[3], 6);
+    echo json_encode(['error' => brvtal_ticket_wompi_mode_change_error('production', $confirm === '' ? null : $confirm)]);
+    exit(0);
+}
 if ($argv[3] === 'owner' || $argv[3] === 'staff') {
     brvtal_admin_session_start();
     $_SESSION['admin_id'] = $argv[3] === 'owner' ? 1 : 2;
@@ -135,4 +150,26 @@ foreach ($private as $key => $secret) {
     publicValuesAssert(!str_contains($json, $secret), $key . ' cannot leak');
 }
 publicValuesAssert(($owner['master_key_configured'] ?? false) === true, 'master key status preserved');
+
+// #1927: effective Wompi mode and readiness, without key material.
+publicValuesAssert(($owner['wompi'] ?? null) === ['mode'=>'sandbox','ready'=>true,'reason'=>null],
+    'sandbox with a complete test set is ready');
+[$guard] = $invoke('guard:COBROS_REALES');
+publicValuesAssert(($guard['error'] ?? null) === 'WOMPI_PRODUCTION_KEYS_INCOMPLETE',
+    'production refused while the production set is incomplete');
+foreach (['BRVTAL_TICKET_WOMPI_PROD_INTEGRITY_SECRET' => 'prod_integrity_NEVER_EXPOSE',
+    'BRVTAL_TICKET_WOMPI_PROD_EVENTS_SECRET' => 'prod_events_NEVER_EXPOSE'] as $key => $value) {
+    $insert->execute([$key, brvtalIntegrationSecretEncrypt($key, $value, $masterKey)]);
+    $private[$key] = $value;
+}
+[$guard] = $invoke('guard:');
+publicValuesAssert(($guard['error'] ?? null) === 'WOMPI_PRODUCTION_CONFIRMATION_REQUIRED',
+    'production refused without explicit confirmation');
+[$guard] = $invoke('guard:COBROS_REALES');
+publicValuesAssert(array_key_exists('error', $guard) && $guard['error'] === null,
+    'complete production set with confirmation is allowed');
+[$owner, $json] = $invoke('owner');
+foreach ($private as $key => $secret) {
+    publicValuesAssert(!str_contains($json, $secret), $key . ' cannot leak after production keys are stored');
+}
 echo "Settings public values integration OK (authenticated allowlist, no secrets).\n";
