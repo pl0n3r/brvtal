@@ -661,10 +661,8 @@ JS;
                 $closedSale = !$saleableRecord;
                 $purchaseUnavailable = $soldOut || $closedSale;
                 $name = $escape($ticket['title'] ?? '');
-                $ticketCurrency = strtoupper((string)($ticket['currency'] ?? ''));
                 $price = isset($ticket['price']) && is_numeric($ticket['price'])
-                    ? ($ticketCurrency === 'COP' ? $escape($money((float)$ticket['price']))
-                        : number_format((float)$ticket['price'], 0, '.', ',') . ' ' . $escape($ticketCurrency))
+                    ? number_format((float)$ticket['price'], 0, '.', ',') . ' ' . $escape(strtoupper((string)($ticket['currency'] ?? '')))
                     : '';
                 $typeUrl = $purchaseUnavailable ? '' : $safeUrl($ticket['url'] ?? '');
                 $instructions = $purchaseUnavailable ? '' : trim((string)($ticket['payment_instructions'] ?? ''));
