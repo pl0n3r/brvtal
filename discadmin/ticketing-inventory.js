@@ -72,12 +72,12 @@ export async function mount(host, { eventId } = {}) {
   const total = el('div', { class: 'ticket-inventory-total' },
     el('label', { for: 'ticket-inventory-total', text: 'Aforo total del evento' }), totalInput,
     el('small', { text: `En uso: ${number.format(data.used)}` }));
-  section.insertBefore(total, status);
+  status.before(total);
 
   const types = Array.isArray(data.types) ? data.types : [];
   const inputs = new Map();
   if (!types.length) {
-    section.insertBefore(el('p', { class: 'ticket-inventory-empty', text: 'Añade y guarda boletas para asignarles cupo.' }), status);
+    status.before(el('p', { class: 'ticket-inventory-empty', text: 'Añade y guarda boletas para asignarles cupo.' }));
   } else {
     const list = el('ul', { class: 'ticket-inventory-list' });
     for (const type of types) {
@@ -91,7 +91,13 @@ export async function mount(host, { eventId } = {}) {
       const refresh = () => {
         const value = Number(input.value);
         const open = input.value !== '' && value > 0 && type.status === 'active';
-        sale.textContent = open ? 'Se vende en línea' : (type.status !== 'active' ? 'Boleta no activa' : 'No se vende en línea');
+        if (open) {
+          sale.textContent = 'Se vende en línea';
+        } else if (type.status !== 'active') {
+          sale.textContent = 'Boleta no activa';
+        } else {
+          sale.textContent = 'No se vende en línea';
+        }
         sale.classList.toggle('is-open', open);
       };
       input.addEventListener('input', refresh);
@@ -102,7 +108,7 @@ export async function mount(host, { eventId } = {}) {
           el('small', { text: usage.join(' · ') })),
         input, sale));
     }
-    section.insertBefore(list, status);
+    status.before(list);
   }
 
   const save = el('button', { type: 'button', class: 'btn red', text: 'Guardar cupo' });

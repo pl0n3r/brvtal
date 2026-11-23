@@ -11,15 +11,27 @@ require_once __DIR__ . '/ticketing_inventory.php';
  */
 const BRVTAL_TICKET_INVENTORY_MAX = 100000;
 
+/** Reads event capacity with the same event-row mutex used by checkout. */
+function brvtal_ticket_inventory_admin_event(PDO $db, int $eventId, bool $lock = false): array
+{
+    if ($eventId < 1) {
+        throw new InvalidArgumentException('INVENTORY_INVALID_EVENT');
+    }
+    $sql = 'SELECT e.id,l.capacity FROM events e
+        LEFT JOIN ticket_inventory_events l ON l.event_id=e.id WHERE e.id=?';
+    $statement = $db->prepare($lock ? $sql . ' FOR UPDATE' : $sql);
+    $statement->execute([$eventId]);
+    $event = $statement->fetch(PDO::FETCH_ASSOC);
+    if (!$event) {
+        throw new DomainException('INVENTORY_EVENT_NOT_FOUND');
+    }
+    return $event;
+}
+
 /** Current capacity and usage per ticket type of one event. */
 function brvtal_ticket_inventory_admin_read(PDO $db, int $eventId): array
 {
-    if ($eventId < 1) throw new InvalidArgumentException('INVENTORY_INVALID_EVENT');
-    $q = $db->prepare('SELECT e.id,l.capacity FROM events e
-        LEFT JOIN ticket_inventory_events l ON l.event_id=e.id WHERE e.id=?');
-    $q->execute([$eventId]);
-    $event = $q->fetch(PDO::FETCH_ASSOC);
-    if (!$event) throw new DomainException('INVENTORY_EVENT_NOT_FOUND');
+    $event = brvtal_ticket_inventory_admin_event($db, $eventId);
     $utc = brvtal_ticket_inventory_now()->format('Y-m-d H:i:s.u');
     $q = $db->prepare('SELECT t.id,t.name,t.status,l.capacity,COALESCE(l.courtesy_capacity,0) AS courtesy_capacity
         FROM event_ticket_types t LEFT JOIN ticket_inventory_types l ON l.ticket_type_id=t.id
@@ -75,11 +87,7 @@ function brvtal_ticket_inventory_admin_save(PDO $db, int $eventId, mixed $input)
     $db->beginTransaction();
     try {
         // Same mutex as checkout holds: no hold can slip in between check and write.
-        $q = $db->prepare('SELECT e.id,l.capacity FROM events e
-            LEFT JOIN ticket_inventory_events l ON l.event_id=e.id WHERE e.id=? FOR UPDATE');
-        $q->execute([$eventId]);
-        $event = $q->fetch(PDO::FETCH_ASSOC);
-        if (!$event) throw new DomainException('INVENTORY_EVENT_NOT_FOUND');
+        $event = brvtal_ticket_inventory_admin_event($db, $eventId, true);
         $utc = brvtal_ticket_inventory_now()->format('Y-m-d H:i:s.u');
         $typeQuery = $db->prepare('SELECT t.id,l.capacity,COALESCE(l.courtesy_capacity,0) AS courtesy_capacity
             FROM event_ticket_types t LEFT JOIN ticket_inventory_types l ON l.ticket_type_id=t.id

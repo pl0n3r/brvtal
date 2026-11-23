@@ -720,7 +720,7 @@ function refreshTicketInventory(eventId){
   const host=$('#ticketInventory');
   if(!host)return;
   const id=Number(eventId||0);
-  import('/discadmin/ticketing-inventory.js')
+  import('./ticketing-inventory.js')
     .then(module=>{if(Number(currentEvent?.id||0)===id&&host.isConnected)return module.mount(host,{eventId:id});})
     .catch(()=>{if(host.isConnected)host.textContent='No fue posible abrir el cupo de boletas.';});
 }
