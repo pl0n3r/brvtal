@@ -900,6 +900,12 @@ JS;
         $topbar = str_replace('<div class="cp-tools">', $mobileMenu . '<div class="cp-tools">', $topbar);
     }
 
+    // A plain fragment would resolve to the homepage because this template sets
+    // <base href="/">. Preserve the legacy literal for non-event entity pages.
+    $skipLink = $isEvent
+        ? '<a class="skip-link" href="' . $selfPath . '#main-content">IR AL CONTENIDO</a>'
+        : '<a class="skip-link" href="#main-content">IR AL CONTENIDO</a>';
+
     return <<<HTML
 <!doctype html>
 <html lang="es">
@@ -921,7 +927,7 @@ JS;
   <link rel="stylesheet" href="/css/public-cromo-pages.css">
 </head>
 <body {$bodyAttributes}>
-  <a class="skip-link" href="#main-content">IR AL CONTENIDO</a>
+  {$skipLink}
   {$topbar}
   <main id="main-content" tabindex="-1">
     {$layoutOpen}

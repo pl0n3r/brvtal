@@ -38,6 +38,14 @@ test('AC-01: los enlaces internos no salen del evento pese a <base href="/">', a
   await page.setViewportSize({ width: 390, height: 844 });
   await open(page);
   expect(await page.evaluate(() => document.baseURI)).toBe('https://www.brvtal.com.co/');
+  // Keyboard skip link must stay on the event, rather than resolving to <base href="/">.
+  const skip = page.locator('.skip-link');
+  await expect(skip).toHaveAttribute('href', '/events/flyer-fixture#main-content');
+  await skip.focus();
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(url + '#main-content');
+  expect(new URL(page.url()).pathname).toBe('/events/flyer-fixture');
+  await expect(page.locator('#main-content')).toBeInViewport();
   for (const [name, target] of [['Comprar boletas', '#boletas'], ['Ver line-up', '#lineup']]) {
     await page.evaluate(() => scrollTo(0, 0));
     await page.locator('.entity-actions a', { hasText: name }).click();
