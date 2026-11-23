@@ -702,6 +702,7 @@ async function saveEvent(){
     syncEventHistoryControl();
     eventSaved=true;
     await saveTickets(id);
+    refreshTicketInventory(id);
     await loadEvents();
     const persisted=events.find(event=>Number(event.id)===id);
     if(persisted)currentEvent={...currentEvent,...persisted};
@@ -713,6 +714,15 @@ async function saveEvent(){
     msg((eventSaved?'Event saved, but tickets could not be saved: ':'Save failed: ')+e.message,false,'eventNotice');
     return false;
   }
+}
+// #1931: capacity for online sale lives under the ticket types of a saved event.
+function refreshTicketInventory(eventId){
+  const host=$('#ticketInventory');
+  if(!host)return;
+  const id=Number(eventId||0);
+  import('./ticketing-inventory.js')
+    .then(module=>{if(Number(currentEvent?.id||0)===id&&host.isConnected)return module.mount(host,{eventId:id});})
+    .catch(()=>{if(host.isConnected)host.textContent='No fue posible abrir el cupo de boletas.';});
 }
 async function saveTickets(eventId){const rows=$$('#tickets .ticket-row');const keep=new Set();for(let i=0;i<rows.length;i++){const row=rows[i],p=brvtalTicketPayload(row,eventId,i),existing=Number(row.dataset.id||0);let j;if(existing){keep.add(existing);j=await api('/ticket_types/'+existing,{method:'PUT',body:JSON.stringify(p),headers:{'X-CSRF-Token':csrf}})}else{j=await api('/ticket_types',{method:'POST',body:JSON.stringify(p),headers:{'X-CSRF-Token':csrf}});if(j.id)row.dataset.id=String(j.id)}if(j.ok===false)throw new Error(j.error||'Ticket save failed')}const old=(currentEvent?.ticket_types||[]).map(t=>Number(t.id)).filter(Boolean);for(const id of old){if(!keep.has(id)){const j=await api('/ticket_types/'+id,{method:'DELETE',headers:{'X-CSRF-Token':csrf}});if(j.ok===false)throw new Error(j.error||'Ticket delete failed')}}currentEvent=currentEvent||{id:eventId};currentEvent.ticket_types=rows.map((row,i)=>{const p=brvtalTicketPayload(row,eventId,i);return {...p,id:Number(row.dataset.id||0)}})}
 function eventPreviewLineup(){
@@ -879,6 +889,7 @@ let eventEditorReady=Promise.resolve(null);
     const timetableRequestId=++timetableRequest;
     timetableState=id&&timetableEditor()?'loading':'ready';
     originalOpenEvent(id);
+    refreshTicketInventory(id);
     const insightsRequestId=++insightsRequest;
     const request=++ticketRequest;
     ticketState=id?'loading':'ready';

@@ -1,0 +1,96 @@
+name: Ticketing inventory admin MariaDB
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - config/ticketing_inventory_admin.php
+      - config/ticketing_inventory.php
+      - api/ticketing/admin-inventory.php
+      - database/migration_ticketing_reservations_01.sql
+      - tests/integration/ticketing-inventory-admin.php
+      - .github/workflows/ticketing-inventory-admin.yml
+permissions:
+  contents: read
+jobs:
+  ticketing-inventory-admin:
+    name: ticketing-inventory-admin
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      mariadb:
+        image: ghcr.io/mariadb/mariadb:11.4.13-noble@sha256:3cff57293253c640483e8a19ce506cf68bf8e4529385e64aeec700c02038e7ed
+        env:
+          MARIADB_ROOT_PASSWORD: brvtal_root
+          MARIADB_DATABASE: brvtal_test_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=15
+    env:
+      BRVTAL_INTEGRATION_TESTS: '1'
+      BRVTAL_TEST_DB_HOST: 127.0.0.1
+      BRVTAL_TEST_DB_PORT: '3306'
+      BRVTAL_TEST_DB_NAME: brvtal_test_ci
+      BRVTAL_TEST_DB_USER: root
+      BRVTAL_TEST_DB_PASS: brvtal_root
+    steps:
+      - name: Checkout exact HEAD
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: PHP 8.5 + PDO MySQL
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: '8.5'
+          extensions: pdo_mysql
+          coverage: none
+          ini-file: production
+      - name: Probar cupo de DISCADMIN, pisos de uso, auditoría y checkout en MariaDB descartable
+        run: |
+          set -euo pipefail
+          php -l config/ticketing_inventory_admin.php
+          php -l api/ticketing/admin-inventory.php
+          php -l tests/integration/ticketing-inventory-admin.php
+          php tests/integration/ticketing-inventory-admin.php
+
+  ticketing-inventory-visual:
+    name: ticketing-inventory-visual
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact PR HEAD
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install JavaScript test dependencies
+        run: npm install --prefer-offline --no-audit --no-fund
+      - name: Install Chromium browser
+        run: npx playwright install chromium
+      - name: Check Chromium runtime and install system libraries only when necessary
+        shell: bash
+        run: |
+          if node --input-type=module - <<'JS'
+          import {chromium} from '@playwright/test';
+          const browser = await chromium.launch();
+          await browser.close();
+          JS
+          then
+            echo 'Chromium ready'
+          else
+            npx playwright install-deps chromium
+          fi
+      - name: Capture actual Chromium before/after at 390 px and 1440 px
+        env:
+          PLAYWRIGHT_HTML_OPEN: never
+        run: npx playwright test tests/e2e/discadmin-ticket-inventory.spec.mjs --project=chromium --reporter=html
+      - name: Attach captured before/after evidence to this PR run
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ticket-inventory-ab-${{ github.event.pull_request.head.sha }}-${{ github.run_id }}
+          path: playwright-report/
+          if-no-files-found: error
+          retention-days: 14

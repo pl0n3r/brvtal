@@ -125,6 +125,7 @@ brvtal_admin_require();
     <div class="sectionhead"><strong>Boletas</strong><button type="button" class="btn" onclick="BRVTALContentCore.addTicket()">+ AÑADIR BOLETA</button></div>
     <p class="helper">Precio, estado, compra, QR y ventanas de venta para cada boleta. No almacenamos información de compradores aquí.</p>
     <div id="tickets"></div>
+    <div id="ticketInventory" class="ticket-inventory-host"></div>
     <details class="event-legacy-tickets"><summary>Compra general y datos heredados (si no hay tipos)</summary><div class="form">
       <div class="field"><label for="e_ticket_url">Enlace general de compra</label><input id="e_ticket_url" placeholder="https://…"></div>
       <div class="field"><label for="e_ticket_instructions">Instrucciones de compra</label><textarea id="e_ticket_instructions"></textarea></div>
