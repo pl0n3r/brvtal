@@ -170,7 +170,7 @@ invAssert($sale['ready'] === true && $sale['reasons'] === [], 'ready when the ch
 $byType = array_column($sale['types'], null, 'ticket_type_id');
 invAssert($byType[11]['offered'] === true, 'VIP is offered');
 invAssert($byType[12]['offered'] === false && in_array('TYPE_CAPACITY_MISSING', $byType[12]['reasons'], true), 'zero capacity is named');
-$future = (new DateTimeImmutable('now', new DateTimeZone('America/Bogota')))->modify('+2 days')->format('Y-m-d H:i:s');
+$future = new DateTimeImmutable('now', new DateTimeZone('America/Bogota'))->modify('+2 days')->format('Y-m-d H:i:s');
 $db->prepare("INSERT INTO event_ticket_types(id,event_id,name,price,status,currency,available_from) VALUES
     (13,1,'Dólar',10,'active','USD',NULL),(14,1,'Tardía',30000,'active','COP',?)")->execute([$future]);
 $db->exec('INSERT INTO ticket_inventory_types(ticket_type_id,event_id,capacity) VALUES (13,1,5),(14,1,5)');
