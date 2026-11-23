@@ -12,6 +12,37 @@ const ERRORS = {
   INVENTORY_UNAVAILABLE: 'El inventario no está disponible. Puede faltar aplicar la migración de boletería en este servidor.',
 };
 const number = new Intl.NumberFormat('es-CO');
+// #1939: reasons from the server-side sale readiness, same rules as the checkout.
+const SALE_REASONS = {
+  WOMPI_DISABLED: 'Wompi está apagado: elige Pruebas o Producción en Configuración › Integraciones.',
+  WOMPI_CREDENTIALS_MISSING: 'Faltan llaves de Wompi del modo elegido, o no tienen el prefijo correcto.',
+  WOMPI_METHODS_UNAVAILABLE: 'Faltan los métodos de pago de Wompi.',
+  WOMPI_RETURN_URL_INVALID: 'Falta la página de regreso (HTTPS) de Wompi.',
+  WOMPI_CONFIG_UNAVAILABLE: 'No se pudo leer la configuración de Wompi.',
+  EVENT_NOT_FOUND: 'El evento no existe.',
+  EVENT_CAPACITY_MISSING: 'Falta el aforo total del evento.',
+  EVENT_FULL: 'El aforo del evento está completo entre lo vendido y lo reservado.',
+  EVENT_SOLD_OUT: 'El evento está marcado como agotado.',
+  EVENT_STATUS: 'El estado del evento no permite vender.',
+  EVENT_NOT_PUBLISHED: 'El evento no está publicado todavía (o su publicación está programada).',
+  EVENT_DATE_MISSING: 'El evento no tiene fecha.',
+  EVENT_DATE_PAST: 'La fecha del evento ya pasó.',
+  EVENT_DATE_INVALID: 'La fecha del evento no es válida.',
+  UNKNOWN: 'El checkout no ofrece ninguna boleta y no se identificó el motivo.',
+};
+const TYPE_REASONS = {
+  TYPE_CAPACITY_MISSING: 'Sin cupo',
+  TYPE_STATUS: 'Boleta no activa',
+  TYPE_CURRENCY: 'La moneda debe ser COP',
+  TYPE_NOT_STARTED: 'Su venta aún no empieza',
+  TYPE_ENDED: 'Su venta ya terminó',
+  TYPE_WINDOW_INVALID: 'Fechas de venta no válidas',
+  TYPE_PRICE: 'Precio no válido (entero en pesos)',
+  TYPE_SOLD_OUT: 'Cupo agotado',
+  TYPE_NOT_OFFERED: 'No se ofrece en línea',
+};
+const saleReason = code => SALE_REASONS[code]
+  || (code.startsWith('ERROR_') ? `Error interno al revisar la venta (${code.slice(6)}). Revisa los registros de DISCADMIN.` : code);
 
 function el(tag, attrs = {}, ...children) {
   const node = document.createElement(tag);
@@ -67,6 +98,18 @@ export async function mount(host, { eventId } = {}) {
   if (!section.isConnected) return;
   status.textContent = '';
 
+  const sale = data.sale && typeof data.sale === 'object' ? data.sale : null;
+  if (sale) {
+    const reasons = Array.isArray(sale.reasons) ? sale.reasons : [];
+    const box = el('div', { class: 'ticket-inventory-sale' + (sale.ready ? ' is-ready' : ''), 'data-sale-ready': sale.ready ? 'true' : 'false' },
+      el('strong', { text: sale.ready ? 'Venta en línea: lista' : 'Venta en línea: no disponible' }));
+    if (!sale.ready && reasons.length) {
+      box.append(el('ul', {}, ...reasons.map(code => el('li', { text: saleReason(String(code)) }))));
+    }
+    status.before(box);
+  }
+  const saleByType = new Map((Array.isArray(sale?.types) ? sale.types : []).map(row => [row.ticket_type_id, row]));
+
   const totalInput = el('input', { id: 'ticket-inventory-total', type: 'number', min: 0, max: 100000, step: 1,
     inputmode: 'numeric', value: data.capacity ?? '', placeholder: 'Sin aforo' });
   const total = el('div', { class: 'ticket-inventory-total' },
@@ -88,7 +131,17 @@ export async function mount(host, { eventId } = {}) {
       const usage = [`Vendidas ${number.format(type.sold)}`, `Reservadas ${number.format(type.held)}`];
       if (type.courtesy_capacity > 0) usage.push(`Cortesías ${number.format(type.courtesy_capacity)}`);
       const sale = el('span', { class: 'ticket-inventory-state' });
+      const verdict = saleByType.get(type.ticket_type_id);
+      const original = input.value;
       const refresh = () => {
+        // Until the capacity is edited, show the server's verdict (same rules as the checkout).
+        if (verdict && input.value === original) {
+          const codes = Array.isArray(verdict.reasons) ? verdict.reasons : [];
+          sale.textContent = verdict.offered ? 'Se vende en línea'
+            : (codes.map(code => TYPE_REASONS[code] || code).join(' · ') || 'No se vende en línea');
+          sale.classList.toggle('is-open', verdict.offered === true);
+          return;
+        }
         const value = Number(input.value);
         const open = input.value !== '' && value > 0 && type.status === 'active';
         if (open) {

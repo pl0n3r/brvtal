@@ -53,7 +53,96 @@ function brvtal_ticket_inventory_admin_read(PDO $db, int $eventId): array
         'capacity'=>$event['capacity'] === null ? null : (int)$event['capacity'],
         'used'=>array_sum($eventUsage),
         'types'=>$types,
+        'sale'=>brvtal_ticket_inventory_sale_readiness($db, $eventId),
     ];
+}
+
+/**
+ * #1939 · Why an event does or does not sell online. Walks the same conditions as
+ * brvtal_public_ticket_checkout_offers() and reports reason codes; the verdict is the
+ * checkout itself, so this can never claim "ready" while the public page sells nothing.
+ * Exceptions are reported by class only (no messages, no secrets).
+ */
+function brvtal_ticket_inventory_sale_readiness(PDO $db, int $eventId): array
+{
+    require_once __DIR__ . '/public_ticket_checkout.php';
+    require_once __DIR__ . '/public_visibility.php';
+    $reasons = [];
+    $typeReasons = [];
+    $wompi = brvtal_ticket_wompi_status();
+    if (($wompi['ready'] ?? false) !== true) $reasons[] = 'WOMPI_' . preg_replace('/^WOMPI_/', '', (string)($wompi['reason'] ?? 'DISABLED'));
+    try {
+        $q = $db->prepare('SELECT e.id,e.status,e.event_date,e.published_at,c.capacity AS event_capacity
+            FROM events e LEFT JOIN ticket_inventory_events c ON c.event_id=e.id WHERE e.id=?');
+        $q->execute([$eventId]);
+        $event = $q->fetch(PDO::FETCH_ASSOC);
+        if (!$event) return ['ready'=>false, 'reasons'=>['EVENT_NOT_FOUND'], 'types'=>[]];
+        $now = brvtal_ticket_inventory_now();
+        $bogota = $now->setTimezone(new DateTimeZone('America/Bogota'));
+        $status = strtolower(trim((string)$event['status']));
+        if ((int)($event['event_capacity'] ?? 0) < 1) $reasons[] = 'EVENT_CAPACITY_MISSING';
+        if ($status === 'sold_out') $reasons[] = 'EVENT_SOLD_OUT';
+        elseif (!in_array($status, brvtal_public_event_statuses()['active'], true)) $reasons[] = 'EVENT_STATUS';
+        elseif (!brvtal_public_event_is_visible($event, $now)) $reasons[] = 'EVENT_NOT_PUBLISHED';
+        $rawDate = trim((string)($event['event_date'] ?? ''));
+        if ($rawDate === '') {
+            $reasons[] = 'EVENT_DATE_MISSING';
+        } else {
+            try {
+                if (new DateTimeImmutable($rawDate, new DateTimeZone('America/Bogota')) <= $bogota) $reasons[] = 'EVENT_DATE_PAST';
+            } catch (Throwable) {
+                $reasons[] = 'EVENT_DATE_INVALID';
+            }
+        }
+        $utc = $now->format('Y-m-d H:i:s.u');
+        $eventFree = (int)($event['event_capacity'] ?? 0) - array_sum(brvtal_ticket_inventory_usage($db, $eventId, 0, $utc));
+        if ((int)($event['event_capacity'] ?? 0) >= 1 && $eventFree < 1) $reasons[] = 'EVENT_FULL';
+        $q = $db->prepare('SELECT t.id,t.price,t.currency,t.status,t.available_from,t.available_until,c.capacity
+            FROM event_ticket_types t LEFT JOIN ticket_inventory_types c ON c.ticket_type_id=t.id
+            WHERE t.event_id=? ORDER BY t.sort_order,t.id');
+        $q->execute([$eventId]);
+        foreach ($q->fetchAll(PDO::FETCH_ASSOC) as $type) {
+            $codes = [];
+            if ((int)($type['capacity'] ?? 0) < 1) $codes[] = 'TYPE_CAPACITY_MISSING';
+            if (($type['status'] ?? '') !== 'active') $codes[] = 'TYPE_STATUS';
+            if (($type['currency'] ?? '') !== 'COP') $codes[] = 'TYPE_CURRENCY';
+            foreach (['available_from'=>'TYPE_NOT_STARTED', 'available_until'=>'TYPE_ENDED'] as $field => $code) {
+                $raw = trim((string)($type[$field] ?? ''));
+                if ($raw === '') continue;
+                try {
+                    $point = new DateTimeImmutable($raw, new DateTimeZone('America/Bogota'));
+                    if (($code === 'TYPE_NOT_STARTED' && $bogota < $point) || ($code === 'TYPE_ENDED' && $bogota > $point)) $codes[] = $code;
+                } catch (Throwable) {
+                    $codes[] = 'TYPE_WINDOW_INVALID';
+                }
+            }
+            try {
+                brvtal_ticket_checkout_price($type['price'], 1);
+            } catch (DomainException) {
+                $codes[] = 'TYPE_PRICE';
+            }
+            if ($codes === [] && $eventFree >= 1
+                && (int)$type['capacity'] - array_sum(brvtal_ticket_inventory_usage($db, $eventId, (int)$type['id'], $utc)) < 1) {
+                $codes[] = 'TYPE_SOLD_OUT';
+            }
+            $typeReasons[(int)$type['id']] = $codes;
+        }
+        brvtal_waitlist_offers_enabled();
+    } catch (Throwable $error) {
+        $reasons[] = 'ERROR_' . strtoupper(preg_replace('/[^A-Za-z0-9]+/', '_', $error::class));
+    }
+    // The verdict comes from the checkout itself.
+    $offered = array_map(static fn(array $offer): int => (int)$offer['id'],
+        (array)(brvtal_public_ticket_checkout_offers($db, $eventId)['offers'] ?? []));
+    $types = [];
+    foreach ($typeReasons as $typeId => $codes) {
+        $isOffered = in_array($typeId, $offered, true);
+        if (!$isOffered && $codes === [] && $reasons === []) $codes[] = 'TYPE_NOT_OFFERED';
+        $types[] = ['ticket_type_id'=>$typeId, 'offered'=>$isOffered, 'reasons'=>$isOffered ? [] : $codes];
+    }
+    $ready = $offered !== [];
+    if (!$ready && $reasons === [] && array_merge(...array_column($types, 'reasons') ?: [[]]) === []) $reasons[] = 'UNKNOWN';
+    return ['ready'=>$ready, 'reasons'=>$ready ? [] : array_values(array_unique($reasons)), 'types'=>$types];
 }
 
 /** Strict input: {capacity:int, types:[{ticket_type_id:int, capacity:int}]}. */

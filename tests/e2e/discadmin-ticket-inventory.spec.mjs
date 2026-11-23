@@ -13,9 +13,15 @@ const inventory = {
     { ticket_type_id: 11, name: 'VIP', status: 'active', capacity: 20, courtesy_capacity: 4, sold: 3, held: 0, courtesy_used: 0 },
     { ticket_type_id: 12, name: 'Mesa', status: 'draft', capacity: null, courtesy_capacity: 0, sold: 0, held: 0, courtesy_used: 0 },
   ],
+  // #1939: the server's verdict, with the same rules as the checkout.
+  sale: { ready: false, reasons: ['WOMPI_DISABLED', 'EVENT_CAPACITY_MISSING'], types: [
+    { ticket_type_id: 10, offered: false, reasons: ['TYPE_CAPACITY_MISSING'] },
+    { ticket_type_id: 11, offered: true, reasons: [] },
+    { ticket_type_id: 12, offered: false, reasons: ['TYPE_STATUS', 'TYPE_CAPACITY_MISSING'] },
+  ] },
 };
 
-async function open(page, { failWith = null, eventId = 7 } = {}) {
+async function open(page, { failWith = null, eventId = 7, data = inventory } = {}) {
   await page.route('**/discadmin/inventory-fixture.html', route => route.fulfill({
     contentType: 'text/html',
     body: `<!doctype html><html lang="es"><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style></head>
@@ -23,7 +29,7 @@ async function open(page, { failWith = null, eventId = 7 } = {}) {
       <div class="sectionhead"><strong>Boletas</strong></div><div id="tickets"></div><div id="host" class="ticket-inventory-host"></div></div></div></body></html>`,
   }));
   const posts = [];
-  let current = structuredClone(inventory);
+  let current = structuredClone(data);
   await page.route('**/api/ticketing/admin-inventory.php**', async route => {
     const request = route.request();
     if (request.method() === 'POST') {
@@ -58,8 +64,12 @@ test('muestra aforo, cupo y uso por boleta y guarda con CSRF', async ({ page }, 
     await expect(block.getByLabel('VIP')).toHaveValue('20');
     await expect(block.locator('[data-ticket-type="11"]')).toContainText('Vendidas 3 · Reservadas 0 · Cortesías 4');
     await expect(block.locator('[data-ticket-type="11"] .ticket-inventory-state')).toHaveText('Se vende en línea');
-    await expect(block.locator('[data-ticket-type="10"] .ticket-inventory-state')).toHaveText('No se vende en línea');
-    await expect(block.locator('[data-ticket-type="12"] .ticket-inventory-state')).toHaveText('Boleta no activa');
+    await expect(block.locator('[data-ticket-type="10"] .ticket-inventory-state')).toHaveText('Sin cupo');
+    await expect(block.locator('[data-ticket-type="12"] .ticket-inventory-state')).toHaveText('Boleta no activa · Sin cupo');
+    const verdict = block.locator('.ticket-inventory-sale');
+    await expect(verdict).toHaveAttribute('data-sale-ready', 'false');
+    await expect(verdict).toContainText('Venta en línea: no disponible');
+    await expect(verdict.locator('li')).toHaveText([/Wompi está apagado/, /Falta el aforo total/]);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width + 1);
     await testInfo.attach(`despues-${width}`, { body: await block.screenshot(), contentType: 'image/png' });
   }
@@ -86,6 +96,13 @@ test('explica el rechazo del servidor y valida números antes de enviar', async 
   await block.getByRole('button', { name: 'Guardar cupo' }).click();
   await expect(block.locator('.ticket-inventory-status')).toHaveText('Usa números enteros entre 0 y 100.000.');
   expect(posts).toHaveLength(1);
+});
+
+test('#1939: con todo listo dice «Venta en línea: lista»', async ({ page }) => {
+  await open(page, { data: { ...inventory, capacity: 300,
+    sale: { ready: true, reasons: [], types: [{ ticket_type_id: 11, offered: true, reasons: [] }] } } });
+  await expect(page.locator('.ticket-inventory-sale')).toHaveText('Venta en línea: lista');
+  await expect(page.locator('.ticket-inventory-sale li')).toHaveCount(0);
 });
 
 test('un evento sin guardar no muestra cupo editable', async ({ page }) => {

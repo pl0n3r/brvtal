@@ -110,6 +110,10 @@ invAssert(brvtal_public_ticket_checkout_offers($db, 1) === [], 'no capacity mean
 $read = brvtal_ticket_inventory_admin_read($db, 1);
 invAssert($read['capacity'] === null && count($read['types']) === 2 && $read['types'][0]['capacity'] === null,
     'empty capacity before configuration');
+// #1939: the editor explains why nothing sells yet.
+invAssert($read['sale']['ready'] === false && in_array('EVENT_CAPACITY_MISSING', $read['sale']['reasons'], true),
+    'readiness reports the missing event capacity');
+invAssert(in_array('TYPE_CAPACITY_MISSING', $read['sale']['types'][0]['reasons'], true), 'readiness reports missing type capacity');
 
 $saved = brvtal_ticket_inventory_admin_save($db, 1, ['capacity'=>300,
     'types'=>[['ticket_type_id'=>10,'capacity'=>200],['ticket_type_id'=>11,'capacity'=>20]]]);
@@ -157,4 +161,28 @@ invAssert($ok['capacity'] === 5 && $ok['types'][1]['capacity'] === 3 && $ok['typ
     'capacity equal to usage and zero capacity are accepted');
 $offerIds = array_column(brvtal_public_ticket_checkout_offers($db, 1)['offers'] ?? [], 'id');
 invAssert(!in_array(12, $offerIds, true), 'zero capacity type is not offered online');
+// #1939: readiness agrees with the checkout and names each blocking condition.
+$full = brvtal_ticket_inventory_admin_read($db, 1)['sale'];
+invAssert($full['ready'] === false && in_array('EVENT_FULL', $full['reasons'], true), 'a full event (5 of 5 used) is named');
+brvtal_ticket_inventory_admin_save($db, 1, ['capacity'=>50, 'types'=>[['ticket_type_id'=>11,'capacity'=>20]]]);
+$sale = brvtal_ticket_inventory_admin_read($db, 1)['sale'];
+invAssert($sale['ready'] === true && $sale['reasons'] === [], 'ready when the checkout offers a type');
+$byType = array_column($sale['types'], null, 'ticket_type_id');
+invAssert($byType[11]['offered'] === true, 'VIP is offered');
+invAssert($byType[12]['offered'] === false && in_array('TYPE_CAPACITY_MISSING', $byType[12]['reasons'], true), 'zero capacity is named');
+$future = new DateTimeImmutable('now', new DateTimeZone('America/Bogota'))->modify('+2 days')->format('Y-m-d H:i:s');
+$db->prepare("INSERT INTO event_ticket_types(id,event_id,name,price,status,currency,available_from) VALUES
+    (13,1,'Dólar',10,'active','USD',NULL),(14,1,'Tardía',30000,'active','COP',?)")->execute([$future]);
+$db->exec('INSERT INTO ticket_inventory_types(ticket_type_id,event_id,capacity) VALUES (13,1,5),(14,1,5)');
+$byType = array_column(brvtal_ticket_inventory_admin_read($db, 1)['sale']['types'], null, 'ticket_type_id');
+invAssert(in_array('TYPE_CURRENCY', $byType[13]['reasons'], true), 'non-COP currency is named');
+invAssert(in_array('TYPE_NOT_STARTED', $byType[14]['reasons'], true), 'future sale window is named');
+putenv('BRVTAL_TICKET_WOMPI_MODE=off');
+$off = brvtal_ticket_inventory_admin_read($db, 1)['sale'];
+invAssert($off['ready'] === false && in_array('WOMPI_DISABLED', $off['reasons'], true), 'Wompi off is named and blocks the sale');
+putenv('BRVTAL_TICKET_WOMPI_MODE=mock');
+$db->exec("UPDATE events SET event_date=DATE_SUB(NOW(), INTERVAL 1 DAY) WHERE id=1");
+$past = brvtal_ticket_inventory_admin_read($db, 1)['sale'];
+invAssert($past['ready'] === false && in_array('EVENT_DATE_PAST', $past['reasons'], true), 'past event date is named');
+
 echo "BRVTAL #1931 ticket inventory admin: save, usage floors, courtesy floor, rollback, audit and checkout passed.\n";
