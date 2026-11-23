@@ -32,21 +32,33 @@ function invRejects(callable $callback, string $code, string $what): void
     }
     invAssert(false, $what . ' was accepted');
 }
-$base = (string)getenv('BRVTAL_TEST_DB_NAME');
-invAssert((bool)preg_match('/^brvtal_test[A-Za-z0-9_]*$/D', $base), 'disposable DB namespace');
-$host = (string)(getenv('BRVTAL_TEST_DB_HOST') ?: '127.0.0.1');
-$port = (int)(getenv('BRVTAL_TEST_DB_PORT') ?: 3306);
-$user = (string)(getenv('BRVTAL_TEST_DB_USER') ?: 'root');
-$pass = (string)(getenv('BRVTAL_TEST_DB_PASS') ?: '');
-$opt = [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,
-    PDO::ATTR_EMULATE_PREPARES=>false];
-$server = new PDO("mysql:host=$host;port=$port;charset=utf8mb4", $user, $pass, $opt);
-$name = $base . '_inventory_admin_' . bin2hex(random_bytes(3));
-$server->exec("CREATE DATABASE $name");
+$namespace = (string)getenv('BRVTAL_TEST_DB_NAME');
+invAssert((bool)preg_match('/^brvtal_test[A-Za-z0-9_]*$/D', $namespace), 'disposable DB namespace');
+$dbSettings = [
+    'host'=>(string)(getenv('BRVTAL_TEST_DB_HOST') ?: '127.0.0.1'),
+    'port'=>(int)(getenv('BRVTAL_TEST_DB_PORT') ?: 3306),
+    'user'=>(string)(getenv('BRVTAL_TEST_DB_USER') ?: 'root'),
+    'pass'=>(string)(getenv('BRVTAL_TEST_DB_PASS') ?: ''),
+];
+$dbOptions = [
+    PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,
+    PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,
+    PDO::ATTR_EMULATE_PREPARES=>false,
+];
+$connect = static function (?string $schema = null) use ($dbSettings, $dbOptions): PDO {
+    $dsn = sprintf('mysql:host=%s;port=%d;charset=utf8mb4', $dbSettings['host'], $dbSettings['port']);
+    if ($schema !== null) {
+        $dsn .= ';dbname=' . $schema;
+    }
+    return new PDO($dsn, $dbSettings['user'], $dbSettings['pass'], $dbOptions);
+};
+$server = $connect();
+$name = $namespace . '_inventory_admin_' . bin2hex(random_bytes(3));
+$server->exec('CREATE DATABASE ' . $name);
 register_shutdown_function(static function () use ($server, $name): void {
-    try { $server->exec("DROP DATABASE IF EXISTS $name"); } catch (Throwable) {}
+    try { $server->exec('DROP DATABASE IF EXISTS ' . $name); } catch (Throwable) {}
 });
-$db = new PDO("mysql:host=$host;port=$port;dbname=$name;charset=utf8mb4", $user, $pass, $opt);
+$db = $connect($name);
 foreach ([
     "CREATE TABLE admins (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,email VARCHAR(190) NOT NULL UNIQUE,
         password_hash VARCHAR(255) NOT NULL,name VARCHAR(120) NOT NULL,is_active TINYINT(1) NOT NULL DEFAULT 1,
@@ -66,7 +78,8 @@ $db->exec((string)file_get_contents(__DIR__ . '/../../database/migration_ticketi
 $db->exec("INSERT INTO admins(email,password_hash,name) VALUES('owner@synthetic.invalid','synthetic','Owner')");
 
 $cfg = ['app'=>['timezone'=>'America/Bogota'],
-    'db'=>['host'=>$host,'port'=>$port,'name'=>$name,'user'=>$user,'pass'=>$pass,'charset'=>'utf8mb4'],
+    'db'=>['host'=>$dbSettings['host'],'port'=>$dbSettings['port'],'name'=>$name,
+        'user'=>$dbSettings['user'],'pass'=>$dbSettings['pass'],'charset'=>'utf8mb4'],
     'security'=>['session_name'=>'BRVTAL_INVENTORY_ADMIN_TEST']];
 $tmp = tempnam(sys_get_temp_dir(), 'brvtal_inventory_admin_');
 file_put_contents($tmp, '<?php return ' . var_export($cfg, true) . ';');
