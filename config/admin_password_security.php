@@ -32,13 +32,15 @@ function brvtalAdminPasswordRateLimit(string $scope, string $subject): void
     }
 }
 
-function brvtalAdminPasswordNotifyChanged(string $email, string $channel): void
+function brvtalAdminPasswordNotifyChanged(string $email, string $channel, ?PDO $pdo = null): void
 {
     $delivered = brvtalAdminMailSend(
         $email,
         'Tu contraseña de BRVTAL cambió',
         "La contraseña de tu cuenta BRVTAL acaba de cambiar.\n\nSi no fuiste tú, contacta de inmediato al administrador del sitio.",
-        'password_changed_' . $channel
+        'password_changed_' . $channel,
+        $pdo,
+        'https://www.brvtal.com.co/discadmin'
     );
     if (!$delivered && function_exists('brvtal_log')) {
         brvtal_log('PASSWORD_CHANGE_NOTICE_FAILED', 'Password change confirmation was not delivered', [
@@ -370,7 +372,9 @@ function brvtal_password_recovery_deliver_one(PDO $pdo, string $baseUrl): string
             "Solicitaste recuperar tu acceso a BRVTAL.\n\n"
                 . $link
                 . "\n\nEste enlace vence en 60 minutos y solo puede usarse una vez.",
-            'password_recovery'
+            'password_recovery',
+            $pdo,
+            $link
         );
     } catch (Throwable $e) {
         $delivered = false;
