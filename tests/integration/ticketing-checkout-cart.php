@@ -162,4 +162,19 @@ cartAssert((int)$ok['order_id'] > $orderId, 'remaining capacity can still be sol
 $single = brvtal_public_ticket_checkout_prepare($db, 1, 11,
     ['ticket_type_id'=>10,'quantity'=>1,'idempotency_key'=>str_repeat('s', 20),'method'=>'CARD']);
 cartAssert((int)$single['order_id'] > 0, 'single-type checkout still works');
+// #1940: contention on the event row fails fast and retryable instead of hanging.
+$blocker = new PDO("mysql:host=$host;port=$port;dbname=$name;charset=utf8mb4", $user, $pass, $opt);
+$blocker->beginTransaction();
+$blocker->query('SELECT id FROM events WHERE id=1 FOR UPDATE')->fetchAll();
+$started = microtime(true);
+cartRejects(fn() => brvtal_public_ticket_checkout_prepare($db, 1, 12,
+    ['lines'=>[['ticket_type_id'=>10,'quantity'=>1]], 'idempotency_key'=>str_repeat('z', 20), 'method'=>'CARD']),
+    'locked event row', 'CHECKOUT_RETRYABLE');
+$waited = microtime(true) - $started;
+$blocker->rollBack();
+cartAssert($waited < 15, sprintf('lock wait is capped (waited %.1fs)', $waited));
+$after = brvtal_public_ticket_checkout_prepare($db, 1, 12,
+    ['lines'=>[['ticket_type_id'=>10,'quantity'=>1]], 'idempotency_key'=>str_repeat('z', 20), 'method'=>'CARD']);
+cartAssert((int)$after['order_id'] > 0, 'the same intent succeeds once the lock is released');
+
 echo "BRVTAL #1929 cart: multi-type orders, holds, idempotency, capacity and rollback passed.\n";

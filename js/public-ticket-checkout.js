@@ -50,6 +50,22 @@
     document.body.append(hosted);
     hosted.submit();
   }
+  // #1940: a checkout call never waits forever; 25 s then a clear, retryable message.
+  const CHECKOUT_TIMEOUT_MS = Number(window.BRVTAL_CHECKOUT_TIMEOUT_MS) > 0
+    ? Number(window.BRVTAL_CHECKOUT_TIMEOUT_MS) : 25000;
+  async function timedFetch(url, options = {}) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), CHECKOUT_TIMEOUT_MS);
+    try {
+      return await fetch(url, { ...options, signal: controller.signal });
+    } catch (error) {
+      if (controller.signal.aborted) throw new Error('CHECKOUT_TIMEOUT');
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  const TIMEOUT_MESSAGE = 'El servidor tardó demasiado en responder. Tu selección quedó guardada: vuelve a pulsar «Pagar» para reintentar.';
   async function json(response) {
     const payload = await response.json();
     if (!response.ok || !payload.ok) throw new Error(payload.error || 'CHECKOUT_UNAVAILABLE');
@@ -301,7 +317,7 @@
       update();
       say('Verificando acceso y cupo…');
       try {
-        const auth = await json(await fetch('/api/buyer/auth.php', { credentials: 'same-origin', cache: 'no-store' }));
+        const auth = await json(await timedFetch('/api/buyer/auth.php', { credentials: 'same-origin', cache: 'no-store' }));
         if (!auth.authenticated) {
           say('Inicia sesión para pagar. Si olvidaste tu clave, recupera el acceso desde tu cuenta BRVTAL.');
           return;
@@ -317,7 +333,7 @@
           say('No se pudo guardar tu reserva para reintentos. Activa el almacenamiento de sesión.');
           return;
         }
-        const result = await json(await fetch(location.pathname, {
+        const result = await json(await timedFetch(location.pathname, {
           method: 'POST', credentials: 'same-origin', cache: 'no-store',
           headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': auth.csrf,
             'X-BRVTAL-TICKET-CHECKOUT': 'prepare' },
@@ -331,7 +347,9 @@
         say('Reserva lista. Te llevamos a Wompi para pagar; el pago queda pendiente hasta que el servidor lo confirme.');
         goToWompi(result.checkout);
       } catch (error) {
-        if (error.message === 'CHECKOUT_EXPIRED') {
+        if (error.message === 'CHECKOUT_TIMEOUT') {
+          say(TIMEOUT_MESSAGE);
+        } else if (error.message === 'CHECKOUT_EXPIRED') {
           say('La reserva expiró. Cambia tu selección para iniciar una nueva compra.');
         } else if (error.message === 'CHECKOUT_RETRYABLE') {
           say('Otra solicitud está preparando tu reserva. Vuelve a intentarlo sin cambiar la selección.');
@@ -450,7 +468,7 @@
     update();
     say('Verificando acceso y cupo…');
     try {
-      const auth = await json(await fetch('/api/buyer/auth.php',
+      const auth = await json(await timedFetch('/api/buyer/auth.php',
         { credentials: 'same-origin', cache: 'no-store' }));
       if (!auth.authenticated) {
         say('Inicia sesión para continuar. Si olvidaste tu clave, recupera el acceso desde Cuenta de comprador.');
@@ -469,7 +487,7 @@
         say('No se pudo guardar tu reserva para reintentos. Activa el almacenamiento de sesión.');
         return;
       }
-      const response = await fetch(location.pathname, {
+      const response = await timedFetch(location.pathname, {
         method: 'POST', credentials: 'same-origin', cache: 'no-store',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': auth.csrf,
           'X-BRVTAL-TICKET-CHECKOUT': 'prepare' },
@@ -497,7 +515,9 @@
       if (checkout.environment === 'mock') return; // Synthetic mode NEVER charges.
       goToWompi(checkout);
     } catch (error) {
-      if (error.message === 'CHECKOUT_EXPIRED') {
+      if (error.message === 'CHECKOUT_TIMEOUT') {
+        say(TIMEOUT_MESSAGE);
+      } else if (error.message === 'CHECKOUT_EXPIRED') {
         say('La reserva expiró. Cambia tu selección para iniciar una nueva compra.');
       } else if (error.message === 'CHECKOUT_RETRYABLE') {
         say('Otra solicitud está preparando tu reserva. Reintenta sin cambiar la selección.');

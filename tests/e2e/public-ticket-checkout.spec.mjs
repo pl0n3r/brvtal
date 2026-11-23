@@ -29,9 +29,10 @@ function render({ active = true, internal = true, external = true } = {}) {
     // the same local source below; leaving both creates competing form listeners.
     .replace('<script src="/js/public-ticket-checkout.js" defer></script>', '');
 }
-async function open(page, fixture) {
+async function open(page, fixture, { timeoutMs } = {}) {
   await page.route(path, route => route.fulfill({ contentType: 'text/html', body: render(fixture) }));
   await page.goto(path);
+  if (timeoutMs) await page.evaluate(ms => { window.BRVTAL_CHECKOUT_TIMEOUT_MS = ms; }, timeoutMs);
   await page.addScriptTag({ content: script });
 }
 const plus = (page, id) => page.locator(`[data-cart-type="${id}"] [data-cart-step="1"]`);
@@ -209,4 +210,29 @@ test('T13 evita doble envío mientras la primera solicitud sigue pendiente', asy
   release();
   await expect(page.locator('#ticket-checkout-status')).toContainText('pendiente');
   expect(requests).toHaveLength(1);
+});
+
+test('#1940 una reserva que no responde se corta, avisa y reintenta con la misma intención', async ({ page }) => {
+  await open(page, undefined, { timeoutMs: 600 });
+  await page.route('**/api/buyer/auth.php', route => route.fulfill({
+    contentType: 'application/json', body: JSON.stringify({ ok: true, authenticated: true, csrf: 'fixture' }) }));
+  const keys = [];
+  let hang = true;
+  await page.route('**/events/t13-fixture**', async route => {
+    if (route.request().method() !== 'POST') return route.fallback();
+    keys.push(route.request().postDataJSON().idempotency_key);
+    if (hang) return; // never answer: the server is stuck
+    return route.fulfill({ contentType: 'application/json',
+      body: JSON.stringify({ ok: true, order_id: 81, checkout: { environment: 'mock' } }) });
+  });
+  await page.locator('[data-cart-type="5"] [data-cart-step="1"]').click();
+  const pay = page.locator('[data-cart-pay]');
+  await pay.click();
+  await expect(page.locator('#ticket-checkout-status')).toContainText('tardó demasiado', { timeout: 5000 });
+  await expect(pay).toBeEnabled();
+  hang = false;
+  await pay.click();
+  await expect(page.locator('#ticket-checkout-status')).toContainText('pendiente');
+  expect(keys).toHaveLength(2);
+  expect(keys[1]).toBe(keys[0]);
 });

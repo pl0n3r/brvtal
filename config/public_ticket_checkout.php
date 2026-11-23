@@ -165,6 +165,7 @@ function brvtal_public_ticket_checkout_prepare_cart(PDO $db, int $eventId, int $
     }
     $digest = hash('sha256', 't13|' . $buyerId . '|' . $eventId . '|' . $key);
     if ($db->inTransaction()) throw new LogicException('CHECKOUT_TRANSACTION_ALREADY_ACTIVE');
+    brvtal_public_ticket_checkout_fast_locks($db);
     $db->beginTransaction();
     try {
         // Event row FIRST: the same global mutex order as T05 holds.
@@ -294,6 +295,7 @@ function brvtal_public_ticket_checkout_prepare(PDO $db, int $eventId, int $buyer
     $digest = hash('sha256','t13|'.$buyerId.'|'.$eventId.'|'.$key);
     if ($db->inTransaction()) throw new LogicException('CHECKOUT_TRANSACTION_ALREADY_ACTIVE');
     $promoBreakdown = null; // Defined on both first purchase and idempotent replay.
+    brvtal_public_ticket_checkout_fast_locks($db);
     $db->beginTransaction();
     try {
         if ($withOffer || $withPromo) {
@@ -445,6 +447,32 @@ function brvtal_public_ticket_checkout_prepare(PDO $db, int $eventId, int $buyer
     }
 }
 
+/**
+ * #1940: a checkout must fail in seconds, never hang the buyer. A short lock wait turns
+ * contention on the event row into MariaDB error 1205, which the callers already map to
+ * CHECKOUT_RETRYABLE. Best effort: a server that refuses the setting keeps its default.
+ */
+function brvtal_public_ticket_checkout_fast_locks(PDO $db): void
+{
+    try {
+        $db->exec('SET SESSION innodb_lock_wait_timeout = 5');
+    } catch (Throwable) {
+    }
+}
+
+/** #1940: log checkout failures by class and code only (no buyer data, no secrets). */
+function brvtal_public_ticket_checkout_log(Throwable $error, string $action): void
+{
+    if (!function_exists('brvtal_log')) return;
+    $message = $error->getMessage();
+    brvtal_log('TICKET_CHECKOUT_ERROR', 'Public ticket checkout failed', [
+        'action' => $action,
+        'class' => $error::class,
+        'code' => preg_match('/^[A-Z][A-Z0-9_]{2,60}$/D', $message) ? $message : null,
+        'driver_code' => $error instanceof PDOException ? (int)($error->errorInfo[1] ?? 0) : null,
+    ]);
+}
+
 /** Only verified database state, updated by the signed T08 webhook, is authoritative. */
 function brvtal_public_ticket_checkout_state(PDO $db, int $eventId, int $buyerId, int $orderId): string
 {
@@ -471,6 +499,10 @@ function brvtal_public_ticket_checkout_http(PDO $db, int $eventId): void
     try {
         brvtalBuyerSessionStart();
         $buyerId = (int)($_SESSION['buyer_id'] ?? 0);
+        $csrfValid = brvtalBuyerCsrfValid($_SERVER['HTTP_X_CSRF_TOKEN']??null);
+        // #1940: nothing below writes the session; releasing its lock means a slow
+        // checkout can never block the buyer's other requests.
+        if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
         if ($buyerId < 1) json_response(['ok'=>false,'error'=>'AUTH_REQUIRED'],401);
         if ($action==='status') {
             if (($_SERVER['REQUEST_METHOD']??'')!=='GET'
@@ -480,22 +512,24 @@ function brvtal_public_ticket_checkout_http(PDO $db, int $eventId): void
             $state = brvtal_public_ticket_checkout_state($db,$eventId,$buyerId,(int)$_GET['order_id']);
             json_response(['ok'=>true,'state'=>$state],200);
         }
-        if (($_SERVER['REQUEST_METHOD']??'')!=='POST'
-            || !brvtalBuyerCsrfValid($_SERVER['HTTP_X_CSRF_TOKEN']??null)) {
+        if (($_SERVER['REQUEST_METHOD']??'')!=='POST' || !$csrfValid) {
             json_response(['ok'=>false,'error'=>'CSRF_OR_METHOD'],403);
         }
         $body = input_json();
         $result = brvtal_public_ticket_checkout_prepare($db,$eventId,$buyerId,$body);
         json_response(['ok'=>true]+$result,200);
-    } catch (InvalidArgumentException) {
+    } catch (InvalidArgumentException $error) {
+        brvtal_public_ticket_checkout_log($error, $action);
         json_response(['ok'=>false,'error'=>'INVALID_REQUEST'],422);
     } catch (DomainException $error) {
+        brvtal_public_ticket_checkout_log($error, $action);
         $reason = $error->getMessage();
         if (in_array($reason, ['CHECKOUT_RETRYABLE','CHECKOUT_EXPIRED'], true)) {
             json_response(['ok'=>false,'error'=>$reason],409);
         }
         json_response(['ok'=>false,'error'=>'CHECKOUT_UNAVAILABLE'],409);
-    } catch (Throwable) {
+    } catch (Throwable $error) {
+        brvtal_public_ticket_checkout_log($error, $action);
         json_response(['ok'=>false,'error'=>'CHECKOUT_UNAVAILABLE'],503);
     }
 }
