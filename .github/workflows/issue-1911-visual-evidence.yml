@@ -1,0 +1,66 @@
+name: "BRVTAL #1911 buyer account before/after evidence"
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [main]
+    paths:
+      - 'buyer/index.php'
+      - 'css/buyer-account.css'
+      - 'tests/e2e/buyer-account-design.spec.mjs'
+      - '.github/workflows/issue-1911-visual-evidence.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  captures:
+    if: github.repository == 'pl0n3r/brvtal' && github.event.pull_request.number == 1914
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Install synthetic test dependencies
+        run: npm install --prefer-offline --no-audit --no-fund
+      - name: Install Playwright Chromium and native dependencies
+        run: npx playwright install --with-deps chromium
+      - name: Run buyer visual and behavior test on disposable fixtures
+        run: npx playwright test tests/e2e/buyer-account-design.spec.mjs --project=chromium --reporter=list
+      - name: Check four captures and HEAD manifest
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$EXPECTED_HEAD" || { echo "::error::SHA de captura distinto al HEAD del PR"; exit 1; }
+          dir=artifacts/buyer-account-1911
+          test -s "$dir/manifest.json" || { echo "::error::No hay manifiesto visual"; exit 1; }
+          for filename in before-390.png after-390.png before-1440.png after-1440.png; do
+            test -s "$dir/$filename" || { echo "::error::Falta evidencia $filename"; exit 1; }
+          done
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          m=json.loads(Path("artifacts/buyer-account-1911/manifest.json").read_text())
+          assert m["issue"]==1911
+          assert m["production_observed"] is False
+          assert {x["width"] for x in m["generated"]}=={390,1440}
+          assert len(m["generated"])==2
+          PY
+      - name: Publish exact-head synthetic buyer before/after captures
+        if: success()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: brvtal-1911-buyer-ab-${{ github.event.pull_request.head.sha }}-${{ github.run_id }}
+          path: |
+            artifacts/buyer-account-1911/before-390.png
+            artifacts/buyer-account-1911/after-390.png
+            artifacts/buyer-account-1911/before-1440.png
+            artifacts/buyer-account-1911/after-1440.png
+            artifacts/buyer-account-1911/manifest.json
+          if-no-files-found: error
+          retention-days: 14

@@ -1,35 +1,113 @@
 <!doctype html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="referrer" content="no-referrer"><title>Mis compras · BRVTAL</title>
-<style>
-:root{color-scheme:dark;font-family:system-ui,sans-serif;background:#090909;color:#f7f7f7}body{margin:0}
-main{max-width:66rem;margin:auto;padding:clamp(1rem,4vw,3rem)}h1{font-size:clamp(2.2rem,7vw,4.5rem);text-transform:uppercase;letter-spacing:-.06em}
-header{border-bottom:2px solid #d32626;margin-bottom:2rem}section,article{border:1px solid #555;padding:1.1rem;margin:1rem 0}
-form{display:flex;flex-wrap:wrap;gap:.8rem;align-items:end}label{display:grid;gap:.35rem;flex:1 1 9rem}
-input,button,textarea{font:inherit;padding:.7rem;color:inherit;background:#1b1b1b;border:1px solid #bbb;border-radius:.15rem}
-button{cursor:pointer;background:#e9e9e9;color:#111;font-weight:700}button:disabled{opacity:.5;cursor:wait}
-a{color:#ff6b6b}:focus-visible{outline:3px solid #ff5252;outline-offset:3px}
-small,.muted{color:#bcbcbc}.ticket{border-left:3px solid #e13838;padding:.4rem .8rem;margin:.5rem 0}
-#qr svg{display:block;max-width:100%;width:min(75vw,18rem);height:auto;background:#fff;margin:1rem auto}
-[hidden]{display:none!important}#feedback{min-height:1.5em}
-</style></head><body><main><header><h1>Mis compras</h1><p>Entradas y pedidos de tu cuenta. Sin datos del área administrativa.</p></header>
-<p><a href="/buyer/login.php">Acceso de comprador</a> · La vinculación de invitados requiere correo verificado; aún no está habilitada.</p>
-<form id="filters" aria-label="Filtrar compras"><label>Evento (ID)<input name="event_id" inputmode="numeric" pattern="[0-9]*"></label>
-<label>Desde (UTC)<input name="from" type="date"></label><label>Hasta (UTC)<input name="to" type="date"></label>
-<button>Filtrar</button></form>
-<p id="feedback" role="status" aria-live="polite"></p><section id="orders" aria-label="Pedidos"><p>Cargando compras…</p></section>
-<button id="more" hidden type="button">Ver más pedidos</button>
-<section id="refund-list" aria-label="Solicitudes de devolución"><h2>Devoluciones</h2><div id="refund-items" aria-live="polite">Cargando solicitudes…</div></section>
-<section id="qr" hidden aria-label="Entrada QR"><h2>Entrada protegida</h2>
-<p class="muted">Usa la credencial original recibida al emitir tu entrada. BRVTAL no conserva el secreto en claro.</p>
-<form id="qr-form"><label>Credencial original<input id="token" type="password" required autocomplete="off" spellcheck="false" minlength="43" maxlength="43"></label>
-<button>Mostrar QR</button></form><div id="qr-output" role="img" aria-label="Código QR de entrada" hidden></div>
-<button id="download" type="button" hidden>Descargar QR SVG</button><p id="qr-feedback" role="status" aria-live="polite"></p></section>
-</main><script>
+<html lang="es-CO">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#050505">
+<meta name="robots" content="noindex,follow">
+<title>Mis compras · BRVTAL</title>
+<link rel="stylesheet" href="/css/buyer-access.css?v=1">
+<link rel="stylesheet" href="/css/buyer-account.css?v=1911">
+</head>
+<body class="buyer-access buyer-account">
+<a class="account-skip" href="#contenido">Ir al contenido</a>
+<header class="access-topbar account-topbar">
+  <a class="access-brand" href="/" aria-label="BRVTAL · Volver al inicio">BRVTAL<span>RAVE TILL GRAVE</span></a>
+  <span class="access-topnote">TU MÚSICA. TUS ENTRADAS.</span>
+  <nav class="account-nav" aria-label="Navegación de cuenta">
+    <a href="/mi-cuenta" aria-current="page">Mis compras</a>
+    <a href="#refund-list">Devoluciones</a>
+    <button type="button" id="logout">Cerrar sesión</button>
+  </nav>
+</header>
+<main class="account-main" id="contenido">
+  <div class="account-wrap">
+    <section class="account-hero" aria-labelledby="account-title">
+      <h1 id="account-title">Mis <em>compras</em></h1>
+      <p>Las noches que llevas contigo. Consulta tus entradas, pedidos y devoluciones en un mismo lugar.</p>
+    </section>
+    <div class="account-layout">
+      <aside class="account-sidebar">
+        <section class="account-panel" aria-label="Filtrar compras">
+          <div class="account-section-head"><h2>Encuentra tu compra</h2></div>
+          <form id="filters" class="account-filter-form" aria-label="Filtrar compras">
+            <label class="account-field" for="event-select">Evento
+              <select id="event-select" name="event_id"><option value="">Todos los eventos</option></select>
+            </label>
+            <label class="account-field" for="filter-from">Desde
+              <input id="filter-from" name="from" type="date"></label>
+            <label class="account-field" for="filter-to">Hasta
+              <input id="filter-to" name="to" type="date"></label>
+            <div class="account-filter-actions">
+              <button class="account-primary" type="submit">Aplicar filtros</button>
+              <button class="account-secondary" type="button" id="clear-filters">Limpiar filtros</button>
+            </div>
+          </form>
+          <p class="account-help">¿No encuentras tu entrada? Revisa el correo de confirmación de tu compra.</p>
+        </section>
+      </aside>
+      <div class="account-content">
+        <section class="account-panel" aria-labelledby="purchases-title">
+          <div class="account-section-head"><h2 id="purchases-title">Tus pedidos</h2></div>
+          <p id="feedback" class="account-feedback" role="status" aria-live="polite" aria-atomic="true"></p>
+          <div id="orders" class="account-orders" aria-label="Pedidos"><p class="account-loading">Cargando compras…</p></div>
+          <button id="more" class="account-secondary" hidden type="button">Ver más pedidos</button>
+        </section>
+        <section id="refund-list" class="account-panel account-refunds" aria-labelledby="refund-title">
+          <div class="account-section-head"><h2 id="refund-title">Devoluciones</h2></div>
+          <div id="refund-items" aria-live="polite"><p>Cargando solicitudes…</p></div>
+        </section>
+        <section id="qr" class="account-panel account-qr" hidden aria-label="Entrada QR">
+          <h2 id="qr-title">Entrada protegida</h2>
+          <p>Usa la credencial original recibida al emitir tu entrada. BRVTAL no conserva el secreto en claro.</p>
+          <form id="qr-form">
+            <label class="account-field" for="token">Credencial original
+              <input id="token" type="password" required autocomplete="off" spellcheck="false" minlength="43" maxlength="43"></label>
+            <button type="submit">Mostrar QR</button>
+          </form>
+          <div id="qr-output" role="img" aria-label="Código QR de entrada" hidden></div>
+          <button id="download" type="button" hidden>Descargar QR SVG</button>
+          <p id="qr-feedback" role="status" aria-live="polite"></p>
+        </section>
+      </div>
+    </div>
+  </div>
+</main>
+<footer class="access-footer account-footer"><span>BRVTAL / RAVE TILL GRAVE</span><a href="/">← Volver al inicio</a></footer>
+<script>
 (() => {
   'use strict';
   const $ = id => document.getElementById(id), api='/api/buyer/account.php';
   const filters=$('filters'),orders=$('orders'),feedback=$('feedback'),more=$('more'),qr=$('qr');
+  const eventSelect=$('event-select'),eventNames=new Map();
+  const money=(value)=>new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}).format(Number(value)||0);
+  function purchaseDate(value){
+    if(typeof value!=='string'||!value.trim())return 'Fecha por confirmar';
+    const text=value.includes('T')?value:value.replace(' ','T');
+    const date=new Date(/(Z|[+-]\d{2}:\d{2})$/.test(text)?text:text+'Z');
+    return Number.isNaN(date.getTime())?'Fecha por confirmar':
+      new Intl.DateTimeFormat('es-CO',{timeZone:'America/Bogota',dateStyle:'long',timeStyle:'short'}).format(date);
+  }
+  function rememberEvents(list){
+    const selected=eventSelect.value;
+    for(const order of list){
+      const id=Number(order.event_id),title=String(order.event_title||'').trim();
+      if(Number.isSafeInteger(id)&&id>0&&title)eventNames.set(id,title);
+    }
+    eventSelect.replaceChildren(new Option('Todos los eventos',''));
+    [...eventNames].sort((a,b)=>a[1].localeCompare(b[1],'es')).forEach(([id,title])=>
+      eventSelect.add(new Option(title,String(id))));
+    if([...eventSelect.options].some(option=>option.value===selected))eventSelect.value=selected;
+  }
+  function emptyState(filtered){
+    const box=el('div');box.className='account-empty';
+    const title=el('h2',filtered?'No encontramos compras con esos filtros':'Todavía no tienes compras');title.setAttribute('aria-live','polite');
+    box.append(title,el('p',filtered?'Prueba con otro evento o cambia las fechas para encontrar tu pedido.':
+      'Cuando consigas tu primera entrada, podrás verla aquí.'));
+    const link=el('a','Ver la cartelera');link.href='/';link.className='account-action';
+    box.append(link);return box;
+  }
   let csrf='',page=0,ticket='',payload='';
   const el=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=String(text);return n;};
   const statuses={draft:'Borrador',pending:'Pago pendiente',paid:'Aprobado',failed:'Rechazado',declined:'Rechazado',error:'Error',created:'Iniciado',cancelled:'Cancelado',expired:'Expirado',refunded:'Reembolsado',issued:'Disponible',used:'Usada',revoked:'Revocada'};
@@ -47,7 +125,7 @@ small,.muted{color:#bcbcbc}.ticket{border-left:3px solid #e13838;padding:.4rem .
       target.replaceChildren();
       if(!payload.data.length)target.append(el('p','Sin solicitudes de devolución.'));
       for(const r of payload.data){
-        const text='Pedido '+r.order_id+' · '+(refundStates[r.status]||'Estado pendiente de verificación')+' · '+r.amount_cop+' COP';
+        const text='Devolución · '+(refundStates[r.status]||'Estado por confirmar')+' · '+money(r.amount_cop);
         target.append(el('p',text));
       }
     }catch(_){target.textContent='Las devoluciones no están disponibles en este entorno.';}
@@ -55,7 +133,7 @@ small,.muted{color:#bcbcbc}.ticket{border-left:3px solid #e13838;padding:.4rem .
   function refundForm(order){
     const eligible=(order.items||[]).filter(item=>item.status==='issued'&&item.ticket_id);
     if(order.status!=='paid'||!eligible.length||!/^[a-f0-9]{32}$/.test(order.public_id||''))return null;
-    const form=el('form');form.setAttribute('aria-label','Solicitar devolución');
+    const form=el('form');form.className='account-refund-form';form.setAttribute('aria-label','Solicitar devolución');
     const caption=el('h3','Solicitar devolución');form.append(caption);
     eligible.forEach((item,i)=>{
       const label=el('label');const checkbox=el('input');checkbox.type='checkbox';checkbox.name='refund_entry';
@@ -91,9 +169,9 @@ small,.muted{color:#bcbcbc}.ticket{border-left:3px solid #e13838;padding:.4rem .
   function resetQr(){ticket='';payload='';qr.hidden=true;$('token').value='';$('qr-output').replaceChildren();$('qr-output').hidden=true;$('download').hidden=true;$('qr-feedback').textContent='';}
   function showQr(id){resetQr();ticket=id;qr.hidden=false;$('token').focus();}
   function card(order){
-    const box=el('article'),title=el('h2',order.event_title||'Evento');box.append(title,
+    const box=el('article'),title=el('h2',order.event_title||'Evento');box.className='account-order';box.append(title,
       el('p','Pedido '+(statuses[order.status]||order.status)+' · Pago: '+(statuses[order.payment_status]||order.payment_status||'Sin intento')),
-      el('small','Fecha UTC: '+(order.created_at_utc||'—')+' · '+order.total_cop+' '+(order.currency||'COP')));
+      el('small','Comprado el '+purchaseDate(order.created_at_utc)+' · '+money(order.total_cop)));
     for(const item of order.items||[]){
       const line=el('div');line.className='ticket';line.append(el('strong',item.name),el('p','Cantidad: '+item.quantity+' · Entrada: '+(statuses[item.status]||item.status)));
       if(order.status==='paid'&&item.status==='issued'&&item.credential_active!==false&&item.qr_requires_original_token&&item.ticket_id){
@@ -104,18 +182,37 @@ small,.muted{color:#bcbcbc}.ticket{border-left:3px solid #e13838;padding:.4rem .
     return box;
   }
   async function load(append=false){
-    more.disabled=true;feedback.textContent='Cargando compras…';if(!append){orders.replaceChildren();resetQr();}
+    more.disabled=true;feedback.textContent='Cargando compras…';feedback.dataset.tone='neutral';if(!append){orders.replaceChildren();resetQr();}
     const query=new URLSearchParams({page:String(page)});for(const name of ['event_id','from','to']){
       const value=String(filters.elements.namedItem(name).value||'');if(value)query.set(name,value);
     }
     try{const r=await fetch(api+'?'+query,{credentials:'same-origin',cache:'no-store'});if(r.status===401){location.href='/buyer/login.php';return;}
       if(!r.ok)throw Error('API');const result=(await r.json()).data;if(!result||!Array.isArray(result.orders))throw Error('API');
-      if(!result.orders.length&&!append)orders.append(el('p','Todavía no hay compras para estos filtros.'));
-      for(const order of result.orders)orders.append(card(order));more.hidden=!result.has_more;feedback.textContent=result.orders.length?'Compras cargadas.':'No hay más pedidos.';
-    }catch(_){feedback.textContent='No pudimos cargar tus compras. Intenta nuevamente.';more.hidden=true;}
+      rememberEvents(result.orders);
+      if(!result.orders.length&&!append)orders.append(emptyState(Boolean(filters.elements.namedItem('event_id').value||filters.elements.namedItem('from').value||filters.elements.namedItem('to').value)));
+      for(const order of result.orders)orders.append(card(order));more.hidden=!result.has_more;feedback.textContent=result.orders.length?'Compras cargadas.':(append?'Llegaste al final de tus pedidos.':'');
+    }catch(_){feedback.textContent='No pudimos cargar tus compras. Revisa tu conexión y vuelve a aplicar los filtros.';feedback.dataset.tone='error';more.hidden=true;}
     finally{more.disabled=false;}
   }
-  filters.addEventListener('submit',e=>{e.preventDefault();page=0;load();});
+  filters.addEventListener('submit',e=>{
+    e.preventDefault();
+    const from=filters.elements.namedItem('from').value,to=filters.elements.namedItem('to').value;
+    if(from&&to&&from>to){feedback.textContent='La fecha inicial no puede ser posterior a la fecha final.';feedback.dataset.tone='error';return;}
+    page=0;load();
+  });
+  $('clear-filters').addEventListener('click',()=>{filters.reset();page=0;load();});
+  $('logout').addEventListener('click',async()=>{
+    const button=$('logout');if(button.disabled)return;button.disabled=true;
+    try{
+      if(!csrf)throw Error('AUTH');
+      const response=await fetch('/api/buyer/auth.php',{method:'POST',credentials:'same-origin',cache:'no-store',
+        headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({action:'logout'})});
+      const data=await response.json();
+      if(!response.ok||data.ok!==true)throw Error('AUTH');
+      location.assign('/mi-cuenta/acceso');
+    }catch(_){feedback.textContent='No pudimos cerrar sesión. Inténtalo de nuevo.';feedback.dataset.tone='error';}
+    finally{button.disabled=false;}
+  });
   more.addEventListener('click',()=>{page++;load(true);});
   // Fixed QR version 5-L, byte mode, mask 0. Offline encoding: never send credentials to a third party.
   function qrSvg(value){
