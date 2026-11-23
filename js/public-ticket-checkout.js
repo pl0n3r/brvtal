@@ -325,8 +325,10 @@
       if (promo) promo.value = ''; // Never retain raw coupon after confirmed prepare.
       say('Reserva preparada. El pago sigue pendiente hasta confirmación del servidor.');
       if (checkout.environment === 'mock') return; // Synthetic mode NEVER charges.
-      if (checkout.environment !== 'sandbox' || checkout.currency !== 'COP'
-        || !checkout.public_key?.startsWith('pub_test_')) throw new Error('INVALID_ENVIRONMENT');
+      // Each environment only accepts its own public key prefix (test vs production).
+      const keyPrefix = { sandbox: 'pub_test_', production: 'pub_prod_' }[checkout.environment];
+      if (!keyPrefix || checkout.currency !== 'COP'
+        || !checkout.public_key?.startsWith(keyPrefix)) throw new Error('INVALID_ENVIRONMENT');
       const fields = {
         'public-key': checkout.public_key, currency: 'COP',
         'amount-in-cents': String(checkout.amount_in_cents),

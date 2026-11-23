@@ -2,7 +2,28 @@
 declare(strict_types=1);
 require_once __DIR__ . '/secrets.php';
 
-/** T07: sandbox-only hosted Wompi checkout preparation; never charges or confirms a sale. */
+/**
+ * Wompi environments. The owner picks one in DISCADMIN (BRVTAL_TICKET_WOMPI_MODE):
+ * - sandbox: test keys only (pub_test_/prv_test_/test_integrity_/test_events_); no real money.
+ * - production: BRVTAL_TICKET_WOMPI_PROD_* keys only (pub_prod_/prv_prod_/prod_integrity_/
+ *   prod_events_); real charges. The admin API only stores this mode with explicit
+ *   confirmation and a complete production key set.
+ * - mock: automated tests only (requires BRVTAL_TICKET_WOMPI_TESTING=1), test keys.
+ * Anything else (off, live, empty…) keeps checkout disabled.
+ */
+function brvtal_ticket_wompi_environments(): array
+{
+    return [
+        'sandbox' => ['prefix'=>'BRVTAL_TICKET_WOMPI_', 'public'=>'pub_test_', 'private'=>'prv_test_',
+            'integrity'=>'test_integrity_', 'events'=>'test_events_', 'event_environment'=>'test',
+            'api'=>'https://sandbox.wompi.co/v1'],
+        'production' => ['prefix'=>'BRVTAL_TICKET_WOMPI_PROD_', 'public'=>'pub_prod_', 'private'=>'prv_prod_',
+            'integrity'=>'prod_integrity_', 'events'=>'prod_events_', 'event_environment'=>'prod',
+            'api'=>'https://production.wompi.co/v1'],
+    ];
+}
+
+/** Hosted Wompi checkout preparation; never confirms a sale (the signed webhook does). */
 function brvtal_ticket_wompi_config(?array $override = null): array
 {
     $env = static function (string $key) use ($override): string {
@@ -10,17 +31,20 @@ function brvtal_ticket_wompi_config(?array $override = null): array
         return is_string($value) ? trim($value) : '';
     };
     $mode = $env('BRVTAL_TICKET_WOMPI_MODE');
-    if (!in_array($mode, ['mock', 'sandbox'], true)
-        || ($mode === 'mock' && $env('BRVTAL_TICKET_WOMPI_TESTING') !== '1')
-        || ($mode === 'sandbox' && $env('BRVTAL_TICKET_WOMPI_SANDBOX_ENABLED') !== '1')) {
+    if ($mode === 'mock' && $env('BRVTAL_TICKET_WOMPI_TESTING') !== '1') {
         throw new DomainException('WOMPI_DISABLED');
     }
-    $public = $env('BRVTAL_TICKET_WOMPI_PUBLIC_KEY');
-    $private = $env('BRVTAL_TICKET_WOMPI_PRIVATE_KEY');
-    $integrity = $env('BRVTAL_TICKET_WOMPI_INTEGRITY_SECRET');
-    if (!str_starts_with($public, 'pub_test_') || strlen($public) < 13
-        || !str_starts_with($private, 'prv_test_') || strlen($private) < 13
-        || !str_starts_with($integrity, 'test_integrity_') || strlen($integrity) < 20) {
+    $environments = brvtal_ticket_wompi_environments();
+    $profile = $environments[$mode === 'mock' ? 'sandbox' : $mode] ?? null;
+    if ($profile === null) throw new DomainException('WOMPI_DISABLED');
+    $prefix = $profile['prefix'];
+    $public = $env($prefix . 'PUBLIC_KEY');
+    $private = $env($prefix . 'PRIVATE_KEY');
+    $integrity = $env($prefix . 'INTEGRITY_SECRET');
+    if (!str_starts_with($public, $profile['public']) || strlen($public) < strlen($profile['public']) + 4
+        || !str_starts_with($private, $profile['private']) || strlen($private) < strlen($profile['private']) + 4
+        || !str_starts_with($integrity, $profile['integrity'])
+        || strlen($integrity) < strlen($profile['integrity']) + 5) {
         throw new DomainException('WOMPI_CREDENTIALS_MISSING');
     }
     $raw = $env('BRVTAL_TICKET_WOMPI_ENABLED_METHODS');
@@ -37,7 +61,53 @@ function brvtal_ticket_wompi_config(?array $override = null): array
         || !filter_var($returnUrl, FILTER_VALIDATE_URL)) {
         throw new DomainException('WOMPI_RETURN_URL_INVALID');
     }
-    return compact('mode', 'public', 'private', 'integrity', 'methods', 'returnUrl');
+    $apiBase = $profile['api'];
+    $eventsPrefix = $profile['events'];
+    $eventEnvironment = $profile['event_environment'];
+    $keyPrefix = $prefix;
+    return compact('mode', 'public', 'private', 'integrity', 'methods', 'returnUrl',
+        'apiBase', 'eventsPrefix', 'eventEnvironment', 'keyPrefix');
+}
+
+/** Exact token DISCADMIN must send to switch Wompi to real charges. */
+const BRVTAL_WOMPI_PRODUCTION_CONFIRMATION = 'COBROS_REALES';
+
+/**
+ * Guard for the DISCADMIN mode selector. Switching to production requires the
+ * confirmation token and a production key set that passes the checkout and
+ * webhook rules. Returns an error code, or null when the change is allowed.
+ */
+function brvtal_ticket_wompi_mode_change_error(string $mode, mixed $confirm, ?array $override = null): ?string
+{
+    if ($mode !== 'production') return null; // off/sandbox never charge; format is validated by the store.
+    if ($confirm !== BRVTAL_WOMPI_PRODUCTION_CONFIRMATION) return 'WOMPI_PRODUCTION_CONFIRMATION_REQUIRED';
+    $candidate = ['BRVTAL_TICKET_WOMPI_MODE' => 'production'];
+    foreach (['BRVTAL_TICKET_WOMPI_PROD_PUBLIC_KEY','BRVTAL_TICKET_WOMPI_PROD_PRIVATE_KEY',
+        'BRVTAL_TICKET_WOMPI_PROD_INTEGRITY_SECRET','BRVTAL_TICKET_WOMPI_PROD_EVENTS_SECRET',
+        'BRVTAL_TICKET_WOMPI_ENABLED_METHODS','BRVTAL_TICKET_WOMPI_RETURN_URL'] as $key) {
+        $candidate[$key] = brvtal_secret_value($key, $override);
+    }
+    try {
+        require_once __DIR__ . '/ticketing_wompi_webhook.php';
+        brvtal_wompi_hook_config($candidate); // Checkout rules plus the production events secret.
+        return null;
+    } catch (Throwable) {
+        return 'WOMPI_PRODUCTION_KEYS_INCOMPLETE';
+    }
+}
+
+/** Status for administrators: effective mode and why checkout is off. Never returns keys. */
+function brvtal_ticket_wompi_status(?array $override = null): array
+{
+    $mode = trim(brvtal_secret_value('BRVTAL_TICKET_WOMPI_MODE', $override));
+    try {
+        brvtal_ticket_wompi_config($override);
+        return ['mode'=>$mode, 'ready'=>true, 'reason'=>null];
+    } catch (DomainException $e) {
+        return ['mode'=>$mode === '' ? 'off' : $mode, 'ready'=>false, 'reason'=>$e->getMessage()];
+    } catch (Throwable) {
+        return ['mode'=>$mode === '' ? 'off' : $mode, 'ready'=>false, 'reason'=>'WOMPI_CONFIG_UNAVAILABLE'];
+    }
 }
 
 function brvtal_ticket_wompi_payload(array $config, string $reference, int $amountCop, string $method): array
@@ -137,14 +207,14 @@ function brvtal_ticket_wompi_prepare(
     return brvtal_ticket_wompi_payload($config, $reference, $total, $method);
 }
 
-/** Read-only sandbox observation; even APPROVED here never changes order state. */
+/** Read-only observation; even APPROVED here never changes order state. */
 function brvtal_ticket_wompi_observe(array $config, string $providerId, ?callable $transport): array
 {
     if (!preg_match('/^[A-Za-z0-9_-]{1,128}$/D', $providerId) || $transport === null) {
         return ['state'=>'unverified'];
     }
     try {
-        $reply = $transport('https://sandbox.wompi.co/v1/transactions/' . rawurlencode($providerId),
+        $reply = $transport(($config['apiBase'] ?? 'https://sandbox.wompi.co/v1') . '/transactions/' . rawurlencode($providerId),
             ['Authorization'=>'Bearer ' . $config['private']]);
         $status = (int)($reply['status'] ?? 0);
         if ($status !== 200) return ['state'=>'unverified'];

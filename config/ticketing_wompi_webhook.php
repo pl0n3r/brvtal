@@ -2,12 +2,13 @@
 declare(strict_types=1);
 require_once __DIR__ . '/ticketing_wompi_client.php';
 
-/** T08: sandbox-only. The events secret is NOT the checkout integrity secret. */
+/** T08: the events secret is NOT the checkout integrity secret, and belongs to the active environment. */
 function brvtal_wompi_hook_config(?array $env = null): array
 {
     $base = brvtal_ticket_wompi_config($env);
-    $secret = brvtal_secret_value('BRVTAL_TICKET_WOMPI_EVENTS_SECRET', $env);
-    if (!is_string($secret) || !str_starts_with($secret, 'test_events_') || strlen($secret) < 20) {
+    $prefix = (string)($base['eventsPrefix'] ?? 'test_events_');
+    $secret = brvtal_secret_value(($base['keyPrefix'] ?? 'BRVTAL_TICKET_WOMPI_') . 'EVENTS_SECRET', $env);
+    if (!is_string($secret) || !str_starts_with($secret, $prefix) || strlen($secret) < strlen($prefix) + 8) {
         throw new DomainException('WEBHOOK_DISABLED');
     }
     return $base + ['eventsSecret' => $secret];
@@ -20,7 +21,7 @@ function brvtal_wompi_hook_verify(string $raw, string $headerChecksum, array $se
     try { $event = json_decode($raw, true, 32, JSON_THROW_ON_ERROR); }
     catch (JsonException) { throw new DomainException('WEBHOOK_INVALID'); }
     if (!is_array($event) || ($event['event'] ?? null) !== 'transaction.updated'
-        || ($event['environment'] ?? null) !== 'test' || !is_int($event['timestamp'] ?? null)
+        || ($event['environment'] ?? null) !== ($settings['eventEnvironment'] ?? 'test') || !is_int($event['timestamp'] ?? null)
         || !is_array($event['data']['transaction'] ?? null)
         || !is_array($event['signature']['properties'] ?? null)) {
         throw new DomainException('WEBHOOK_INVALID');
@@ -54,7 +55,7 @@ function brvtal_wompi_hook_verify(string $raw, string $headerChecksum, array $se
         throw new DomainException('WEBHOOK_SIGNATURE');
     }
     if (!is_string($settings['eventsSecret'] ?? null)
-        || !str_starts_with($settings['eventsSecret'], 'test_events_')) {
+        || !str_starts_with($settings['eventsSecret'], (string)($settings['eventsPrefix'] ?? 'test_events_'))) {
         throw new DomainException('WEBHOOK_DISABLED');
     }
     $expected = hash('sha256', $text . $stamp . $settings['eventsSecret']);
@@ -72,14 +73,14 @@ function brvtal_wompi_hook_verify(string $raw, string $headerChecksum, array $se
     return $tx + ['_event_checksum'=>strtolower($checksum), '_event_timestamp'=>$stamp];
 }
 
-/** The private sandbox GET authenticates reference/currency, which Wompi may NOT sign. */
+/** The private GET authenticates reference/currency, which Wompi may NOT sign. */
 function brvtal_wompi_hook_lookup(array $settings, string $id, ?callable $transport = null): array
 {
-    $url = 'https://sandbox.wompi.co/v1/transactions/' . rawurlencode($id);
+    $url = ($settings['apiBase'] ?? 'https://sandbox.wompi.co/v1') . '/transactions/' . rawurlencode($id);
     if ($transport !== null) {
         $response = $transport($url, ['Authorization' => 'Bearer ' . $settings['private']]);
     } else {
-        if (($settings['mode'] ?? '') !== 'sandbox' || !function_exists('curl_init')) {
+        if (!in_array($settings['mode'] ?? '', ['sandbox','production'], true) || !function_exists('curl_init')) {
             throw new RuntimeException('WEBHOOK_PROVIDER_UNAVAILABLE');
         }
         $handle = curl_init($url);

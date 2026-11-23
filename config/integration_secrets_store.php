@@ -23,6 +23,15 @@ function brvtalIntegrationSecretCatalog(): array
         'BRVTAL_SENTRY_DSN' => ['provider'=>'sentry','field'=>'dsn'],
         'BRVTAL_TICKET_WOMPI_PUBLIC_KEY' => ['provider'=>'wompi','field'=>'public_key'],
         'BRVTAL_TICKET_WOMPI_PRIVATE_KEY' => ['provider'=>'wompi','field'=>'private_key'],
+        'BRVTAL_TICKET_WOMPI_INTEGRITY_SECRET' => ['provider'=>'wompi','field'=>'integrity_secret'],
+        'BRVTAL_TICKET_WOMPI_EVENTS_SECRET' => ['provider'=>'wompi','field'=>'events_secret'],
+        'BRVTAL_TICKET_WOMPI_PROD_PUBLIC_KEY' => ['provider'=>'wompi','field'=>'prod_public_key'],
+        'BRVTAL_TICKET_WOMPI_PROD_PRIVATE_KEY' => ['provider'=>'wompi','field'=>'prod_private_key'],
+        'BRVTAL_TICKET_WOMPI_PROD_INTEGRITY_SECRET' => ['provider'=>'wompi','field'=>'prod_integrity_secret'],
+        'BRVTAL_TICKET_WOMPI_PROD_EVENTS_SECRET' => ['provider'=>'wompi','field'=>'prod_events_secret'],
+        'BRVTAL_TICKET_WOMPI_ENABLED_METHODS' => ['provider'=>'wompi','field'=>'enabled_methods'],
+        'BRVTAL_TICKET_WOMPI_RETURN_URL' => ['provider'=>'wompi','field'=>'return_url'],
+        'BRVTAL_TICKET_WOMPI_MODE' => ['provider'=>'wompi','field'=>'mode'],
     ];
 }
 
@@ -94,6 +103,24 @@ function brvtalIntegrationSecretValidTestRecipients(string $value): bool
     return true;
 }
 
+/** Comma-separated subset of the payment methods Wompi supports for BRVTAL. */
+function brvtalIntegrationSecretValidWompiMethods(string $value): bool
+{
+    $methods = array_map(trim(...), explode(',', $value));
+    return $methods !== [] && !in_array('', $methods, true)
+        && count($methods) === count(array_unique($methods))
+        && array_diff($methods, ['CARD','NEQUI','PSE']) === [];
+}
+
+/** Same rule as the checkout: plain HTTPS, no credentials or fragment. */
+function brvtalIntegrationSecretValidReturnUrl(string $value): bool
+{
+    $parts = parse_url($value);
+    return strlen($value) <= 500 && is_array($parts) && ($parts['scheme'] ?? null) === 'https'
+        && isset($parts['host']) && !isset($parts['user']) && !isset($parts['pass'])
+        && !isset($parts['fragment']) && filter_var($value, FILTER_VALIDATE_URL) !== false;
+}
+
 function brvtalIntegrationSecretValidate(string $name, string $value): void
 {
     if (!isset(brvtalIntegrationSecretCatalog()[$name])) {
@@ -108,6 +135,15 @@ function brvtalIntegrationSecretValidate(string $name, string $value): void
         'BRVTAL_TICKET_MAIL_TEST_RECIPIENTS' => brvtalIntegrationSecretValidTestRecipients($value),
         'BRVTAL_TICKET_WOMPI_PUBLIC_KEY' => preg_match('/^pub_test_[A-Za-z0-9_-]{8,}$/D', $value) === 1,
         'BRVTAL_TICKET_WOMPI_PRIVATE_KEY' => preg_match('/^prv_test_[A-Za-z0-9_-]{8,}$/D', $value) === 1,
+        'BRVTAL_TICKET_WOMPI_INTEGRITY_SECRET' => preg_match('/^test_integrity_[A-Za-z0-9_-]{8,}$/D', $value) === 1,
+        'BRVTAL_TICKET_WOMPI_EVENTS_SECRET' => preg_match('/^test_events_[A-Za-z0-9_-]{8,}$/D', $value) === 1,
+        'BRVTAL_TICKET_WOMPI_PROD_PUBLIC_KEY' => preg_match('/^pub_prod_[A-Za-z0-9_-]{8,}$/D', $value) === 1,
+        'BRVTAL_TICKET_WOMPI_PROD_PRIVATE_KEY' => preg_match('/^prv_prod_[A-Za-z0-9_-]{8,}$/D', $value) === 1,
+        'BRVTAL_TICKET_WOMPI_PROD_INTEGRITY_SECRET' => preg_match('/^prod_integrity_[A-Za-z0-9_-]{8,}$/D', $value) === 1,
+        'BRVTAL_TICKET_WOMPI_PROD_EVENTS_SECRET' => preg_match('/^prod_events_[A-Za-z0-9_-]{8,}$/D', $value) === 1,
+        'BRVTAL_TICKET_WOMPI_MODE' => in_array($value, ['off','sandbox','production'], true),
+        'BRVTAL_TICKET_WOMPI_ENABLED_METHODS' => brvtalIntegrationSecretValidWompiMethods($value),
+        'BRVTAL_TICKET_WOMPI_RETURN_URL' => brvtalIntegrationSecretValidReturnUrl($value),
         'BRVTAL_TICKET_MAIL_FROM','BRVTAL_MAIL_FROM','BRVTAL_GA4_CLIENT_EMAIL' =>
             filter_var($value, FILTER_VALIDATE_EMAIL) !== false,
         'BRVTAL_TICKET_MAIL_DOMAIN','BRVTAL_SMTP_HOST' =>
