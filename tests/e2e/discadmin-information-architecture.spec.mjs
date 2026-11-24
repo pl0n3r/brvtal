@@ -271,8 +271,11 @@ test('#1892 «Próximamente» se anuncia deshabilitado y no navega', async ({ pa
   await serveTicketingTabs(page);
   await serveHarness(page);
   await page.goto(harnessUrl);
-  await page.locator('[data-ia-toggle="mail"]').click();
   const soon = page.locator('[data-ia-key="mail:templates"]');
+  // La hoja depende de permisos de Boletería cargados de forma asíncrona.
+  // No abrir el grupo antes de que el servidor haya autorizado esta hoja.
+  await expect(soon).toHaveCount(1, {timeout: 20000});
+  await page.locator('[data-ia-toggle="mail"]').click();
   await expect(soon).toHaveAttribute('aria-disabled','true');
   await expect(soon).toContainText('Próximamente');
   const before = await page.evaluate(() => [window.state.section, location.search]);
