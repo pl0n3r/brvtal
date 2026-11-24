@@ -18,6 +18,24 @@ try {
     if (!brvtalTicketingCan((string)($q->fetchColumn()?:''),'settings')) {
         json_response(['ok'=>false,'error'=>'FORBIDDEN'],403);
     }
+    if ($method==='GET' && ($_GET['catalog']??'')==='1') {
+        // #1964: pickers instead of typed IDs. Only published events and their ticket names.
+        $events=$db->query("SELECT id,title,event_date FROM events WHERE status='published'
+            ORDER BY event_date IS NULL, event_date DESC, id DESC LIMIT 60")->fetchAll(PDO::FETCH_ASSOC);
+        $types=[];
+        if ($events) {
+            $ids=array_map(static fn(array $row): int => (int)$row['id'], $events);
+            $q=$db->prepare('SELECT id,event_id,name FROM event_ticket_types WHERE event_id IN ('
+                .implode(',',array_fill(0,count($ids),'?')).') ORDER BY sort_order,id');
+            $q->execute($ids);
+            foreach ($q->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                $types[(int)$row['event_id']][]=['id'=>(int)$row['id'],'name'=>(string)$row['name']];
+            }
+        }
+        json_response(['ok'=>true,'events'=>array_map(static fn(array $row): array => [
+            'id'=>(int)$row['id'],'title'=>(string)$row['title'],'date'=>$row['event_date'],
+            'ticket_types'=>$types[(int)$row['id']]??[]],$events)]);
+    }
     if ($method==='GET') {
         $event=filter_var($_GET['event_id']??null,FILTER_VALIDATE_INT);
         if (!$event || $event<1) throw new InvalidArgumentException();

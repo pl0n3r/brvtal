@@ -1,17 +1,67 @@
-.ticketing{margin-top:22px;max-width:1100px}
-.ticketing-notice{display:block;border:1px solid #444;background:#101214;padding:14px;color:#d6d8da;font-size:13px}
-.ticketing-tabs{display:flex;flex-wrap:wrap;gap:8px;margin:20px 0}
-.ticketing-tabs button{background:#101214;color:#d2d2d2;border:1px solid #34393e;padding:12px 15px;font-size:12px}
-.ticketing-tabs button[aria-selected="true"]{background:#b20f29;color:#fff;border-color:#b20f29}
-.ticketing :is(button,input):focus-visible{outline:3px solid #fff;outline-offset:3px}
-.ticketing [role="tabpanel"]{background:#0a0b0c;border:1px solid #292d31;min-height:180px;padding:24px}
-.ticketing h2{font-size:21px;margin:0 0 14px}
-.ticketing-empty{color:#aeb4b9}
-.ticketing-settings{display:grid;gap:14px;border:1px solid #34393e;margin-top:22px;padding:18px}
-.ticketing-settings label{display:flex;gap:10px;align-items:center}
+/* #1964 (A): Boletería inside the DISCADMIN shell. Groups → sections → one workspace.
+   Colors come from the shell tokens so light appearance keeps working. */
+.ticketing{margin-top:18px;max-width:1180px;color:var(--text,#f4f5f6)}
+.ticketing-status{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;margin:0;color:var(--muted,#7d848b);font-size:13px}
+.ticketing-status>span{display:inline-flex;align-items:center;gap:8px}
+.ticketing-status>span::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor;opacity:.7}
+.ticketing-link{min-height:44px;padding:0;background:none;border:0;color:var(--text,#f4f5f6);font:inherit;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.ticketing-groups{display:flex;gap:28px;margin-top:16px;border-bottom:1px solid var(--line,#292d31);overflow-x:auto;scrollbar-width:none}
+.ticketing-groups button{flex:none;min-height:44px;padding:0;background:none;border:0;border-bottom:2px solid transparent;color:var(--muted,#7d848b);font:inherit;font-size:14px;font-weight:600;cursor:pointer;transition:color .15s ease-out,border-color .15s ease-out}
+.ticketing-groups button:hover{color:var(--text,#f4f5f6)}
+.ticketing-groups button[aria-pressed="true"]{color:var(--text,#f4f5f6);border-bottom-color:var(--red,#ff2038)}
+.ticketing-tabs{display:flex;gap:8px;margin:14px 0 18px;overflow-x:auto;scrollbar-width:none}
+.ticketing-tabs button{flex:none;min-height:38px;padding:0 14px;background:transparent;color:var(--text,#f4f5f6);border:1px solid var(--line,#292d31);font:inherit;font-size:13px;cursor:pointer;transition:background-color .15s ease-out,border-color .15s ease-out}
+.ticketing-tabs button:hover{border-color:var(--muted,#7d848b)}
+.ticketing-tabs button[aria-selected="true"]{background:var(--text,#f4f5f6);color:var(--bg,#050505);border-color:var(--text,#f4f5f6);font-weight:600}
+.ticketing-tabs button[hidden]{display:none}
+.ticketing :is(button,input,select,textarea,a):focus-visible{outline:3px solid var(--text,#fff);outline-offset:3px}
+.ticketing [role="tabpanel"]{min-height:180px;padding:4px 0 24px}
+.ticketing h2{font-size:22px;margin:0 0 6px}
+.ticketing h3{font-size:17px;margin:0}
+.ticketing-empty{margin:0 0 18px;color:var(--muted,#7d848b);max-width:68ch}
 .ticketing button:disabled{opacity:.55;cursor:not-allowed}
 .ticketing-error,.ticketing-denied{color:#ffb0b8}
-@media(max-width:600px){.ticketing-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.ticketing-tabs button{min-width:0}.ticketing [role="tabpanel"]{padding:16px}}
+.ticketing-frame{display:block;width:100%;min-height:420px;border:1px solid var(--line,#292d31);background:var(--p,#0a0b0c)}
+
+/* Shared form system: grouped steps, labels above fields, one primary action. */
+.tk-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(220px,100%),1fr));gap:16px;margin:0 0 20px}
+.tk-step{margin:0;padding:16px;min-width:0;border:1px solid var(--line,#292d31);background:var(--p,#0a0b0c);display:flex;flex-direction:column;gap:12px}
+.tk-step legend{padding:0 6px;color:var(--muted,#7d848b);font-size:12px;font-weight:600}
+.tk-field{display:flex;flex-direction:column;gap:6px;min-width:0;font-size:13px}
+.tk-field :is(input,select,textarea){box-sizing:border-box;width:100%;min-height:44px;padding:0 12px;background:var(--bg,#050505);color:var(--text,#f4f5f6);border:1px solid var(--line,#292d31);font:inherit;font-size:14px}
+.tk-field :is(input,select,textarea):hover{border-color:var(--muted,#7d848b)}
+.tk-field small{color:var(--muted,#7d848b);font-size:12px}
+.tk-field [aria-invalid="true"]{border-color:#ff6b6b}
+.tk-footer{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px 16px}
+.tk-summary{margin:0;color:var(--text,#f4f5f6);font-size:14px;max-width:70ch;text-wrap:pretty}
+.tk-actions{display:flex;flex-wrap:wrap;gap:8px}
+.tk-button{min-height:44px;padding:0 18px;background:transparent;color:var(--text,#f4f5f6);border:1px solid var(--line,#292d31);font:inherit;font-weight:600;cursor:pointer;transition:border-color .15s ease-out,background-color .15s ease-out}
+.tk-button:hover{border-color:var(--muted,#7d848b)}
+.tk-button.is-primary{background:var(--red,#ff2038);border-color:var(--red,#ff2038);color:#090b0d}
+.tk-button.is-primary:hover{filter:brightness(1.08)}
+.tk-status{margin:0;min-height:20px;color:var(--muted,#7d848b);font-size:13px}
+.tk-status[data-tone="error"]{color:#ffb0b8}
+.tk-status[data-tone="ok"]{color:var(--green,#49d98a)}
+.tk-table-wrap{max-width:100%;overflow-x:auto}
+.tk-table{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums}
+.tk-table th{padding:10px 12px;border-bottom:1px solid var(--line,#292d31);color:var(--muted,#7d848b);font-size:12px;font-weight:600;text-align:left;white-space:nowrap}
+.tk-table td{padding:12px;border-bottom:1px solid var(--line,#292d31);text-align:left;vertical-align:middle}
+.tk-table td:first-child{font-weight:600}
+.tk-badge{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.tk-badge::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--muted,#7d848b)}
+.tk-badge.is-on::before{background:var(--green,#49d98a)}
+.tk-empty-row td{color:var(--muted,#7d848b);font-weight:400}
+@media(prefers-reduced-motion:reduce){.ticketing-groups button,.ticketing-tabs button,.tk-button{transition:none}}
+@media(max-width:600px){
+  .ticketing-groups{gap:20px}
+  .tk-footer{flex-direction:column;align-items:stretch}
+  .tk-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+  .tk-table thead{display:none}
+  .tk-table,.tk-table tbody,.tk-table tr,.tk-table td{display:block;width:100%;box-sizing:border-box}
+  .tk-table tr{padding:10px 0;border-bottom:1px solid var(--line,#292d31)}
+  .tk-table td{padding:4px 0;border:0}
+  .tk-table td[data-label]::before{content:attr(data-label) " · ";color:var(--muted,#7d848b);font-weight:400}
+}
 
 /* T18: one responsive records workspace; tables scroll inside the module, never the page. */
 .ticketing-records-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(180px,100%),1fr));gap:12px;margin:16px 0}
@@ -22,3 +72,8 @@
 .ticketing-records-table :is(th,td){padding:10px;border-bottom:1px solid #34393e;text-align:left}
 .ticketing-records-table tr[data-ticketing-anomaly]{outline:2px dashed #d29c37}
 [data-ticketing-records-detail]{margin-top:18px}
+.tk-promos-list-title{margin-top:28px}
+/* Wide screens: the four steps share the row exactly. Native pickers follow the theme. */
+@media(min-width:1000px){.tk-form{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.ticketing{color-scheme:dark}
+html[data-discadmin-appearance="light"] .ticketing{color-scheme:light}

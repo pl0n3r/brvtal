@@ -5,14 +5,31 @@ const source = readFileSync('discadmin/ticketing.js', 'utf8');
 const core = readFileSync('discadmin/index-core.php', 'utf8');
 const php = readFileSync('discadmin/ticketing.php', 'utf8');
 const roles = readFileSync('config/ticketing_staff_permissions.php', 'utf8');
-const names = ['Dashboard','Pedidos','Boletas','Compradores','Puerta','Finanzas','Promos','Promotores','Correos','Ajustes'];
-const ids = ['dashboard','orders','entries','buyers','door','finance','promos','promoters','mail','settings'];
-const fixture = (visible = ids) => '<section class="ticketing" data-admin-module="ticketing" data-wompi-mode="disabled" data-resend-mode="disabled">'
-  + '<div role="tablist" aria-label="Secciones de Boletería">'
-  + visible.map((id, i) => '<button role="tab" type="button" id="ticketing-tab-' + id
-    + '" data-ticketing-tab="' + id + '" aria-selected="' + (i === 0) + '" tabindex="' + (i === 0 ? 0 : -1) + '">'
-    + names[ids.indexOf(id)] + '</button>').join('')
-  + '</div><div id="ticketing-panel" role="tabpanel" data-ticketing-panel tabindex="0"></div></section>';
+// #1964 (A): sections live in four groups; only the active group's sections show.
+const sections = [
+  ['dashboard','Resumen','sale'], ['orders','Pedidos','sale'], ['entries','Boletas','sale'], ['buyers','Compradores','sale'],
+  ['door','Puerta','live'], ['finance','Finanzas','money'],
+  ['promos','Cupones','marketing'], ['promoters','Promotores','marketing'], ['recovery','Recuperación','marketing'], ['mail','Correos','marketing'],
+];
+const groupNames = {sale:'Venta', live:'En vivo', money:'Dinero', marketing:'Marketing'};
+const ids = sections.map(([id]) => id);
+const fixture = (visible = ids) => {
+  const shown = sections.filter(([id]) => visible.includes(id));
+  const firstGroup = shown[0][2];
+  const groups = [...new Set(shown.map(([, , group]) => group))];
+  return '<section class="ticketing" data-admin-module="ticketing" data-ticketing-role="superadmin">'
+    + '<p class="ticketing-status"><span data-ticketing-sale-status>Venta en línea: pruebas</span>'
+    + '<span data-ticketing-mail-status>Correo: apagado</span>'
+    + '<button type="button" class="ticketing-link" data-ticketing-configure>Configurar en Integraciones</button></p>'
+    + '<nav class="ticketing-groups" aria-label="Grupos de Boletería">'
+    + groups.map(group => '<button type="button" data-ticketing-group="' + group + '" aria-pressed="' + (group === firstGroup) + '">'
+      + groupNames[group] + '</button>').join('')
+    + '</nav><div role="tablist" aria-label="Secciones de Boletería">'
+    + shown.map(([id, name, group], i) => '<button role="tab" type="button" id="ticketing-tab-' + id
+      + '" data-ticketing-tab="' + id + '" data-ticketing-tab-group="' + group + '" aria-selected="' + (i === 0)
+      + '" tabindex="' + (i === 0 ? 0 : -1) + '"' + (group === firstGroup ? '' : ' hidden') + '>' + name + '</button>').join('')
+    + '</div><div id="ticketing-panel" role="tabpanel" data-ticketing-panel tabindex="0"></div></section>';
+};
 
 async function setup(page, response = {status:200,body:fixture()}) {
   await page.route('**/discadmin/ticketing.php', route => route.fulfill({
@@ -31,22 +48,36 @@ async function setup(page, response = {status:200,body:fixture()}) {
   await page.addScriptTag({content:source});
 }
 
-test('the canonical shell mounts all 10 Boletería areas and supports keyboard/mobile', async ({page}) => {
+test('Boletería groups its sections, keeps keyboard and deep links, and shows real status (#1964)', async ({page}) => {
   await page.setViewportSize({width:390,height:844});
   await setup(page);
   await page.getByRole('button',{name:'BOLETERÍA'}).click();
   await expect(page.locator('#app .shell aside.side')).toHaveCount(1);
   await expect(page.locator('#app .shell main.main [data-admin-module="ticketing"]')).toBeVisible();
-  await expect(page.getByRole('tab')).toHaveCount(10);
-  await page.getByRole('tab',{name:'Dashboard'}).focus();
+  const groups = page.getByRole('navigation',{name:'Grupos de Boletería'}).getByRole('button');
+  await expect(groups).toHaveText(['Venta','En vivo','Dinero','Marketing']);
+  await expect(page.getByRole('tab')).toHaveText(['Resumen','Pedidos','Boletas','Compradores']);
+  await expect(page.getByRole('tab',{name:'Ajustes'})).toHaveCount(0);
+  await expect(page.locator('.ticketing-notice')).toHaveCount(0);
+  await expect(page.locator('[data-ticketing-sale-status]')).toHaveText('Venta en línea: pruebas');
+  await page.getByRole('button',{name:'Marketing'}).click();
+  await expect(page.getByRole('button',{name:'Marketing'})).toHaveAttribute('aria-pressed','true');
+  await expect(page.getByRole('tab')).toHaveText(['Cupones','Promotores','Recuperación','Correos']);
+  await expect(page.getByRole('tab',{name:'Cupones'})).toHaveAttribute('aria-selected','true');
+  expect(new URL(page.url()).searchParams.get('tab')).toBe('promos');
+  await page.getByRole('tab',{name:'Cupones'}).focus();
   await page.keyboard.press('End');
-  await expect(page.getByRole('tab',{name:'Ajustes'})).toBeFocused();
-  await expect(page.getByRole('tabpanel')).toContainText('Wompi');
-  await expect(page.getByRole('button',{name:'Guardar',exact:true})).toBeDisabled();
-  await expect(page.getByRole('button',{name:'Guardar y cerrar'})).toBeDisabled();
-  await expect(page.getByRole('checkbox')).toHaveCount(2);
-  await expect(page.locator('input[type=password]')).toHaveCount(0);
+  await expect(page.getByRole('tab',{name:'Correos'})).toBeFocused();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByRole('tab',{name:'Cupones'})).toBeFocused();
+  await page.getByRole('tab',{name:'Recuperación'}).click();
+  await expect(page.locator('[data-ticketing-panel] iframe[title="Panel de recuperación de compras"]')).toHaveCount(1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   expect(new URL(page.url()).searchParams.get('module')).toBe('ticketing');
+  // A deep link opens its group directly.
+  await page.evaluate(() => window.BRVTALTicketing.selectTab('door'));
+  await expect(page.getByRole('button',{name:'En vivo'})).toHaveAttribute('aria-pressed','true');
+  await expect(page.getByRole('tab')).toHaveText(['Puerta']);
 });
 
 test('door role sees only Puerta, and denied fragment cannot mount data', async ({page}) => {
@@ -69,7 +100,9 @@ test('server-side permissions refuse buyer and sensitive staff operations', asyn
   expect(core).toContain("['ticketing','BOLETERÍA']");
   expect(core).toContain("window.BRVTALTicketing.mount()");
   expect(php).toContain('brvtal_admin_require();');
-  expect(php).toContain('<output class="ticketing-notice">');
+  expect(php).not.toContain('Sin ventas, emisión QR ni proveedores activos');
+  expect(php).toContain('data-ticketing-sale-status');
+  expect(php).toContain('brvtal_ticket_wompi_status()');
   expect(php).toContain("SELECT staff_role FROM admins");
   expect(roles).toContain("brvtalTicketingCan");
   expect(core).toContain('data-admin-nav');

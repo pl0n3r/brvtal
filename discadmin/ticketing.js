@@ -1,18 +1,19 @@
 /* Ticketing T17: read-only workspace inside the canonical DISCADMIN shell. */
 window.BRVTALTicketing = (() => {
   'use strict';
+  // #1964 (A): task-oriented copy; provider state lives in the status strip above.
   const descriptions = {
-    dashboard:'Las métricas aparecerán cuando existan pedidos confirmados.',
-    orders:'No hay pedidos para mostrar.', entries:'No hay boletas individuales emitidas.',
-    buyers:'No hay compradores para mostrar.', door:'El escáner aún no está habilitado.',
-    finance:'No hay conciliaciones disponibles.', promos:'No hay promociones disponibles.',
-    promoters:'No hay promotores configurados.', mail:'No hay correos transaccionales.',
-    settings:'Los proveedores permanecen inactivos hasta su configuración y autorización.'
+    dashboard:'Aquí verás ventas, ingresos y lo que necesita atención de cada evento.',
+    orders:'Busca pedidos por evento, estado o comprador.', entries:'Consulta y gestiona las boletas emitidas.',
+    buyers:'Busca compradores y su historial.', door:'Abre el lector para validar boletas en la entrada.',
+    finance:'Concilia pagos, comisiones y caja por evento.', promos:'Crea y gestiona los cupones de descuento de cada evento.',
+    promoters:'Todavía no hay promotores configurados.', mail:'Edita los correos que reciben los compradores.',
+    recovery:'Recuerda a quien dejó una compra sin terminar.'
   };
   const titles = {
-    dashboard:'Dashboard', orders:'Pedidos', entries:'Boletas', buyers:'Compradores',
-    door:'Puerta', finance:'Finanzas', promos:'Promos', promoters:'Promotores',
-    mail:'Correos', settings:'Ajustes'
+    dashboard:'Resumen', orders:'Pedidos', entries:'Boletas', buyers:'Compradores',
+    door:'Puerta', finance:'Finanzas', promos:'Cupones', promoters:'Promotores',
+    mail:'Correos', recovery:'Recuperación de compras'
   };
   let stopDoor = null;
   let stopMail = null;
@@ -27,10 +28,16 @@ window.BRVTALTicketing = (() => {
     const tabs = [...root.querySelectorAll('[role="tab"][data-ticketing-tab]')];
     const active = tabs.find(tab => tab.dataset.ticketingTab === key);
     if (!active) return false;
+    // #1964: only the active group's sections are shown; the group button reflects it.
+    const group = active.dataset.ticketingTabGroup;
     for (const tab of tabs) {
       const chosen = tab === active;
       tab.setAttribute('aria-selected', String(chosen));
       tab.tabIndex = chosen ? 0 : -1;
+      if (group) tab.hidden = tab.dataset.ticketingTabGroup !== group;
+    }
+    for (const button of root.querySelectorAll('[data-ticketing-group]')) {
+      button.setAttribute('aria-pressed', String(button.dataset.ticketingGroup === group));
     }
     const panel = root.querySelector('[data-ticketing-panel]');
     if (!panel) return false;
@@ -39,6 +46,15 @@ window.BRVTALTicketing = (() => {
     if (stopDoor) { stopDoor(); stopDoor = null; }
     if (stopMail) { stopMail(); stopMail = null; }
     panel.replaceChildren(element('h2', titles[key]), element('p', descriptions[key], 'ticketing-empty'));
+    if (key === 'recovery') {
+      const frame = document.createElement('iframe');
+      frame.title = 'Panel de recuperación de compras';
+      frame.src = '/discadmin/ticketing-recovery.php';
+      frame.loading = 'lazy';
+      frame.referrerPolicy = 'no-referrer';
+      frame.className = 'ticketing-frame';
+      panel.appendChild(frame);
+    }
     if (key === 'door') {
       const launch = element('button', 'Abrir lector móvil de puerta', 'btn ghost');
       launch.type = 'button';
@@ -129,7 +145,7 @@ window.BRVTALTicketing = (() => {
           mod.mount(panel);
       }).catch(() => {
         if (panel.isConnected && panel.getAttribute('aria-labelledby') === active.id)
-          panel.replaceChildren(element('p', 'Promos no disponibles.', 'ticketing-error'));
+          panel.replaceChildren(element('p', 'Cupones no disponibles.', 'ticketing-error'));
       });
     }
     if (key === 'mail') {
@@ -157,24 +173,6 @@ window.BRVTALTicketing = (() => {
         }
       });
     }
-    if (key === 'settings') {
-      const group = element('fieldset', undefined, 'ticketing-settings');
-      group.appendChild(element('legend', 'Integraciones (solo consulta)'));
-      for (const [name, mode] of [['Wompi', root.dataset.wompiMode], ['Resend', root.dataset.resendMode]]) {
-        const line = element('label', name + ': ' + (mode === 'disabled' ? 'INACTIVO' : 'NO VERIFICADO'));
-        const toggle = document.createElement('input');
-        toggle.type = 'checkbox'; toggle.disabled = true; toggle.checked = false;
-        line.prepend(toggle); group.appendChild(line);
-      }
-      group.appendChild(element('p', 'Salud: no verificada. No se exponen credenciales ni se activan cobros.'));
-      for (const label of ['Guardar', 'Guardar y cerrar']) {
-        const button = element('button', label, 'btn ghost');
-        button.type = 'button'; button.disabled = true;
-        button.title = 'Sin configuración autorizada para persistir';
-        group.appendChild(button);
-      }
-      panel.appendChild(group);
-    }
     if (focus) active.focus();
     return true;
   }
@@ -185,9 +183,21 @@ window.BRVTALTicketing = (() => {
       const tab = e.target.closest('[data-ticketing-tab]');
       if (tab && list.contains(tab) && select(root, tab.dataset.ticketingTab)) rememberTab(tab.dataset.ticketingTab);
     });
+    // #1964: a group opens its first section; Configurar jumps to Configuración › Integraciones.
+    root.querySelector('.ticketing-groups')?.addEventListener('click', e => {
+      const button = e.target.closest('[data-ticketing-group]');
+      if (!button) return;
+      const firstTab = list.querySelector(`[data-ticketing-tab-group="${button.dataset.ticketingGroup}"]`);
+      if (firstTab && select(root, firstTab.dataset.ticketingTab)) rememberTab(firstTab.dataset.ticketingTab);
+    });
+    root.querySelector('[data-ticketing-configure]')?.addEventListener('click', async () => {
+      if (typeof window.go !== 'function') return;
+      await window.go('settings');
+      document.querySelector('[data-settings-tab="integrations"]')?.click();
+    });
     list.addEventListener('keydown', e => {
       if (!['ArrowRight','ArrowLeft','Home','End'].includes(e.key)) return;
-      const tabs = [...list.querySelectorAll('[data-ticketing-tab]')];
+      const tabs = [...list.querySelectorAll('[data-ticketing-tab]:not([hidden])')];
       const current = tabs.indexOf(document.activeElement);
       if (current < 0) return;
       e.preventDefault();

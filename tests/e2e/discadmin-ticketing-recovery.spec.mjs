@@ -41,9 +41,11 @@ test('T29 1440: disabled production and single shell integration',async({page})=
     contentType:'application/json',body:'{"ok":false,"error":"SYNTHETIC_ONLY"}'}));
   await page.goto('https://www.brvtal.com.co/t29-synthetic.html');
   await expect(page.getByRole('status')).toContainText('Sin habilitación');
+  // #1964: Recuperación is a Marketing section of the same shell, not a block above it.
   const shell=readFileSync('discadmin/ticketing.php','utf8');
-  expect(shell).toContain('data-ticketing-recovery');
-  expect(shell).toContain('ticketing-recovery.php');
+  const shellJs=readFileSync('discadmin/ticketing.js','utf8');
+  expect(shell).toContain("'recovery'=>['Recuperación'");
+  expect(shellJs).toContain('/discadmin/ticketing-recovery.php');
   const php=readFileSync('config/ticketing_recovery.php','utf8');
   expect(php).toContain('brvtalRecoverySynthetic');
   expect(php).not.toContain('brvtal_ticket_mail_enqueue(');
