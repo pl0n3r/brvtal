@@ -99,9 +99,9 @@ test('T21 el shell único expone reembolsos solo a staff autorizado',async({page
   await page.addScriptTag({content:shell});
   await page.evaluate(()=>window.BRVTALTicketing.select(
     document.querySelector('[data-admin-module="ticketing"]'),'finance'));
-  await page.getByRole('button',{name:'Gestionar devoluciones · pruebas'}).click();
+  await page.getByRole('button',{name:'Devoluciones'}).click();
   await expect(page.getByRole('region',{name:'Gestión de devoluciones'})).toBeVisible();
-  await expect(page.getByText('Sin solicitudes en el entorno sintético.')).toBeVisible();
+  await expect(page.getByText('No hay solicitudes para gestionar.')).toBeVisible();
 });
 
 test('T21 contratos PHP se ejecutan en Chromium sin base productiva',()=>{
@@ -137,7 +137,45 @@ test('T21 el staff procesa reembolso sandbox solo tras aprobación',async({page}
   });
   await page.goto(endpoint);
   const region=page.getByRole('region',{name:'Gestión de devoluciones'});
-  await region.getByRole('button',{name:'Procesar reembolso sandbox'}).click();
-  await expect(region.getByText('Confirmación sandbox registrada y entradas revocadas.')).toBeVisible();
-  await expect(region.getByText(/· refunded/)).toBeVisible();
+  await region.getByRole('button',{name:'Registrar devolución de demostración'}).click();
+  await expect(region.getByText('Comprobante de demostración registrado y boletas invalidadas.')).toBeVisible();
+  await expect(region.getByText(/· Registrada/)).toBeVisible();
 });
+
+for (const width of [390,1440]) {
+  test('AC-01 Devoluciones antes/después a '+width+' px',async({page},testInfo)=>{
+    await page.setViewportSize({width,height:900});
+    await page.route('**/discadmin/refunds-before.html',r=>r.fulfill({
+      contentType:'text/html',body:'<!doctype html><html lang="es"><meta name="viewport" content="width=device-width,initial-scale=1">'
+        +'<body style="background:#050505;color:#fff;font:14px system-ui">'
+        +'<h2>Devoluciones · entorno de pruebas</h2><p>Solicitudes sintéticas cargadas</p>'
+        +'<button>Procesar reembolso sandbox</button></body></html>'}));
+    await page.goto('https://www.brvtal.com.co/discadmin/refunds-before.html');
+    await testInfo.attach('devoluciones-antes-'+width+'.png',{
+      body:await page.screenshot({fullPage:true}),contentType:'image/png'});
+    const endpoint='https://www.brvtal.com.co/discadmin/refunds-after.html';
+    const module=readFileSync('discadmin/ticketing-refunds.js','utf8');
+    const css=readFileSync('discadmin/ticketing.css','utf8');
+    await page.route(endpoint,r=>r.fulfill({contentType:'text/html',
+      body:'<html lang="es"><meta name="viewport" content="width=device-width,initial-scale=1">'
+        +'<body style="background:#050505;color:#fff;font:14px system-ui;padding:16px">'
+        +'<div id="refund-panel"></div><script type="module">'
+        +'import {mount} from "/discadmin/ticketing-refunds.js";mount(document.getElementById("refund-panel"),"csrf-synthetic");'
+        +'</script></body></html>'}));
+    await page.route('**/discadmin/ticketing-refunds.js',r=>r.fulfill({
+      contentType:'text/javascript',body:module}));
+    await page.route('**/api/ticketing/admin-refunds.php',r=>r.fulfill({
+      contentType:'application/json',body:JSON.stringify({ok:true,data:[
+        {id:7,event_id:5,order_id:1,amount_cop:35000,status:'approved'}]})}));
+    await page.goto(endpoint);
+    await page.addStyleTag({content:css});
+    const region=page.getByRole('region',{name:'Gestión de devoluciones'});
+    await expect(region).toBeVisible();
+    await expect(region.locator('article.tk-step')).toHaveCount(1);
+    await expect(region).toContainText('Aprobada');
+    await expect(region).not.toContainText(/sintético|pruebas|UTC/i);
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    await testInfo.attach('devoluciones-despues-'+width+'.png',{
+      body:await page.screenshot({fullPage:true}),contentType:'image/png'});
+  });
+}
