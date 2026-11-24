@@ -177,7 +177,9 @@ function brvtal_ticket_wompi_prepare(
         $r->execute([$orderId]);
         $redemption = $r->fetch(PDO::FETCH_ASSOC);
     } catch (PDOException $error) {
-        if ((int)($error->errorInfo[1] ?? 0) !== 1146) throw $error;
+        if ((int)($error->errorInfo[1] ?? 0) !== 1146) {
+            throw $error;
+        }
     }
     if ($redemption) {
         // The standalone /api/ticketing/checkout.php path also calls T07.
