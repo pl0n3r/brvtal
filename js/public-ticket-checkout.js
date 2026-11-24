@@ -385,6 +385,9 @@
         RATE_LIMITED: 'Demasiados intentos con este correo. Espera unos minutos y vuelve a intentarlo.',
         CSRF_OR_METHOD: 'Tu sesión cambió. Recarga la página y vuelve a intentarlo.',
         AUTH_REQUIRED: 'Tu sesión cambió. Recarga la página y vuelve a intentarlo.',
+        // The public API intentionally masks blocked accounts as unavailable
+        // to avoid revealing account status to unauthenticated visitors.
+        CHECKOUT_UNAVAILABLE: 'No fue posible reservar. Verifica el cupo; si tu cuenta está bloqueada, contacta con BRVTAL.',
       };
       say(feedback[error.message] ||
         'No fue posible reservar. Puede que ya no haya cupo; revisa tu selección y vuelve a intentarlo.');
