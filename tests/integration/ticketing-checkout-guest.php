@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 /** #1943: checkout without an account, against disposable MariaDB. */
 require_once __DIR__ . '/../../config/public_ticket_checkout.php';
+require_once __DIR__ . '/../../config/buyer_account.php';
 
 function guestAssert(bool $ok, string $what): void
 {
@@ -69,8 +70,13 @@ $db = new PDO("mysql:host=$host;port=$port;dbname=$name;charset=utf8mb4", $user,
 foreach ([
     "CREATE TABLE ticket_buyers (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,public_id BINARY(16) NOT NULL,
         email VARCHAR(190) NULL,full_name VARCHAR(120) NULL,password_hash VARCHAR(255) NULL,email_verified_at DATETIME(6) NULL,
+        security_epoch BIGINT UNSIGNED NOT NULL DEFAULT 1,
         consent_version VARCHAR(40) NULL,consent_recorded_at DATETIME(6) NULL,
         status ENUM('guest','active','blocked') NOT NULL DEFAULT 'guest',UNIQUE KEY uq_email(email)) ENGINE=InnoDB",
+    "CREATE TABLE ticket_buyer_sessions (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        buyer_id BIGINT UNSIGNED NOT NULL,session_hash CHAR(64) NOT NULL UNIQUE,
+        issued_epoch BIGINT UNSIGNED NOT NULL,expires_at_utc DATETIME(6) NOT NULL,
+        revoked_at_utc DATETIME(6) NULL) ENGINE=InnoDB",
     "CREATE TABLE events (id INT UNSIGNED PRIMARY KEY,status VARCHAR(32),event_date DATETIME,published_at DATETIME)",
     "CREATE TABLE event_ticket_types (id INT UNSIGNED PRIMARY KEY,event_id INT UNSIGNED,name VARCHAR(120) NOT NULL,
         price INT UNSIGNED NOT NULL,sort_order INT NOT NULL DEFAULT 0,status VARCHAR(32),currency VARCHAR(3),
@@ -133,4 +139,75 @@ guestAssert(brvtal_public_ticket_checkout_state_by_token($db, 1, $token) === 'ap
 guestAssert(brvtal_public_ticket_checkout_state_by_token($db, 2, $token) === 'unverified', 'token is bound to its event');
 guestAssert(brvtal_public_ticket_checkout_state_by_token($db, 1, str_repeat('0', 32)) === 'unverified', 'unknown token reveals nothing');
 guestAssert(brvtal_public_ticket_checkout_state_by_token($db, 1, "' OR 1=1 --") === 'unverified', 'malformed token rejected');
+
+
+// BRVTAL #1988: grants are browser-session capabilities, not order-URL auth.
+// Only paid purchases in the original cookie may be upgraded in phase B.
+brvtalBuyerSessionStart();
+guestAssert(brvtalBuyerCheckoutPaidGrant($db, $token) === null,
+    'bearer order URL alone cannot authorize the buyer');
+brvtalBuyerCheckoutRememberOrder($guestId, (int)$result['order_id'], true);
+$newGrant = brvtalBuyerCheckoutPaidGrant($db, $token);
+guestAssert($newGrant === [
+    'order_id'=>(int)$result['order_id'], 'buyer_id'=>$guestId, 'created_new'=>true,
+], 'paid newly created guest has only its own browser grant');
+guestAssert(brvtalBuyerCheckoutPaidGrant($db, str_repeat('0', 32)) === null,
+    'unknown token does not borrow an existing browser grant');
+guestAssert(brvtalBuyerCheckoutPaidGrant($db, "' OR 1=1 --") === null,
+    'injection-shaped token does not authorize checkout');
+
+$originalGrants = $_SESSION['buyer_checkout_orders'];
+$_SESSION['buyer_checkout_orders'] = []; // Second browser: same URL, no originating cookie.
+guestAssert(brvtalBuyerCheckoutPaidGrant($db, $token) === null,
+    'second browser with bearer URL never gains session');
+$_SESSION['buyer_checkout_orders'] = $originalGrants;
+$_SESSION['buyer_checkout_orders'][(string)$result['order_id']]['buyer_id'] = $memberId;
+guestAssert(brvtalBuyerCheckoutPaidGrant($db, $token) === null,
+    'grant with another buyer ID is rejected');
+$_SESSION['buyer_checkout_orders'] = $originalGrants;
+$_SESSION['buyer_checkout_orders'][(string)$result['order_id']]['issued_at'] -=
+    BRVTAL_BUYER_CHECKOUT_GRANT_SECONDS + 1;
+guestAssert(brvtalBuyerCheckoutPaidGrant($db, $token) === null,
+    'expired browser proof cannot elevate purchase');
+$_SESSION['buyer_checkout_orders'] = $originalGrants;
+
+$db->exec("INSERT INTO ticket_orders(event_id,buyer_id,status,public_id,checkout_key_hash,currency,total_cop)
+    VALUES (1,$memberId,'paid',RANDOM_BYTES(16),SHA2('existing-buyer-order',256),'COP',30000)");
+$existingOrder = (int)$db->lastInsertId();
+$existingToken = brvtal_public_ticket_checkout_order_token($db, $existingOrder);
+brvtalBuyerCheckoutRememberOrder($memberId, $existingOrder, false);
+$existingGrant = brvtalBuyerCheckoutPaidGrant($db, $existingToken);
+guestAssert($existingGrant === [
+    'order_id'=>$existingOrder, 'buyer_id'=>$memberId, 'created_new'=>false,
+], 'existing account gets only the purchased order, never full account login');
+guestAssert((int)($_SESSION['buyer_id'] ?? 0) === 0,
+    'checkout grant does not authenticate any existing account');
+// Existing email, even with a paid checkout from this browser, can NEVER
+// acquire an authenticated session without its verified password.
+$existingLoginRejected = false;
+try {
+    brvtalBuyerLoginSession($memberId, $db, $existingOrder);
+} catch (RuntimeException $error) {
+    $existingLoginRejected = $error->getMessage() === 'BUYER_SESSION_NOT_ELIGIBLE';
+}
+guestAssert($existingLoginRejected, 'existing email cannot auto-login');
+guestAssert((int)($_SESSION['buyer_id'] ?? 0) === 0, 'existing account stayed signed out');
+
+// New email, paid order and the ORIGINAL checkout session => real login.
+// Still do not mark email_verified_at; payment is not proof of inbox control.
+brvtalBuyerLoginSession($guestId, $db, (int)$result['order_id']);
+guestAssert((int)($_SESSION['buyer_id'] ?? 0) === $guestId
+    && (int)($_SESSION['buyer_checkout_new_order'] ?? 0) === (int)$result['order_id'],
+    'fresh checkout grants a real, provenance-bound buyer session');
+guestAssert(brvtalBuyerAccountAuthorized($db, $guestId),
+    'only newly created paid buyer can see its account orders');
+guestAssert(!brvtalBuyerAccountAuthorized($db, $memberId),
+    'a second buyer account cannot be viewed through this session');
+guestAssert($db->query("SELECT email_verified_at FROM ticket_buyers WHERE id=$guestId")->fetchColumn() === null,
+    'a paid checkout never falsely verifies email ownership');
+guestAssert((int)$db->query("SELECT COUNT(*) FROM ticket_buyer_sessions WHERE buyer_id=$guestId")->fetchColumn() === 1,
+    'new buyer login has a persisted revocable session');
+
+unset($_SESSION['buyer_checkout_orders']);
+
 echo "BRVTAL #1943 guest checkout: input, same-origin, guest buyer, reuse, blocked, order and token status passed.\n";
