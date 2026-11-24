@@ -5,6 +5,8 @@ on:
     paths:
       - config/public_ticket_checkout.php
       - config/buyer_auth.php
+      - config/buyer_account.php
+      - buyer/index.php
       - tests/integration/ticketing-checkout-guest.php
       - config/public_order_status.php
       - api/ticketing/order-status.php
@@ -64,8 +66,8 @@ jobs:
           php tests/integration/public-order-status.php
 
   purchase-visual-evidence:
-    name: "#1958 Visual 390/1440 (before/after)"
-    if: github.event.pull_request.number == 1959
+    name: "Compra y Mi cuenta: capturas 390/1440 antes/después"
+    if: github.event.pull_request.number == 1959 || github.event.pull_request.number == 2004
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -91,9 +93,10 @@ jobs:
         env:
           BRVTAL_VISUAL_EVIDENCE: artifacts/checkout-1958
         run: npx playwright test tests/e2e/public-order-status.spec.mjs --project=chromium --workers=1 --reporter=list
-      - name: Verify four exact-HEAD captures and manifest
+      - name: Verify exact-HEAD purchase and buyer-account captures
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          EXPECTED_PR: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
@@ -101,14 +104,20 @@ jobs:
           from pathlib import Path
           import json, os
           folder = Path('artifacts/checkout-1958')
+          number = int(os.environ['EXPECTED_PR'])
+          assert number in (1959, 2004)
           names = ['compra-antes-390.png', 'compra-despues-390.png',
                    'compra-antes-1440.png', 'compra-despues-1440.png']
+          if number == 2004:
+              names.extend(['cuenta-compra-limitada-390.png', 'cuenta-compra-limitada-1440.png'])
           for name in names:
               path = folder / name
               assert path.is_file() and path.stat().st_size > 1000, f'Missing visual evidence: {name}'
           (folder / 'manifest.json').write_text(json.dumps({
-              'issue': 1958, 'head_sha': os.environ['EXPECTED_HEAD'],
-              'before_fixture': 'buyer/login.php', 'after_fixture': 'buyer/purchase.php',
+              'issue': 1988 if number == 2004 else 1958,
+              'head_sha': os.environ['EXPECTED_HEAD'],
+              'before_fixture': 'buyer/login.php',
+              'after_fixture': 'buyer/purchase.php and buyer/index.php' if number == 2004 else 'buyer/purchase.php',
               'production_observed': False, 'captures': names,
           }, indent=2) + '\n')
           PY
@@ -117,7 +126,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: brvtal-1958-purchase-before-after-${{ github.event.pull_request.head.sha }}-${{ github.run_id }}
+          name: brvtal-${{ github.event.pull_request.number == 2004 && '1988-account' || '1958-purchase' }}-before-after-${{ github.event.pull_request.head.sha }}-${{ github.run_id }}
           path: artifacts/checkout-1958/
           if-no-files-found: error
           retention-days: 14
@@ -126,13 +135,18 @@ jobs:
         env:
           EVIDENCE_URL: ${{ steps.screenshots.outputs.artifact-url }}
           EXACT_HEAD: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           {
-            echo "## #1958 · Compra: antes/después 390 y 1440 px"
+            if [ "$PR_NUMBER" = "2004" ]; then
+              echo "## #1988 · Compra y Mi cuenta: 390 y 1440 px"
+            else
+              echo "## #1958 · Compra: antes/después 390 y 1440 px"
+            fi
             echo
-            echo "Antes = HTML de login versionado (retorno anterior); después = confirmación nueva."
+            echo "Antes = login anterior; después = confirmación y, para #1988, compras del navegador original."
             echo "Capturas sintéticas de Playwright, no evidencia de producción."
             echo "HEAD: `$EXACT_HEAD`"
             echo
-            echo "[Descargar cuatro PNG y manifiesto]($EVIDENCE_URL)"
+            echo "[Descargar capturas PNG y manifiesto del HEAD exacto]($EVIDENCE_URL)"
           } >> "$GITHUB_STEP_SUMMARY"
