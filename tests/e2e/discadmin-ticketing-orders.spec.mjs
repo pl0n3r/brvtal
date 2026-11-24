@@ -6,7 +6,7 @@ const php = readFileSync('discadmin/ticketing-orders.php','utf8');
 const api = readFileSync('api/ticketing/admin-orders.php','utf8');
 const fixture = '<section data-ticketing-records><h2>Pedidos y compradores</h2>'
   + '<form data-ticketing-records-form>'
-  + '<label>Vista<select name="kind"><option value="orders">Pedidos</option><option value="buyers">Compradores</option></select></label>'
+  + '<input type="hidden" name="kind" value="orders">'
   + '<label>Buscar<input type="search" name="q"></label><label>Correo exacto<input type="email" name="email"></label>'
   + '<label>Evento<input type="number" name="event_id"></label><label>Estado<select name="status"></select></label>'
   + '<label>Desde<input type="date" name="from"></label><label>Hasta<input type="date" name="to"></label>'
@@ -24,7 +24,9 @@ async function start(page, reply, kind = 'orders') {
       + '<div id="ticketing-panel"></div></section></html>'
   }));
   await page.route('**/discadmin/ticketing-orders.js', route => route.fulfill({contentType:'text/javascript',body:js}));
-  await page.route('**/discadmin/ticketing-orders.php', route => route.fulfill({contentType:'text/html',body:fixture}));
+  await page.route('**/discadmin/ticketing-orders.php?*', route => route.fulfill({
+    contentType:'text/html',body:fixture.replace('name="kind" value="orders"','name="kind" value="'+kind+'"')
+  }));
   await page.route('**/api/ticketing/admin-orders.php?*', reply);
   await page.goto('https://www.brvtal.com.co/discadmin/t18-fixture.html');
   await page.evaluate(async kind => {
@@ -50,14 +52,15 @@ test('T18 pedidos: mobile, búsqueda, pago/correo desacoplados y detalle', async
     })});
   });
   await expect(page.locator('table tbody tr')).toHaveCount(1);
-  await expect(page.locator('table')).toContainText('refunded');
-  await expect(page.locator('table')).toContainText('failed');
+  await expect(page.locator('table')).toContainText('Reembolsado');
+  await expect(page.locator('table')).toContainText('Fallido');
+  await expect(page.locator('table tbody tr')).not.toContainText('Sin evidencia');
   await page.locator('[name=q]').fill('91');
   await page.getByRole('button',{name:'Consultar'}).click();
   await expect.poll(()=>requests.some(url=>url.searchParams.get('q')==='91')).toBeTruthy();
   await page.getByRole('button',{name:'Detalle #91'}).click();
   await expect(page.locator('[data-ticketing-records-detail]')).toContainText('General');
-  await expect(page.locator('[data-ticketing-records-detail]')).toContainText('failed');
+  await expect(page.locator('[data-ticketing-records-detail]')).toContainText('Fallido');
   expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(391);
 });
 test('T18 compradores: empty search, explicit permission denial and safe failure', async ({page}) => {
@@ -75,9 +78,28 @@ test('T18 compradores: empty search, explicit permission denial and safe failure
 });
 test('T18 servidor obliga sesión, roles y filtros tipados; export sin secretos', () => {
   expect(php).toContain('brvtal_admin_require();');
-  expect(php).toContain("brvtalTicketingCan($role, 'buyers')");
+  expect(php).toContain("brvtalTicketingCan($role, $kind)");
+  expect(php).toContain('type="hidden" name="kind"');
   expect(api).toContain('brvtalTicketAdminFilters($_GET)');
   expect(api).toContain('BUYER_PERMISSION_REQUIRED');
   expect(api).toContain("brvtalTicketingCan($role, 'export')");
   expect(api).not.toContain('provider_transaction_id');
+});
+
+test('#1969: anomaly is visible without hover, and timestamps show Bogotá',async({page})=>{
+  await page.setViewportSize({width:390,height:844});
+  await start(page,route=>{
+    const detail=new URL(route.request().url()).searchParams.has('order_id');
+    return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:detail
+      ? {rows:[],detail:{items:[],payments:[{status:'APPROVED',gross_amount_cop:12000}],
+          mail:[{delivery_state:'sent',created_at:'2026-11-24 23:00:00'}]}}
+      : {rows:[{...order,status:'paid',approvals:0,last_payment_state:'APPROVED',mail_state:'sent'}],
+          has_more:false,next_cursor:null}})});
+  });
+  const row=page.locator('.ticketing-records-table tbody tr');
+  await expect(row).toContainText('Pagado');
+  await expect(row).toContainText('Aprobado');
+  await expect(row.locator('.tk-records-anomaly')).toContainText('no coinciden');
+  await expect(row.locator('td[data-label="Detalle"]')).not.toContainText('Sin evidencia');
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
