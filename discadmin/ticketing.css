@@ -109,3 +109,47 @@ html[data-discadmin-appearance="light"] .tk-entry-dialog{color-scheme:light}
   .ticketing-records-table td[data-label]::before{display:block;content:attr(data-label);color:var(--muted,#b6b2ab);font-size:12px;margin-bottom:2px}
   .tk-entry-actions{gap:8px}
 }
+
+
+/* #1979 · Order page C: readable operational chronology, no simulated actions. */
+.tk-order-page{display:grid;gap:22px;max-width:100%;min-width:0}
+.tk-order-head{display:flex;flex-wrap:wrap;align-items:start;gap:16px 24px;padding:20px;border:1px solid var(--line,#292d31);background:var(--p,#0a0b0c)}
+.tk-order-head h3{font-size:clamp(22px,3vw,30px);margin:0;text-wrap:balance}
+.tk-order-head p{margin:6px 0 0;color:var(--muted,#b6b2ab);text-wrap:pretty}
+.tk-order-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(155px,100%),1fr));gap:12px 18px;flex:1 1 460px;margin:0}
+.tk-order-facts dt{font-size:12px;color:var(--muted,#b6b2ab)}
+.tk-order-facts dd{margin:4px 0 0;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.tk-order-actions{margin-left:auto;min-width:156px}
+.tk-order-menu summary{display:flex;align-items:center;min-height:44px;padding:0 14px;border:1px solid var(--line,#292d31);cursor:pointer;list-style-position:inside}
+.tk-order-menu .tk-button{display:block;width:100%;text-align:left;margin-top:4px}
+.tk-order-journey{padding:20px;border:1px solid var(--line,#292d31)}
+.tk-order-journey h4,.tk-order-sections h4{margin:0 0 16px;font-size:17px}
+.tk-order-timeline{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;padding:0;margin:0;list-style:none}
+.tk-order-step{display:grid;align-content:start;gap:5px;min-width:0;padding:14px 10px;border-top:3px solid var(--line,#292d31)}
+.tk-order-step strong{font-size:13px;text-wrap:balance}
+.tk-order-step span{font-size:12px;color:var(--muted,#b6b2ab);overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.tk-order-step.is-done{border-color:var(--green,#49d98a)}
+.tk-order-step.is-stalled{border-color:var(--red,#ff2038);background:color-mix(in srgb,var(--red,#ff2038) 10%,transparent)}
+.tk-order-step.is-stalled span{color:var(--text,#f4f5f6)}
+.tk-order-step.is-pending{opacity:.65}
+.tk-order-stalled{margin-top:16px;padding:16px;border:1px solid var(--red,#ff2038)}
+.tk-order-stalled p{margin:0 0 12px}
+.tk-order-sections{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.tk-order-sections section{padding:20px;border:1px solid var(--line,#292d31);min-width:0}
+.tk-order-sections section:last-child{grid-column:1/-1}
+.tk-order-sections ul{list-style:none;padding:0;margin:0 0 16px}
+.tk-order-sections li{padding:9px 0;border-bottom:1px solid var(--line,#292d31);overflow-wrap:anywhere}
+.tk-order-dialog label{display:grid;gap:8px;cursor:auto}
+.tk-order-dialog .tk-actions{display:flex;flex-wrap:wrap}
+.ticketing .tk-order-menu summary:focus-visible{outline:3px solid var(--text,#fff);outline-offset:3px}
+@media(max-width:750px){
+  .tk-order-head,.tk-order-sections{display:grid;grid-template-columns:minmax(0,1fr)}
+  .tk-order-actions{margin-left:0}
+  .tk-order-timeline{grid-template-columns:minmax(0,1fr);gap:6px}
+  .tk-order-step{border-top:0;border-left:3px solid var(--line,#292d31);padding:10px 14px}
+  .tk-order-step.is-done{border-left-color:var(--green,#49d98a)}
+  .tk-order-step.is-stalled{border-left-color:var(--red,#ff2038)}
+  .tk-order-sections section:last-child{grid-column:auto}
+}
+
+.tk-order-dialog label[hidden]{display:none}

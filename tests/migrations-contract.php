@@ -314,6 +314,43 @@ migrations_assert(
     'Set duration present proof must be baselined'
 );
 $specifications = brvtalMigrationProofSpecifications();
+// #1978: exact proof and clean-bootstrap order for nullable ciphertext.
+$secretName = 'migration_ticket_entry_secret_01.sql';
+$secretSql = (string)file_get_contents(__DIR__ . '/../database/' . $secretName);
+$secretRequirements = [
+    'column:ticket_entry_credentials.token_encrypted',
+    'column-type:ticket_entry_credentials.token_encrypted=varbinary(96)',
+];
+migrations_assert(($specifications[$secretName] ?? null) === $secretRequirements,
+    'QR migration must prove encrypted column and type');
+brvtalMigrationAssertAdditiveSql($secretSql);
+migrations_assert(str_contains($secretSql, 'VARBINARY(96) NULL'),
+    'old credentials remain nullable');
+$unorderedSecret = [
+    ['migration' => $secretName, 'action' => 'apply'],
+    ['migration' => 'migration_ticketing_entries_01.sql', 'action' => 'apply'],
+    ['migration' => 'migration_ticketing_orders_01.sql', 'action' => 'apply'],
+];
+$orderedSecret = array_column(brvtalMigrationOrderDependencyActions($unorderedSecret), 'migration');
+migrations_assert($orderedSecret === [
+    'migration_ticketing_orders_01.sql',
+    'migration_ticketing_entries_01.sql',
+    $secretName
+], 'clean bootstrap creates orders and entries before QR ALTER');
+$orderedSecretCorrect = array_reverse($unorderedSecret);
+migrations_assert(brvtalMigrationOrderDependencyActions($orderedSecretCorrect) === $orderedSecretCorrect,
+    'correct QR migration order remains stable');
+$secretAbsent = ['complete'=>false, 'checks'=>array_fill_keys($secretRequirements, false)];
+$secretPresent = ['complete'=>true, 'checks'=>array_fill_keys($secretRequirements, true)];
+$secretPartial = $secretAbsent;
+$secretPartial['checks'][$secretRequirements[0]] = true;
+migrations_assert(
+    brvtalMigrationProofDisposition($secretName, $secretAbsent) === 'apply'
+        && brvtalMigrationProofDisposition($secretName, $secretPresent) === 'baseline'
+        && brvtalMigrationProofDisposition($secretName, $secretPartial) === 'blocked',
+    'QR migration proof fails closed on partial schema'
+);
+
 // #1995: preserve strict migration scanning. The POS compatibility ALTER is
 // allowed by reconciliation only for its exact audited blob and untouched schema.
 $posName = 'migration_ticketing_pos_02.sql';

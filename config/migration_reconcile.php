@@ -491,6 +491,13 @@ function brvtalMigrationProofSpecifications(): array
             'fk-reference:ticket_issue_outbox.fk_ticket_issue_outbox_pos_attempt=payment_attempt_id:ticket_payment_attempts.id',
         ];
     }
+    // #1978: nullable QR ciphertext on existing credentials table; old rows remain valid.
+    if (is_file(__DIR__ . '/../database/migration_ticket_entry_secret_01.sql')) {
+        $specifications['migration_ticket_entry_secret_01.sql'] = [
+            'column:ticket_entry_credentials.token_encrypted',
+            'column-type:ticket_entry_credentials.token_encrypted=varbinary(96)',
+        ];
+    }
     return $specifications;
 }
 
@@ -849,6 +856,7 @@ function brvtalMigrationOrderDependencyActions(array $actions): array
     $dependents = [
         'migration_buyer_auth_tokens_01.sql',
         'migration_ticketing_entries_01.sql',
+        'migration_ticket_entry_secret_01.sql',
         'migration_ticketing_reservations_01.sql',
         'migration_ticketing_webhook_01.sql',
         'migration_ticketing_pos_02.sql',
@@ -889,6 +897,18 @@ function brvtalMigrationOrderDependencyActions(array $actions): array
         $webhookAction = $actions[$webhookIndex];
         array_splice($actions, $webhookIndex, 1);
         array_splice($actions, $posIndex, 0, [$webhookAction]);
+    }
+    // The QR ciphertext ALTER depends on the credential table.
+    // Move the child after its parent, keeping the T03 dependency intact.
+    $names = array_column($actions, 'migration');
+    $entriesIndex = array_search('migration_ticketing_entries_01.sql', $names, true);
+    $secretIndex = array_search('migration_ticket_entry_secret_01.sql', $names, true);
+    if ($entriesIndex !== false && $secretIndex !== false && $secretIndex < $entriesIndex) {
+        $secretAction = $actions[$secretIndex];
+        array_splice($actions, $secretIndex, 1);
+        $entriesIndex = array_search('migration_ticketing_entries_01.sql',
+            array_column($actions, 'migration'), true);
+        array_splice($actions, $entriesIndex + 1, 0, [$secretAction]);
     }
     return $actions;
 }
