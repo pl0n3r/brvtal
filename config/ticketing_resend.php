@@ -100,12 +100,17 @@ function brvtal_ticket_resend_send(array $job, ?callable $request = null): array
     }
     $domain = strtolower(trim((string)brvtal_secret_value('BRVTAL_TICKET_MAIL_DOMAIN')));
     $from = trim((string)brvtal_secret_value('BRVTAL_TICKET_MAIL_FROM'));
+    $fromName = brvtal_secret_value('BRVTAL_TICKET_MAIL_FROM_NAME');
+    if ($fromName === '') $fromName = 'BRVTAL';
+    $replyTo = brvtal_secret_value('BRVTAL_TICKET_MAIL_REPLY_TO');
     $apiKey = trim((string)brvtal_secret_value('BRVTAL_TICKET_MAIL_API_KEY'));
     if ($mock) {
         // A mock must never pass a configured production secret to callbacks.
         $apiKey = '';
         $domain = 'brvtal.invalid';
-        $from = 'Pruebas BRVTAL <test@brvtal.invalid>';
+        $from = 'test@brvtal.invalid';
+        $fromName = 'Pruebas BRVTAL';
+        $replyTo = 'test@brvtal.invalid';
     }
     $fromEmail = preg_match('/<([^<>]+)>/', $from, $parts) ? $parts[1] : $from;
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)
@@ -114,13 +119,38 @@ function brvtal_ticket_resend_send(array $job, ?callable $request = null): array
         || $body === '' || strlen($body) > 50000
         || strpbrk($from, "\r\n") !== false
         || !filter_var($fromEmail, FILTER_VALIDATE_EMAIL)
+        || !brvtalIntegrationSecretValidFromName($fromName)
+        || ($replyTo !== '' && !brvtalIntegrationSecretValidReplyTo($replyTo))
         || !filter_var($domain, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME)
         || strtolower((string)substr(strrchr($fromEmail, '@') ?: '', 1)) !== $domain
         || (($live || $testMode) && $apiKey === '')) {
         return ['state' => 'failed', 'code' => 'invalid_configuration'];
     }
-    $payload = ['from' => $from, 'to' => [$email], 'subject' => $subject, 'text' => $body];
+    // Always construct the address from individually checked parts; do not
+    // pass a stored free-form header through to the provider.
+    $payload = ['from' => $fromName . ' <' . $fromEmail . '>',
+        'reply_to' => $replyTo !== '' ? $replyTo : $fromEmail,
+        'to' => [$email], 'subject' => $subject, 'text' => $body];
     if ($html !== null) $payload['html'] = $html;
+    // Unsubscribe is a marketing-only header. An explicit, functional HTTPS
+    // unsubscribe URL is required; transaction and account mail never get one.
+    if (($job['template_key'] ?? null) === 'reminder'
+        && array_key_exists('unsubscribe_url', $job)) {
+        $unsubscribe = $job['unsubscribe_url'];
+        if (!is_string($unsubscribe) || strlen($unsubscribe) > 500
+            || strpbrk($unsubscribe, "\r\n<>") !== false
+            || filter_var($unsubscribe, FILTER_VALIDATE_URL) === false) {
+            return ['state' => 'failed', 'code' => 'invalid_configuration'];
+        }
+        $parts = parse_url($unsubscribe);
+        if (!is_array($parts) || ($parts['scheme'] ?? null) !== 'https'
+            || !in_array(strtolower((string)($parts['host'] ?? '')),
+                ['brvtal.com.co', 'www.brvtal.com.co'], true)
+            || isset($parts['user']) || isset($parts['pass']) || isset($parts['fragment'])) {
+            return ['state' => 'failed', 'code' => 'invalid_configuration'];
+        }
+        $payload['headers'] = ['List-Unsubscribe' => '<' . $unsubscribe . '>'];
+    }
     $headers = ['Authorization: Bearer ' . $apiKey, 'Content-Type: application/json',
         'Idempotency-Key: ' . $key];
     if ($mock && $request === null) {

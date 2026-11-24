@@ -26,6 +26,8 @@ async function setup(page,{writable=true}={}) {
       ['BRVTAL_TICKET_MAIL_API_KEY','resend','api_key'],
       ['BRVTAL_TICKET_MAIL_DOMAIN','resend','domain'],
       ['BRVTAL_TICKET_MAIL_FROM','resend','from'],
+      ['BRVTAL_TICKET_MAIL_FROM_NAME','resend','from_name'],
+      ['BRVTAL_TICKET_MAIL_REPLY_TO','resend','reply_to'],
       ['BRVTAL_TICKET_MAIL_WEBHOOK_SECRET','resend','webhook_secret'],
       ['BRVTAL_TICKET_WOMPI_PUBLIC_KEY','wompi','public_key'],
       ['BRVTAL_TICKET_WOMPI_PRIVATE_KEY','wompi','private_key'],
@@ -142,7 +144,7 @@ test('AC-02: cinco tarjetas, un Guardar por proveedor y etiquetas comprensibles'
     .not.toMatch(/\b(api key|webhook secret|from)\b/);
   await expect(page.locator('[data-secret-input][type="password"]')).not.toHaveCount(0);
   // #1927: Wompi now holds test and production key sets plus methods and return page.
-  await expect(page.locator('[data-secret-input][autocomplete="off"]')).toHaveCount(22);
+  await expect(page.locator('[data-secret-input][autocomplete="off"]')).toHaveCount(24);
   await expect(page.locator('[data-secret-delete]:visible')).toHaveCount(0);
   await expect(page.locator('[data-integration-provider="wompi"] [data-provider-state]')).toHaveText('Falta');
 });
@@ -326,4 +328,42 @@ test('AC-01: una eliminación pendiente bloquea guardar y correo de prueba tras 
   const final=await page.evaluate(()=>({values:window.integrationFixture.values,writes:window.integrationFixture.writes}));
   expect(final.writes.map(write=>write.method)).toEqual(['DELETE']);
   expect(Object.hasOwn(final.values,'BRVTAL_TICKET_MAIL_API_KEY')).toBe(false);
+});
+
+
+test('AC-02 #1993: Nombre del remitente y Responder a se guardan; capturas 390/1440',async({page},testInfo)=>{
+  const evidence=resolve(process.cwd(),'test-results/public-concept05-fidelity-mail-deliverability-1993');
+  mkdirSync(evidence,{recursive:true});
+  for(const width of [390,1440]){
+    await page.setViewportSize({width,height:900});
+    await setup(page);
+    const resend=page.locator('[data-integration-provider="resend"]');
+    const name=resend.locator('[data-secret-key="BRVTAL_TICKET_MAIL_FROM_NAME"]');
+    const reply=resend.locator('[data-secret-key="BRVTAL_TICKET_MAIL_REPLY_TO"]');
+    await expect(resend.getByText('Nombre del remitente',{exact:true})).toBeVisible();
+    await expect(resend.getByText('Responder a',{exact:true})).toBeVisible();
+    await expect(name).toHaveAttribute('placeholder','BRVTAL');
+    const before=await page.screenshot({fullPage:true});
+    await testInfo.attach('antes-guardar-remitente-'+width+'px.png',{body:before,contentType:'image/png'});
+    writeFileSync(join(evidence,'antes-guardar-remitente-'+width+'px.png'),before);
+    await name.fill('BRVTAL Música');
+    await reply.fill('soporte@example.test');
+    await resend.getByRole('button',{name:'Guardar',exact:true}).click();
+    await expect(resend.locator('[data-secret-feedback]')).toContainText('2 claves guardadas');
+    const stored=await page.evaluate(()=>window.integrationFixture);
+    expect(stored.writes.map(write=>write.key))
+      .toEqual(['BRVTAL_TICKET_MAIL_FROM_NAME','BRVTAL_TICKET_MAIL_REPLY_TO']);
+    expect(stored.values.BRVTAL_TICKET_MAIL_FROM_NAME).toBe('BRVTAL Música');
+    expect(stored.values.BRVTAL_TICKET_MAIL_REPLY_TO).toBe('soporte@example.test');
+    await expect(name).toHaveValue('');
+    await expect(reply).toHaveValue('');
+    await expect(resend.locator('[data-secret-row="BRVTAL_TICKET_MAIL_FROM_NAME"] [data-secret-stored]')).toContainText('Guardada');
+    await expect(resend.locator('[data-secret-row="BRVTAL_TICKET_MAIL_REPLY_TO"] [data-secret-stored]')).toContainText('Guardada');
+    const overflow=await page.evaluate(()=>({
+      viewport:document.documentElement.clientWidth,body:document.body.scrollWidth}));
+    expect(overflow.body).toBeLessThanOrEqual(overflow.viewport);
+    const after=await page.screenshot({fullPage:true});
+    await testInfo.attach('despues-guardar-remitente-'+width+'px.png',{body:after,contentType:'image/png'});
+    writeFileSync(join(evidence,'despues-guardar-remitente-'+width+'px.png'),after);
+  }
 });
