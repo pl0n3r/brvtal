@@ -3,7 +3,7 @@
 ALTER TABLE ticket_issue_outbox
   DROP FOREIGN KEY fk_ticket_issue_outbox_attempt,
   MODIFY COLUMN payment_attempt_id BIGINT UNSIGNED NULL,
-  ADD CONSTRAINT fk_ticket_issue_outbox_attempt
+  ADD CONSTRAINT fk_ticket_issue_outbox_pos_attempt
     FOREIGN KEY (payment_attempt_id)
     REFERENCES ticket_payment_attempts(id) ON DELETE RESTRICT;
 
