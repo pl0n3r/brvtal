@@ -373,6 +373,35 @@ test('#1976: issued order has no retry; nothing pending is explained',async({pag
   await expect(detail.locator('[data-issue-retry-feedback]')).toContainText('no tiene una emisión pendiente');
 });
 
+// #1992: issuance completion never guarantees that the QR email was sent.
+// The delivery timeline stays independent, and only queued/failed work is retryable.
+test('#1992: exact issuance copy, independent QR mail and retry for all worker states',async({page})=>{
+  const scenarios=[
+    ['done','Boletas emitidas.',false],
+    ['issued','Boletas emitidas.',false],
+    ['processing','Emitiendo boletas…',false],
+    ['pending',/^Emisión pendiente\. Próximo intento: .+\.$/,true],
+    ['failed',/^La emisión falló 2 veces\. Próximo intento: .+\.$/,true]
+  ];
+  for(const [state,message,retryAllowed] of scenarios){
+    await start(page,issueReply({state,attempts:2,next_attempt_at_utc:'2026-11-24 16:23:02'}),
+      'orders',js,css,retryFixture);
+    await page.getByRole('button',{name:'Detalle #91'}).click();
+    const detail=page.locator('[data-ticketing-records-detail]');
+    const issuance=detail.getByRole('heading',{name:'Emisión de boletas',exact:true})
+      .locator('xpath=following-sibling::p[1]');
+    await expect(issuance).toHaveText(message);
+    await expect(issuance).not.toContainText('correo');
+    await expect(detail).not.toContainText('El correo con los QR sale en el siguiente minuto.');
+    const mail=detail.locator('.tk-order-step').filter({hasText:'Correo con QR'});
+    await expect(mail).toHaveCount(1);
+    await expect(mail).toHaveClass(/is-pending/);
+    await expect(mail).toContainText('Pendiente');
+    await expect(detail.getByRole('button',{name:'Reintentar emisión ahora'}))
+      .toHaveCount(retryAllowed?1:0);
+  }
+});
+
 test('#1976: retry endpoint requires session, CSRF, mail permission and only moves the due time',()=>{
   const endpoint = readFileSync('api/ticketing/admin-issue-retry.php','utf8');
   const delivery = readFileSync('config/ticketing_issue_delivery.php','utf8');

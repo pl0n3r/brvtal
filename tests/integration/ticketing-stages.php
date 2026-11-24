@@ -76,8 +76,10 @@ stageAssert(str_contains($checkoutSource, 'Display the same stage price as check
     && str_contains($checkoutSource, "\$price = \$quote['unit_price_cop'];"),
     'public offers show active stage price, not stale editorial price');
 $core = (string)file_get_contents(__DIR__.'/../../discadmin/content-core.js');
-stageAssert((bool)preg_match("~import\\('/discadmin/ticketing-stages\\.js'\\s*\\+~", $core),
-    'stage editor mounted through cache-versioned dynamic import');
+stageAssert((bool)preg_match(
+    "~import\\('/discadmin/ticketing-stages\\.js'\\s*\\+\\s*\\(\\s*BRVTAL_CONTENT_CORE_SCRIPT_SRC\\s*\\?\\s*new URL\\(BRVTAL_CONTENT_CORE_SCRIPT_SRC\\)\\.search\\s*:\\s*''\\s*\\)\\s*\\)~",
+    $core),
+    'stage editor import must propagate the deployment version query');
 stageAssert(str_contains($core,'Number(currentEvent?.id)'),
     'stage editor only for persisted event with valid identity');
 
