@@ -70,7 +70,8 @@ export async function mount(panel) {
           ['Pendientes',quantity(row.pending_orders)],['Rechazados',quantity(row.declined_orders)],
           ['Reembolsados',quantity(row.refunded_orders)],['Boletas',quantity(row.tickets)],
           ['Cupos',quantity(row.capacity)],['Ingresos a puerta',quantity(row.checkins)],
-          ['Comisión',cash(row.fee_cop)],['IVA',cash(row.fee_vat_cop)],
+          ['Caja presencial',cash(row.pos_cop)],['Ventas de caja',quantity(row.pos_orders)],
+          ['Comisión Wompi',cash(row.fee_cop)],['IVA',cash(row.fee_vat_cop)],
           ['Retenciones',cash(row.withheld_cop)],['Diferencia estimada',cash(row.difference_cop)]
         ]) list.append(make('li',label+': '+value));
         const types=Array.isArray(row.types)?row.types:[];

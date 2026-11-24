@@ -53,6 +53,24 @@ $payments[0]['gross_amount_cop']=89999;
 $invalid=brvtalFinanceSummarize($orders,$items,$payments)[0];
 t20($invalid['paid_orders']===0 && $invalid['unverified_orders']===2,
     'provider gross mismatch cannot certify revenue');
-echo "T20 finance synthetic invariants OK\n";
+$posOrder=['id'=>5,'event_id'=>9,'status'=>'paid','total_cop'=>20000,'currency'=>'COP'];
+$posItem=['order_id'=>5,'ticket_type_id'=>7,'quantity'=>1,'subtotal_cop'=>20000];
+$posSale=['id'=>15,'order_id'=>5,'event_id'=>9,'ticket_type_id'=>7,'quantity'=>1,
+    'amount_cop'=>20000,'method'=>'cash','status'=>'paid'];
+$summary=brvtalFinanceSummarize([$posOrder],[$posItem],[],[$posSale])[0];
+t20($summary['pos_cop']===20000 && $summary['pos_orders']===1
+    && $summary['approved_cop']===0 && $summary['paid_orders']===1,
+    'POS counted apart from Wompi');
+t20($summary['fee_cop']===0 && $summary['payout_cop']===0
+    && $summary['transactions'][0]['fee_cop']===null,
+    'no invented POS commission or settlement');
+$bad=$posSale;$bad['amount_cop']=20001;
+$invalidPos=brvtalFinanceSummarize([$posOrder],[$posItem],[],[$bad])[0];
+t20($invalidPos['unverified_orders']===1 && $invalidPos['pos_cop']===0,
+    'mismatched cash evidence rejected');
+$terminal=$posSale;$terminal['method']='terminal';
+$terminalSummary=brvtalFinanceSummarize([$posOrder],[$posItem],[],[$terminal])[0];
+t20($terminalSummary['pos_cop']===20000,'operator-confirmed terminal accepted without provider fee');
+echo "T20 finance + POS synthetic invariants OK\n";
 // T21 synthetic MariaDB regressions execute in the existing finance integration harness.
 require __DIR__.'/ticketing-refunds.php';
