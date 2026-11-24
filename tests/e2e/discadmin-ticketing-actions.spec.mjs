@@ -17,7 +17,7 @@ async function launch(page, actionReply) {
       + '<div id="panel"></div></section></html>'}));
   await page.route('**/discadmin/ticketing-orders.js', route =>
     route.fulfill({contentType:'text/javascript',body:script}));
-  await page.route('**/discadmin/ticketing-orders.php', route =>
+  await page.route('**/discadmin/ticketing-orders.php*', route =>
     route.fulfill({contentType:'text/html',body:fragment}));
   await page.route('**/api/ticketing/admin-orders.php?*', route => {
     const detail = new URL(route.request().url()).searchParams.has('order_id');
