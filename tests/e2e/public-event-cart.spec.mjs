@@ -104,10 +104,11 @@ const orderToken = 'ab'.repeat(16);
 // #1958: a stand-in for Wompi's widget.js that records its config and reports a result.
 const fakeWidget = `window.WidgetCheckout = function (config) {
   window.__wompiConfig = config;
-  this.open = function (done) { window.__wompiOpened = true; if (window.__wompiHold) return;
+  this.open = function (done) { window.__wompiOpened = true; window.__wompiOpens = (window.__wompiOpens || 0) + 1;
+    if (window.__wompiHold) return;
     setTimeout(function () { done({ transaction: { id: 'tx-widget', status: 'APPROVED' } }); }, 50); };
 };`;
-async function openCheckout(page, { authenticated = false, onPrepare, storage, widget = 'missing' } = {}) {
+async function openCheckout(page, { authenticated = false, onPrepare, storage, widget = 'missing', statusState = 'approved' } = {}) {
   const calls = { prepare: [], status: [], wompi: [], widget: 0, confirmation: [] };
   await page.route('https://checkout.wompi.co/widget.js', route => {
     calls.widget += 1;
@@ -133,7 +134,7 @@ async function openCheckout(page, { authenticated = false, onPrepare, storage, w
     }
     if (kind === 'status') {
       calls.status.push(new URL(request.url()).searchParams.toString());
-      return route.fulfill({ contentType: 'application/json', body: '{"ok":true,"state":"approved"}' });
+      return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, state: statusState }) });
     }
     return route.fulfill({ contentType: 'text/html', body: render() });
   });
@@ -251,6 +252,34 @@ test('widget de Wompi: recibe monto, referencia, firma y datos del comprador', a
   expect(config).toEqual({ currency: 'COP', amountInCents: 5000000, reference: 'BW7-9-CARD-' + 'c'.repeat(24),
     publicKey: 'pub_test_synthetic', signature: { integrity: 'd'.repeat(64) }, redirectUrl: url,
     customerData: { email: 'ana@example.test', fullName: 'Ana Gómez' } });
+});
+
+test('si se cierra el widget sin pagar, «Pagar» reabre el mismo pago sin crear otro pedido', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const calls = await openCheckout(page, { widget: 'fake' });
+  await page.evaluate(() => { window.__wompiHold = true; }); // the buyer closes it: no result
+  await page.locator('[data-cart-type="5"] [data-cart-step="1"]').click();
+  await fillGuest(page);
+  await page.locator('[data-cart-pay]').click();
+  await expect.poll(() => page.evaluate(() => window.__wompiOpens || 0)).toBe(1);
+  await expect(page.locator('#ticket-checkout-status')).toContainText('Si la cerraste sin pagar, vuelve a tocar «Pagar»');
+  await testInfo.attach('widget-cerrado-390', { body: await page.locator('#boletas').screenshot(), contentType: 'image/png' });
+  await page.locator('[data-cart-pay]').click();
+  await expect.poll(() => page.evaluate(() => window.__wompiOpens || 0)).toBe(2);
+  expect(calls.prepare).toHaveLength(2);
+  expect(calls.prepare[1].body.idempotency_key).toBe(calls.prepare[0].body.idempotency_key);
+  expect(calls.wompi).toHaveLength(0);
+});
+
+test('un pedido pendiente enlaza a su página de confirmación', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openCheckout(page, { statusState: 'pending', storage: { intent: 'T13-x', order_id: '8', order_token: orderToken,
+    lines: [{ ticket_type_id: 5, quantity: 1 }], method: 'CARD' } });
+  await expect(page.locator('#ticket-checkout-status')).toContainText('Pedido #8: Pago pendiente de confirmación.');
+  const link = page.getByRole('link', { name: 'Ver el estado de tu compra' });
+  await expect(link).toHaveAttribute('href', '/compra/' + orderToken);
+  await expect(page.locator('#ticket-checkout-status')).not.toContainText('Actualiza esta página');
+  await testInfo.attach('pedido-pendiente-1440', { body: await page.locator('#checkout-boletas').screenshot(), contentType: 'image/png' });
 });
 
 test('si el widget de Wompi no carga, se paga en la página de Wompi como respaldo', async ({ page }) => {

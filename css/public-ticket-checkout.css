@@ -168,3 +168,5 @@ body.cromo-page.entity-page--event .event-buy-panel{top:calc(var(--event-nav-h,7
   body.cromo-page.entity-page--event .event-buy-main > :not(.entity-hero){order:3}
 }
 @media(prefers-reduced-motion:reduce){.event-buy-notify{transition:none}}
+/* #1960: link from a pending order to its confirmation page. */
+.event-checkout-follow{display:inline-flex;align-items:center;min-height:44px;color:inherit;font-weight:700;text-underline-offset:3px}

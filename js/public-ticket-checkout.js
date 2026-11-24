@@ -131,12 +131,20 @@
         approved: 'Pago confirmado. Te enviamos las boletas con QR a tu correo.',
         failed: 'El pago no fue aprobado. Puedes volver a intentarlo.',
         cancelled: 'El pago fue cancelado.',
-        pending: 'Pago pendiente de confirmación. Actualiza esta página para consultar el estado.',
+        pending: 'Pago pendiente de confirmación.',
         unverified: 'No existe una confirmación verificable. No se han emitido boletas.',
       };
       // #1950: the same order number the buyer sees in Mi cuenta and in Wompi (BW7-<n>-…).
       const number = /^[1-9]\d{0,17}$/.test(String(saved?.order_id || '')) ? `Pedido #${saved.order_id}: ` : '';
       say(number + (states[payload.state] || states.unverified));
+      // #1960: a pending order points to its confirmation page instead of "reload".
+      if (payload.state === 'pending' && /^[a-f0-9]{32}$/.test(String(saved?.order_token || ''))) {
+        const link = document.createElement('a');
+        link.className = 'event-checkout-follow';
+        link.href = '/compra/' + saved.order_token;
+        link.textContent = 'Ver el estado de tu compra';
+        status.append(' ', link);
+      }
       if (['approved', 'failed', 'cancelled'].includes(payload.state)) {
         clear();
         intent = null;
@@ -488,7 +496,7 @@
         say('Reserva preparada. El pago sigue pendiente hasta la confirmación del servidor.');
         return;
       }
-      say('Reserva lista. Completa el pago en la ventana de Wompi; el pago queda pendiente hasta que el servidor lo confirme.');
+      say('Completa el pago en la ventana de Wompi. Si la cerraste sin pagar, vuelve a tocar «Pagar»: tu reserva se mantiene unos minutos.');
       return payWithWompi(result.checkout, { token: String(result.order_token || ''), buyer });
     }
     form.addEventListener('submit', async event => {
