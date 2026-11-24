@@ -5,6 +5,10 @@ import { join } from 'node:path';
 // #1958: purchase confirmation page. Only the server's state is shown.
 const root = process.cwd();
 const page = readFileSync(join(root, 'buyer/purchase.php'), 'utf8').replace(/^<\?php[\s\S]*?\?>/, '');
+const previousLogin = readFileSync(join(root, 'buyer/login.php'), 'utf8')
+  .replace(/<script>[\s\S]*?<\/script>/g, '');
+// Pre-change return: guests reached this login page, not an order confirmation.
+// This is a committed HTML fixture from main, NOT an observed production screenshot.
 const assets = {
   '/css/buyer-access.css': ['text/css', readFileSync(join(root, 'css/buyer-access.css'))],
   '/css/public-ticket-view.css': ['text/css', readFileSync(join(root, 'css/public-ticket-view.css'))],
@@ -22,6 +26,9 @@ async function setup(browserPage, states) {
   await browserPage.addInitScript(() => { window.BRVTAL_ORDER_POLL_MS = 150; });
   await browserPage.route('**/*', route => {
     const url = new URL(route.request().url());
+    if (url.pathname === '/mi-cuenta/acceso') {
+      return route.fulfill({ contentType: 'text/html; charset=utf-8', body: previousLogin });
+    }
     if (/^\/compra\//.test(url.pathname)) return route.fulfill({ contentType: 'text/html; charset=utf-8', body: page });
     if (url.pathname === '/api/ticketing/order-status.php') {
       asked.push(url.searchParams.get('t'));
@@ -48,6 +55,9 @@ for (const [label, size] of [['390', { width: 390, height: 844 }], ['1440', { wi
   test(`confirmación: pasa de confirmando a pago confirmado (${label})`, async ({ page: browserPage }, testInfo) => {
     await browserPage.setViewportSize(size);
     const asked = await setup(browserPage, ['pending', 'pending', 'approved']);
+    await browserPage.goto(`${base}/mi-cuenta/acceso`);
+    await expect(browserPage.getByRole('heading', { name: /Entra a tu cuenta/i })).toBeVisible();
+    await capture(browserPage, testInfo, `compra-antes-${label}`);
     await browserPage.goto(`${base}/compra/${token}`);
     await expect(browserPage.locator('#purchase-number')).toHaveText('Pedido #6');
     await expect(browserPage.locator('#purchase-state-text')).toHaveText('Confirmando tu pago…');
@@ -64,6 +74,7 @@ for (const [label, size] of [['390', { width: 390, height: 844 }], ['1440', { wi
     expect(asked.length).toBe(count); // a final state stops polling
     expect(await browserPage.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(size.width);
     await capture(browserPage, testInfo, `compra-confirmada-${label}`);
+    await capture(browserPage, testInfo, `compra-despues-${label}`);
   });
 }
 
