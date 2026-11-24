@@ -299,7 +299,12 @@ export async function mount(panel, initialKind = 'orders') {
         alert.append(button);
       }
       panel.append(alert);
-    } else if(issue.state==='pending') addIssueRetry(panel,id,issue);
+    }
+    // Issuance and mail delivery are independent. Keep a visible issuance
+    // receipt even when the email has failed, without enabling a retry on 'done'.
+    if(stalled!==2 && ['pending','processing','done','issued'].includes(issue.state)) {
+      addIssueRetry(panel,id,issue);
+    }
     box.append(panel);
   }
 
@@ -407,6 +412,11 @@ export async function mount(panel, initialKind = 'orders') {
           (r.provider_reference||'sin referencia')+' · Transacción '+
           (r.provider_transaction_id||'sin transacción'),
         'No hay transacciones registradas.'));
+      // Mail status has its own source of truth. Payment or issuance cannot
+      // imply that a QR email was sent, accepted or delivered.
+      sections.append(section('Correo',info.mail,
+        r=>displayState(r.delivery_state)+' · '+bogotaDate(r.state_at||r.created_at),
+        'Sin evidencia de entrega de correo.'));
       const notes=section('Notas',info.notes,
         r=>String(r.note_text)+' · '+String(r.actor_name||'Administración')+
           ' · '+bogotaDate(r.created_at_utc),
