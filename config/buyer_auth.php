@@ -302,3 +302,63 @@ function brvtalBuyerCheckoutPaidGrant(PDO $pdo, string $orderToken): ?array
     return ['order_id'=>$id, 'buyer_id'=>$buyerId, 'created_new'=>$isFreshGuest];
 }
 
+/**
+ * Checkout purchases visible to this original browser only.
+ * Called from buyer/index.php before HTML is sent. No token or email alone
+ * grants a session; this function is the server-side access boundary.
+ * @return list<array<string,mixed>>
+ */
+function brvtalBuyerCheckoutAccountScope(): array
+{
+    require_once __DIR__ . '/bootstrap.php';
+    require_once __DIR__ . '/public_order_status.php';
+    header('Cache-Control: private, no-store, max-age=0');
+    header('Referrer-Policy: no-referrer');
+    header('X-Robots-Tag: noindex, nofollow');
+    $checkoutScopePurchases = [];
+    try {
+        brvtalBuyerSessionStart();
+        if ((int)($_SESSION['buyer_id'] ?? 0) === 0
+            && is_array($_SESSION['buyer_checkout_orders'] ?? null)) {
+            $pdo = db();
+            $tokenForId = $pdo->prepare('SELECT LOWER(HEX(public_id)) FROM ticket_orders WHERE id=? LIMIT 1');
+            foreach (array_keys($_SESSION['buyer_checkout_orders']) as $id) {
+                if (!ctype_digit((string)$id) || (int)$id < 1) continue;
+                $tokenForId->execute([(int)$id]);
+                $token = $tokenForId->fetchColumn();
+                if (!is_string($token)) continue;
+                $grant = brvtalBuyerCheckoutPaidGrant($pdo, $token);
+                if ($grant === null) continue;
+                $order = brvtal_public_order_status($pdo, $token);
+                if (!is_array($order) || ($order['state'] ?? null) !== 'approved') continue;
+                if ($grant['created_new']) {
+                    // New email in THIS browser, paid by verified provider:
+                    // create a real buyer session without asserting inbox ownership.
+                    brvtalBuyerLoginSession($grant['buyer_id'], $pdo, $grant['order_id']);
+                    $checkoutScopePurchases = [];
+                    break;
+                }
+                $items = [];
+                foreach (($order['items'] ?? []) as $item) {
+                    if (!is_array($item)) continue;
+                    $items[] = ['name'=>(string)($item['name'] ?? 'Boleta'),
+                        'quantity'=>(int)($item['quantity'] ?? 0)];
+                }
+                $checkoutScopePurchases[] = [
+                    'token'=>$token,
+                    'order_number'=>(int)$order['order_number'],
+                    'event_title'=>(string)$order['event_title'],
+                    'total_cop'=>(int)$order['total_cop'],
+                    'items'=>$items,
+                ];
+            }
+        }
+    } catch (Throwable) {
+        // Full login still works if checkout storage is unavailable.
+        $checkoutScopePurchases = [];
+    } finally {
+        if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
+    }
+    return $checkoutScopePurchases;
+}
+
