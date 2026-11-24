@@ -195,7 +195,8 @@ t09(($posProofAfter['complete']??false)===true,
 // A matching target/column with ON DELETE CASCADE is NOT our immutable ledger
 // proof: deletion of a Wompi attempt must never cascade into issuance evidence.
 $db->exec('ALTER TABLE ticket_issue_outbox
-    DROP FOREIGN KEY fk_ticket_issue_outbox_pos_attempt,
+    DROP FOREIGN KEY fk_ticket_issue_outbox_pos_attempt');
+$db->exec('ALTER TABLE ticket_issue_outbox
     ADD CONSTRAINT fk_ticket_issue_outbox_pos_attempt FOREIGN KEY (payment_attempt_id)
     REFERENCES ticket_payment_attempts(id) ON DELETE CASCADE');
 $cascadeProof=brvtalMigrationSchemaProof($db,'migration_ticketing_pos_02.sql');
@@ -204,7 +205,8 @@ t09(($cascadeProof['complete']??true)===false
     && ($cascadeProof['checks'][$fkRule]??true)===false,
     'CASCADE may not be accepted as a valid POS Wompi evidence baseline');
 $db->exec('ALTER TABLE ticket_issue_outbox
-    DROP FOREIGN KEY fk_ticket_issue_outbox_pos_attempt,
+    DROP FOREIGN KEY fk_ticket_issue_outbox_pos_attempt');
+$db->exec('ALTER TABLE ticket_issue_outbox
     ADD CONSTRAINT fk_ticket_issue_outbox_pos_attempt FOREIGN KEY (payment_attempt_id)
     REFERENCES ticket_payment_attempts(id) ON DELETE RESTRICT');
 t09((brvtalMigrationSchemaProof($db,'migration_ticketing_pos_02.sql')['complete']??false)===true,
