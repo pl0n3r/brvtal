@@ -113,6 +113,11 @@ $origin = 'https://brvtal.invalid';
 
 // AC-01 (a): the oldest paid order is issued and its sealed QR email queued.
 deliveryAssert(brvtal_ticket_issue_process_next($db, $origin) === 'issued', 'first job issued');
+// Regression: loading logger.php for the first time from a callback must
+// still initialize the GLOBAL path used by exception/shutdown handlers.
+(static function (): void {
+    require_once __DIR__ . '/../../config/logger.php';
+})();
 deliveryAssert(is_string($GLOBALS['BRVTAL_LOG_FILE'] ?? null)
     && $GLOBALS['BRVTAL_LOG_FILE'] !== '',
     'logger path survives initialization inside the paid delivery callback');
