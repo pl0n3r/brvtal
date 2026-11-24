@@ -495,6 +495,7 @@ function brvtalMigrationProofSpecifications(): array
     if (is_file(__DIR__ . '/../database/migration_ticket_entry_secret_01.sql')) {
         $specifications['migration_ticket_entry_secret_01.sql'] = [
             'column:ticket_entry_credentials.token_encrypted',
+            'column-nullable:ticket_entry_credentials.token_encrypted',
             'column-type:ticket_entry_credentials.token_encrypted=varbinary(96)',
         ];
     }
@@ -510,8 +511,21 @@ function brvtalMigrationDurationColumnMatches(mixed $row): bool
         && strtoupper((string)($row['IS_NULLABLE'] ?? '')) === 'YES';
 }
 
+function brvtalMigrationNullableColumnMatches(mixed $observed): bool
+{
+    return is_string($observed) && strtoupper($observed) === 'YES';
+}
+
 function brvtalMigrationProbeRequirement(PDO $pdo, string $requirement): bool
 {
+    if (preg_match('/^column-nullable:([A-Za-z0-9_]+)\\.([A-Za-z0-9_]+)$/', $requirement, $match)) {
+        $statement = $pdo->prepare(
+            'SELECT IS_NULLABLE FROM information_schema.COLUMNS ' .
+            'WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?'
+        );
+        $statement->execute([$match[1], $match[2]]);
+        return brvtalMigrationNullableColumnMatches($statement->fetchColumn());
+    }
     if (preg_match('/^column-unsigned-bigint-nullable:([A-Za-z0-9_]+)\.([A-Za-z0-9_]+)$/', $requirement, $match)) {
         $statement = $pdo->prepare(
             'SELECT DATA_TYPE,COLUMN_TYPE,IS_NULLABLE FROM information_schema.COLUMNS '

@@ -117,7 +117,7 @@
     const link=el('a','Ver la cartelera');link.href='/';link.className='account-action';
     box.append(link);return box;
   }
-  let csrf='',page=0,ticket='',payload='';
+  let csrf='',page=0,ticket='',payload='',qrRequest=0;
   const el=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=String(text);return n;};
   // The server scopes these orders to a paid checkout plus its original cookie.
   // Do not call unrestricted account or refunds APIs in this anonymous mode.
@@ -225,8 +225,8 @@
     });
     return form;
   }
-  function resetQr(){ticket='';payload='';qr.hidden=true;$('qr-form').hidden=false;$('token').value='';$('qr-output').replaceChildren();$('qr-output').hidden=true;$('download').hidden=true;$('qr-feedback').textContent='';}
-  function showQr(id, stored=false){resetQr();ticket=id;qr.hidden=false;if(stored){$('qr-form').hidden=true;loadQr(true);}else $('token').focus();}
+  function resetQr(){qrRequest++;ticket='';payload='';qr.hidden=true;$('qr-form').hidden=false;$('token').value='';$('qr-output').replaceChildren();$('qr-output').hidden=true;$('download').hidden=true;$('qr-feedback').textContent='';}
+  function showQr(id, stored=false){resetQr();ticket=id;qr.hidden=false;if(stored){$('qr-form').hidden=true;qr.setAttribute('tabindex','-1');qr.focus();loadQr(true);}else $('token').focus();}
   function card(order){
     const box=el('article'),title=el('h2',order.event_title||'Evento');box.className='account-order';box.append(title,
       el('p',(order.order_number?'Pedido #'+order.order_number+' · ':'')+(statuses[order.status]||order.status)+' · Pago: '+(statuses[order.payment_status]||order.payment_status||'Sin intento')),
@@ -308,6 +308,7 @@
     return svg;
   }
   async function loadQr(stored=false){
+    const request=qrRequest;
     const button=$('qr-form').querySelector('button');button.disabled=true;
     $('qr-feedback').textContent='Verificando entrada…';payload='';$('qr-output').hidden=true;$('download').hidden=true;
     try{
@@ -317,12 +318,14 @@
         headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(body)});
       if(!r.ok)throw Error('UNAVAILABLE');
       const data=await r.json();if(typeof data.qr!=='string'||!data.qr.startsWith('BRVTAL:T1:'))throw Error('UNAVAILABLE');
+      if(request!==qrRequest)return;
       const svg=qrSvg(data.qr);$('qr-output').replaceChildren(svg);$('qr-output').hidden=false;$('download').hidden=false;payload=data.qr;
       $('qr-feedback').textContent='QR autorizado. No compartas esta entrada.';$('token').value='';
     }catch(_){
+      if(request!==qrRequest)return;
       $('qr-feedback').textContent='No se pudo autorizar esta entrada. Revisa la credencial y su vigencia.';
       if(stored){$('qr-form').hidden=false;}
-    }finally{button.disabled=false;}
+    }finally{if(request===qrRequest)button.disabled=false;}
   }
   $('qr-form').addEventListener('submit',e=>{e.preventDefault();loadQr(false);});
   $('download').addEventListener('click',async()=>{

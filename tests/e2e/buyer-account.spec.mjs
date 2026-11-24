@@ -138,3 +138,35 @@ test('stored QR owner mismatch yields 404-equivalent and no visible QR', async (
   await expect(page.locator('#qr-output svg')).toHaveCount(0);
   await expect(page.getByLabel('Credencial original')).toBeVisible();
 });
+
+test('stale QR response cannot replace a newer selected ticket', async ({page}) => {
+  const first='abcdefabcdefabcdefabcdefabcdefab', second='dddddddddddddddddddddddddddddddd';
+  const withTwo={...paid,items:[
+    {...paid.items[0],ticket_id:first,qr_stored:true},
+    {...paid.items[0],ticket_id:second,qr_stored:true}
+  ]};
+  let releaseFirst;
+  const delayed=new Promise(resolve=>{releaseFirst=resolve;});
+  await page.route(url,route=>route.fulfill({contentType:'text/html',body:html}));
+  await page.route('**/api/buyer/auth.php',route=>route.fulfill({contentType:'application/json',
+    body:JSON.stringify({ok:true,authenticated:true,csrf:'fake-csrf'})}));
+  await page.route('**/api/buyer/account.php**',async route=>{
+    if(route.request().method()==='GET')return route.fulfill({contentType:'application/json',
+      body:JSON.stringify({ok:true,data:{orders:[withTwo],has_more:false,page:0}})});
+    const id=route.request().postDataJSON()?.ticket_id;
+    if(id===first)await delayed;
+    return route.fulfill({contentType:'application/json',
+      body:JSON.stringify({ok:true,qr:'BRVTAL:T1:'+id+':'+'A'.repeat(43)})});
+  });
+  await page.goto(url);
+  const buttons=page.getByRole('button',{name:'Ver QR'});
+  await expect(buttons).toHaveCount(2);
+  await buttons.nth(0).click();
+  await buttons.nth(1).click();
+  await expect(page.locator('#qr-output svg')).toBeVisible();
+  const freshSvg=await page.locator('#qr-output').innerHTML();
+  releaseFirst();
+  await page.waitForTimeout(100);
+  expect(await page.locator('#qr-output').innerHTML()).toBe(freshSvg);
+  await expect(page.locator('#qr-feedback')).toContainText('QR autorizado');
+});

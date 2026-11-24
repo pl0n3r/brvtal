@@ -319,6 +319,7 @@ $secretName = 'migration_ticket_entry_secret_01.sql';
 $secretSql = (string)file_get_contents(__DIR__ . '/../database/' . $secretName);
 $secretRequirements = [
     'column:ticket_entry_credentials.token_encrypted',
+    'column-nullable:ticket_entry_credentials.token_encrypted',
     'column-type:ticket_entry_credentials.token_encrypted=varbinary(96)',
 ];
 migrations_assert(($specifications[$secretName] ?? null) === $secretRequirements,
@@ -326,6 +327,12 @@ migrations_assert(($specifications[$secretName] ?? null) === $secretRequirements
 brvtalMigrationAssertAdditiveSql($secretSql);
 migrations_assert(str_contains($secretSql, 'VARBINARY(96) NULL'),
     'old credentials remain nullable');
+migrations_assert(brvtalMigrationNullableColumnMatches('YES'),
+    'nullable schema probe succeeds');
+migrations_assert(!brvtalMigrationNullableColumnMatches('NO'),
+    'NOT NULL schema probe must fail');
+migrations_assert(!brvtalMigrationNullableColumnMatches(false),
+    'missing column must fail nullable probe');
 $unorderedSecret = [
     ['migration' => $secretName, 'action' => 'apply'],
     ['migration' => 'migration_ticketing_entries_01.sql', 'action' => 'apply'],

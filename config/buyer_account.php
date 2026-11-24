@@ -48,10 +48,36 @@ function brvtalBuyerAccountAuthorized(PDO $db, int $buyerId): bool
     return $q->fetchColumn() !== false;
 }
 
+/**
+ * Only a verified buyer can see all their orders. A paid-checkout guest
+ * session must remain limited to its single server-issued checkout grant.
+ */
+function brvtalBuyerAccountCheckoutScope(PDO $db, int $buyerId): ?int
+{
+    if ($buyerId < 1) throw new DomainException('TICKET_UNAVAILABLE');
+    $q = $db->prepare('SELECT status,email_verified_at FROM ticket_buyers WHERE id=? LIMIT 1');
+    $q->execute([$buyerId]);
+    $buyer = $q->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($buyer)) throw new DomainException('TICKET_UNAVAILABLE');
+    if ($buyer['status'] === 'active' && $buyer['email_verified_at'] !== null) return null;
+    if ($buyer['status'] !== 'guest' || $buyer['email_verified_at'] !== null
+        || (int)($_SESSION['buyer_id'] ?? 0) !== $buyerId) {
+        throw new DomainException('TICKET_UNAVAILABLE');
+    }
+    $order = (int)($_SESSION['buyer_checkout_new_order'] ?? 0);
+    if ($order < 1) throw new DomainException('TICKET_UNAVAILABLE');
+    $paid = $db->prepare("SELECT 1 FROM ticket_orders WHERE id=? AND buyer_id=? AND status='paid' LIMIT 1");
+    $paid->execute([$order, $buyerId]);
+    if ($paid->fetchColumn() === false) throw new DomainException('TICKET_UNAVAILABLE');
+    return $order;
+}
+
 function brvtalBuyerAccountOrders(PDO $db, int $buyerId, array $f): array
 {
     if ($buyerId < 1) throw new DomainException('AUTH_REQUIRED');
+    $scope = brvtalBuyerAccountCheckoutScope($db, $buyerId);
     $where = ['o.buyer_id=?']; $args = [$buyerId];
+    if ($scope !== null) { $where[] = 'o.id=?'; $args[] = $scope; }
     if ($f['event_id'] !== null) { $where[] = 'o.event_id=?'; $args[] = $f['event_id']; }
     if ($f['from']) { $where[] = 'o.created_at_utc>=?'; $args[] = $f['from']->format('Y-m-d 00:00:00'); }
     if ($f['to']) { $where[] = 'o.created_at_utc<?'; $args[] = $f['to']->modify('+1 day')->format('Y-m-d 00:00:00'); }
@@ -105,13 +131,16 @@ function brvtalBuyerAccountQr(PDO $db, int $buyerId, string $ticketId, string $t
     if ($buyerId < 1 || !preg_match('/^[a-f0-9]{32}$/D', $ticketId)) {
         throw new DomainException('TICKET_UNAVAILABLE');
     }
+    $scope = brvtalBuyerAccountCheckoutScope($db, $buyerId);
     $q=$db->prepare('SELECT e.event_date FROM ticket_entries t
         JOIN ticket_order_items i ON i.id=t.order_item_id
         JOIN ticket_orders o ON o.id=i.order_id
         JOIN events e ON e.id=o.event_id
         WHERE t.public_id=UNHEX(?) AND o.buyer_id=? AND o.status=\'paid\'
-        AND t.status=\'issued\' LIMIT 1');
-    $q->execute([$ticketId,$buyerId]);
+        AND t.status=\'issued\'' . ($scope === null ? '' : ' AND o.id=?') . ' LIMIT 1');
+    $args = [$ticketId, $buyerId];
+    if ($scope !== null) $args[] = $scope;
+    $q->execute($args);
     $eventDate=$q->fetchColumn();
     if (!is_string($eventDate) || $eventDate === '') throw new DomainException('TICKET_UNAVAILABLE');
     $cutoff=new DateTimeImmutable($eventDate,new DateTimeZone('America/Bogota'))
@@ -126,6 +155,7 @@ function brvtalBuyerAccountStoredQr(PDO $db, int $buyerId, string $ticketId): ar
         || !brvtal_ticket_issue_has_encrypted_column($db)) {
         throw new DomainException('TICKET_UNAVAILABLE');
     }
+    $scope = brvtalBuyerAccountCheckoutScope($db, $buyerId);
     try {
         $stmt = $db->prepare("SELECT t.public_id,c.token_encrypted
             FROM ticket_entries t
@@ -134,8 +164,10 @@ function brvtalBuyerAccountStoredQr(PDO $db, int $buyerId, string $ticketId): ar
             JOIN ticket_entry_credentials c ON c.entry_id=t.id AND c.status='active'
             WHERE t.public_id=UNHEX(?) AND o.buyer_id=? AND o.status='paid'
               AND t.status='issued' AND t.event_id=o.event_id
-              AND c.token_encrypted IS NOT NULL LIMIT 1");
-        $stmt->execute([$ticketId, $buyerId]);
+              AND c.token_encrypted IS NOT NULL" . ($scope === null ? '' : ' AND o.id=?') . " LIMIT 1");
+        $params = [$ticketId, $buyerId];
+        if ($scope !== null) $params[] = $scope;
+        $stmt->execute($params);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
     } catch (PDOException) {
         throw new DomainException('TICKET_UNAVAILABLE');

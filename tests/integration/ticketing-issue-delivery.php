@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../../config/ticketing_issue_delivery.php';
 require_once __DIR__ . '/../../config/ticketing_wompi_webhook.php';
 require_once __DIR__ . '/../../config/buyer_account.php';
+require_once __DIR__ . '/../../config/migration_reconcile.php';
 
 function deliveryAssert(bool $ok, string $what): void
 {
@@ -41,12 +42,16 @@ putenv('BRVTAL_TICKET_ISSUE_LAST_FAILURE_FILE=' . $lastFailureFile);
 register_shutdown_function(static fn() => @unlink($lastFailureFile));
 foreach ([
     "CREATE TABLE events(id INT UNSIGNED PRIMARY KEY,title VARCHAR(180) NOT NULL,
-        event_date DATE NOT NULL DEFAULT '2026-12-10') ENGINE=InnoDB",
+        event_date DATE NOT NULL) ENGINE=InnoDB",
     "CREATE TABLE event_ticket_types(id INT UNSIGNED PRIMARY KEY,event_id INT UNSIGNED NOT NULL) ENGINE=InnoDB",
     "CREATE TABLE admins(id INT UNSIGNED PRIMARY KEY) ENGINE=InnoDB",
-    "CREATE TABLE ticket_buyers(id BIGINT UNSIGNED PRIMARY KEY,email VARCHAR(190) NULL) ENGINE=InnoDB",
+    "CREATE TABLE ticket_buyers(id BIGINT UNSIGNED PRIMARY KEY,email VARCHAR(190) NULL,
+        status ENUM('guest','active') NOT NULL DEFAULT 'guest',email_verified_at DATETIME NULL) ENGINE=InnoDB",
     "CREATE TABLE ticket_orders(id BIGINT UNSIGNED PRIMARY KEY,event_id INT UNSIGNED NOT NULL,
-        buyer_id BIGINT UNSIGNED NOT NULL,status VARCHAR(20) NOT NULL) ENGINE=InnoDB",
+        buyer_id BIGINT UNSIGNED NOT NULL,status VARCHAR(20) NOT NULL,
+        public_id BINARY(16) NULL,total_cop BIGINT NOT NULL DEFAULT 0,
+        currency CHAR(3) NOT NULL DEFAULT 'COP',
+        created_at_utc DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB",
     "CREATE TABLE ticket_order_items(id BIGINT UNSIGNED PRIMARY KEY,order_id BIGINT UNSIGNED NOT NULL,
         event_id INT UNSIGNED NOT NULL,ticket_type_id INT UNSIGNED NOT NULL,quantity INT UNSIGNED NOT NULL,
         ticket_name_snapshot VARCHAR(120) NOT NULL) ENGINE=InnoDB",
@@ -68,10 +73,21 @@ deliveryAssert(is_string($entrySecretMigration), 'entry-secret migration present
 foreach (explode(';', preg_replace('/^\\h*--[^\\r\\n]*$/m', '', $entrySecretMigration)) as $ddl) {
     if (trim($ddl) !== '') $db->exec($ddl);
 }
-$db->exec("INSERT INTO events(id,title) VALUES (1,'GENESIS')");
+$db->exec('CREATE TABLE qr_nullable_probe(nullable VARBINARY(96) NULL,
+    required VARBINARY(96) NOT NULL) ENGINE=InnoDB');
+deliveryAssert(brvtalMigrationProbeRequirement($db,
+    'column-nullable:qr_nullable_probe.nullable'), 'nullable schema column verified');
+deliveryAssert(!brvtalMigrationProbeRequirement($db,
+    'column-nullable:qr_nullable_probe.required'), 'NOT NULL schema column rejected');
+deliveryAssert(!brvtalMigrationProbeRequirement($db,
+    'column-nullable:qr_nullable_probe.missing'), 'missing schema column rejected');
+$db->exec("INSERT INTO events(id,title,event_date)
+    VALUES (1,'GENESIS',DATE_ADD(CURDATE(),INTERVAL 30 DAY))");
 $db->exec('INSERT INTO admins(id) VALUES (7)');
 $db->exec('INSERT INTO event_ticket_types(id,event_id) VALUES (11,1),(12,1)');
-$db->exec("INSERT INTO ticket_buyers(id,email) VALUES (8,'ana@example.test'),(9,'beto@example.test')");
+$db->exec("INSERT INTO ticket_buyers(id,email,status,email_verified_at)
+    VALUES (8,'ana@example.test','active',UTC_TIMESTAMP()),
+           (9,'beto@example.test','active',UTC_TIMESTAMP())");
 $db->exec("INSERT INTO ticket_orders(id,event_id,buyer_id,status) VALUES (100,1,8,'paid'),(103,1,9,'paid')");
 $db->exec("INSERT INTO ticket_order_items(id,order_id,event_id,ticket_type_id,quantity,ticket_name_snapshot)
     VALUES (200,100,1,11,2,'Preventa'),(201,100,1,12,1,'VIP'),(204,103,1,11,1,'Preventa')");
@@ -142,6 +158,28 @@ foreach ($issuedCredentials as $record) {
     try { brvtalBuyerAccountStoredQr($db,9,$id); deliveryAssert(false,'foreign buyer got QR'); }
     catch (DomainException $e) { deliveryAssert($e->getMessage()==='TICKET_UNAVAILABLE','foreign buyer denied'); }
 }
+// Guests with checkout proof may access only that paid order, never other
+// orders sharing the buyer email. Removing the order scope must fail closed.
+$db->exec("INSERT INTO ticket_orders(id,event_id,buyer_id,status)
+    VALUES (107,1,8,'paid')");
+$db->exec("UPDATE ticket_buyers SET status='guest',email_verified_at=NULL WHERE id=8");
+$_SESSION = ['buyer_id'=>8,'buyer_checkout_new_order'=>100];
+$guestId = bin2hex($issuedCredentials[0]['public_id']);
+deliveryAssert(str_starts_with(brvtalBuyerAccountStoredQr($db,8,$guestId)['content'],'BRVTAL:T1:'),
+    'guest can recover only the checkout-paid ticket');
+$guestOrders = brvtalBuyerAccountOrders($db,8,brvtalBuyerAccountFilters(['page'=>'0']));
+deliveryAssert(count($guestOrders['orders']) === 1
+    && $guestOrders['orders'][0]['order_number'] === 100,
+    'guest account list never exposes another order with same email');
+$_SESSION['buyer_checkout_new_order'] = 107;
+try { brvtalBuyerAccountStoredQr($db,8,$guestId); deliveryAssert(false,'cross-order guest QR leaked'); }
+catch (DomainException $e) { deliveryAssert($e->getMessage()==='TICKET_UNAVAILABLE','guest order scope denied'); }
+unset($_SESSION['buyer_checkout_new_order']);
+try { brvtalBuyerAccountStoredQr($db,8,$guestId); deliveryAssert(false,'guest without scope leaked QR'); }
+catch (DomainException $e) { deliveryAssert($e->getMessage()==='TICKET_UNAVAILABLE','guest without order denied'); }
+$db->exec("UPDATE ticket_buyers SET status='active',email_verified_at=UTC_TIMESTAMP() WHERE id=8");
+$_SESSION = [];
+
 $first = $issuedCredentials[0];
 $badSeal = $first['token_encrypted'];
 $badSeal[40] = chr(ord($badSeal[40]) ^ 1);
