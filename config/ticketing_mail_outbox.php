@@ -80,7 +80,10 @@ function brvtal_ticket_mail_enqueue(
         }
         return (int)$row['id'];
     }
-    if (!$testing) {
+    // #1966: the public anti-abuse limit protects user-triggered mail. Tickets and refunds
+    // of a verified payment are queued only by the server and must never be dropped by it.
+    $paymentBacked = preg_match('/^order:[1-9][0-9]*:(payment_approved|refund)$/D', $key) === 1;
+    if (!$testing && !$paymentBacked) {
         $rate = brvtal_public_abuse_mail_limit($recipient);
         if (!$rate['allowed']) {
             throw new DomainException('MAIL_RATE_LIMITED');
