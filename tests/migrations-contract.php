@@ -318,6 +318,39 @@ $specifications = brvtalMigrationProofSpecifications();
 // allowed by reconciliation only for its exact audited blob and untouched schema.
 $posName = 'migration_ticketing_pos_02.sql';
 $posSql = (string)file_get_contents(__DIR__ . '/../database/' . $posName);
+// Handoff #1979: the owner of the additive notes migration keeps its DDL;
+ // this repository-wide proof is conditional on that file being present.
+$notesMigration = 'migration_ticketing_order_notes_01.sql';
+if (is_file(__DIR__ . '/../database/' . $notesMigration)) {
+    $notesProof = array_merge(
+        brvtalMigrationObjectRequirements('ticket_order_notes',
+            ['id','order_id','actor_admin_id','note_text','created_at_utc'],
+            ['PRIMARY','idx_ticket_order_note_history'], true),
+        brvtalMigrationObjectRequirements('ticket_order_action_requests',
+            ['id','order_id','actor_admin_id','action','request_key_hash',
+             'request_hash','status','mail_outbox_id','note_id','created_at_utc'],
+            ['PRIMARY','uq_ticket_order_action_request','idx_ticket_order_action_history'], true)
+    );
+    migrations_assert(($specifications[$notesMigration] ?? null) === $notesProof,
+        'order notes and action requests must have complete structural proof');
+}
+$unorderedNotes = [
+    ['migration' => $notesMigration, 'action' => 'apply'],
+    ['migration' => 'migration_buyer_auth_tokens_01.sql', 'action' => 'apply'],
+    ['migration' => 'migration_ticketing_orders_01.sql', 'action' => 'apply'],
+    ['migration' => 'migration_ticketing_entries_01.sql', 'action' => 'apply'],
+];
+$orderedNotes = brvtalMigrationOrderDependencyActions($unorderedNotes);
+migrations_assert(
+    array_column($orderedNotes, 'migration') === [
+        'migration_ticketing_orders_01.sql',
+        $notesMigration,
+        'migration_buyer_auth_tokens_01.sql',
+        'migration_ticketing_entries_01.sql'
+    ],
+    'T03 must precede order notes FK without changing other migration order'
+);
+
 $posRequirements = [
     'column-unsigned-bigint-nullable:ticket_issue_outbox.payment_attempt_id',
     "column-type:ticket_pos_sales.method=enum('cash','transfer','wompi_qr','terminal')",
