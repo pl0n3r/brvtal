@@ -1,9 +1,79 @@
 import {test, expect} from '@playwright/test';
 import {readFileSync, writeFileSync, mkdirSync} from 'node:fs';
-import {execFileSync} from 'node:child_process';
+// A deterministic, versioned baseline avoids shallow-checkout failures in CI.
 // #1964 (A): Cupones uses pickers, Spanish discount types and Bogotá time.
 const source=readFileSync('discadmin/ticketing-promos.js','utf8');
 const css=readFileSync('discadmin/ticketing.css','utf8');
+// Frozen source of main@16280dbe2cdb538ca8e0292638f893b426190b9a:discadmin/ticketing-promos.js
+// (Git blob 454927d4e987c578d29a141d64c64b2d73da6bf8). The screenshot is a synthetic browser render,
+// not a historical screenshot of production.
+const BEFORE_PROMOS_SOURCE = [
+  "/* T23: synthetic-only Promos in the existing DISCADMIN workspace. */\nexport function",
+  " mount(panel) {\n  const root = document.createElement('section');\n  const title = doc",
+  "ument.createElement('h3'); title.textContent = 'Promos · pruebas';\n  const explanatio",
+  "n = document.createElement('p');\n  explanation.textContent = 'Configuración sintética",
+  ": no activa descuentos, pagos ni ventas reales.';\n  const form = document.createEleme",
+  "nt('form');\n  const controls = [\n    ['event_id','Evento ID','number'], ['ticket_type",
+  "_id','Tipo ID (opcional)','number'],\n    ['code','Cupón (solo se muestra al crearlo)'",
+  ",'text'],\n    ['kind','Modalidad: fixed, percent, group3, group5','text'],\n    ['valu",
+  "e_cop','Valor COP o porcentaje entero','number'],\n    ['starts_at_utc','Inicio UTC','",
+  "datetime-local'],\n    ['ends_at_utc','Fin UTC','datetime-local'],\n    ['max_uses','Cu",
+  "po total','number'], ['buyer_limit','Cupo por comprador','number'],\n    ['campaign_ke",
+  "y','Campaña (atribución)','text']\n  ];\n  const inputs = {};\n  for (const [key, label,",
+  " type] of controls) {\n    const wrap = document.createElement('label'); wrap.textCont",
+  "ent = label + ' ';\n    const input = document.createElement('input');\n    input.name ",
+  "= key; input.type = type; input.style.maxWidth = '100%';\n    input.required = key!=='",
+  "ticket_type_id' && key!=='campaign_key';\n    if (type==='number' && key!=='ticket_typ",
+  "e_id') input.min = '1';\n    wrap.append(input); form.append(wrap); inputs[key] = inpu",
+  "t;\n  }\n  const actions = document.createElement('div');\n  for (const [name,label] of ",
+  "[['create','Crear cupón'],['refresh','Consultar reglas']]) {\n    const button = docum",
+  "ent.createElement('button');\n    button.type = 'button'; button.dataset.promoAction =",
+  " name;\n    button.textContent = label; actions.append(button);\n  }\n  const status = d",
+  "ocument.createElement('p'); status.setAttribute('role','status');\n  status.setAttribu",
+  "te('aria-live','polite');\n  const list = document.createElement('ul'); list.dataset.p",
+  "romoRules = '';\n  let eventRevision = 0;\n  inputs.event_id.addEventListener('input', ",
+  "() => {\n    eventRevision++;\n    list.replaceChildren();\n  });\n  const utc = value =>",
+  " value.replace('T',' ') + (value.length===16?':00':'');\n  async function request(body",
+  ", eventId = inputs.event_id.value) {\n    const response = await fetch('/api/ticketing",
+  "/admin-promos.php'+\n      (body?'':'?event_id='+encodeURIComponent(eventId)), {\n     ",
+  " method:body?'POST':'GET', credentials:'same-origin',cache:'no-store',\n      headers:",
+  "body?{'Content-Type':'application/json',\n        'X-CSRF-Token':String(window.csrf ||",
+  " '')}:{},\n      ...(body?{body:JSON.stringify(body)}:{})\n    });\n    const payload = ",
+  "await response.json();\n    if (!response.ok || !payload.ok) throw new Error(\n      re",
+  "sponse.status===403?'Sin permiso':response.status===423?\n      'Solo disponible en pr",
+  "uebas sintéticas':'Operación no disponible');\n    return payload;\n  }\n  async functio",
+  "n refresh() {\n    const eventId = inputs.event_id.value;\n    const revision = eventRe",
+  "vision;\n    const data = await request(null, eventId);\n    if (inputs.event_id.value ",
+  "!== eventId || eventRevision !== revision) return;\n    list.replaceChildren();\n    fo",
+  "r (const rule of data.rules || []) {\n      const item = document.createElement('li');",
+  "\n      item.textContent = 'Regla #'+rule.id+' · '+rule.kind+' · '+\n        rule.uses_",
+  "count+'/'+rule.max_uses+' usos · '+\n        (Number(rule.active)===1?'Activa':'Inacti",
+  "va')+' · '+rule.campaign_key;\n      if (Number(rule.active)===1) {\n        const disa",
+  "ble = document.createElement('button');\n        disable.type = 'button'; disable.text",
+  "Content = 'Desactivar';\n        disable.addEventListener('click', async () => {\n     ",
+  "     if (inputs.event_id.value !== eventId || eventRevision !== revision) return;\n   ",
+  "       disable.disabled=true;\n          try { await request({action:'deactivate',id:N",
+  "umber(rule.id)});\n            if (inputs.event_id.value !== eventId || eventRevision ",
+  "!== revision) return;\n            status.textContent='Desactivada sin cambiar ventas ",
+  "anteriores.';\n            await refresh();\n          } catch (error) { status.textCon",
+  "tent=error.message; disable.disabled=false; }\n        });\n        item.append(disable",
+  ");\n      }\n      list.append(item);\n    }\n  }\n  actions.addEventListener('click', asy",
+  "nc event => {\n    const action = event.target.closest('[data-promo-action]')?.dataset",
+  ".promoAction;\n    if (!action) return;\n    const button = event.target; button.disabl",
+  "ed=true; status.textContent='Procesando…';\n    try {\n      if (action==='create') {\n ",
+  "       const id = key => Number(inputs[key].value);\n        const code=inputs.code.va",
+  "lue;\n        await request({action:'create',event_id:id('event_id'),\n          ticket",
+  "_type_id:inputs.ticket_type_id.value?id('ticket_type_id'):null,\n          code,kind:i",
+  "nputs.kind.value,value_cop:id('value_cop'),\n          starts_at_utc:utc(inputs.starts",
+  "_at_utc.value),\n          ends_at_utc:utc(inputs.ends_at_utc.value),\n          max_us",
+  "es:id('max_uses'),buyer_limit:id('buyer_limit'),\n          campaign_key:inputs.campai",
+  "gn_key.value});\n        inputs.code.value=''; // never retain a plaintext coupon.\n   ",
+  "     status.textContent='Cupón creado solo en ambiente sintético.';\n      } else { st",
+  "atus.textContent='Reglas consultadas.'; }\n      await refresh();\n    } catch (error) ",
+  "{ status.textContent=error.message; }\n    finally { button.disabled=false; }\n  });\n  ",
+  "root.append(title,explanation,form,actions,status,list);\n  panel.replaceChildren(root",
+  ");\n  return () => root.remove();\n}\n"
+].join('');
 const catalog={ok:true,events:[
   {id:6,title:'Genesis',date:'2026-12-04 21:00:00',ticket_types:[{id:11,name:'Preventa'},{id:12,name:'VIP'}]},
   {id:7,title:'Otra noche',date:null,ticket_types:[]}]};
@@ -101,7 +171,7 @@ test('Cupones: un campo vacío se marca y no se envía nada',async({page})=>{
 });
 
 test('Cupones: capturas antes/después a 390 y 1440',async({page},testInfo)=>{
-  const before=execFileSync('git',['show','16280dbe2cdb538ca8e0292638f893b426190b9a:discadmin/ticketing-promos.js'],{encoding:'utf8'});
+  const before=BEFORE_PROMOS_SOURCE;
   for (const [label,src] of [['antes',before],['despues',source]]) {
     for (const [width,height] of [[390,844],[1440,900]]) {
       await page.setViewportSize({width,height});
