@@ -163,4 +163,68 @@ $db->prepare("UPDATE ticket_entry_credentials SET status='revoked',revoked_at_ut
 t09Reject(fn()=>brvtal_ticket_issue_qr_payload($db,8,$public,$token,$future),'TICKET_UNAVAILABLE');
 $db->exec("UPDATE ticket_orders SET status='refunded' WHERE id=100");
 t09Reject(fn()=>brvtal_ticket_issue_qr_payload($db,8,$ids[1],$raws[1],$future),'TICKET_UNAVAILABLE');
-echo "T09 idempotent issuance, paid gates, CSPRNG tokens, private QR and refunds passed.\n";
+
+/** #1995: disposable MariaDB ensures the POS worker never mints Wompi evidence. */
+$db->exec("ALTER TABLE ticket_orders
+    ADD COLUMN total_cop BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    ADD COLUMN currency CHAR(3) NOT NULL DEFAULT 'COP'");
+$db->exec("ALTER TABLE ticket_order_items
+    ADD COLUMN unit_price_cop BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    ADD COLUMN subtotal_cop BIGINT UNSIGNED NOT NULL DEFAULT 0");
+$db->exec("CREATE TABLE ticket_pos_shifts (id BIGINT UNSIGNED PRIMARY KEY,
+    event_id INT UNSIGNED NOT NULL,operator_admin_id INT UNSIGNED NOT NULL) ENGINE=InnoDB");
+$db->exec("CREATE TABLE ticket_pos_sales (id BIGINT UNSIGNED PRIMARY KEY,
+    shift_id BIGINT UNSIGNED NOT NULL,event_id INT UNSIGNED NOT NULL,
+    operator_admin_id INT UNSIGNED NOT NULL,order_id BIGINT UNSIGNED NULL,
+    ticket_type_id INT UNSIGNED NOT NULL,quantity INT UNSIGNED NOT NULL,
+    unit_price_cop BIGINT UNSIGNED NOT NULL,amount_cop BIGINT UNSIGNED NOT NULL,
+    status VARCHAR(24) NOT NULL,method VARCHAR(24) NOT NULL,
+    completed_at_utc DATETIME(6) NULL) ENGINE=InnoDB");
+$posDdl=(string)file_get_contents(__DIR__.'/../../database/migration_ticketing_pos_02.sql');
+t09(str_contains($posDdl,'payment_attempt_id BIGINT UNSIGNED NULL'),
+    'POS migration must preserve Wompi while allowing a NULL attempt');
+$posDdl=(string)preg_replace('/^\h*--[^\r\n]*$/m','',$posDdl);
+foreach(explode(';',$posDdl) as $statement) if(trim($statement)!=='') $db->exec($statement);
+$db->exec("INSERT INTO ticket_orders (id,event_id,buyer_id,status,total_cop,currency)
+    VALUES (105,1,8,'paid',5000,'COP'),(106,1,8,'paid',5000,'COP')");
+$db->exec("INSERT INTO ticket_order_items
+    (id,order_id,event_id,ticket_type_id,quantity,unit_price_cop,subtotal_cop)
+    VALUES (206,105,1,11,1,5000,5000),(207,106,1,11,1,5000,5000)");
+$db->exec("INSERT INTO ticket_pos_shifts(id,event_id,operator_admin_id) VALUES(1,1,7)");
+$db->exec("INSERT INTO ticket_pos_sales
+    (id,shift_id,event_id,operator_admin_id,order_id,ticket_type_id,quantity,
+     unit_price_cop,amount_cop,status,method,completed_at_utc)
+    VALUES (1,1,1,7,105,11,1,5000,5000,'paid','cash',UTC_TIMESTAMP(6))");
+$db->beginTransaction();
+brvtal_ticket_pos_enqueue($db,105);
+brvtal_ticket_pos_enqueue($db,105);
+$db->commit();
+t09((int)$db->query('SELECT COUNT(*) FROM ticket_issue_outbox WHERE order_id=105')
+    ->fetchColumn()===1,'POS enqueued exactly once');
+t09($db->query('SELECT payment_attempt_id FROM ticket_issue_outbox WHERE order_id=105')
+    ->fetchColumn()===null,'POS outbox never fabricates a Wompi attempt');
+$job=(int)$db->query('SELECT id FROM ticket_issue_outbox WHERE order_id=105')
+    ->fetchColumn();
+$result=brvtal_ticket_issue_consume($db,$job);
+t09($result['state']==='issued' && count($result['tickets'])===1,
+    'trusted POS payment issues exactly one ticket with the same worker');
+$ticket=$result['tickets'][0];
+t09(brvtal_ticket_issue_consume($db,$job)['state']==='duplicate',
+    'POS worker replay never duplicates a credential');
+t09(brvtal_ticket_issue_qr_payload($db,8,$ticket['public_id'],$ticket['token'],$future)
+    ==='BRVTAL:T1:'.$ticket['public_id'].':'.$ticket['token'],
+    'POS QR follows existing private buyer authentication');
+$db->beginTransaction();
+t09Reject(fn()=>brvtal_ticket_pos_enqueue($db,106),'POS_ISSUE_UNVERIFIED');
+$db->rollBack();
+t09((int)$db->query('SELECT COUNT(*) FROM ticket_issue_outbox WHERE order_id=106')
+    ->fetchColumn()===0,'unverified POS may not enqueue');
+$db->exec("INSERT INTO ticket_issue_outbox(order_id,payment_attempt_id) VALUES(106,NULL)");
+$fake=(int)$db->query('SELECT id FROM ticket_issue_outbox WHERE order_id=106')
+    ->fetchColumn();
+t09Reject(fn()=>brvtal_ticket_issue_consume($db,$fake),'ISSUE_UNVERIFIED_PAYMENT');
+$db->exec("UPDATE ticket_orders SET status='refunded' WHERE id=105");
+t09Reject(fn()=>brvtal_ticket_issue_qr_payload($db,8,$ticket['public_id'],
+    $ticket['token'],$future),'TICKET_UNAVAILABLE');
+echo "T09 + #1995 POS worker, QR, idempotency and forged evidence rejected.\n";
+
