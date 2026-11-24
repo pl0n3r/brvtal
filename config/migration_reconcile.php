@@ -468,6 +468,15 @@ function brvtalMigrationProofSpecifications(): array
                 ['uq_recovery_request','idx_recovery_frequency','idx_recovery_reporting'], true)
         );
     }
+    // #1995: exact, isolated proof for the nullable POS handoff and a safe
+    // append-only terminal method. All checks are absent on the old schema.
+    if (is_file(__DIR__ . '/../database/migration_ticketing_pos_02.sql')) {
+        $specifications['migration_ticketing_pos_02.sql'] = [
+            'column-unsigned-bigint-nullable:ticket_issue_outbox.payment_attempt_id',
+            "column-type:ticket_pos_sales.method=enum('cash','transfer','wompi_qr','terminal')",
+            'fk-reference:ticket_issue_outbox.fk_ticket_issue_outbox_pos_attempt=payment_attempt_id:ticket_payment_attempts.id',
+        ];
+    }
     return $specifications;
 }
 
@@ -482,6 +491,26 @@ function brvtalMigrationDurationColumnMatches(mixed $row): bool
 
 function brvtalMigrationProbeRequirement(PDO $pdo, string $requirement): bool
 {
+    if (preg_match('/^column-unsigned-bigint-nullable:([A-Za-z0-9_]+)\.([A-Za-z0-9_]+)$/', $requirement, $match)) {
+        $statement = $pdo->prepare(
+            'SELECT DATA_TYPE,COLUMN_TYPE,IS_NULLABLE FROM information_schema.COLUMNS '
+            . 'WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?'
+        );
+        $statement->execute([$match[1], $match[2]]);
+        $row = $statement->fetch(PDO::FETCH_ASSOC);
+        return is_array($row) && strtolower((string)$row['DATA_TYPE']) === 'bigint'
+            && preg_match('/\bunsigned\b/i', (string)$row['COLUMN_TYPE']) === 1
+            && strtoupper((string)$row['IS_NULLABLE']) === 'YES';
+    }
+    if (preg_match('/^fk-reference:([A-Za-z0-9_]+)\.([A-Za-z0-9_]+)=([A-Za-z0-9_]+):([A-Za-z0-9_]+)\.([A-Za-z0-9_]+)$/', $requirement, $match)) {
+        $statement = $pdo->prepare(
+            'SELECT COUNT(*) FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=DATABASE() '
+            . 'AND TABLE_NAME=? AND CONSTRAINT_NAME=? AND COLUMN_NAME=? '
+            . 'AND REFERENCED_TABLE_NAME=? AND REFERENCED_COLUMN_NAME=?'
+        );
+        $statement->execute([$match[1], $match[2], $match[3], $match[4], $match[5]]);
+        return (int)$statement->fetchColumn() === 1;
+    }
     if (preg_match('/^column-unsigned-nullable:([A-Za-z0-9_]+)\\.([A-Za-z0-9_]+)$/', $requirement, $match)) {
         $statement = $pdo->prepare(
             'SELECT DATA_TYPE, COLUMN_TYPE, IS_NULLABLE FROM information_schema.COLUMNS '
@@ -609,6 +638,21 @@ function brvtalMigrationAssertReconciliationSql(
     $mediaGuard = 'migration_zz_media_reference_guard_01.sql';
     $allowCanonicalBootstrap = $migrationName === $mediaGuard
         && brvtalMigrationProofIsFullyAbsent($proof);
+    // The only POS exception is the reviewed, immutable blob: it preserves
+    // all existing Wompi FK values, widens BIGINT UNSIGNED to nullable and
+    // appends an ENUM option without changing existing numeric ordinals.
+    // Reconciliation may apply it only on a fully untouched pre-migration schema.
+    if ($migrationName === 'migration_ticketing_pos_02.sql') {
+        $expectedBlob = '1f00461a4de7b43557c951f8ff9f5025ee7c6b58';
+        $actualBlob = sha1('blob ' . strlen($sql) . "\0" . $sql);
+        if (!hash_equals($expectedBlob, $actualBlob)) {
+            throw new RuntimeException('MIGRATION_POS_HANDOFF_BLOB_MISMATCH');
+        }
+        if (!brvtalMigrationProofIsFullyAbsent($proof)) {
+            throw new RuntimeException('MIGRATION_NON_ADDITIVE_SQL');
+        }
+        return;
+    }
     brvtalMigrationAssertAdditiveSql($sql, $allowCanonicalBootstrap);
 }
 
