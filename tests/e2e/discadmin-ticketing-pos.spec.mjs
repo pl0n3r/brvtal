@@ -38,7 +38,8 @@ async function setup(page, handler, rows=[], openCash=true, catalogMode='api') {
   await page.route('**/discadmin/ticketing-pos.js',route=>route.fulfill({
     contentType:'text/javascript',body:pos}));
   await page.route('**/discadmin/ticketing-finance.php',route=>route.fulfill({
-    contentType:'text/html',body:catalogMode==='embedded' ? fragment.replace(/<script type="application\/json" data-finance-catalog>[\s\S]*?<\/script>/,\n      '<script type="application/json" data-finance-catalog>'+JSON.stringify(catalog)+'</script>') : fragment}));
+    contentType:'text/html',body:catalogMode==='embedded' ? fragment.replace(/<script type="application\/json" data-finance-catalog>[\s\S]*?<\/script>/,
+      '<script type="application/json" data-finance-catalog>'+JSON.stringify(catalog)+'</script>') : fragment}));
   await page.route('**/discadmin/ticketing-orders.php',route=>route.fulfill({
     contentType:'text/html',body:'<section data-ticketing-records data-ticketing-csrf="'+ 'a'.repeat(64) +'"></section>'}));
   await page.route('**/api/ticketing/admin-promos.php?catalog=1',route=>route.fulfill({
