@@ -9,7 +9,7 @@ for (const width of [390,1440]) {
       '<main><div data-ticketing-panel></div></main><script>window.csrf="synthetic-token";</script></html>'}));
     await page.route('**/discadmin/ticketing-stages.js',r=>r.fulfill({contentType:'text/javascript',body:js}));
     let denied = true, posts = 0, active = 'early_bird';
-    await page.route('**/api/ticketing/admin-stages.php',r=>{
+    await page.route('**/api/ticketing/admin-stages.php*',r=>{
       const isPost = r.request().method() === 'POST';
       if (isPost && denied) return r.fulfill({status:403,contentType:'application/json',body:'{"ok":false,"error":"FORBIDDEN"}'});
       if (isPost) {

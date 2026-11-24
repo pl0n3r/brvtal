@@ -159,26 +159,26 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
     stageAssert($first['code']==='early_bird','first checkout receives active stage');
     $worker=tempnam(sys_get_temp_dir(),'brvtal_t22_');
     stageAssert(is_string($worker),'temporary concurrency worker');
-    $code=<<<'WORKER'
-<?php
-declare(strict_types=1);
-require_once $argv[1];
-$db=new PDO('mysql:host='.getenv('BRVTAL_TEST_DB_HOST').';port='.
-    getenv('BRVTAL_TEST_DB_PORT').';dbname='.getenv('BRVTAL_WORKER_DB').';charset=utf8mb4',
-    getenv('BRVTAL_TEST_DB_USER'),getenv('BRVTAL_TEST_DB_PASS'),
-    [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_EMULATE_PREPARES=>false]);
-$db->exec('SET SESSION innodb_lock_wait_timeout=5');
-$db->beginTransaction();
-echo "READY\n";flush();
-try {
-    $quote=brvtal_public_ticket_checkout_stage_quote($db,1,10,1,
-      new DateTimeImmutable('2026-12-01 09:01:00',new DateTimeZone('America/Bogota')));
-    echo $quote['code']."\n";
-} catch (DomainException $e) {
-    echo $e->getMessage()."\n";
-}
-$db->rollBack();
-WORKER;
+    $code=<<<'WORKER_WRAP'
+    <?php
+    declare(strict_types=1);
+    require_once $argv[1];
+    $db=new PDO('mysql:host='.getenv('BRVTAL_TEST_DB_HOST').';port='.
+        getenv('BRVTAL_TEST_DB_PORT').';dbname='.getenv('BRVTAL_WORKER_DB').';charset=utf8mb4',
+        getenv('BRVTAL_TEST_DB_USER'),getenv('BRVTAL_TEST_DB_PASS'),
+        [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_EMULATE_PREPARES=>false]);
+    $db->exec('SET SESSION innodb_lock_wait_timeout=5');
+    $db->beginTransaction();
+    echo "READY\n";flush();
+    try {
+        $quote=brvtal_public_ticket_checkout_stage_quote($db,1,10,1,
+          new DateTimeImmutable('2026-12-01 09:01:00',new DateTimeZone('America/Bogota')));
+        echo $quote['code']."\n";
+    } catch (DomainException $e) {
+        echo $e->getMessage()."\n";
+    }
+    $db->rollBack();
+    WORKER_WRAP;
     file_put_contents($worker,$code);
     $env=array_merge($_ENV,[
       'BRVTAL_INTEGRATION_TESTS'=>'0',
