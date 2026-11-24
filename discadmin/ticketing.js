@@ -119,20 +119,27 @@ window.BRVTALTicketing = (() => {
         if (!panel.isConnected || panel.getAttribute('aria-labelledby') !== active.id) return;
         // T21 shares the single finance workspace. The API still enforces staff capability.
         if (['superadmin','root','owner','platform_owner'].includes(root.dataset.ticketingRole)) {
-          const openRefunds = element('button', 'Gestionar devoluciones · pruebas', 'btn ghost');
+          const openRefunds = element('button', 'Devoluciones', 'tk-button');
           openRefunds.type = 'button';
+          openRefunds.dataset.financeOpenRefunds = '';
+          openRefunds.setAttribute('aria-pressed','false');
           openRefunds.addEventListener('click', async () => {
             openRefunds.disabled = true;
+            const outlet = panel.querySelector('[data-finance-tool-panel]') || panel;
             try {
               const refunds = await import('/discadmin/ticketing-refunds.js');
-              if (panel.isConnected && panel.getAttribute('aria-labelledby') === active.id)
-                await refunds.mount(panel);
+              if (panel.isConnected && panel.getAttribute('aria-labelledby') === active.id) {
+                if (outlet !== panel) outlet.replaceChildren();
+                await refunds.mount(outlet);
+                openRefunds.setAttribute('aria-pressed','true');
+                panel.querySelector('[data-finance-open-pos]')?.setAttribute('aria-pressed','false');
+              }
             } catch {
               if (panel.isConnected && panel.getAttribute('aria-labelledby') === active.id)
-                panel.replaceChildren(element('p', 'Devoluciones no disponibles.', 'ticketing-error'));
+                outlet.append(element('p','Devoluciones no disponibles.','ticketing-error'));
             } finally { openRefunds.disabled = false; }
           });
-          panel.append(openRefunds);
+          (panel.querySelector('[data-finance-actions]') || panel).append(openRefunds);
         }
       }).catch(() => {
         if (panel.isConnected && panel.getAttribute('aria-labelledby') === active.id)

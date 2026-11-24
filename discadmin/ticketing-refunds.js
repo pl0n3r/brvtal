@@ -5,12 +5,14 @@ export async function mount(panel, csrf = '') {
   const api='/api/ticketing/admin-refunds.php';
   const el=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=String(text);return n;};
   const root=el('section');
-  root.setAttribute('aria-label','Gestión de devoluciones');
-  const title=el('h2','Devoluciones · entorno de pruebas');
-  const status=el('p','Cargando solicitudes…');
+  root.setAttribute('aria-label','Gestión de devoluciones');root.className='tk-refunds';
+  const title=el('h3','Devoluciones');
+  const status=el('p','Cargando solicitudes…');status.className='tk-status';
   status.setAttribute('role','status');
   const listing=el('div');
-  root.append(title,status,listing);
+  const note=el('p','Consulta y gestión interna. La aprobación no envía dinero; el proveedor de cobros requiere verificación aparte.');
+  note.className='ticketing-empty';
+  root.append(title,note,status,listing);
   panel.replaceChildren(root);
   const live=()=>root.isConnected;
   async function refresh() {
@@ -23,19 +25,21 @@ export async function mount(panel, csrf = '') {
       if (!csrfToken && typeof result.csrf === 'string' && /^[a-f0-9]{64}$/.test(result.csrf))
         csrfToken = result.csrf;
       listing.replaceChildren();
-      if(!result.data.length)listing.append(el('p','Sin solicitudes en el entorno sintético.'));
+      if(!result.data.length)listing.append(el('p','No hay solicitudes para gestionar.'));
       for(const request of result.data) {
-        const item=el('article');
+        const item=el('article');item.className='tk-step';
         const state=String(request.status||'desconocido');
-        item.append(el('h3','Solicitud #'+request.id),el('p','Evento '+request.event_id+
-          ' · Pedido '+request.order_id+' · '+request.amount_cop+' COP · '+state));
+        const statusLabel={requested:'Solicitada',approved:'Aprobada',rejected:'Rechazada',
+          refunded:'Registrada',cancelled:'Cancelada'}[state]||'En revisión';
+        item.append(el('h3','Solicitud '+request.id),el('p','Evento '+request.event_id+
+          ' · Pedido '+request.order_id+' · '+request.amount_cop+' COP · '+statusLabel));
         if(state==='approved') {
-          const dispatch=el('button','Procesar reembolso sandbox');
+          const dispatch=el('button','Registrar devolución de demostración');dispatch.className='tk-button';
           dispatch.type='button';
           const message=el('p');message.setAttribute('role','status');
           dispatch.addEventListener('click',async()=>{
             if (!csrfToken) {message.textContent='Token CSRF no disponible.';return;}
-            dispatch.disabled=true;message.textContent='Consultando proveedor sandbox…';
+            dispatch.disabled=true;message.textContent='Consultando proveedor de demostración…';
             try {
               const response=await fetch(api,{method:'POST',credentials:'same-origin',cache:'no-store',
                 headers:{'Content-Type':'application/json','X-CSRF-Token':csrfToken},
@@ -45,7 +49,7 @@ export async function mount(panel, csrf = '') {
               if (live()) {
                 await refresh();
                 status.textContent=body.data.status==='refunded'
-                  ? 'Confirmación sandbox registrada y entradas revocadas.'
+                  ? 'Comprobante de demostración registrado y boletas invalidadas.'
                   : 'Estado de proveedor pendiente de verificación; no reintentar el envío.';
               }
             } catch (_) {
@@ -57,8 +61,8 @@ export async function mount(panel, csrf = '') {
         if(state==='requested') {
           const note=el('input');note.type='text';note.maxLength=220;
           note.setAttribute('aria-label','Motivo de gestión #'+request.id);
-          const approve=el('button','Aprobar');approve.type='button';
-          const reject=el('button','Rechazar');reject.type='button';
+          const approve=el('button','Aprobar');approve.type='button';approve.className='tk-button';
+          const reject=el('button','Rechazar');reject.type='button';reject.className='tk-button';
           const message=el('p');message.setAttribute('role','status');
           for(const button of [approve,reject])button.addEventListener('click',async()=>{
             const action=button===approve?'approve':'reject';
@@ -77,11 +81,12 @@ export async function mount(panel, csrf = '') {
             }catch(_) {if(live())message.textContent='No se confirmó el cambio. Comprueba el estado antes de reintentar.';}
             finally{approve.disabled=false;reject.disabled=false;}
           });
-          item.append(note,approve,reject,message);
+          const noteField=el('div');noteField.className='tk-field';noteField.append(note);
+          item.append(noteField,approve,reject,message);
         }
         listing.append(item);
       }
-      status.textContent='Solicitudes sintéticas cargadas. Aprobar no confirma ni ejecuta pagos.';
+      status.textContent='Solicitudes cargadas. Aprobar no confirma ni ejecuta pagos.';
     }catch(_){if(live())status.textContent='Devoluciones no disponibles en este entorno.';}
   }
   await refresh();

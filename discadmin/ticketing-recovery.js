@@ -14,14 +14,18 @@ if (root) {
     try {
       const response = await fetch('/api/ticketing/admin-recovery.php',
         {credentials:'same-origin',cache:'no-store'});
-      if (response.status === 423) { say('Sin habilitación para usar datos reales. Solo pruebas sintéticas.'); return; }
+      if (response.status === 423) { say('Sin habilitación para usar datos reales. No se envió ningún mensaje.'); return; }
       if (!response.ok) throw new Error('NO_ACCESS');
       const payload = await response.json();
       rows.replaceChildren();
       for (const item of payload.data || []) {
         const tr = document.createElement('tr');
-        for (const value of [item.event_id,item.campaign_key,item.stage,item.previews]) {
+        const stage={cart:'Carrito',checkout:'Finalizando compra',payment:'Pago'}[item.stage]||'En revisión';
+        const values=['Evento '+item.event_id,item.campaign_key,stage,item.previews];
+        const names=['Evento','Campaña','Etapa','Vistas previas'];
+        for (const [index,value] of values.entries()) {
           const td = document.createElement('td');
+          td.dataset.label=names[index];
           td.textContent = String(value);
           tr.appendChild(td);
         }
@@ -44,7 +48,7 @@ if (root) {
     }
     prepared = {order_id:order,campaign,idempotency_key:crypto.randomUUID()};
     confirm.hidden = false;
-    say('Publicidad simulada. La preparación NO envía correos ni restaura reservas.');
+    say('Vista previa preparada. No envía correos ni restaura reservas.');
     yes.focus();
   });
   no.addEventListener('click', () => { reset(); say('Cancelado sin envíos.'); form.querySelector('button').focus(); });
