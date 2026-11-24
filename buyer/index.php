@@ -225,7 +225,7 @@
     });
     return form;
   }
-  function resetQr(){qrRequest++;ticket='';payload='';qr.hidden=true;$('qr-form').hidden=false;$('token').value='';$('qr-output').replaceChildren();$('qr-output').hidden=true;$('download').hidden=true;$('qr-feedback').textContent='';}
+  function resetQr(){qrRequest++;$('qr-form').querySelector('button').disabled=false;ticket='';payload='';qr.hidden=true;$('qr-form').hidden=false;$('token').value='';$('qr-output').replaceChildren();$('qr-output').hidden=true;$('download').hidden=true;$('qr-feedback').textContent='';}
   function showQr(id, stored=false){resetQr();ticket=id;qr.hidden=false;if(stored){$('qr-form').hidden=true;qr.setAttribute('tabindex','-1');qr.focus();loadQr(true);}else $('token').focus();}
   function card(order){
     const box=el('article'),title=el('h2',order.event_title||'Evento');box.className='account-order';box.append(title,

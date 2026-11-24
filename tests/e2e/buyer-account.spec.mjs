@@ -170,3 +170,42 @@ test('stale QR response cannot replace a newer selected ticket', async ({page}) 
   expect(await page.locator('#qr-output').innerHTML()).toBe(freshSvg);
   await expect(page.locator('#qr-feedback')).toContainText('QR autorizado');
 });
+
+test('switching from pending stored QR to legacy ticket restores the manual submit', async ({page}) => {
+  const storedId='abcdefabcdefabcdefabcdefabcdefab';
+  const legacyId='eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
+  const two={...paid,items:[
+    {...paid.items[0],ticket_id:storedId,qr_stored:true},
+    {...paid.items[0],ticket_id:legacyId,qr_stored:false}
+  ]};
+  let releaseStored;
+  const pending=new Promise(resolve=>{releaseStored=resolve;});
+  await page.route(url,route=>route.fulfill({contentType:'text/html',body:html}));
+  await page.route('**/api/buyer/auth.php',route=>route.fulfill({contentType:'application/json',
+    body:JSON.stringify({ok:true,authenticated:true,csrf:'fake-csrf'})}));
+  const sent=[];
+  await page.route('**/api/buyer/account.php**',async route=>{
+    if(route.request().method()==='GET')return route.fulfill({contentType:'application/json',
+      body:JSON.stringify({ok:true,data:{orders:[two],has_more:false,page:0}})});
+    const body=route.request().postDataJSON();sent.push(body);
+    if(body.ticket_id===storedId)await pending;
+    return route.fulfill({contentType:'application/json',
+      body:JSON.stringify({ok:true,qr:'BRVTAL:T1:'+body.ticket_id+':'+'A'.repeat(43)})});
+  });
+  await page.goto(url);
+  const buttons=page.getByRole('button',{name:'Ver QR'});
+  await expect(buttons).toHaveCount(2);
+  await buttons.nth(0).click();
+  await buttons.nth(1).click();
+  const submit=page.getByRole('button',{name:'Mostrar QR'});
+  await expect(submit).toBeEnabled();
+  await page.getByLabel('Credencial original').fill('A'.repeat(43));
+  await submit.click();
+  await expect(page.locator('#qr-output svg')).toBeVisible();
+  const expectedSvg=await page.locator('#qr-output').innerHTML();
+  releaseStored();
+  await page.waitForTimeout(100);
+  expect(await page.locator('#qr-output').innerHTML()).toBe(expectedSvg);
+  expect(sent.some(x=>x.ticket_id===legacyId&&x.action==='qr')).toBe(true);
+  await expect(page.locator('#qr-feedback')).toContainText('QR autorizado');
+});
