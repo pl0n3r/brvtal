@@ -1,4 +1,7 @@
 import {test,expect} from '@playwright/test';
+import {mkdirSync, writeFileSync} from 'node:fs';
+import {join} from 'node:path';
+const visualDir = process.env.BRVTAL_T22_VISUAL_EVIDENCE || '';
 import {readFileSync} from 'node:fs';
 const js = readFileSync('discadmin/ticketing-stages.js','utf8');
 for (const width of [390,1440]) {
@@ -30,7 +33,12 @@ for (const width of [390,1440]) {
         ()=>document.body.dataset.closed='true',{eventId:6,typeId:3});
     });
     await expect(page.getByText('Etapa vigente: Early Bird')).toBeVisible();
-    await testInfo.attach('before-' + width,{body:await page.screenshot(),contentType:'image/png'});
+    const beforeImage = await page.screenshot({fullPage:true});
+    await testInfo.attach('before-' + width,{body:beforeImage,contentType:'image/png'});
+    if (visualDir) {
+      mkdirSync(visualDir,{recursive:true});
+      writeFileSync(join(visualDir,'stage-before-'+width+'.png'),beforeImage);
+    }
     await expect(page.getByText('Guardar cambia el precio de las próximas compras.',{exact:false})).toBeVisible();
     await page.getByLabel('Precio COP').fill('20000');
     await page.getByLabel('Cupo acumulado').fill('20');
@@ -48,7 +56,12 @@ for (const width of [390,1440]) {
     await expect(page.getByRole('status')).toContainText('Etapa activa guardada');
     await expect(page.getByText('Etapa vigente: Preventa')).toBeVisible();
     expect(posts).toBe(1);
-    await testInfo.attach('after-' + width,{body:await page.screenshot(),contentType:'image/png'});
+    const afterImage = await page.screenshot({fullPage:true});
+    await testInfo.attach('after-' + width,{body:afterImage,contentType:'image/png'});
+    if (visualDir) {
+      mkdirSync(visualDir,{recursive:true});
+      writeFileSync(join(visualDir,'stage-after-'+width+'.png'),afterImage);
+    }
     expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width+1);
     await page.getByRole('button',{name:'Guardar etapas activas y cerrar'}).click();
     await expect.poll(()=>page.evaluate(()=>document.body.dataset.closed)).toBe('true');
