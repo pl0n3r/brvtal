@@ -226,6 +226,137 @@ try {
     $GLOBALS['config']['ticketing']['mail']['from_name']="BRVTAL\nBcc:evil";
     mail_delivery_assert(brvtal_ticket_resend_send($deliveryJob,$headersRequest)['code']
         ==='invalid_configuration', 'invalid private sender config fails closed');
+
+    // #1984: real Wompi approval and real cancellation/expiry transitions,
+    // exercising an isolated MariaDB with no provider calls or real recipients.
+    require_once __DIR__ . '/../../config/ticketing_wompi_webhook.php';
+    require_once __DIR__ . '/../../config/ticketing_admin_actions.php';
+    require_once __DIR__ . '/../../config/ticketing_inventory.php';
+    $GLOBALS['config']['ticketing']['mail'] = [
+        'mode'=>'mock','testing'=>'1','privacy_approved'=>'1',
+        'admin_recipient'=>'admin@example.test',
+        'domain'=>'brvtal.invalid','from'=>'test@brvtal.invalid',
+    ];
+    $history=(string)file_get_contents(
+        __DIR__.'/../../database/migration_ticketing_mail_history_01.sql');
+    foreach (explode(';',(string)preg_replace('/^\h*--[^\r\n]*$/m','',$history)) as $sql) {
+        if (trim($sql)!=='') $db->exec($sql);
+    }
+    foreach ([
+        'CREATE TABLE events (id INT PRIMARY KEY,title VARCHAR(160) NOT NULL) ENGINE=InnoDB',
+        'CREATE TABLE ticket_buyers (id BIGINT PRIMARY KEY,email VARCHAR(190) NOT NULL) ENGINE=InnoDB',
+        'CREATE TABLE ticket_orders (id BIGINT PRIMARY KEY,event_id INT NOT NULL,
+            buyer_id BIGINT NOT NULL,status VARCHAR(16) NOT NULL,currency CHAR(3) NOT NULL,
+            total_cop BIGINT NOT NULL,expires_at_utc DATETIME(6) NULL,
+            updated_at_utc DATETIME(6) NULL) ENGINE=InnoDB',
+        'CREATE TABLE ticket_payment_attempts (id BIGINT PRIMARY KEY,order_id BIGINT NOT NULL,
+            provider VARCHAR(24),provider_reference VARCHAR(190),provider_transaction_id VARCHAR(190),
+            gross_amount_cop BIGINT,status VARCHAR(16),updated_at_utc DATETIME(6),
+            UNIQUE KEY uq_ref (provider,provider_reference)) ENGINE=InnoDB',
+        'CREATE TABLE ticket_payment_webhook_events (id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            attempt_id BIGINT,provider_transaction_id VARCHAR(190),event_checksum CHAR(64),
+            signed_status VARCHAR(16),event_timestamp BIGINT,
+            UNIQUE KEY uq_hook (attempt_id,event_checksum)) ENGINE=InnoDB',
+        'CREATE TABLE ticket_issue_outbox (order_id BIGINT PRIMARY KEY,payment_attempt_id BIGINT,
+            state VARCHAR(16) NOT NULL DEFAULT "pending") ENGINE=InnoDB',
+        'CREATE TABLE ticket_inventory_holds (id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            order_id BIGINT,status VARCHAR(16),expires_at_utc DATETIME(6)) ENGINE=InnoDB',
+        'CREATE TABLE ticket_order_action_requests (id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            order_id BIGINT,actor_admin_id BIGINT,action VARCHAR(32),request_key_hash CHAR(64),
+            request_hash CHAR(64),status VARCHAR(24),mail_outbox_id BIGINT,note_id BIGINT,
+            UNIQUE KEY uq_action (request_key_hash)) ENGINE=InnoDB',
+        'CREATE TABLE ticket_order_notes (id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            order_id BIGINT,actor_admin_id BIGINT,note_text VARCHAR(280)) ENGINE=InnoDB',
+    ] as $ddl) $db->exec($ddl);
+    $db->exec("INSERT INTO events VALUES (6,'Noche de prueba')");
+    $db->exec("INSERT INTO ticket_buyers VALUES (3,'buyer@example.test')");
+    $db->exec("INSERT INTO ticket_orders VALUES
+      (701,6,3,'pending','COP',50000,NULL,NULL),
+      (702,6,3,'pending','COP',50000,NULL,NULL),
+      (703,6,3,'pending','COP',50000,'2000-01-01 00:00:00',NULL),
+      (704,6,3,'pending','COP',50000,NULL,NULL),
+      (705,6,3,'pending','COP',50000,NULL,NULL),
+      (706,6,3,'pending','COP',50000,'2000-01-01 00:00:00',NULL)");
+    $reference='BW7-701-CARD-'.str_repeat('b',24);
+    $db->prepare("INSERT INTO ticket_payment_attempts
+      VALUES (1,701,'wompi',?,NULL,50000,'created',NULL)")->execute([$reference]);
+    $verified=['id'=>'synthetic-tx-1984','reference'=>$reference,
+        'status'=>'APPROVED','currency'=>'COP','amount_in_cents'=>5000000,
+        '_event_checksum'=>str_repeat('a',64),'_event_timestamp'=>time()];
+    $apply=static function(array $event)use($db):string {
+        $db->beginTransaction();
+        try {
+            $value=brvtal_wompi_hook_apply($db,$event,$event);
+            $db->commit();
+            return $value;
+        } catch (Throwable $error) {
+            if ($db->inTransaction()) $db->rollBack();
+            throw $error;
+        }
+    };
+    mail_delivery_assert($apply($verified)==='approved','verified payment succeeds');
+    mail_delivery_assert($apply($verified)==='duplicate','same payment retry');
+    $countMail=static function(string $kind)use($db):int {
+        $q=$db->prepare('SELECT COUNT(*) FROM ticket_mail_outbox WHERE template_key=?');
+        $q->execute([$kind]);
+        return (int)$q->fetchColumn();
+    };
+    mail_delivery_assert($countMail('admin_new_order')===1,
+        'approved payment queues precisely one administrator email');
+    $q=$db->prepare('SELECT recipient_email,body_text FROM ticket_mail_outbox
+        WHERE message_key=?');
+    $q->execute(['order:701:admin_new_order']);
+    $adminMail=$q->fetch(PDO::FETCH_ASSOC);
+    mail_delivery_assert($adminMail['recipient_email']==='admin@example.test'
+        && str_contains($adminMail['body_text'],'Pedido: #701')
+        && !str_contains($adminMail['body_text'],'buyer@example.test'),
+        'configured recipient and no buyer PII in administrator mail');
+
+    $cancel=brvtalTicketAdminActionInput(['order_id'=>'702','action'=>'cancel_pending',
+        'idempotency_key'=>str_repeat('b',32)]);
+    $first=brvtalTicketAdminRecordOrderAction($db,7,'admin',$cancel);
+    $again=brvtalTicketAdminRecordOrderAction($db,7,'admin',$cancel);
+    mail_delivery_assert($first['status']==='cancelled' && $first['email_queued']
+        && $again['replayed'] && $countMail('order_cancelled')===1,
+        'cancellation queues once, repeat is idempotent');
+
+    $db->exec("INSERT INTO ticket_inventory_holds
+        (order_id,status,expires_at_utc)
+        VALUES (703,'active','2000-01-01 00:00:00')");
+    brvtal_ticket_inventory_reconcile($db);
+    mail_delivery_assert($countMail('order_expired')===1,
+        'expired order queues one buyer email');
+    // The disabled mode changes nothing about order truth, but must
+    // suppress ALL three notification kinds even on authenticated events.
+    $GLOBALS['config']['ticketing']['mail']['mode']='disabled';
+    $referenceOff='BW7-704-CARD-'.str_repeat('c',24);
+    $db->prepare("INSERT INTO ticket_payment_attempts
+      VALUES (2,704,'wompi',?,NULL,50000,'created',NULL)")->execute([$referenceOff]);
+    $verifiedOff=$verified;
+    $verifiedOff['id']='synthetic-tx-1984-off';
+    $verifiedOff['reference']=$referenceOff;
+    $verifiedOff['_event_checksum']=str_repeat('c',64);
+    mail_delivery_assert($apply($verifiedOff)==='approved','disabled does not block payment');
+    $offCancel=brvtalTicketAdminActionInput(['order_id'=>'705',
+        'action'=>'cancel_pending','idempotency_key'=>str_repeat('c',32)]);
+    mail_delivery_assert(brvtalTicketAdminRecordOrderAction(
+        $db,7,'admin',$offCancel)['status']==='cancelled',
+        'disabled does not block cancellation');
+    mail_delivery_assert($countMail('admin_new_order')===1
+        && $countMail('order_cancelled')===1
+        && $countMail('order_expired')===1,
+        'mail disabled enqueues no additional notifications');
+    $db->exec("INSERT INTO ticket_inventory_holds
+        (order_id,status,expires_at_utc)
+        VALUES (706,'active','2000-01-01 00:00:00')");
+    brvtal_ticket_inventory_reconcile($db);
+    mail_delivery_assert($db->query('SELECT status FROM ticket_orders WHERE id=706')
+        ->fetchColumn()==='expired' && $countMail('order_expired')===1,
+        'disabled expiry changes order status but queues no buyer email');
+    brvtal_ticket_inventory_reconcile($db);
+    mail_delivery_assert($countMail('order_expired')===1,
+        'reconciliation replay does not duplicate expiry');
+
 } finally {
     if($old===null)unset($GLOBALS['config']);else $GLOBALS['config']=$old;
     putenv($oldTesting===false ? 'BRVTAL_TICKET_MAIL_TESTING' : 'BRVTAL_TICKET_MAIL_TESTING='.$oldTesting);

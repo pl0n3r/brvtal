@@ -28,6 +28,7 @@ async function setup(page,{writable=true}={}) {
       ['BRVTAL_TICKET_MAIL_FROM','resend','from'],
       ['BRVTAL_TICKET_MAIL_FROM_NAME','resend','from_name'],
       ['BRVTAL_TICKET_MAIL_REPLY_TO','resend','reply_to'],
+      ['BRVTAL_TICKET_MAIL_ADMIN_RECIPIENT','resend','admin_recipient'],
       ['BRVTAL_TICKET_MAIL_WEBHOOK_SECRET','resend','webhook_secret'],
       ['BRVTAL_TICKET_WOMPI_PUBLIC_KEY','wompi','public_key'],
       ['BRVTAL_TICKET_WOMPI_PRIVATE_KEY','wompi','private_key'],
@@ -144,7 +145,7 @@ test('AC-02: cinco tarjetas, un Guardar por proveedor y etiquetas comprensibles'
     .not.toMatch(/\b(api key|webhook secret|from)\b/);
   await expect(page.locator('[data-secret-input][type="password"]')).not.toHaveCount(0);
   // #1927: Wompi now holds test and production key sets plus methods and return page.
-  await expect(page.locator('[data-secret-input][autocomplete="off"]')).toHaveCount(24);
+  await expect(page.locator('[data-secret-input][autocomplete="off"]')).toHaveCount(25);
   await expect(page.locator('[data-secret-delete]:visible')).toHaveCount(0);
   await expect(page.locator('[data-integration-provider="wompi"] [data-provider-state]')).toHaveText('Falta');
 });
@@ -365,5 +366,42 @@ test('AC-02 #1993: Nombre del remitente y Responder a se guardan; capturas 390/1
     const after=await page.screenshot({fullPage:true});
     await testInfo.attach('despues-guardar-remitente-'+width+'px.png',{body:after,contentType:'image/png'});
     writeFileSync(join(evidence,'despues-guardar-remitente-'+width+'px.png'),after);
+  }
+});
+
+
+test('AC-01 #1984: destinatario del aviso admin en Resend, 390/1440 y CSRF',async({page},testInfo)=>{
+  for(const width of [390,1440]){
+    await page.setViewportSize({width,height:900});
+    await setup(page);
+    const resend=page.locator('[data-integration-provider="resend"]');
+    const recipient=resend.locator('[data-secret-key="BRVTAL_TICKET_MAIL_ADMIN_RECIPIENT"]');
+    await expect(resend.getByText('Avisos de pedidos al administrador',{exact:true})).toBeVisible();
+    await expect(recipient).toHaveAttribute('placeholder','pedidos@ejemplo.co');
+    const before=await page.screenshot({fullPage:true});
+    await testInfo.attach('antes-admin-1984-'+width,{body:before,contentType:'image/png'});
+    await recipient.fill('pedidos@example.test');
+    await recipient.focus();
+    await expect(recipient).toBeFocused();
+    const focus=await recipient.evaluate(el=>getComputedStyle(el).outlineStyle);
+    expect(focus).not.toBe('none');
+    await resend.getByRole('button',{name:'Guardar',exact:true}).click();
+    await expect(resend.locator('[data-secret-feedback]')).toContainText('Clave guardada');
+    await expect(recipient).toHaveValue('');
+    const fixture=await page.evaluate(()=>window.integrationFixture);
+    expect(fixture.writes).toHaveLength(1);
+    expect(fixture.writes[0]).toMatchObject({
+      key:'BRVTAL_TICKET_MAIL_ADMIN_RECIPIENT',
+      method:'POST',csrf:'synthetic-csrf-token',value:'pedidos@example.test'
+    });
+    await expect(resend.locator('[data-secret-row="BRVTAL_TICKET_MAIL_ADMIN_RECIPIENT"] [data-secret-stored]')).toContainText('Guardada');
+    expect((await page.locator('body').innerText())).not.toContain('pedidos@example.test');
+    const dimensions=await page.evaluate(()=>({
+      client:document.documentElement.clientWidth,
+      scroll:document.documentElement.scrollWidth
+    }));
+    expect(dimensions.scroll).toBeLessThanOrEqual(dimensions.client);
+    const after=await page.screenshot({fullPage:true});
+    await testInfo.attach('despues-admin-1984-'+width,{body:after,contentType:'image/png'});
   }
 });

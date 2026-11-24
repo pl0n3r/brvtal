@@ -222,5 +222,59 @@ function brvtal_ticket_inventory_reconcile(PDO $db, int $limit = 200): int
         WHERE status='active' AND expires_at_utc<=UTC_TIMESTAMP(6)
         ORDER BY expires_at_utc,id LIMIT {$limit}");
     $stmt->execute();
-    return $stmt->rowCount();
+    $expiredHolds = $stmt->rowCount();
+    // Before the additive order/payment migrations exist, preserve T05-only
+    // reconciliation. Never infer payment failure from a missing table.
+    if ($db->inTransaction()) return $expiredHolds;
+    $cols = $db->query("SELECT COUNT(*) FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='ticket_orders'
+          AND COLUMN_NAME='expires_at_utc'");
+    $tables = $db->query("SELECT COUNT(*) FROM information_schema.TABLES
+        WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN
+          ('ticket_payment_attempts','ticket_issue_outbox')");
+    if ((int)$cols->fetchColumn() !== 1 || (int)$tables->fetchColumn() !== 2) {
+        return $expiredHolds;
+    }
+    $ids = $db->query("SELECT id FROM ticket_orders
+        WHERE status IN ('draft','pending') AND expires_at_utc<=UTC_TIMESTAMP(6)
+        ORDER BY expires_at_utc,id LIMIT {$limit}")->fetchAll(PDO::FETCH_COLUMN);
+    foreach ($ids as $id) {
+        $db->beginTransaction();
+        try {
+            $q = $db->prepare('SELECT status,expires_at_utc FROM ticket_orders
+                WHERE id=? FOR UPDATE');
+            $q->execute([(int)$id]);
+            $order = $q->fetch(PDO::FETCH_ASSOC);
+            if (!is_array($order) || !in_array($order['status'],['draft','pending'],true)
+                || $order['expires_at_utc'] === null
+                || $order['expires_at_utc'] > gmdate('Y-m-d H:i:s')) {
+                $db->commit();
+                continue;
+            }
+            // A payment still being reconciled must never be cancelled locally.
+            $q = $db->prepare("SELECT 1 FROM ticket_payment_attempts
+                WHERE order_id=? AND status NOT IN ('declined','error') LIMIT 1 FOR UPDATE");
+            $q->execute([(int)$id]);
+            $pendingPayment = $q->fetchColumn() !== false;
+            $q = $db->prepare('SELECT 1 FROM ticket_issue_outbox WHERE order_id=? LIMIT 1 FOR UPDATE');
+            $q->execute([(int)$id]);
+            if ($pendingPayment || $q->fetchColumn() !== false) {
+                $db->commit();
+                continue;
+            }
+            $q = $db->prepare("UPDATE ticket_orders SET status='expired',
+                updated_at_utc=UTC_TIMESTAMP(6) WHERE id=? AND status IN ('draft','pending')");
+            $q->execute([(int)$id]);
+            if ($q->rowCount() !== 1) throw new RuntimeException('ORDER_EXPIRY_CONFLICT');
+            $db->prepare("UPDATE ticket_inventory_holds SET status='released'
+                WHERE order_id=? AND status='active'")->execute([(int)$id]);
+            require_once __DIR__ . '/ticketing_mail_templates.php';
+            brvtal_ticket_mail_queue_buyer_state($db,(int)$id,'order_expired');
+            $db->commit();
+        } catch (Throwable $error) {
+            if ($db->inTransaction()) $db->rollBack();
+            throw $error;
+        }
+    }
+    return $expiredHolds;
 }

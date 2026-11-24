@@ -60,6 +60,7 @@ function brvtal_ticket_mail_queue_order(
     PDO $db, int $orderId, string $kind, string $recipient, array $data
 ): int {
     $states = ['order_pending'=>['pending'], 'order_rejected'=>['failed','cancelled'],
+        'order_cancelled'=>['cancelled'], 'order_expired'=>['expired'],
         'payment_approved'=>['paid'], 'reminder'=>['paid'], 'refund'=>['refunded']];
     if (!isset($states[$kind]) || $orderId < 1) {
         throw new InvalidArgumentException('MAIL_ORDER_TEMPLATE_INVALID');
@@ -156,4 +157,81 @@ function brvtal_ticket_mail_queue_security(
         $kind, $rendered['template_version']);
     brvtal_mail_history_record($db,$id,['buyer_id'=>$buyerId,'template_key'=>$kind]);
     return $id;
+}
+
+/**
+ * Gate new server-only notifications before any buyer/admin database lookup.
+ * The Resend worker independently checks the same sending permissions.
+ */
+function brvtal_ticket_mail_1984_enabled(string $recipient): bool
+{
+    if (!filter_var($recipient,FILTER_VALIDATE_EMAIL)) return false;
+    $mode = brvtal_secret_value('BRVTAL_TICKET_MAIL_MODE');
+    if ($mode === 'mock') {
+        return brvtal_secret_value('BRVTAL_TICKET_MAIL_TESTING') === '1';
+    }
+    if (brvtal_secret_value('BRVTAL_TICKET_MAIL_PRIVACY_APPROVED') !== '1') return false;
+    if ($mode === 'test') return brvtal_ticket_test_recipient_allowed($recipient);
+    return $mode === 'live'
+        && brvtal_secret_value('BRVTAL_TICKET_MAIL_ALLOW_LIVE') === '1'
+        && brvtal_secret_value('BRVTAL_TICKET_MAIL_DNS_VERIFIED') === '1';
+}
+
+/** Called only inside the authenticated, row-locked paid-order transaction. */
+function brvtal_ticket_mail_queue_admin_new_order(PDO $db, int $orderId): ?int
+{
+    if (!$db->inTransaction()) throw new LogicException('MAIL_TRANSACTION_REQUIRED');
+    // A missing setting means no administrative notification, not a fallback
+    // to the sender or to an unverified buyer-provided address.
+    if (brvtal_secret_value('BRVTAL_TICKET_MAIL_MODE') === 'disabled') return null;
+    $recipient = brvtal_secret_value('BRVTAL_TICKET_MAIL_ADMIN_RECIPIENT');
+    if (!brvtal_ticket_mail_1984_enabled($recipient)) return null;
+    $query = $db->prepare('SELECT o.event_id,o.status,e.title
+        FROM ticket_orders o JOIN events e ON e.id=o.event_id
+        WHERE o.id=?');
+    $query->execute([$orderId]);
+    $order = $query->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($order) || $order['status'] !== 'paid') {
+        throw new DomainException('MAIL_ORDER_UNAVAILABLE');
+    }
+    // The webhook/reconcile path has already authenticated the APPROVED
+    // provider result. Requiring the journal also prevents direct misuse.
+    $proof = $db->prepare("SELECT 1 FROM ticket_payment_attempts a
+        JOIN ticket_payment_webhook_events w ON w.attempt_id=a.id
+        WHERE a.order_id=? AND a.provider='wompi' AND a.status='approved'
+            AND w.signed_status='APPROVED' LIMIT 1");
+    $proof->execute([$orderId]);
+    if ($proof->fetchColumn() === false) throw new DomainException('MAIL_PAYMENT_NOT_VERIFIED');
+    $rendered = brvtal_ticket_mail_render('admin_new_order',[
+        'event'=>(string)$order['title'],
+        'order_number'=>$orderId,
+        'link'=>'https://www.brvtal.com.co/discadmin',
+    ],$db);
+    $id = brvtal_ticket_mail_enqueue($db,"order:{$orderId}:admin_new_order",
+        "order:{$orderId}",$recipient,$rendered['subject'],$rendered['text'],
+        $rendered['html'],'admin_new_order',$rendered['template_version']);
+    brvtal_mail_history_record($db,$id,['event_id'=>(int)$order['event_id'],
+        'order_id'=>$orderId,'template_key'=>'admin_new_order']);
+    return $id;
+}
+
+/** Cancellation/expiry is a terminal state; a retry never creates a new key. */
+function brvtal_ticket_mail_queue_buyer_state(PDO $db, int $orderId, string $kind): ?int
+{
+    if (!in_array($kind,['order_cancelled','order_expired'],true)) {
+        throw new InvalidArgumentException('MAIL_ORDER_TEMPLATE_INVALID');
+    }
+    if (!$db->inTransaction()) throw new LogicException('MAIL_TRANSACTION_REQUIRED');
+    if (brvtal_secret_value('BRVTAL_TICKET_MAIL_MODE') === 'disabled') return null;
+    $q = $db->prepare('SELECT b.email,e.title
+        FROM ticket_orders o
+        JOIN ticket_buyers b ON b.id=o.buyer_id
+        JOIN events e ON e.id=o.event_id WHERE o.id=?');
+    $q->execute([$orderId]);
+    $row = $q->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($row) || !brvtal_ticket_mail_1984_enabled((string)$row['email'])) return null;
+    return brvtal_ticket_mail_queue_order($db,$orderId,$kind,(string)$row['email'],[
+        'event'=>(string)$row['title'],'order_number'=>$orderId,
+        'link'=>'https://www.brvtal.com.co/',
+    ]);
 }

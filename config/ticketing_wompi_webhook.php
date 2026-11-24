@@ -170,6 +170,8 @@ function brvtal_wompi_hook_apply(PDO $db, array $signed, array $provider): strin
         $db->prepare("UPDATE ticket_orders SET status='paid',updated_at_utc=UTC_TIMESTAMP(6)
             WHERE id=? AND status IN ('pending','draft')")->execute([(int)$attempt['order_id']]);
         brvtal_wompi_hook_enqueue($db,(int)$attempt['order_id'],(int)$attempt['id']);
+        require_once __DIR__ . '/ticketing_mail_templates.php';
+        brvtal_ticket_mail_queue_admin_new_order($db,(int)$attempt['order_id']);
     }
     return $status === 'approved' ? 'approved' : 'accepted';
 }
