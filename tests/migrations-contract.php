@@ -314,6 +314,54 @@ migrations_assert(
     'Set duration present proof must be baselined'
 );
 $specifications = brvtalMigrationProofSpecifications();
+// #1995: preserve strict migration scanning. The POS compatibility ALTER is
+// allowed by reconciliation only for its exact audited blob and untouched schema.
+$posName = 'migration_ticketing_pos_02.sql';
+$posSql = (string)file_get_contents(__DIR__ . '/../database/' . $posName);
+$posRequirements = [
+    'column-unsigned-bigint-nullable:ticket_issue_outbox.payment_attempt_id',
+    "column-type:ticket_pos_sales.method=enum('cash','transfer','wompi_qr','terminal')",
+    'fk-reference:ticket_issue_outbox.fk_ticket_issue_outbox_pos_attempt=payment_attempt_id:ticket_payment_attempts.id',
+];
+migrations_assert(
+    ($specifications[$posName] ?? null) === $posRequirements,
+    'POS migration must prove nullable unsigned handoff, preserved enum and real FK'
+);
+migrations_assert(
+    str_contains($posSql, "ENUM('cash','transfer','wompi_qr','terminal')"),
+    'existing POS method ordinals must remain in original order'
+);
+migrations_assert($rejectsNonAdditive($posSql), 'generic scanner must not accept POS ALTER');
+$posAbsentChecks = array_fill_keys($posRequirements, false);
+$posAbsent = ['complete' => false, 'checks' => $posAbsentChecks];
+$posComplete = ['complete' => true, 'checks' => array_fill_keys($posRequirements, true)];
+$posPartial = $posAbsent;
+$posPartial['checks'][$posRequirements[0]] = true;
+migrations_assert(
+    brvtalMigrationProofDisposition($posName, $posAbsent) === 'apply'
+        && brvtalMigrationProofDisposition($posName, $posComplete) === 'baseline'
+        && brvtalMigrationProofDisposition($posName, $posPartial) === 'blocked',
+    'POS migration must not baseline or apply a partially changed schema'
+);
+try {
+    brvtalMigrationAssertReconciliationSql($posName, $posSql, $posAbsent);
+} catch (RuntimeException) {
+    migrations_assert(false, 'exact POS migration must be eligible only with untouched proof');
+}
+foreach ([
+    [$posName, $posSql . "\nDROP TABLE ticket_orders;", $posAbsent,
+        'MIGRATION_POS_HANDOFF_BLOB_MISMATCH'],
+    [$posName, $posSql, $posPartial, 'MIGRATION_NON_ADDITIVE_SQL'],
+    ['migration_unclaimed_pos.sql', $posSql, $posAbsent, 'MIGRATION_NON_ADDITIVE_SQL'],
+] as [$name, $sql, $proof, $error]) {
+    try {
+        brvtalMigrationAssertReconciliationSql($name, $sql, $proof);
+        migrations_assert(false, 'POS migration gate accepted wrong blob, partial proof or name');
+    } catch (RuntimeException $exception) {
+        migrations_assert($exception->getMessage() === $error, 'POS reconciliation failure code');
+    }
+}
+
 $diskMigrations = array_map(basename(...), glob(__DIR__ . '/../database/migration_*.sql') ?: []);
 sort($diskMigrations);
 $proofMigrations = array_keys($specifications);
