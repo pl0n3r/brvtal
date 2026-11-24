@@ -11,7 +11,7 @@ function brvtalFinanceAdd(?int $sum, mixed $value): ?int
  *  @param array<int,array<string,mixed>> $items
  *  @param array<int,array<string,mixed>> $attempts
  */
-function brvtalFinanceSummarize(array $orders, array $items, array $attempts): array
+function brvtalFinanceSummarize(array $orders, array $items, array $attempts, array $posSales=[]): array
 {
     $lineByOrder = [];
     foreach ($items as $item) {
@@ -22,10 +22,18 @@ function brvtalFinanceSummarize(array $orders, array $items, array $attempts): a
     }
     $paymentByOrder = [];
     foreach ($attempts as $attempt) {
-        if (($attempt['status'] ?? '') !== 'approved') continue;
+        if (($attempt['status'] ?? '') !== 'approved' || ($attempt['provider']??'')!=='wompi') continue;
         $id = (int)$attempt['order_id'];
         if (!isset($paymentByOrder[$id]) || (int)$attempt['id'] < (int)$paymentByOrder[$id]['id']) {
             $paymentByOrder[$id] = $attempt;
+        }
+    }
+    $posByOrder=[];
+    foreach ($posSales as $sale) {
+        if (($sale['status']??'')==='paid'
+            && in_array($sale['method']??'', ['cash','terminal'],true)
+            && (int)($sale['order_id']??0)>0 && (int)($sale['id']??0)>0) {
+            $posByOrder[(int)$sale['order_id']]=$sale;
         }
     }
     $events = [];
@@ -33,7 +41,8 @@ function brvtalFinanceSummarize(array $orders, array $items, array $attempts): a
         $eventId = (int)$order['event_id'];
         $summary = $events[$eventId] ?? [
             'event_id'=>$eventId, 'gross_cop'=>0, 'discount_cop'=>0,
-            'approved_cop'=>0, 'paid_orders'=>0, 'pending_orders'=>0,
+            'approved_cop'=>0, 'pos_cop'=>0, 'pos_orders'=>0,
+            'paid_orders'=>0, 'pending_orders'=>0,
             'declined_orders'=>0, 'refunded_orders'=>0, 'unverified_orders'=>0,
             'tickets'=>0, 'fee_cop'=>0, 'fee_vat_cop'=>0,
             'withheld_cop'=>0, 'payout_cop'=>0, 'difference_cop'=>0,
@@ -48,7 +57,34 @@ function brvtalFinanceSummarize(array $orders, array $items, array $attempts): a
         elseif (in_array($status, ['failed','cancelled','expired'], true)) $summary['declined_orders']++;
         elseif ($status === 'paid') {
             $payment = $paymentByOrder[$id] ?? null;
-            if (!$payment || (int)($payment['gross_amount_cop'] ?? -1) !== (int)$order['total_cop']) {
+            $pos = $posByOrder[$id] ?? null;
+            $lines=$lineByOrder[$id]['items']??[];
+            if ($pos && !$payment && count($lines)===1
+                && (int)$pos['amount_cop']===(int)$order['total_cop']
+                && (int)$pos['event_id']===$eventId
+                && (int)$pos['ticket_type_id']===(int)$lines[0]['ticket_type_id']
+                && (int)$pos['quantity']===(int)$lines[0]['quantity']
+                && (int)$pos['amount_cop']===(int)$lines[0]['subtotal_cop']
+                && (string)($order['currency']??'COP')==='COP') {
+                $amount=(int)$pos['amount_cop'];
+                $summary['paid_orders']++;
+                $summary['pos_orders']++;
+                $summary['pos_cop']+=$amount;
+                $summary['gross_cop']+=$amount;
+                $summary['tickets']+=(int)$pos['quantity'];
+                $type=(int)$pos['ticket_type_id'];
+                $current=$summary['types'][$type]??['ticket_type_id'=>$type,'quantity'=>0,'gross_cop'=>0];
+                $current['quantity']+=(int)$pos['quantity'];
+                $current['gross_cop']+=$amount;
+                $summary['types'][$type]=$current;
+                $summary['transactions'][]=['order_id'=>$id,'provider'=>'pos',
+                    'method'=>$pos['method'],'transaction_id'=>null,'gross_cop'=>$amount,
+                    'fee_cop'=>null,'fee_vat_cop'=>null,'withheld_cop'=>null,
+                    'payout_cop'=>null,'settlement_status'=>'manual_unverified'];
+                $events[$eventId]=$summary;
+                continue;
+            }
+            if (!$payment || $pos || (int)($payment['gross_amount_cop'] ?? -1) !== (int)$order['total_cop']) {
                 $summary['unverified_orders']++; $events[$eventId]=$summary; continue;
             }
             $gross = $lineByOrder[$id]['gross'] ?? 0;
@@ -122,7 +158,33 @@ function brvtalFinanceReport(PDO $db, ?int $eventId, ?string $from, ?string $to,
         FROM ticket_payment_attempts WHERE order_id IN ($in)";
     if ($channel!=='all') $paymentSql.=" AND provider='wompi'";
     $stmt=$db->prepare($paymentSql); $stmt->execute($ids);
-    $report=brvtalFinanceSummarize($orders,$items,$stmt->fetchAll(PDO::FETCH_ASSOC));
+    $attempts=$stmt->fetchAll(PDO::FETCH_ASSOC);
+    $sales=[];
+    if ($channel!=='wompi') {
+        try {
+            $pos=$db->prepare("SELECT s.id,s.order_id,s.event_id,s.ticket_type_id,s.quantity,
+                    s.amount_cop,s.method,s.status
+                FROM ticket_pos_sales s
+                JOIN ticket_pos_shifts sh ON sh.id=s.shift_id AND sh.event_id=s.event_id
+                    AND sh.operator_admin_id=s.operator_admin_id
+                WHERE s.order_id IN ($in) AND s.status='paid' AND s.completed_at_utc IS NOT NULL");
+            $pos->execute($ids);
+            $sales=$pos->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            if ($e->getCode()!=='42S02' || $channel==='pos') throw $e;
+        }
+    }
+    if ($channel==='pos') {
+        $allowed=array_fill_keys(array_map(intval(...),array_column($sales,'order_id')),true);
+        $orders=array_values(array_filter($orders,static fn($o)=>isset($allowed[(int)$o['id']])));
+    } elseif ($channel==='wompi') {
+        $allowed=array_fill_keys(array_map(intval(...),array_column($attempts,'order_id')),true);
+        $orders=array_values(array_filter($orders,static fn($o)=>isset($allowed[(int)$o['id']])));
+    }
+    // A channel may remove every order after the initial nonempty query.
+    // Never generate SQL metadata IN () from an empty report.
+    if (!$orders) return [];
+    $report=brvtalFinanceSummarize($orders,$items,$attempts,$sales);
     $eventIds=array_column($report,'event_id');
     $eventIn=implode(',',array_fill(0,count($eventIds),'?'));
     $metadata=[

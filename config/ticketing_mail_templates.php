@@ -3,6 +3,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/ticketing_mail_outbox.php';
 require_once __DIR__ . '/ticketing_mail_events.php';
 require_once __DIR__ . '/mail_template_renderer.php';
+require_once __DIR__ . '/ticketing_issue.php';
 
 /** T12: one Spanish, escaped, accessible mail copy per trusted transaction. */
 function brvtal_ticket_mail_render(string $kind, array $data, ?PDO $db = null): array
@@ -83,7 +84,16 @@ function brvtal_ticket_mail_queue_order(
               AND a.provider_transaction_id IS NOT NULL AND x.state='done'
               AND w.signed_status='APPROVED' LIMIT 1");
         $proof->execute([$orderId]);
-        if ($proof->fetchColumn() === false) throw new DomainException('MAIL_PAYMENT_NOT_VERIFIED');
+        if ($proof->fetchColumn() === false) {
+            // Only a completed, genuine POS issuance can authorize a receipt.
+            $pos=$db->prepare("SELECT 1 FROM ticket_issue_outbox
+                WHERE order_id=? AND payment_attempt_id IS NULL AND state='done' LIMIT 1");
+            $pos->execute([$orderId]);
+            if ($kind!=='payment_approved' || $pos->fetchColumn()===false
+                || !brvtal_ticket_pos_verified($db,$orderId)) {
+                throw new DomainException('MAIL_PAYMENT_NOT_VERIFIED');
+            }
+        }
         $count = $db->prepare("SELECT COUNT(e.id) AS issued
             FROM ticket_order_items i LEFT JOIN ticket_entries e ON e.order_item_id=i.id
               AND e.status='issued' WHERE i.order_id=?");

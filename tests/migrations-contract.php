@@ -314,6 +314,113 @@ migrations_assert(
     'Set duration present proof must be baselined'
 );
 $specifications = brvtalMigrationProofSpecifications();
+// #1995: preserve strict migration scanning. The POS compatibility ALTER is
+// allowed by reconciliation only for its exact audited blob and untouched schema.
+$posName = 'migration_ticketing_pos_02.sql';
+$posSql = (string)file_get_contents(__DIR__ . '/../database/' . $posName);
+// Handoff #1979: the owner of the additive notes migration keeps its DDL;
+ // this repository-wide proof is conditional on that file being present.
+$notesMigration = 'migration_ticketing_order_notes_01.sql';
+if (is_file(__DIR__ . '/../database/' . $notesMigration)) {
+    $notesProof = array_merge(
+        brvtalMigrationObjectRequirements('ticket_order_notes',
+            ['id','order_id','actor_admin_id','note_text','created_at_utc'],
+            ['PRIMARY','idx_ticket_order_note_history'], true),
+        brvtalMigrationObjectRequirements('ticket_order_action_requests',
+            ['id','order_id','actor_admin_id','action','request_key_hash',
+             'request_hash','status','mail_outbox_id','note_id','created_at_utc'],
+            ['PRIMARY','uq_ticket_order_action_request','idx_ticket_order_action_history'], true)
+    );
+    migrations_assert(($specifications[$notesMigration] ?? null) === $notesProof,
+        'order notes and action requests must have complete structural proof');
+}
+$unorderedNotes = [
+    ['migration' => $notesMigration, 'action' => 'apply'],
+    ['migration' => 'migration_buyer_auth_tokens_01.sql', 'action' => 'apply'],
+    ['migration' => 'migration_ticketing_orders_01.sql', 'action' => 'apply'],
+    ['migration' => 'migration_ticketing_entries_01.sql', 'action' => 'apply'],
+];
+$orderedNotes = brvtalMigrationOrderDependencyActions($unorderedNotes);
+migrations_assert(
+    array_column($orderedNotes, 'migration') === [
+        'migration_ticketing_orders_01.sql',
+        $notesMigration,
+        'migration_buyer_auth_tokens_01.sql',
+        'migration_ticketing_entries_01.sql'
+    ],
+    'T03 must precede order notes FK without changing other migration order'
+);
+
+// #1995: fresh installs list POS 02 before webhook by filename; the outbox
+// table must be created before the non-additive, exact-blob POS handoff.
+$pendingPOS = [
+    ['migration'=>'migration_ticketing_pos_02.sql','action'=>'apply'],
+    ['migration'=>'migration_ticketing_order_notes_01.sql','action'=>'apply'],
+    ['migration'=>'migration_ticketing_webhook_01.sql','action'=>'apply'],
+    ['migration'=>'migration_ticketing_orders_01.sql','action'=>'apply'],
+    ['migration'=>'migration_ticketing_entries_01.sql','action'=>'apply'],
+];
+$orderedPOS = array_column(brvtalMigrationOrderDependencyActions($pendingPOS), 'migration');
+migrations_assert(
+    array_search('migration_ticketing_orders_01.sql', $orderedPOS, true)
+        < array_search('migration_ticketing_webhook_01.sql', $orderedPOS, true)
+    && array_search('migration_ticketing_webhook_01.sql', $orderedPOS, true)
+        < array_search('migration_ticketing_pos_02.sql', $orderedPOS, true),
+    'new POS 02 must run after both T03 order schema and T10 webhook outbox'
+);
+$webhookFirst = [
+    ['migration'=>'migration_ticketing_webhook_01.sql','action'=>'apply'],
+    ['migration'=>'migration_ticketing_pos_02.sql','action'=>'apply'],
+];
+migrations_assert(
+    brvtalMigrationOrderDependencyActions($webhookFirst) === $webhookFirst,
+    'existing correct webhook before POS ordering must remain stable'
+);
+
+$posRequirements = [
+    'column-unsigned-bigint-nullable:ticket_issue_outbox.payment_attempt_id',
+    "column-type:ticket_pos_sales.method=enum('cash','transfer','wompi_qr','terminal')",
+    'fk-reference:ticket_issue_outbox.fk_ticket_issue_outbox_pos_attempt=payment_attempt_id:ticket_payment_attempts.id',
+];
+migrations_assert(
+    ($specifications[$posName] ?? null) === $posRequirements,
+    'POS migration must prove nullable unsigned handoff, preserved enum and real FK'
+);
+migrations_assert(
+    str_contains($posSql, "ENUM('cash','transfer','wompi_qr','terminal')"),
+    'existing POS method ordinals must remain in original order'
+);
+migrations_assert($rejectsNonAdditive($posSql), 'generic scanner must not accept POS ALTER');
+$posAbsentChecks = array_fill_keys($posRequirements, false);
+$posAbsent = ['complete' => false, 'checks' => $posAbsentChecks];
+$posComplete = ['complete' => true, 'checks' => array_fill_keys($posRequirements, true)];
+$posPartial = $posAbsent;
+$posPartial['checks'][$posRequirements[0]] = true;
+migrations_assert(
+    brvtalMigrationProofDisposition($posName, $posAbsent) === 'apply'
+        && brvtalMigrationProofDisposition($posName, $posComplete) === 'baseline'
+        && brvtalMigrationProofDisposition($posName, $posPartial) === 'blocked',
+    'POS migration must not baseline or apply a partially changed schema'
+);
+try {
+    brvtalMigrationAssertReconciliationSql($posName, $posSql, $posAbsent);
+} catch (RuntimeException) {
+    migrations_assert(false, 'exact POS migration must be eligible only with untouched proof');
+}
+foreach ([
+    [$posName, $posSql . "\nDROP TABLE ticket_orders;", $posAbsent,
+        'MIGRATION_POS_HANDOFF_BLOB_MISMATCH'],
+    [$posName, $posSql, $posPartial, 'MIGRATION_NON_ADDITIVE_SQL'],
+    ['migration_unclaimed_pos.sql', $posSql, $posAbsent, 'MIGRATION_NON_ADDITIVE_SQL'],
+] as [$name, $sql, $proof, $error]) {
+    try {
+        brvtalMigrationAssertReconciliationSql($name, $sql, $proof);
+        migrations_assert(false, 'POS migration gate accepted wrong blob, partial proof or name');
+    } catch (RuntimeException $exception) {
+        migrations_assert($exception->getMessage() === $error, 'POS reconciliation failure code');
+    }
+}
+
 $diskMigrations = array_map(basename(...), glob(__DIR__ . '/../database/migration_*.sql') ?: []);
 sort($diskMigrations);
 $proofMigrations = array_keys($specifications);
