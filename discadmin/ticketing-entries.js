@@ -26,8 +26,10 @@ export async function mount(panel,isCurrent=()=>true) {
   const toBogota = value => {
     if (!value) return 'Sin fecha';
     const src=String(value).trim();
-    const date = /^\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2})?)?$/.test(src)
-      ? new Date(src.replace(' ','T')+'Z') : new Date(src);
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(src)
+      ? new Date(src+'T12:00:00Z')
+      : /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(?::\d{2})?$/.test(src)
+        ? new Date(src.replace(' ','T')+'Z') : new Date(src);
     if (!Number.isFinite(date.getTime())) return 'Fecha no disponible';
     return new Intl.DateTimeFormat('es-CO', {timeZone:'America/Bogota',
       year:'numeric',month:'short',day:'2-digit',
@@ -224,18 +226,19 @@ export async function mount(panel,isCurrent=()=>true) {
           const td=el('td',value);td.dataset.label=labels[i];tr.append(td);
         });
       const controls=el('td','');controls.dataset.label='Acciones';
-      controls.className='tk-entry-actions';
+      const actions=document.createElement('div');
+      actions.className='tk-entry-actions';controls.append(actions);
       const inspect=el('button','Ver ficha');
       inspect.type='button';inspect.className='tk-button';
       inspect.addEventListener('click',()=>showDetail(row));
-      controls.append(inspect);
+      actions.append(inspect);
       for (const [name,title,allowed] of [
         ['preview','Ver QR',true],['reissue','Reemitir',host.dataset.ticketingCanReissue==='1'],
         ['void','Anular',host.dataset.ticketingCanVoid==='1']]) {
         if (!allowed) continue;
         const btn=el('button',title);btn.type='button';btn.className='tk-button';
         btn.addEventListener('click',()=>action(row,name,btn));
-        controls.append(btn);
+        actions.append(btn);
       }
       tr.append(controls);
     }

@@ -48,9 +48,10 @@ export async function mount(panel, initialKind = 'orders') {
   const bogotaDate = value => {
     if (!value) return 'Sin fecha';
     const source=String(value).trim();
-    const parsed = /^\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2})?)?$/.test(source)
-      ? new Date(source.replace(' ','T').replace(/Z?$/,'Z'))
-      : new Date(source);
+    const parsed = /^\d{4}-\d{2}-\d{2}$/.test(source)
+      ? new Date(source+'T12:00:00Z')
+      : /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(?::\d{2})?$/.test(source)
+        ? new Date(source.replace(' ','T')+'Z') : new Date(source);
     if (!Number.isFinite(parsed.getTime())) return 'Fecha no disponible';
     return new Intl.DateTimeFormat('es-CO', {
       timeZone:'America/Bogota',day:'2-digit',month:'short',year:'numeric',
