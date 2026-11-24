@@ -136,6 +136,32 @@ function brvtalTicketAdminDetail(PDO $pdo, int $orderId): array
                 'next_attempt_at_utc'=>$row['next_attempt_at_utc']];
         }
     }
-    return ['items'=>$items->fetchAll(PDO::FETCH_ASSOC), 'payments'=>$payments->fetchAll(PDO::FETCH_ASSOC),
-        'mail'=>$mails, 'issue'=>$issue];
+    $identity = $pdo->prepare('SELECT o.id,o.status,o.total_cop,o.currency,o.created_at_utc,
+        e.title AS event_title FROM ticket_orders o JOIN events e ON e.id=o.event_id WHERE o.id=?');
+    $identity->execute([$orderId]);
+    $order = $identity->fetch(PDO::FETCH_ASSOC);
+    $notes = [];
+    if (brvtalTicketAdminHasTable($pdo,'ticket_order_notes')) {
+        $q = $pdo->prepare('SELECT n.note_text,n.created_at_utc,
+            a.name AS actor_name FROM ticket_order_notes n
+            LEFT JOIN admins a ON a.id=n.actor_admin_id
+            WHERE n.order_id=? ORDER BY n.created_at_utc,n.id');
+        $q->execute([$orderId]);
+        $notes = $q->fetchAll(PDO::FETCH_ASSOC);
+    }
+    $entries = ['total'=>0,'used'=>0,'first_issued_at'=>null,'last_used_at'=>null];
+    if (brvtalTicketAdminHasTable($pdo,'ticket_entries')) {
+        $q = $pdo->prepare("SELECT COUNT(*) AS total,
+            COALESCE(SUM(e.status='used'),0) AS used,
+            MIN(e.issued_at_utc) AS first_issued_at,
+            MAX(e.used_at_utc) AS last_used_at
+            FROM ticket_entries e JOIN ticket_order_items i ON i.id=e.order_item_id
+            WHERE i.order_id=?");
+        $q->execute([$orderId]);
+        $entries = $q->fetch(PDO::FETCH_ASSOC) ?: $entries;
+    }
+    $paymentsFound=$payments->fetchAll(PDO::FETCH_ASSOC);
+    $itemsFound=$items->fetchAll(PDO::FETCH_ASSOC);
+    return ['order'=>$order ?: null,'items'=>$itemsFound,'payments'=>$paymentsFound,
+        'mail'=>$mails, 'issue'=>$issue,'notes'=>$notes,'entries'=>$entries];
 }

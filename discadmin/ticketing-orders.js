@@ -128,113 +128,179 @@ export async function mount(panel, initialKind = 'orders') {
     }
   }
 
-  // T18b: visible affordances are mockable, but server enforces synthetic-only,
-  // active consent and per-action RBAC. Nothing ever calls Resend or Wompi.
-  function addSyntheticActions(box, orderId) {
-    const section = document.createElement('section');
-    section.dataset.ticketingActions = '';
-    const heading = document.createElement('h4');
-    heading.textContent = 'Acciones administrativas · simulación únicamente';
-    const warning = document.createElement('p');
-    warning.textContent = 'Sin correos, cobros, cambios de pago o emisión de QR. Consentimiento y permisos se comprueban en el servidor.';
-    const selectLabel = document.createElement('label');
-    selectLabel.textContent = 'Acción ';
-    const select = document.createElement('select');
-    select.dataset.ticketingAction = '';
-    for (const [value, caption] of [
-      ['note','Nota interna sintética'],['contact_preview','Preparar contacto (sin envío)'],
-      ['recovery_preview','Preparar recuperación (sin envío)'],
-      ['resend_preview','Preparar reenvío (sin envío)']
-    ]) {
-      const option = document.createElement('option');
-      option.value = value; option.textContent = caption; select.append(option);
-    }
-    selectLabel.append(select);
-    const noteLabel = document.createElement('label');
-    noteLabel.textContent = 'Nota breve, sin datos personales ';
-    const note = document.createElement('textarea');
-    note.dataset.ticketingNote = '';
-    note.maxLength = 280;
-    note.rows = 2;
-    note.autocomplete = 'off';
+  // #1979: all three commands use the protected admin endpoint. Never use
+  // HTML interpolation for order data or record a successful send before worker receipt.
+  function addOrderActions(header, orderId, orderStatus) {
+    const wrapper=document.createElement('div');
+    wrapper.className='tk-order-actions';
+    wrapper.dataset.ticketingActions='';
+    const menu=document.createElement('details');
+    menu.className='tk-order-menu';
+    const summary=document.createElement('summary');
+    summary.textContent='Más acciones';
+    menu.append(summary);
+    const dialog=document.createElement('dialog');
+    dialog.className='tk-entry-dialog tk-order-dialog';
+    const dialogTitle=document.createElement('h3');
+    const dialogText=document.createElement('p');
+    const noteLabel=document.createElement('label');
+    noteLabel.textContent='Nota interna, sin datos personales';
+    const note=document.createElement('textarea');
+    note.dataset.ticketingNote='';
+    note.rows=3; note.maxLength=280; note.autocomplete='off';
     noteLabel.append(note);
-    const review = document.createElement('button');
-    review.type = 'button'; review.textContent = 'Preparar acción';
-    const confirm = document.createElement('button');
-    confirm.type = 'button'; confirm.textContent = 'Confirmar simulación';
-    confirm.dataset.ticketingConfirm = ''; confirm.hidden = true;
-    const cancel = document.createElement('button');
-    cancel.type = 'button'; cancel.textContent = 'Cancelar'; cancel.hidden = true;
-    const feedback = document.createElement('p');
-    feedback.dataset.ticketingActionStatus = ''; feedback.setAttribute('role','status');
+    const feedback=document.createElement('p');
+    feedback.dataset.ticketingActionStatus='';
+    feedback.setAttribute('role','status');
     feedback.setAttribute('aria-live','polite');
-    feedback.textContent = 'Ninguna acción enviada.';
-    let prepared = null;
-    function reset() {
-      prepared = null; review.hidden = false; confirm.hidden = true; cancel.hidden = true;
-      confirm.disabled = false;
+    const controls=document.createElement('div');
+    controls.className='tk-actions';
+    const back=document.createElement('button');
+    back.type='button'; back.className='tk-button'; back.textContent='Volver';
+    const confirm=document.createElement('button');
+    confirm.type='button'; confirm.className='tk-button is-primary';
+    confirm.dataset.ticketingConfirm='';
+    controls.append(back,confirm);
+    dialog.append(dialogTitle,dialogText,noteLabel,feedback,controls);
+    let request=null;
+    const descriptions={
+      note:['Agregar nota','Se guardará con tu identidad y fecha en el historial del pedido.'],
+      resend:['Reenviar boletas','Se pondrá en cola otro correo con los mismos QR, sin emitir boletas nuevas.'],
+      cancel_pending:['Cancelar pedido pendiente','Se liberará su inventario. No se puede cancelar una compra pagada.']
+    };
+    function open(action) {
+      if(!descriptions[action] || !active()) return;
+      if(action==='resend' && orderStatus!=='paid') return;
+      if(action==='cancel_pending' && !['draft','pending'].includes(orderStatus)) return;
+      request=null;
+      dialogTitle.textContent=descriptions[action][0];
+      dialogText.textContent=descriptions[action][1];
+      noteLabel.hidden=action!=='note';
+      note.value='';
+      feedback.textContent='';
+      confirm.disabled=false;
+      confirm.textContent='Confirmar '+(action==='note'?'nota':action==='resend'?'reenvío':'cancelación');
+      dialog.dataset.action=action;
+      menu.open=false;
+      dialog.showModal();
+      if(action==='note') note.focus(); else confirm.focus();
     }
-    select.addEventListener('change', () => {
-      noteLabel.hidden = select.value !== 'note';
-      reset();
-    });
-    review.addEventListener('click', () => {
-      const value = note.value.trim();
-      if (select.value === 'note' && (value.length < 3 || value.length > 280)) {
-        feedback.textContent = 'La nota necesita entre 3 y 280 caracteres.';
-        return;
+    const commands=[['note','Nota interna'],['resend','Reenviar boletas'],
+      ['cancel_pending','Cancelar pedido pendiente']];
+    for(const [action,label] of commands) {
+      if(action==='resend' && orderStatus!=='paid') continue;
+      if(action==='cancel_pending' && !['draft','pending'].includes(orderStatus)) continue;
+      const button=document.createElement('button');
+      button.type='button';button.className='tk-button';
+      button.textContent=label;button.dataset.orderAction=action;
+      button.addEventListener('click',()=>open(action));
+      menu.append(button);
+    }
+    back.addEventListener('click',()=>dialog.close());
+    dialog.addEventListener('close',()=>{request=null;});
+    confirm.addEventListener('click',async()=>{
+      const action=dialog.dataset.action;
+      const value=note.value.trim();
+      if(action==='note' && (value.length<3 || value.length>280)) {
+        feedback.textContent='La nota debe tener entre 3 y 280 caracteres.';
+        note.focus();return;
       }
-      prepared = {
-        order_id: String(orderId), action: select.value,
-        idempotency_key: globalThis.crypto.randomUUID(),
-        note: select.value === 'note' ? value : ''
-      };
-      feedback.textContent = 'Sin envío real. Confirma para registrar la simulación.';
-      review.hidden = true; confirm.hidden = false; cancel.hidden = false;
-      confirm.focus();
-    });
-    cancel.addEventListener('click', () => {
-      reset(); feedback.textContent = 'Acción cancelada: no se enviaron datos.';
-      review.focus();
-    });
-    confirm.addEventListener('click', async () => {
-      if (!prepared || !active()) return;
-      confirm.disabled = true;
-      feedback.textContent = 'Registrando simulación…';
+      if(!request) request={order_id:String(orderId),action,
+        idempotency_key:globalThis.crypto.randomUUID(),
+        note:action==='note'?value:''};
+      confirm.disabled=true;
+      feedback.textContent='Guardando la acción…';
       try {
-        const response = await fetch('/api/ticketing/admin-actions.php', {
+        const response=await fetch('/api/ticketing/admin-actions.php',{
           method:'POST',credentials:'same-origin',cache:'no-store',
           headers:{'Content-Type':'application/json','X-CSRF-Token':
             panel.querySelector('[data-ticketing-records]')?.dataset.ticketingCsrf || ''},
-          body:JSON.stringify(prepared)
+          body:JSON.stringify(request)
         });
-        const payload = await response.json();
-        if (!active()) return;
-        if (response.ok && payload?.ok && payload.data?.email_sent === false
-            && payload.data?.payment_changed === false) {
-          feedback.textContent = 'Acción registrada como ' + payload.data.status +
-            '. Sin envíos reales ni cambios de pago.';
-          reset();
-        } else if (response.status === 409 && payload?.error === 'CONSENT_REQUIRED') {
-          feedback.textContent = 'Sin consentimiento acreditado: solicitud bloqueada; no hubo envío.';
-          reset();
-        } else if (response.status === 403) {
-          feedback.textContent = 'Sin permiso para esta acción.';
-          reset();
-        } else if (response.status === 423) {
-          feedback.textContent = 'Operación deshabilitada fuera de pruebas sintéticas.';
-          reset();
-        } else {
-          feedback.textContent = 'No se pudo registrar. Reintenta la misma solicitud o cancela.';
+        const payload=await response.json().catch(()=>null);
+        if(!active()) return;
+        if(response.ok && payload?.ok) {
+          dialog.close();
+          status.textContent=action==='note'?'Nota guardada en el historial.'
+            :action==='resend'?'Reenvío en cola; la entrega depende del servicio de correo.'
+            :'Pedido cancelado e inventario liberado.';
+          await loadDetail(orderId);
+          return;
         }
-      } catch {
-        if (active()) feedback.textContent = 'Error de conexión. No se presume éxito ni envío.';
-      } finally {
-        confirm.disabled = false;
-      }
+        const explanations={
+          FORBIDDEN:'Sin permisos para esta operación.',
+          ORDER_NOT_PENDING:'El pedido ya no está pendiente. No se canceló.',
+          PAYMENT_RECONCILIATION_REQUIRED:'Hay un pago en curso o aprobado. Requiere conciliación.',
+          ORDER_NOT_PAID:'Solo se pueden reenviar boletas de compras pagadas.',
+          TICKETS_NOT_ISSUED:'Las boletas aún no se han emitido.',
+          MAIL_PAYLOAD_NOT_RECOVERABLE:'No se puede reenviar el correo cifrado original.',
+          MAIL_NOT_ENABLED:'El modo de correo actual no permite reenviar.',
+          MAIL_RATE_LIMITED:'Se alcanzó el límite de correos. Reintenta más adelante.',
+          IDEMPOTENCY_CONFLICT:'La solicitud cambió. Cierra el diálogo y vuelve a intentarlo.'
+        };
+        feedback.textContent=explanations[payload?.error]||
+          'No se pudo registrar. Reintenta la misma solicitud.';
+      }catch {
+        if(active()) feedback.textContent='Sin conexión. No se presume éxito; reintenta con la misma clave.';
+      }finally{confirm.disabled=false;}
     });
-    section.append(heading,warning,selectLabel,noteLabel,review,confirm,cancel,feedback);
-    box.append(section);
+    wrapper.append(menu,dialog);
+    header.append(wrapper);
+    return open;
+  }
+
+  function renderOrderTimeline(box,info,openAction,id) {
+    const issue=info.issue||{};
+    const order=info.order||{};
+    const paid=order.status==='paid';
+    const rows=info.mail||[];
+    const mail=rows[0]||{};
+    const entries=info.entries||{};
+    const payment=(info.payments||[]).find(p=>p.status==='approved');
+    const issued=issue.state==='done'||issue.state==='issued';
+    const sent=['accepted','delivered'].includes(mail.delivery_state);
+    const used=Number(entries.used||0)>0;
+    const steps=[
+      ['Creado',order.created_at_utc,!!order.created_at_utc],
+      ['Pagado',paid?(payment?.created_at_utc||order.created_at_utc):null,paid],
+      ['Boletas emitidas',issued?(entries.first_issued_at||order.created_at_utc):null,issued],
+      ['Correo con QR',sent?(mail.state_at||mail.created_at):null,sent],
+      ['Entrada',used?entries.last_used_at:null,used]
+    ];
+    const stalled=issue.state==='failed'?2:['failed','bounced'].includes(mail.delivery_state)?3:
+      order.status==='failed'?1:-1;
+    const panel=document.createElement('section');panel.className='tk-order-journey';
+    panel.dataset.ticketingOrderJourney='';
+    const h=document.createElement('h4');h.textContent='Recorrido del pedido';
+    const list=document.createElement('ol');list.className='tk-order-timeline';
+    for(const [index,step] of steps.entries()){
+      const li=document.createElement('li');
+      li.className='tk-order-step '+(step[2]?'is-done':stalled===index?'is-stalled':'is-pending');
+      const name=document.createElement('strong');name.textContent=step[0];
+      const state=document.createElement('span');
+      state.textContent=step[2]?bogotaDate(step[1]):stalled===index?'Requiere atención':'Pendiente';
+      li.append(name,state);list.append(li);
+    }
+    panel.append(h,list);
+    if(stalled!==-1){
+      const alert=document.createElement('div');
+      alert.className='tk-order-stalled';alert.setAttribute('role','alert');
+      const p=document.createElement('p');
+      p.textContent=stalled===2?'La emisión de boletas falló. Programa un nuevo intento.'
+        :stalled===3?'El último correo no se entregó. Puedes reenviar las mismas boletas.'
+        :'El pago no se completó. Comprueba su estado antes de actuar.';
+      alert.append(p);
+      if(stalled===2) addIssueRetry(alert,id,issue);
+      if(stalled===3 && paid){
+        const button=document.createElement('button');
+        button.type='button';button.className='tk-button is-primary';
+        button.textContent='Reenviar boletas';
+        button.addEventListener('click',()=>openAction('resend'));
+        alert.append(button);
+      }
+      panel.append(alert);
+    } else if(issue.state==='pending') addIssueRetry(panel,id,issue);
+    box.append(panel);
   }
 
   // #1976: issuance state of the order's tickets, with a retry that only brings
@@ -288,42 +354,73 @@ export async function mount(panel, initialKind = 'orders') {
   }
 
   async function loadDetail(id) {
-    detail.textContent = 'Consultando el detalle…';
+    detail.textContent='Consultando el detalle…';
     try {
-      const response = await fetch('/api/ticketing/admin-orders.php?kind=orders&order_id=' + encodeURIComponent(id),
+      const response=await fetch('/api/ticketing/admin-orders.php?kind=orders&order_id='+encodeURIComponent(id),
         {credentials:'same-origin',cache:'no-store'});
-      if (!response.ok) throw Error('DETAIL');
-      const data = await response.json();
-      if (!data.ok || !active()) throw Error('DETAIL');
-      const box = document.createElement('section');
-      const title = document.createElement('h3'); title.textContent = 'Pedido #' + id; box.append(title);
-      const sections = [['Boletas',data.data.detail.items,'ticket_name_snapshot','quantity'],
-        ['Pagos',data.data.detail.payments,'status','gross_amount_cop'],
-        ['Correos',data.data.detail.mail,'delivery_state','created_at']];
-      for (const [label, rows, primary, secondary] of sections) {
-        const h = document.createElement('h4'); h.textContent = label; box.append(h);
-        const list = document.createElement('ul');
-        if (!rows.length) { const li = document.createElement('li'); li.textContent = 'Sin evidencia'; list.append(li); }
-        for (const row of rows) {
-          const li = document.createElement('li');
-          const first = primary === 'status' || primary === 'delivery_state'
-            ? displayState(row[primary]) : String(row[primary] ?? 'Sin registro');
-          const second = secondary === 'created_at' ? bogotaDate(row[secondary])
-            : String(row[secondary] ?? 'Sin registro');
-          li.textContent = first + ' · ' + second;
-          // #1950: cross-check a payment with Wompi by its reference and transaction ID.
-          if (label === 'Pagos') {
-            li.textContent += ' · Ref. ' + (row.provider_reference || 'sin referencia')
-              + ' · Transacción ' + (row.provider_transaction_id || 'sin transacción');
-          }
-          list.append(li);
-        }
-        box.append(list);
+      if(!response.ok) throw Error('DETAIL');
+      const result=await response.json();
+      if(!result.ok || !active()) throw Error('DETAIL');
+      const info=result.data.detail||{};
+      const record=result.data.rows?.[0]||{};
+      const order=info.order||{};
+      const page=document.createElement('article');
+      page.className='tk-order-page';page.dataset.ticketingOrderPage='';
+      const header=document.createElement('header');header.className='tk-order-head';
+      const top=document.createElement('div');
+      const title=document.createElement('h3');title.textContent='Pedido #'+id;
+      const subtitle=document.createElement('p');
+      subtitle.textContent=(order.event_title||'Evento sin título')+' · '+displayState(order.status||record.status);
+      top.append(title,subtitle);
+      const facts=document.createElement('dl');facts.className='tk-order-facts';
+      const keys=[['Comprador',record.email||'Datos reservados'],
+        ['Correo',record.email||'No visible para este rol'],
+        ['Evento',order.event_title||'Sin registro'],
+        ['Total',money(order.total_cop??record.total_cop)],
+        ['Medio de pago',info.payments?.[0]?.provider||'Sin pago']];
+      for(const [label,value] of keys){
+        const div=document.createElement('div');
+        const dt=document.createElement('dt');dt.textContent=label;
+        const dd=document.createElement('dd');dd.textContent=String(value);
+        div.append(dt,dd);facts.append(div);
       }
-      addIssueRetry(box, id, data.data.detail.issue);
-      addSyntheticActions(box, id);
-      detail.replaceChildren(box);
-    } catch { if (active()) detail.textContent = 'No se pudo cargar el detalle. No se modificó el pedido.'; }
+      const openAction=addOrderActions(header,id,order.status||record.status);
+      header.prepend(top,facts);page.append(header);
+      renderOrderTimeline(page,info,openAction,id);
+      const sections=document.createElement('div');sections.className='tk-order-sections';
+      const section=(heading,rows,format,empty)=>{
+        const el=document.createElement('section');const h=document.createElement('h4');
+        h.textContent=heading;el.append(h);
+        const ul=document.createElement('ul');
+        if(!rows?.length) {
+          const li=document.createElement('li');li.textContent=empty;ul.append(li);
+        } else for(const row of rows) {
+          const li=document.createElement('li');li.textContent=format(row);ul.append(li);
+        }
+        el.append(ul);return el;
+      };
+      sections.append(section('Boletas',info.items,
+        r=>String(r.ticket_name_snapshot||'Boleta')+' · '+r.quantity+' unidad(es)',
+        'Todavía no hay boletas para mostrar.'));
+      sections.append(section('Pago',info.payments,
+        r=>displayState(r.status)+' · '+money(r.gross_amount_cop)+' · Ref. '+
+          (r.provider_reference||'sin referencia')+' · Transacción '+
+          (r.provider_transaction_id||'sin transacción'),
+        'No hay transacciones registradas.'));
+      const notes=section('Notas',info.notes,
+        r=>String(r.note_text)+' · '+String(r.actor_name||'Administración')+
+          ' · '+bogotaDate(r.created_at_utc),
+        'Aún no hay notas internas.');
+      notes.dataset.ticketingNoteList='';
+      const addNote=document.createElement('button');addNote.type='button';
+      addNote.className='tk-button';addNote.textContent='Agregar nota';
+      addNote.addEventListener('click',()=>openAction('note'));
+      notes.append(addNote);sections.append(notes);
+      page.append(sections);
+      detail.replaceChildren(page);
+    }catch {
+      if(active()) detail.textContent='No se pudo cargar el detalle. No se modificó el pedido.';
+    }
   }
   async function refresh(append = false) {
     const token = ++generation;
