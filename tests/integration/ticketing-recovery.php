@@ -1,5 +1,20 @@
 <?php
 declare(strict_types=1);
+// Isolated MariaDB fixture: never contact the provider or store a real recipient.
+function brvtal_ticket_mail_enqueue(PDO $db, string $key, string $reference,
+    string $recipient, string $subject, string $body, ?string $html = null,
+    ?string $templateKey = null, ?int $templateVersion = null): int
+{
+    if (!$db->inTransaction()) throw new RuntimeException('fixture transaction required');
+    if ($templateKey !== 'reminder' || !str_contains($body,'/compra/')
+        || !str_contains((string)$html,'solicitar la baja')) {
+        throw new RuntimeException('fixture reminder template invalid');
+    }
+    $q = $db->prepare('INSERT INTO ticket_mail_outbox (message_key,related_ref,state)
+        VALUES (?,?,"queued")');
+    $q->execute([$key,$reference]);
+    return (int)$db->lastInsertId();
+}
 require_once __DIR__ . '/../../config/ticketing_recovery.php';
 function t29(bool $ok,string $why):void {if(!$ok)throw new RuntimeException('T29 '.$why);}
 foreach ([['order_id'=>-1,'campaign'=>'checkout','idempotency_key'=>str_repeat('a',32)],
@@ -52,6 +67,24 @@ try {
     $db->exec("INSERT INTO ticket_orders VALUES (95,3,6,'pending',DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 3 DAY))");
     $db->exec("INSERT INTO ticket_order_items VALUES (4,94,7,1),(5,95,7,1)");
     $db->exec("INSERT INTO ticket_payment_attempts VALUES (3,95,'approved')");
+    $db->exec('ALTER TABLE ticket_buyers ADD email VARCHAR(190) NULL');
+    $db->exec("UPDATE ticket_buyers SET email=CONCAT('fixture',id,'@brvtal.invalid')");
+    $db->exec('ALTER TABLE ticket_orders ADD public_id BINARY(16) NULL,
+        ADD created_at_utc DATETIME(6) NOT NULL DEFAULT (UTC_TIMESTAMP(6))');
+    $db->exec("UPDATE ticket_orders SET public_id=UNHEX(LPAD(HEX(id),32,'0')),
+        created_at_utc=DATE_SUB(UTC_TIMESTAMP(6), INTERVAL 60 MINUTE)");
+    $db->exec('CREATE TABLE ticket_mail_outbox (id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        message_key VARCHAR(128) NOT NULL UNIQUE,related_ref VARCHAR(128) NOT NULL,
+        state VARCHAR(20) NOT NULL)');
+    // Real checkout holds expire in 10 minutes. A reminder must fit inside that hold.
+    $db->exec("UPDATE ticket_orders SET
+        created_at_utc=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 6 MINUTE),
+        expires_at_utc=DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 4 MINUTE) WHERE id=91");
+    $db->exec("INSERT INTO ticket_orders
+        (id,buyer_id,event_id,status,expires_at_utc,created_at_utc,public_id)
+        VALUES (96,3,6,'pending',DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 8 MINUTE),
+            DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 2 MINUTE),UNHEX(LPAD(HEX(96),32,'0')))");
+
     $input=['order_id'=>91,'campaign'=>'noviembre','idempotency_key'=>str_repeat('a',32)];
     $result=brvtalRecoveryPlan($db,7,'superadmin',$input);
     t29($result['state']==='planned' && $result['stage']==='payment_open'
@@ -72,6 +105,30 @@ try {
         ['order_id'=>95,'idempotency_key'=>str_repeat('g',32)]))['reason']==='payment_confirmed',
         'server-approved payment blocks recovery even when order state is still pending');
     t29(count(brvtalRecoveryMetrics($db))===1,'aggregate eligible only');
+    $ready=['mode'=>'live','ready'=>true];
+    // No new marketing sends from a normal deploy: explicit opt-in gate required.
+    putenv('BRVTAL_RECOVERY_ENABLED');
+    t29(brvtalRecoverySend($db,7,'superadmin',$input,$ready)['reason']==='recovery_disabled',
+        'new commercial campaign defaults OFF');
+    putenv('BRVTAL_RECOVERY_ENABLED=1');
+    $send=brvtalRecoverySend($db,7,'superadmin',$input,$ready);
+    t29($send['state']==='queued' && $send['queued'],'valid opt-in queued');
+    $again=brvtalRecoverySend($db,7,'superadmin',$input,$ready);
+    t29($again['reason']==='already_reminded','one reminder per order');
+    foreach ([92=>'consent_unavailable',93=>'order_not_pending',
+              94=>'checkout_expired',95=>'payment_confirmed',
+              96=>'outside_window'] as $id=>$reason) {
+        $once=brvtalRecoverySend($db,7,'superadmin',
+            array_merge($input,['order_id'=>$id]),$ready);
+        t29($once['reason']===$reason,"suppression $id");
+    }
+    t29((int)$db->query('SELECT COUNT(*) FROM ticket_mail_outbox')->fetchColumn()===1,
+        'only one durable reminder exists');
+    t29(brvtalRecoverySend($db,7,'superadmin',$input,['mode'=>'disabled','ready'=>false])
+        ['reason']==='mail_unavailable','mail mode fail closed');
+    try { brvtalRecoveryReminder('Rave','not-a-token'); throw new RuntimeException('token accepted'); }
+    catch (DomainException) {}
+
     $db->exec("UPDATE ticket_orders SET expires_at_utc=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND) WHERE id=91");
     t29(brvtalRecoveryMetrics($db)===[],'expired checkout hidden from recovery dashboard');
     $db->exec("UPDATE ticket_orders SET expires_at_utc=DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 3 DAY) WHERE id=91");
@@ -81,6 +138,7 @@ try {
     putenv('BRVTAL_INTEGRATION_TESTS=0');
     try {brvtalRecoveryPlan($db,7,'superadmin',$input);throw new RuntimeException('real mode');}
     catch (DomainException $e) {t29($e->getMessage()==='SYNTHETIC_ONLY','real mode blocked');}
+    putenv('BRVTAL_RECOVERY_ENABLED');
     putenv('BRVTAL_INTEGRATION_TESTS=1');
     t29((int)$db->query('SELECT COUNT(*) FROM ticket_recovery_previews')->fetchColumn()===1,
         'one preview, no duplicate');
