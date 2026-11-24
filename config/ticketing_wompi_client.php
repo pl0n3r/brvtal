@@ -157,7 +157,8 @@ function brvtal_ticket_wompi_prepare(
     $total = 0;
     $quantities = [];
     foreach ($rows as $row) {
-        $qty = (int)$row['quantity']; $unit = (int)$row['unit_price_cop'];
+        $qty = (int)$row['quantity'];
+        $unit = (int)$row['unit_price_cop'];
         if ($row['currency'] !== 'COP' || $qty < 1 || $qty > 20 || $unit < 1
             || $unit > 10000000 || $unit * $qty !== (int)$row['subtotal_cop']) {
             throw new DomainException('WOMPI_PRICE_MISMATCH');
@@ -200,7 +201,7 @@ function brvtal_ticket_wompi_prepare(
             || $discount < 0 || $discount >= $total
             || (int)$redemption['total_cop'] !== $total - $discount
             || (int)$order['total_cop'] !== $total - $discount
-            || preg_match('/^[a-f0-9]{64}$/D',(string)$redemption['code_digest']) !== 1) {
+            || preg_match('/^[a-f0-9]{64}$/D', (string)$redemption['code_digest']) !== 1) {
             throw new DomainException('WOMPI_PRICE_MISMATCH');
         }
     } elseif ($total !== (int)$order['total_cop']) {

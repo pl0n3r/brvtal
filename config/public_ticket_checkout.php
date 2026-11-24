@@ -439,9 +439,7 @@ function brvtal_public_ticket_checkout_prepare(PDO $db, int $eventId, int $buyer
         }
         // T07 checks the frozen coupon ledger before signing the net COP.
         // T23 still fails closed outside disposable test DBs (D-063).
-        $checkout = brvtal_ticket_wompi_prepare(
-            $db,$buyerId,$orderId,$key,$method,$settings
-        );
+        $checkout = brvtal_ticket_wompi_prepare($db, $buyerId, $orderId, $key, $method, $settings);
         $db->commit();
         $response=['order_id'=>$orderId,'checkout'=>$checkout];
         if ($withPromo) {
