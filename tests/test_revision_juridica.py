@@ -4,6 +4,7 @@ import json
 import subprocess
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -25,7 +26,7 @@ class RevisionJuridicaTests(unittest.TestCase):
         self.assertEqual(len(expected), 8)
         index = expected["00-LEEME.md"].decode("utf-8")
         self.assertTrue(index.startswith(
-            f"Última actualización automática de las fuentes: {day} · SHA de origen: `{sha}`"))
+            f"Última actualización automática de las fuentes: {day} · SHA-256 de fuentes: `{sha}`"))
         self.assertIn("documented_not_legally_approved", index)
         self.assertIn(f"versión declarada `{mod.version(ROOT)}`", index)
         self.assertEqual(json.loads((ROOT / "package.json").read_text(encoding="utf-8"))["version"],
@@ -64,7 +65,7 @@ class RevisionJuridicaTests(unittest.TestCase):
                 (root / "docs/privacidad" / name).write_bytes(name.encode("utf-8"))
             (root / "datos.yml").write_text(json.dumps({"treatments":[{"providers":[]}]}))
             (root / "config/version.php").write_text("<?php const BRVTAL_APP_VERSION = '0.0.1';")
-            with patch.object(mod, "provenance", return_value=("a"*40, "2026-10-18")):
+            with patch.object(mod, "provenance", return_value=("a"*64, "2026-10-18")):
                 self.assertTrue(mod.synchronize(root, check=True))
                 self.assertFalse((root / "revision-juridica").exists())
                 mod.synchronize(root, check=False)
@@ -85,7 +86,7 @@ class RevisionJuridicaTests(unittest.TestCase):
             (root / "datos.yml").write_text(json.dumps({"treatments": [{"providers": []}]}))
             (root / "config/version.php").write_text(
                 "<?php const BRVTAL_APP_VERSION = '0.0.1';")
-            with patch.object(mod, "provenance", return_value=("a" * 40, "2026-10-18")):
+            with patch.object(mod, "provenance", return_value=("a" * 64, "2026-10-18")):
                 mod.synchronize(root, check=False)
                 folder = root / "revision-juridica"
                 unexpected = folder / "unexpected.php"
@@ -108,6 +109,40 @@ class RevisionJuridicaTests(unittest.TestCase):
                     mod.synchronize(root, check=False)
                 self.assertEqual(outside.read_bytes(), b"untouched")
 
+
+
+    def test_content_fingerprint_survives_squash_and_detects_source_drift(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / "docs/privacidad").mkdir(parents=True)
+            (root / "config").mkdir()
+            (root / "revision-juridica").mkdir()
+            for name, _ in mod.NAMES:
+                (root / "docs/privacidad" / name).write_text(f"Contenido: {name}\n", encoding="utf-8")
+            (root / "datos.yml").write_text(json.dumps({"treatments": [{"providers": []}]}))
+            (root / "config/version.php").write_text("<?php const BRVTAL_APP_VERSION = '0.0.1';")
+
+            def before_squash(args, **_kwargs):
+                return SimpleNamespace(stdout="false" if args[1] == "rev-parse" else "2026-11-24")
+
+            with patch.object(mod.subprocess, "run", side_effect=before_squash):
+                fingerprint, day = mod.provenance(root)
+            self.assertEqual(len(fingerprint), 64)
+            self.assertEqual(day, "2026-11-24")
+            (root / "revision-juridica/00-LEEME.md").write_bytes(
+                mod.expected(root, fingerprint, day)["00-LEEME.md"])
+
+            def after_squash(args, **_kwargs):
+                return SimpleNamespace(stdout="false" if args[1] == "rev-parse" else "2026-11-25")
+
+            with patch.object(mod.subprocess, "run", side_effect=after_squash):
+                self.assertEqual(mod.provenance(root), (fingerprint, day))
+                source = root / "docs/privacidad/canal-derechos.md"
+                source.write_text(source.read_text() + "Cambio verificable\n", encoding="utf-8")
+                changed_sha, changed_day = mod.provenance(root)
+                self.assertNotEqual(changed_sha, fingerprint)
+                self.assertEqual(changed_day, "2026-11-25")
+                self.assertIn("00-LEEME.md", mod.synchronize(root, check=True))
 
 
 if __name__ == "__main__":
