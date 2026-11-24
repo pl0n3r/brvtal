@@ -268,3 +268,12 @@ test('invitado: los datos del comprador permanecen bloqueados durante prepare', 
   await expect(page.getByLabel('Correo')).toBeEditable();
   await expect(page.getByLabel('Nombre')).toBeEditable();
 });
+
+test('la cuenta bloqueada no se enumera: respuesta genérica con orientación', async ({ page }) => {
+  const calls = await openCheckout(page, { onPrepare: () => ({ ok: false, error: 'CHECKOUT_UNAVAILABLE' }) });
+  await page.locator('[data-cart-type="5"] [data-cart-step="1"]').click();
+  await fillGuest(page);
+  await page.locator('[data-cart-pay]').click();
+  await expect(page.locator('#ticket-checkout-status')).toContainText('si tu cuenta está bloqueada');
+  expect(calls.prepare).toHaveLength(1);
+});
