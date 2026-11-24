@@ -225,8 +225,12 @@ test('invitado: tras timeout y recarga, la misma identidad conserva la clave de 
   await page.locator('[data-cart-pay]').click();
   await expect.poll(() => calls.prepare.length).toBe(2);
   expect(calls.prepare[1].body.idempotency_key).toBe(firstKey);
-  const retried = await page.evaluate(() => JSON.parse(sessionStorage.getItem('brvtal-checkout:/events/cart-fixture')));
-  expect(retried.order_token).toBe(orderToken);
+  // The request is recorded before the browser handles the mocked response.
+  // Assert the completed save, not an intermediate in-flight session record.
+  await expect(page.locator('#ticket-checkout-status')).toContainText('Reserva preparada');
+  await expect.poll(() => page.evaluate(() =>
+    JSON.parse(sessionStorage.getItem('brvtal-checkout:/events/cart-fixture'))?.order_token
+  )).toBe(orderToken);
 });
 
 test('invitado: un reintento fallido conserva order_token, y otro comprador usa otra clave', async ({ page }) => {
