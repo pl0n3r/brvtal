@@ -65,17 +65,14 @@ function brvtal_public_ticket_checkout_offers(PDO $db, int $eventId): array
 }
 
 /**
- * Stage pricing is ONLY test-enabled on disposable MariaDB. Never start selling
- * a new stage just because its migration or UI was merged. When enabled, this
- * lock and T05 inventory counts serialize the quote with all concurrent holds.
+ * A configured stage is the authoritative price for new orders. The event row
+ * mutex serializes stage selection with T05 inventory holds and price snapshots.
+ * Missing stage tables preserve legacy pricing until the additive migration runs.
  */
 function brvtal_public_ticket_checkout_stage_quote(
     PDO $db, int $eventId, int $typeId, int $quantity,
     ?DateTimeImmutable $clock = null, int $offeredUnit = 0
 ): ?array {
-    if (getenv('BRVTAL_INTEGRATION_TESTS') !== '1'
-        || !preg_match('/^brvtal_test[a-zA-Z0-9_]*$/D',
-            (string)$db->query('SELECT DATABASE()')->fetchColumn())) return null;
     if (!$db->inTransaction()) throw new LogicException('STAGE_TRANSACTION_REQUIRED');
     $q = $db->prepare('SELECT id FROM events WHERE id=? FOR UPDATE');
     $q->execute([$eventId]);
@@ -213,7 +210,7 @@ function brvtal_public_ticket_checkout_prepare_cart(PDO $db, int $eventId, int $
                 $typeQuery->execute([$typeId, $eventId]);
                 $type = $typeQuery->fetch(PDO::FETCH_ASSOC);
                 if (!$type || $type['currency'] !== 'COP') throw new DomainException('CHECKOUT_UNAVAILABLE');
-                // Dormant outside disposable integration DBs, exactly like the single path.
+                // The same transactional stage quote applies to each cart line.
                 $quote = brvtal_public_ticket_checkout_stage_quote($db, $eventId, $typeId, $quantity);
                 $price = $quote['unit_price_cop'] ?? $type['price'];
                 $subtotal = brvtal_ticket_checkout_price($price, $quantity);
@@ -298,13 +295,12 @@ function brvtal_public_ticket_checkout_prepare(PDO $db, int $eventId, int $buyer
     brvtal_public_ticket_checkout_fast_locks($db);
     $db->beginTransaction();
     try {
-        if ($withOffer || $withPromo) {
-            // T05/Event mutex FIRST, ahead of any order or invitation FOR UPDATE.
-            $lock = $db->prepare('SELECT id FROM events WHERE id=? FOR UPDATE');
-            $lock->execute([$eventId]);
-            if (!$lock->fetchColumn()) {
-                throw new DomainException('CHECKOUT_UNAVAILABLE');
-            }
+        // T05/Event mutex FIRST for every checkout, before an order/idempotency
+        // lock. Stage pricing and inventory holds must share the same lock order.
+        $lock = $db->prepare('SELECT id FROM events WHERE id=? FOR UPDATE');
+        $lock->execute([$eventId]);
+        if (!$lock->fetchColumn()) {
+            throw new DomainException('CHECKOUT_UNAVAILABLE');
         }
         $q = $db->prepare('SELECT id,status,event_id,buyer_id,expires_at_utc,total_cop FROM ticket_orders
             WHERE checkout_key_hash=? FOR UPDATE');
@@ -369,7 +365,7 @@ function brvtal_public_ticket_checkout_prepare(PDO $db, int $eventId, int $buyer
                 brvtalPromoRejectUncodedReplay($db,$orderId);
             }
         } else {
-            // This path remains dormant outside disposable integration DBs.
+            // A first checkout snapshots its configured stage price under the event lock.
             $quote = brvtal_public_ticket_checkout_stage_quote(
                 $db,$eventId,$typeId,$quantity,null,$withOffer ? 1 : 0);
             $price = $quote['unit_price_cop'] ?? $type['price'];

@@ -1,9 +1,8 @@
 <?php
 declare(strict_types=1);
 
-/** T22 stage policy is a draft contract. Checkout must not activate it without
- * enforcing this exact server-authoritative price and stock in its own lock.
- * Existing event_ticket_types and paid order_item snapshots remain unchanged.
+/** T22 stage policy controls real checkout prices under the T05 event mutex.
+ * Existing event_ticket_types and paid order-item snapshots remain unchanged.
  */
 function brvtalTicketStageInput(array $rows): array
 {
@@ -69,9 +68,8 @@ function brvtalTicketStageCurrent(array $stages, int $used,
 }
 
 /**
- * Quote-only T22 policy. Caller must obtain T05 Event mutex and compute
- * inventoryFree from sold + held + courtesy before calling. This pure helper
- * does not activate stage pricing for the public checkout.
+ * Caller must hold the T05 Event mutex and count sold, held and courtesy units
+ * before applying the stage price and its cumulative quota.
  */
 function brvtalTicketStageQuote(array $stages, int $used, int $quantity,
     int $inventoryFree, ?DateTimeImmutable $clock = null): array
@@ -100,13 +98,8 @@ function brvtalTicketStageSave(PDO $pdo,int $eventId,int $typeId,array $rows): v
     if ($eventId < 1 || $typeId < 1 || $pdo->inTransaction()) {
         throw new InvalidArgumentException('INVALID_STAGE_TARGET');
     }
-    // Explicitly synthetic until checkout also binds stage price + stock
-    // under the existing T05 lock; never change a real tenant's prices.
-    if (getenv('BRVTAL_INTEGRATION_TESTS') !== '1'
-        || !preg_match('/^brvtal_test[a-zA-Z0-9_]*$/D',
-            (string)$pdo->query('SELECT DATABASE()')->fetchColumn())) {
-        throw new DomainException('STAGES_DRAFT_ONLY');
-    }
+    // Real stage edits are serialized with checkout holds, with no retroactive
+    // change to the immutable amounts already recorded in ticket_order_items.
     $stages = brvtalTicketStageInput($rows);
     $pdo->beginTransaction();
     try {

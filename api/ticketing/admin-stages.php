@@ -3,6 +3,7 @@ declare(strict_types=1);
 require_once __DIR__.'/../../config/admin_auth.php';
 require_once __DIR__.'/../../config/ticketing_staff_permissions.php';
 require_once __DIR__.'/../../config/ticketing_stages.php';
+require_once __DIR__.'/../../config/ticketing_inventory.php';
 header('Cache-Control: no-store, private');
 header('X-Content-Type-Options: nosniff');
 brvtal_admin_require();
@@ -28,8 +29,22 @@ try {
           FROM ticket_type_stages WHERE event_id=? AND ticket_type_id=?
           ORDER BY FIELD(code, "early_bird","preventa","general","puerta")');
         $q->execute([$eventId,$typeId]);
-        json_response(['ok'=>true,'stages'=>$q->fetchAll(PDO::FETCH_ASSOC),
-          'draft_only'=>true,'checkout_activation'=>false]);
+        $stages = array_map(static function (array $row): array {
+            $row['price_cop'] = (int)$row['price_cop'];
+            $row['cumulative_capacity'] = (int)$row['cumulative_capacity'];
+            return $row;
+        }, $q->fetchAll(PDO::FETCH_ASSOC));
+        $current = null;
+        if ($stages) {
+            $clock = brvtal_ticket_inventory_now();
+            $usage = brvtal_ticket_inventory_usage($pdo,$eventId,$typeId,
+                $clock->format('Y-m-d H:i:s.u'));
+            $current = brvtalTicketStageCurrent($stages,array_sum($usage),$clock);
+        }
+        json_response(['ok'=>true,'stages'=>$stages,
+          'current_stage'=>$current === null ? null : [
+            'code'=>$current['code'],'price_cop'=>$current['price_cop']
+          ],'draft_only'=>false,'checkout_activation'=>true]);
     }
     if (!str_starts_with(strtolower((string)($_SERVER['CONTENT_TYPE'] ?? '')),
         'application/json') || (int)($_SERVER['CONTENT_LENGTH'] ?? 0)>4096) {
@@ -43,12 +58,12 @@ try {
       || !is_int($data['event_id'] ?? null) || !is_int($data['ticket_type_id'] ?? null)
       || !is_array($data['stages'] ?? null)) throw new InvalidArgumentException();
     brvtalTicketStageSave($pdo,$data['event_id'],$data['ticket_type_id'],$data['stages']);
-    json_response(['ok'=>true,'draft_only'=>true,'checkout_activation'=>false]);
+    json_response(['ok'=>true,'draft_only'=>false,'checkout_activation'=>true]);
 } catch (InvalidArgumentException | JsonException) {
     json_response(['ok'=>false,'error'=>'INVALID_STAGE_INPUT'],422);
 } catch (DomainException $e) {
     $error=$e->getMessage();
-    json_response(['ok'=>false,'error'=>$error],$error==='STAGES_DRAFT_ONLY'?423:($error==='ACTIVE_RESERVATIONS'?409:404));
+    json_response(['ok'=>false,'error'=>$error],$error==='ACTIVE_RESERVATIONS'?409:404);
 } catch (Throwable) {
     json_response(['ok'=>false,'error'=>'STAGES_UNAVAILABLE'],503);
 }
