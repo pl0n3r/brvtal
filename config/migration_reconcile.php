@@ -518,9 +518,14 @@ function brvtalMigrationProbeRequirement(PDO $pdo, string $requirement): bool
     }
     if (preg_match('/^fk-reference:([A-Za-z0-9_]+)\.([A-Za-z0-9_]+)=([A-Za-z0-9_]+):([A-Za-z0-9_]+)\.([A-Za-z0-9_]+)$/', $requirement, $match)) {
         $statement = $pdo->prepare(
-            'SELECT COUNT(*) FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=DATABASE() '
-            . 'AND TABLE_NAME=? AND CONSTRAINT_NAME=? AND COLUMN_NAME=? '
-            . 'AND REFERENCED_TABLE_NAME=? AND REFERENCED_COLUMN_NAME=?'
+            'SELECT COUNT(*) FROM information_schema.KEY_COLUMN_USAGE k '
+            . 'JOIN information_schema.REFERENTIAL_CONSTRAINTS r '
+            . 'ON r.CONSTRAINT_SCHEMA=k.CONSTRAINT_SCHEMA '
+            . 'AND r.CONSTRAINT_NAME=k.CONSTRAINT_NAME AND r.TABLE_NAME=k.TABLE_NAME '
+            . "WHERE k.TABLE_SCHEMA=DATABASE() AND k.REFERENCED_TABLE_SCHEMA=DATABASE() "
+            . 'AND k.TABLE_NAME=? AND k.CONSTRAINT_NAME=? AND k.COLUMN_NAME=? '
+            . 'AND k.REFERENCED_TABLE_NAME=? AND k.REFERENCED_COLUMN_NAME=? '
+            . "AND r.DELETE_RULE IN ('RESTRICT','NO ACTION')"
         );
         $statement->execute([$match[1], $match[2], $match[3], $match[4], $match[5]]);
         return (int)$statement->fetchColumn() === 1;
