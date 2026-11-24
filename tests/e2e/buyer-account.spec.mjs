@@ -58,7 +58,7 @@ test('mobile: empty orders and filters are clear and do not reveal a QR', async 
   expect(calls.some(x=>x.url.includes('from=2026-11-01'))).toBe(true);
 });
 
-test('desktop: pending, expired, used, revoked, paid and secure scannable SVG download', async ({page}) => {
+test('desktop: pending, expired, used, revoked, paid and secure scannable PNG download', async ({page}) => {
   await page.setViewportSize({width:1280,height:900});
   const calls=await fakeAccount(page,[paid,{...base,public_id:'p',status:'pending',payment_status:'pending',items:[]},
     {...base,public_id:'e',status:'expired',payment_status:'declined',items:[]}]);
@@ -82,8 +82,8 @@ test('desktop: pending, expired, used, revoked, paid and secure scannable SVG do
   expect(calls.find(x=>x.method==='POST')?.data?.ticket_id).toBe('abcdefabcdefabcdefabcdefabcdefab');
   expect(page.url()).not.toContain('BRVTAL:T1:');
   const download=page.waitForEvent('download');
-  await page.getByRole('button',{name:'Descargar QR SVG'}).click();
-  expect((await download).suggestedFilename()).toBe('entrada-brvtal.svg');
+  await page.getByRole('button',{name:'Descargar QR PNG'}).click();
+  expect((await download).suggestedFilename()).toBe('entrada-brvtal.png');
 });
 
 test('mobile: invalid/revoked token remains hidden and pagination stays read-only', async ({page}) => {
@@ -106,4 +106,35 @@ test('API read failure is accessible, without misreporting success', async ({pag
   await page.goto(url);
   await expect(page.getByRole('status').first()).toContainText('No pudimos cargar tus compras');
   await expect(page.getByRole('button',{name:'Ver más pedidos'})).toBeHidden();
+});
+
+// #1978: account-owned QR without manual token, with real responsive captures.
+test('buyer can open and download a stored QR at 390 and 1440 px', async ({page},testInfo) => {
+  for(const width of [390,1440]){
+    await page.setViewportSize({width,height:900});
+    const stored={...paid,items:[{...paid.items[0],qr_stored:true}]};
+    const calls=await fakeAccount(page,[stored]);
+    await page.goto(url);
+    await expect(page.getByRole('button',{name:'Ver QR'})).toBeVisible();
+    await page.screenshot({path:testInfo.outputPath('account-'+width+'-before.png')});
+    await page.getByRole('button',{name:'Ver QR'}).click();
+    await expect(page.locator('#qr-output svg')).toBeVisible();
+    await expect(page.getByLabel('Credencial original')).toBeHidden();
+    expect(calls.find(x=>x.method==='POST')?.data?.action).toBe('qr_stored');
+    expect(calls.find(x=>x.method==='POST')?.headers['x-csrf-token']).toBe('fake-csrf');
+    await page.screenshot({path:testInfo.outputPath('account-'+width+'-after.png')});
+    const download=page.waitForEvent('download');
+    await page.getByRole('button',{name:'Descargar QR PNG'}).click();
+    expect((await download).suggestedFilename()).toBe('entrada-brvtal.png');
+  }
+});
+
+test('stored QR owner mismatch yields 404-equivalent and no visible QR', async ({page}) => {
+  const stored={...paid,items:[{...paid.items[0],qr_stored:true}]};
+  await fakeAccount(page,[stored],404);
+  await page.goto(url);
+  await page.getByRole('button',{name:'Ver QR'}).click();
+  await expect(page.getByText(/No se pudo autorizar esta entrada/)).toBeVisible();
+  await expect(page.locator('#qr-output svg')).toHaveCount(0);
+  await expect(page.getByLabel('Credencial original')).toBeVisible();
 });

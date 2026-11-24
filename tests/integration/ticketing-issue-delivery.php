@@ -4,6 +4,7 @@ declare(strict_types=1);
 /** #1945: paid order -> tickets + sealed QR email in one transaction (disposable MariaDB). */
 require_once __DIR__ . '/../../config/ticketing_issue_delivery.php';
 require_once __DIR__ . '/../../config/ticketing_wompi_webhook.php';
+require_once __DIR__ . '/../../config/buyer_account.php';
 
 function deliveryAssert(bool $ok, string $what): void
 {
@@ -39,7 +40,8 @@ $lastFailureFile = sys_get_temp_dir() . '/brvtal-issue-last-' . bin2hex(random_b
 putenv('BRVTAL_TICKET_ISSUE_LAST_FAILURE_FILE=' . $lastFailureFile);
 register_shutdown_function(static fn() => @unlink($lastFailureFile));
 foreach ([
-    "CREATE TABLE events(id INT UNSIGNED PRIMARY KEY,title VARCHAR(180) NOT NULL) ENGINE=InnoDB",
+    "CREATE TABLE events(id INT UNSIGNED PRIMARY KEY,title VARCHAR(180) NOT NULL,
+        event_date DATE NOT NULL DEFAULT '2026-12-10') ENGINE=InnoDB",
     "CREATE TABLE event_ticket_types(id INT UNSIGNED PRIMARY KEY,event_id INT UNSIGNED NOT NULL) ENGINE=InnoDB",
     "CREATE TABLE admins(id INT UNSIGNED PRIMARY KEY) ENGINE=InnoDB",
     "CREATE TABLE ticket_buyers(id BIGINT UNSIGNED PRIMARY KEY,email VARCHAR(190) NULL) ENGINE=InnoDB",
@@ -59,6 +61,12 @@ foreach (['ticketing_entries_01','ticketing_webhook_01','ticketing_mail_outbox_0
     deliveryAssert(is_string($sql) && strlen($sql) > 50, $migration . ' present');
     $sql = (string)preg_replace('/^\h*--[^\r\n]*$/m', '', $sql);
     foreach (explode(';', $sql) as $ddl) if (trim($ddl) !== '') $db->exec($ddl);
+}
+// New credentials get recoverable ciphertext, historical ones remain nullable.
+$entrySecretMigration = file_get_contents(__DIR__ . '/../../database/migration_ticket_entry_secret_01.sql');
+deliveryAssert(is_string($entrySecretMigration), 'entry-secret migration present');
+foreach (explode(';', preg_replace('/^\\h*--[^\\r\\n]*$/m', '', $entrySecretMigration)) as $ddl) {
+    if (trim($ddl) !== '') $db->exec($ddl);
 }
 $db->exec("INSERT INTO events(id,title) VALUES (1,'GENESIS')");
 $db->exec('INSERT INTO admins(id) VALUES (7)');
@@ -110,6 +118,35 @@ foreach ($links as [, $payload, $publicId, $token]) {
     deliveryAssert(brvtal_ticket_issue_qr_payload($db, 8, $publicId, $token, $future) === $payload,
         'link payload validates for ' . $publicId);
 }
+
+
+// #1978: ciphertext is never equal to or a substring of the token, is scoped
+// to the buyer and cannot be read with another buyer's authenticated scope.
+$issuedCredentials = $db->query("SELECT t.public_id,c.token_encrypted,c.token_hash
+    FROM ticket_entries t JOIN ticket_order_items i ON i.id=t.order_item_id
+    JOIN ticket_entry_credentials c ON c.entry_id=t.id
+    WHERE i.order_id=100 ORDER BY t.id")->fetchAll(PDO::FETCH_ASSOC);
+deliveryAssert(count($issuedCredentials)===3, 'three encrypted ticket credentials');
+foreach ($issuedCredentials as $record) {
+    deliveryAssert(is_string($record['token_encrypted']) && strlen($record['token_encrypted'])===61,
+        'AES-GCM v1 nonce, tag and ciphertext persisted');
+    $plain = brvtal_ticket_issue_open_token($record['token_encrypted'], $record['public_id']);
+    deliveryAssert(hash_equals($record['token_hash'],hash('sha256',$plain,true)),
+        'authenticated decrypt matches stored digest');
+    deliveryAssert(!str_contains($record['token_encrypted'],$plain),
+        'plaintext not persisted in ciphertext');
+    $id = bin2hex($record['public_id']);
+    $stored = brvtalBuyerAccountStoredQr($db,8,$id);
+    deliveryAssert(str_starts_with($stored['content'],'BRVTAL:T1:'.$id.':'),
+        'owner can recover the same valid QR');
+    try { brvtalBuyerAccountStoredQr($db,9,$id); deliveryAssert(false,'foreign buyer got QR'); }
+    catch (DomainException $e) { deliveryAssert($e->getMessage()==='TICKET_UNAVAILABLE','foreign buyer denied'); }
+}
+$first = $issuedCredentials[0];
+$badSeal = $first['token_encrypted'];
+$badSeal[40] = chr(ord($badSeal[40]) ^ 1);
+try { brvtal_ticket_issue_open_token($badSeal,$first['public_id']); deliveryAssert(false,'tampered seal accepted'); }
+catch (DomainException $e) { deliveryAssert($e->getMessage()==='TICKET_UNAVAILABLE','tampered seal rejected'); }
 
 // AC-01 (b): a repeat never re-issues nor re-sends.
 $doneJob = $count('SELECT id FROM ticket_issue_outbox WHERE order_id=100');

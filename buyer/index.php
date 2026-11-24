@@ -61,14 +61,14 @@
         </section>
         <section id="qr" class="account-panel account-qr" hidden aria-label="Entrada QR">
           <h2 id="qr-title">Entrada protegida</h2>
-          <p>Usa la credencial original recibida al emitir tu entrada. BRVTAL no conserva el secreto en claro.</p>
+          <p>Abre el código desde tu cuenta. Para entradas anteriores, usa la credencial original enviada por correo.</p>
           <form id="qr-form">
             <label class="account-field" for="token">Credencial original
               <input id="token" type="password" required autocomplete="off" spellcheck="false" minlength="43" maxlength="43"></label>
             <button type="submit">Mostrar QR</button>
           </form>
           <div id="qr-output" role="img" aria-label="Código QR de entrada" hidden></div>
-          <button id="download" type="button" hidden>Descargar QR SVG</button>
+          <button id="download" type="button" hidden>Descargar QR PNG</button>
           <p id="qr-feedback" role="status" aria-live="polite"></p>
         </section>
       </div>
@@ -225,8 +225,8 @@
     });
     return form;
   }
-  function resetQr(){ticket='';payload='';qr.hidden=true;$('token').value='';$('qr-output').replaceChildren();$('qr-output').hidden=true;$('download').hidden=true;$('qr-feedback').textContent='';}
-  function showQr(id){resetQr();ticket=id;qr.hidden=false;$('token').focus();}
+  function resetQr(){ticket='';payload='';qr.hidden=true;$('qr-form').hidden=false;$('token').value='';$('qr-output').replaceChildren();$('qr-output').hidden=true;$('download').hidden=true;$('qr-feedback').textContent='';}
+  function showQr(id, stored=false){resetQr();ticket=id;qr.hidden=false;if(stored){$('qr-form').hidden=true;loadQr(true);}else $('token').focus();}
   function card(order){
     const box=el('article'),title=el('h2',order.event_title||'Evento');box.className='account-order';box.append(title,
       el('p',(order.order_number?'Pedido #'+order.order_number+' · ':'')+(statuses[order.status]||order.status)+' · Pago: '+(statuses[order.payment_status]||order.payment_status||'Sin intento')),
@@ -234,7 +234,7 @@
     for(const item of order.items||[]){
       const line=el('div');line.className='ticket';line.append(el('strong',item.name),el('p','Cantidad: '+item.quantity+' · Entrada: '+(statuses[item.status]||item.status)));
       if(order.status==='paid'&&item.status==='issued'&&item.credential_active!==false&&item.qr_requires_original_token&&item.ticket_id){
-        const button=el('button','Ver QR');button.type='button';button.addEventListener('click',()=>showQr(item.ticket_id));line.append(button);
+        const button=el('button','Ver QR');button.type='button';button.addEventListener('click',()=>showQr(item.ticket_id,item.qr_stored===true));line.append(button);
       }box.append(line);
     }
     const refund=refundForm(order);if(refund)box.append(refund);
@@ -307,19 +307,39 @@
       r.setAttribute('x',String(x+4));r.setAttribute('y',String(y+4));r.setAttribute('width','1');r.setAttribute('height','1');r.setAttribute('fill','#000');svg.append(r);}
     return svg;
   }
-  $('qr-form').addEventListener('submit',async e=>{e.preventDefault();const button=e.currentTarget.querySelector('button');button.disabled=true;
+  async function loadQr(stored=false){
+    const button=$('qr-form').querySelector('button');button.disabled=true;
     $('qr-feedback').textContent='Verificando entrada…';payload='';$('qr-output').hidden=true;$('download').hidden=true;
-    try{if(!csrf)throw Error('UNAVAILABLE');const r=await fetch(api,{method:'POST',credentials:'same-origin',cache:'no-store',
-      headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({action:'qr',ticket_id:ticket,token:$('token').value})});
-      if(!r.ok)throw Error('UNAVAILABLE');const data=await r.json();if(typeof data.qr!=='string'||!data.qr.startsWith('BRVTAL:T1:'))throw Error('UNAVAILABLE');
+    try{
+      if(!csrf)throw Error('UNAVAILABLE');
+      const body=stored?{action:'qr_stored',ticket_id:ticket}:{action:'qr',ticket_id:ticket,token:$('token').value};
+      const r=await fetch(api,{method:'POST',credentials:'same-origin',cache:'no-store',
+        headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(body)});
+      if(!r.ok)throw Error('UNAVAILABLE');
+      const data=await r.json();if(typeof data.qr!=='string'||!data.qr.startsWith('BRVTAL:T1:'))throw Error('UNAVAILABLE');
       const svg=qrSvg(data.qr);$('qr-output').replaceChildren(svg);$('qr-output').hidden=false;$('download').hidden=false;payload=data.qr;
       $('qr-feedback').textContent='QR autorizado. No compartas esta entrada.';$('token').value='';
-    }catch(_){$('qr-feedback').textContent='No se pudo autorizar esta entrada. Revisa la credencial y su vigencia.';}
-    finally{button.disabled=false;}
-  });
-  $('download').addEventListener('click',()=>{if(!payload)return;const svg=$('qr-output').querySelector('svg');if(!svg)return;
-    const blob=new Blob([new XMLSerializer().serializeToString(svg)],{type:'image/svg+xml'}),url=URL.createObjectURL(blob);
-    const a=el('a');a.href=url;a.download='entrada-brvtal.svg';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),0);
+    }catch(_){
+      $('qr-feedback').textContent='No se pudo autorizar esta entrada. Revisa la credencial y su vigencia.';
+      if(stored){$('qr-form').hidden=false;}
+    }finally{button.disabled=false;}
+  }
+  $('qr-form').addEventListener('submit',e=>{e.preventDefault();loadQr(false);});
+  $('download').addEventListener('click',async()=>{
+    if(!payload)return;
+    const svg=$('qr-output').querySelector('svg');if(!svg)return;
+    const svgUrl=URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(svg)],{type:'image/svg+xml'}));
+    try{
+      const image=new Image();image.src=svgUrl;await image.decode();
+      const canvas=document.createElement('canvas');canvas.width=900;canvas.height=900;
+      const ctx=canvas.getContext('2d');if(!ctx)throw Error('PNG_UNAVAILABLE');
+      ctx.imageSmoothingEnabled=false;ctx.drawImage(image,0,0,900,900);
+      const png=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
+      if(!png)throw Error('PNG_UNAVAILABLE');
+      const url=URL.createObjectURL(png),a=el('a');a.href=url;a.download='entrada-brvtal.png';document.body.append(a);a.click();a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),0);
+    }catch(_){$('qr-feedback').textContent='No pudimos descargar el QR. Inténtalo de nuevo.';}
+    finally{URL.revokeObjectURL(svgUrl);}
   });
   (async()=>{try{const r=await fetch('/api/buyer/auth.php',{credentials:'same-origin',cache:'no-store'});const d=await r.json();
     if(!r.ok||!d.authenticated){if(scopedPurchases.length){showScopedPurchases();return;}location.href='/buyer/login.php';return;}csrf=String(d.csrf||'');if(!csrf)throw Error('AUTH');await load();await loadRefunds();
