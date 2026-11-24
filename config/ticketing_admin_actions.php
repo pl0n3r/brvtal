@@ -220,9 +220,9 @@ function brvtalTicketAdminRecordOrderAction(PDO $pdo, int $actorId, string $role
             if (!$mail || !str_starts_with((string)$mail['body_text'],
                 BRVTAL_BUYER_MAIL_SEAL_PREFIX)
                 || brvtalBuyerMailUnseal((string)$mail['body_text'])===null
-                || ($mail['body_html']!==null && (
-                    !str_starts_with((string)$mail['body_html'],BRVTAL_BUYER_MAIL_SEAL_PREFIX)
-                    || brvtalBuyerMailUnseal((string)$mail['body_html'])===null))) {
+                || !is_string($mail['body_html'])
+                || !str_starts_with((string)$mail['body_html'],BRVTAL_BUYER_MAIL_SEAL_PREFIX)
+                || brvtalBuyerMailUnseal((string)$mail['body_html'])===null) {
                 throw new DomainException('MAIL_PAYLOAD_NOT_RECOVERABLE');
             }
             $mode = (string)brvtal_secret_value('BRVTAL_TICKET_MAIL_MODE');

@@ -67,8 +67,9 @@ try {
     $GLOBALS['config']['security']['encryption_key']=str_repeat('t',48);
     putenv('BRVTAL_TICKET_MAIL_TESTING=1');putenv('BRVTAL_TICKET_MAIL_MODE=mock');
     $sealed=brvtalBuyerMailSeal('QR ya emitido, únicamente cifrado');
-    $insert=$db->prepare('INSERT INTO ticket_mail_outbox(message_key,payload_hash,related_ref,recipient_email,subject,body_text,template_key,template_version) VALUES (?,?,?,?,?,?,?,?)');
-    $insert->execute(['order:92:payment_approved',hash('sha256',$sealed),'order:92','buyer@example.test','Boletas',$sealed,'payment_approved',1]);
+    $sealedHtml=brvtalBuyerMailSeal('<!doctype html><html><body>Boleta ya emitida</body></html>');
+    $insert=$db->prepare('INSERT INTO ticket_mail_outbox(message_key,payload_hash,related_ref,recipient_email,subject,body_text,body_html,template_key,template_version) VALUES (?,?,?,?,?,?,?,?,?)');
+    $insert->execute(['order:92:payment_approved',hash('sha256',$sealed),'order:92','buyer@example.test','Boletas',$sealed,$sealedHtml,'payment_approved',1]);
     $resend=['order_id'=>'92','action'=>'resend','idempotency_key'=>str_repeat('e',32)];
     $result=brvtalTicketAdminRecordAction($db,7,'superadmin',brvtalTicketAdminActionInput($resend));
     actionAssert($result['email_queued'] && $result['status']==='queued','resend queued');
