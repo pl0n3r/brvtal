@@ -84,12 +84,24 @@ function brvtal_ticket_issue_mail_deliverer(string $origin): callable
             $links[] = ['label' => sprintf('Boleta %d · %s', $index + 1, $byId[$id]),
                 'url' => brvtal_ticket_issue_ticket_url($id, (string)($ticket['token'] ?? ''), $origin)];
         }
-        brvtal_ticket_mail_queue_order($db, $orderId, 'payment_approved', $row['email'], [
+        // The trusted issuance transaction has already verified payment and
+        // moved the issue outbox to "done". The token and sealed message either
+        // commit together or both roll back.
+        // Lazy-load the account-creation integration only after the paid
+        // issuance path has been reached. The mail-only CLI worker also runs
+        // on pre-ticketing / restricted schemas and must remain functional.
+        require_once __DIR__ . '/buyer_auth_flows.php';
+        $guestPasswordLink = brvtalBuyerAuthGuestPurchaseLink($db, $orderId);
+        $mailData = [
             'event' => (string)$row['title'],
             'link' => $origin . '/buyer/',
             'order_number' => $orderId,
             'tickets' => $links,
-        ]);
+        ];
+        if ($guestPasswordLink !== null) {
+            $mailData['guest_password_link'] = $guestPasswordLink;
+        }
+        brvtal_ticket_mail_queue_order($db, $orderId, 'payment_approved', $row['email'], $mailData);
     };
 }
 
