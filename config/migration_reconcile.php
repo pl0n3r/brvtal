@@ -485,7 +485,7 @@ function brvtalMigrationDurationColumnMatches(mixed $row): bool
 {
     return is_array($row)
         && strtolower((string)($row['DATA_TYPE'] ?? '')) === 'int'
-            && str_contains(strtolower((string)($row['COLUMN_TYPE']??'')), 'unsigned')
+        && preg_match('/\\bunsigned\\b/i', (string)($row['COLUMN_TYPE'] ?? '')) === 1
         && strtoupper((string)($row['IS_NULLABLE'] ?? '')) === 'YES';
 }
 
@@ -505,7 +505,7 @@ function brvtalMigrationProbeRequirement(PDO $pdo, string $requirement): bool
         $stmt->execute([$match[1],$match[2]]);
         $row=$stmt->fetch(PDO::FETCH_ASSOC);
         return is_array($row) && strtolower((string)($row['DATA_TYPE']??''))==='bigint'
-            && preg_match('/\\bunsigned\\b/i,(string)($row['COLUMN_TYPE']??''))===1
+            && str_contains(strtolower((string)($row['COLUMN_TYPE']??'')), 'unsigned')
             && strtoupper((string)($row['IS_NULLABLE']??''))==='YES';
     }
     if (preg_match('/^foreign-key:([A-Za-z0-9_]+)\\.([A-Za-z0-9_]+)=([A-Za-z0-9_]+)\\.([A-Za-z0-9_]+)$/', $requirement, $match)) {
