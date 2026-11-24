@@ -109,7 +109,7 @@ jobs:
         run: |
           {
             echo "## #1969 · Pedidos y Boletas"
-            echo "HEAD exacto: `$EXPECTED_HEAD`"
+            printf 'HEAD exacto: `%s`\n' "$EXPECTED_HEAD"
             echo "Ocho PNG sintéticos A/B: pedidos/boletas, antes/después, 390/1440 px."
             echo "Los estados «antes» se renderizan con JS/CSS versionados, no desde producción."
             echo "[Descargar capturas y manifiesto SHA]($ARTIFACT_URL)"
