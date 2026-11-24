@@ -53,6 +53,7 @@ test('1979 C móvil: pasos, alerta, diálogo, nota con autor, CSRF',async({page}
   for(const label of ['Boletas','Pago','Notas']) await expect(page.getByRole('heading',{name:label,exact:true})).toBeVisible();
   await expect(page.getByText('simulación únicamente')).toHaveCount(0);
   expect(script).not.toContain('El correo con los QR sale en el siguiente minuto.');
+  await page.screenshot({path:'test-results/order-C-390-before.png',fullPage:true});
   await page.getByRole('button',{name:'Agregar nota'}).click();
   await page.locator('[data-ticketing-note]').fill('Revisión completada');
   await page.getByRole('button',{name:'Volver'}).click();expect(calls).toHaveLength(0);
@@ -73,6 +74,7 @@ test('1979 C escritorio: correo fallido permite reenvío, nunca cancelar pagado'
     r.fulfill({contentType:'application/json',body:'{"ok":true,"data":{"status":"queued","email_queued":true}}'});
   });
   await expect(page.getByText('REF-1')).toBeVisible();
+  await page.screenshot({path:'test-results/order-C-1440-before.png',fullPage:true});
   await page.locator('.tk-order-stalled button').click();
   await page.getByRole('button',{name:'Confirmar reenvío'}).click();
   expect(calls).toHaveLength(1);expect(calls[0].action).toBe('resend');
