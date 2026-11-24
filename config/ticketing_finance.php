@@ -181,6 +181,9 @@ function brvtalFinanceReport(PDO $db, ?int $eventId, ?string $from, ?string $to,
         $allowed=array_fill_keys(array_map(intval(...),array_column($attempts,'order_id')),true);
         $orders=array_values(array_filter($orders,static fn($o)=>isset($allowed[(int)$o['id']])));
     }
+    // A channel may remove every order after the initial nonempty query.
+    // Never generate SQL metadata IN () from an empty report.
+    if (!$orders) return [];
     $report=brvtalFinanceSummarize($orders,$items,$attempts,$sales);
     $eventIds=array_column($report,'event_id');
     $eventIn=implode(',',array_fill(0,count($eventIds),'?'));
