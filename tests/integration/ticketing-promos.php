@@ -33,9 +33,9 @@ promoAssert(str_contains($checkoutCode,"'promo_breakdown'"),'server returns immu
 promoAssert(!str_contains($checkoutCode,"'provider_activation'=>false")
     && !str_contains($checkoutCode,"'environment'=>'mock'"),
     'coupon checkout cannot return an unsigned simulated quote');
-promoAssert(str_contains($checkoutCode,"$"."checkout = brvtal_ticket_wompi_prepare("),
+promoAssert(str_contains($checkoutCode,'$checkout = brvtal_ticket_wompi_prepare('),
     'coupon path uses the same provider preparation after ledger verification');
-promoAssert(str_contains($checkoutCode,"if ($"."withPromo) brvtalPromoSynthetic($db)"),
+promoAssert(str_contains($checkoutCode,'if ($withPromo) brvtalPromoSynthetic($db)'),
     'D-063 guard is preserved until approved production activation');
 $guardAt=strpos($checkoutCode,'brvtalPromoRejectUncodedReplay($db,$orderId)');
 $providerAt=strpos($checkoutCode,'brvtal_ticket_wompi_prepare($db,$buyerId,$orderId');
