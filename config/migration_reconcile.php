@@ -851,6 +851,7 @@ function brvtalMigrationOrderDependencyActions(array $actions): array
         'migration_ticketing_entries_01.sql',
         'migration_ticketing_reservations_01.sql',
         'migration_ticketing_webhook_01.sql',
+        'migration_ticketing_pos_02.sql',
         'migration_ticketing_admin_notes_01.sql',
         'migration_ticketing_order_notes_01.sql',
     ];
@@ -872,6 +873,22 @@ function brvtalMigrationOrderDependencyActions(array $actions): array
         $parentAction = $actions[$parentIndex];
         array_splice($actions, $parentIndex, 1);
         array_splice($actions, $firstDependentIndex, 0, [$parentAction]);
+    }
+    // The POS handoff alters ticket_issue_outbox, which is created by T10.
+    // A clean installation must apply T10 before the POS compatibility ALTER.
+    $webhookIndex = null;
+    $posIndex = null;
+    foreach ($actions as $index => $action) {
+        if ($action['migration'] === 'migration_ticketing_webhook_01.sql') {
+            $webhookIndex = $index;
+        } elseif ($action['migration'] === 'migration_ticketing_pos_02.sql') {
+            $posIndex = $index;
+        }
+    }
+    if ($webhookIndex !== null && $posIndex !== null && $webhookIndex > $posIndex) {
+        $webhookAction = $actions[$webhookIndex];
+        array_splice($actions, $webhookIndex, 1);
+        array_splice($actions, $posIndex, 0, [$webhookAction]);
     }
     return $actions;
 }
