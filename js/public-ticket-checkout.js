@@ -272,6 +272,21 @@
       }
       return { email: email.value, name: name.value, consent: true, website: field('website')?.value || '' };
     }
+    // Store only a digest of the buyer identity in sessionStorage. A reload with
+    // the same normalized buyer must reuse its original idempotency key.
+    async function buyerFingerprint(buyer) {
+      const data = new TextEncoder().encode(buyer.email.toLowerCase() + '\u0000' + buyer.name);
+      const digest = await crypto.subtle.digest('SHA-256', data);
+      return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+    }
+    function lockBuyer(locked) {
+      for (const name of ['buyer_email', 'buyer_name']) {
+        const input = field(name);
+        if (input) input.readOnly = locked;
+      }
+      const consent = field('buyer_consent');
+      if (consent) consent.disabled = locked;
+    }
     const signedIn = authenticated => {
       if (buyerBox) buyerBox.hidden = authenticated;
       if (accountNote) accountNote.hidden = authenticated;
@@ -346,11 +361,8 @@
     });
     form.addEventListener('change', event => {
       if (event.target.name === 'method') newPurchase();
-      // A different buyer is a different purchase: never reuse the previous key.
-      if (['buyer_email', 'buyer_name'].includes(event.target.name) && !submitting) {
-        intent = null;
-        clear();
-      }
+      // Buyer identity is compared at submit, not on each field change: after
+      // a reload, re-entering the same email/name must preserve the retry key.
     });
     // Keep error presentation separate from the payment/redirect flow.
     // Server responses stay authoritative; never infer a successful payment.
@@ -389,13 +401,24 @@
         signedIn(auth.authenticated === true);
         const buyer = auth.authenticated ? null : readBuyer();
         if (!auth.authenticated && !buyer) return;
+        // Do not let an in-flight prepare use one buyer and a subsequent retry
+        // silently use another. Inputs unlock only after the request settles.
+        if (buyer) lockBuyer(true);
+        const fingerprint = buyer ? await buyerFingerprint(buyer) : null;
+        if (record && (buyer ? record.buyer_fingerprint !== fingerprint : Boolean(record.buyer_fingerprint))) {
+          intent = null;
+          clear();
+        }
         if (record?.lines && (!sameLines(record.lines, selection.lines) || record.method !== selection.method)) {
           say('Tu selección cambió. Ajusta las boletas para empezar una nueva compra.');
           return;
         }
         intent ||= 'T13-' + crypto.randomUUID();
         const pending = { intent, lines: selection.lines, method: selection.method,
-          ...(record?.order_id ? { order_id: record.order_id } : {}) };
+          ...(fingerprint ? { buyer_fingerprint: fingerprint } : {}),
+          ...(record?.order_id ? { order_id: record.order_id } : {}),
+          ...(/^[a-f0-9]{32}$/.test(String(record?.order_token || ''))
+            ? { order_token: record.order_token } : {}) };
         if (!save(pending)) {
           say('No se pudo guardar tu reserva para reintentos. Activa el almacenamiento de sesión.');
           return;
@@ -419,6 +442,7 @@
       } catch (error) {
         reportCheckoutError(error);
       } finally {
+        lockBuyer(false);
         submitting = false;
         update();
       }
