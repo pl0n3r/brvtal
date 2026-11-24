@@ -5,7 +5,7 @@ export function mount(panel) {
   section.dataset.ticketingCourtesy='';section.className='tk-courtesy';
   const heading=document.createElement('h3'); heading.textContent='Cortesías · solo personal autorizado';
   const note=document.createElement('p');
-  note.textContent='La operación no cobra ni envía correos. Entrega el QR una sola vez y no lo publiques.';
+  note.textContent='Las cortesías no generan cobros. El QR se envía al correo del invitado cuando el servicio está habilitado.';
   const form=document.createElement('form');form.className='tk-form';
   const make=(name,label,type='text')=>{
     const wrap=document.createElement('div');wrap.className='tk-field';
@@ -17,7 +17,7 @@ export function mount(panel) {
   };
   const event=make('event_id','Evento','select');
   const ticket=make('ticket_type_id','Boleta','select');
-  make('recipient','Identificador del invitado');make('reason','Motivo interno');
+  make('recipient','Correo del invitado','email');make('reason','Motivo interno');
   const kind=document.createElement('select');kind.name='category';
   for(const [value,label] of [['artist','Artista'],['staff','Staff'],['press','Prensa'],['partner','Aliado']]) {
     const opt=document.createElement('option');opt.value=value;opt.textContent=label;kind.append(opt);
@@ -29,29 +29,21 @@ export function mount(panel) {
   const submit=document.createElement('button');submit.type='submit';submit.textContent='Emitir cortesía';submit.className='tk-button is-primary';
   const status=document.createElement('p');status.setAttribute('role','status');status.dataset.courtesyStatus='';status.className='tk-status';
   status.textContent='Sin emisión.';
-  const qr=document.createElement('output');qr.dataset.courtesyQr='';qr.hidden=true;
-  const qrCaption=document.createElement('p');qrCaption.dataset.courtesyQrOwner='';
-  const clearQr=document.createElement('button');clearQr.type='button';
-  clearQr.textContent='Ocultar QR';clearQr.hidden=true;clearQr.className='tk-button';
-  const management=document.createElement('div');management.className='tk-form';
+    const management=document.createElement('div');management.className='tk-form';
   const invite=document.createElement('input');invite.type='number';invite.min='1';invite.placeholder='Número de cortesía';
   invite.id='tk-courtesy-ref';invite.setAttribute('aria-label','Número de cortesía');
   const inviteField=document.createElement('div');inviteField.className='tk-field';
   const inviteLabel=document.createElement('label');inviteLabel.htmlFor=invite.id;inviteLabel.textContent='Número de cortesía';
   inviteField.append(inviteLabel,invite);
   const revoke=document.createElement('button');revoke.type='button';revoke.textContent='Revocar';
-  const resend=document.createElement('button');resend.type='button';resend.textContent='Registrar reenvío (sin envío)';
+  const resend=document.createElement('button');resend.type='button';resend.textContent='Reenviar correo con QR';
   revoke.className='tk-button';resend.className='tk-button';management.append(inviteField,revoke,resend);
-  let displayedInvite=null, pendingIssue=null, busy=false;
-  function concealQr() {
-    qr.textContent='';qr.hidden=true;qrCaption.textContent='';
-    clearQr.hidden=true;displayedInvite=null;
-  }
-  clearQr.addEventListener('click',concealQr);
+  let pendingIssue=null, busy=false;
   async function send(body) {
     if (busy) return;
     busy=true;
     status.textContent='Validando solicitud…';
+    for(const button of [submit,revoke,resend])button.disabled=true;
     try {
       const response=await fetch('/api/ticketing/admin-courtesy.php',{
         method:'POST',credentials:'same-origin',cache:'no-store',
@@ -65,34 +57,29 @@ export function mount(panel) {
         status.textContent='No autorizada o cupo no disponible. No se presume emisión.';
         return;
       }
+      const id=Number(data.data.invite_id);
+      if (!Number.isSafeInteger(id)||id<1) {
+        status.textContent='No fue posible verificar la cortesía. Consulta el estado antes de reintentar.';
+        return;
+      }
       if (body.action==='issue') {
         pendingIssue=null;
-        const id=Number(data.data.invite_id);
-        const validId=Number.isSafeInteger(id)&&id>0;
-        const issued=data.data.replayed===false&&validId
-          &&typeof data.data.qr==='string'&&data.data.qr.startsWith('BRVTAL:T1:');
-        if (issued) {
-          concealQr();
-          displayedInvite=id;
-          qr.textContent=data.data.qr;qr.hidden=false;clearQr.hidden=false;
-          qrCaption.textContent='QR de la cortesía #'+id+'. Entrega única; ocúltalo al terminar.';
-        } else if (validId&&displayedInvite!==id) {
-          // A replay cannot recover a secret from a previously issued invitation.
-          concealQr();
-        }
+        invite.value=String(id);
         status.textContent=data.data.replayed
-          ? 'Invitación existente; el reintento no recupera ni genera otro QR.'
-          : issued ? 'Operación registrada. No hubo pagos ni correos enviados.'
-            : 'Operación registrada sin QR nuevo; no se presume un secreto recuperable.';
+          ? 'La cortesía ya estaba registrada; no se creó otra entrada ni otro correo.'
+          : data.data.queued===true
+            ? 'Cortesía creada sin cobro. El correo con el QR quedó en cola de envío.'
+            : 'La cortesía no pudo confirmarse; consulta el estado antes de reintentar.';
       } else {
         status.textContent=body.action==='resend'
-          ? 'Reenvío registrado sin enviar correos.':'Revocación registrada. El QR visible ya no es válido; ocúltalo al terminar.';
+          ? 'Nuevo QR preparado para envío. El enlace anterior ya no es válido.'
+          : 'Cortesía revocada y cupo liberado. El QR anterior ya no permite ingresar.';
       }
     } catch {
       if (section.isConnected) status.textContent=body.action==='issue'
         ? 'Sin confirmación del servidor. Reintenta con la misma clave.'
         : 'Sin confirmación del servidor. El QR visible se conserva.';
-    } finally {busy=false;}
+    } finally {busy=false;for(const button of [submit,revoke,resend])button.disabled=false;}
   }
   form.addEventListener('input',()=>{pendingIssue=null;});
   form.addEventListener('change',()=>{pendingIssue=null;});
@@ -115,7 +102,7 @@ export function mount(panel) {
     if(!Number.isSafeInteger(inviteId)||inviteId<1){status.textContent='Indica un número de cortesía válido.';return;}
     void send({action,invite_id:inviteId});
   });
-  form.append(submit);section.append(heading,note,form,management,status,qrCaption,qr,clearQr);panel.append(section);
+  form.append(submit);section.append(heading,note,form,management,status);panel.append(section);
 
   const option=(value,text)=>{const item=document.createElement('option');
     item.value=String(value);item.textContent=text;return item;};

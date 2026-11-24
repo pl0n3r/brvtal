@@ -3,11 +3,11 @@ declare(strict_types=1);
 require_once __DIR__.'/../../config/ticketing_courtesy.php';
 require_once __DIR__.'/../../config/ticketing_checkin.php';
 function t25(bool $ok,string $reason):void {if(!$ok) throw new RuntimeException('T25: '.$reason);}
-$input=['action'=>'issue','event_id'=>1,'ticket_type_id'=>11,'recipient'=>'guest01',
+$input=['action'=>'issue','event_id'=>1,'ticket_type_id'=>11,'recipient'=>'guest01@example.test',
     'category'=>'staff','reason'=>'Invitación de prueba','idempotency_key'=>str_repeat('a',24)];
 t25(brvtalCourtesyValidate($input)['recipient']==='guest01','input validation');
 t25(!brvtalTicketingCan('admin','courtesy')&&brvtalTicketingCan('superadmin','courtesy'),'RBAC');
-foreach ([['action'=>'issue'],array_merge($input,['reason'=>'x']),array_merge($input,['extra'=>1])] as $bad) {
+foreach ([['action'=>'issue'],array_merge($input,['reason'=>'x']),array_merge($input,['recipient'=>'not-an-email']),array_merge($input,['extra'=>1])] as $bad) {
     try {brvtalCourtesyValidate($bad);throw new RuntimeException('invalid input accepted');}
     catch(InvalidArgumentException) {}
 }
@@ -52,7 +52,7 @@ try {
             attempt_id BIGINT UNSIGNED,provider_transaction_id VARCHAR(190),signed_status VARCHAR(20)) ENGINE=InnoDB'
     ];
     foreach($schema as $statement) $db->exec($statement);
-    foreach(['migration_ticketing_entries_01.sql','migration_ticketing_courtesy_01.sql'] as $file) {
+    foreach(['migration_ticketing_entries_01.sql','migration_ticketing_courtesy_01.sql','migration_ticketing_mail_outbox_01.sql'] as $file) {
         $sql=(string)file_get_contents(__DIR__.'/../../database/'.$file);
         $sql=(string)preg_replace('/^\s*--[^\r\n]*$/m','',$sql);
         foreach(array_filter(array_map(trim(...),explode(';',$sql))) as $statement) $db->exec($statement);
@@ -62,13 +62,28 @@ try {
     $db->exec("INSERT INTO event_ticket_types VALUES (11,1,'active'),(12,1,'active')");
     $db->exec('INSERT INTO ticket_inventory_events VALUES (1,2)');
     $db->exec('INSERT INTO ticket_inventory_types VALUES (11,1,2,2),(12,1,2,2)');
-    putenv('BRVTAL_COURTESY_ENABLED=1');
+    putenv('BRVTAL_TICKET_MAIL_TESTING=1');
+    $GLOBALS['config']['security']['encryption_key']=str_repeat('T',64);
     t25(brvtalCourtesyEnabled($db),'only synthetic mode enabled');
     try {brvtalCourtesyIssue($db,8,'admin',$input);throw new RuntimeException('role bypass');}
     catch(DomainException $e){t25($e->getMessage()==='FORBIDDEN','least privilege');}
+    // QR never leaves the encrypted transactional outbox; no plaintext in database.
+    $getQr=static function(PDO $db,int $invite): string {
+        $q=$db->prepare('SELECT body_text FROM ticket_mail_outbox
+            WHERE related_ref=? AND state="queued" ORDER BY id DESC LIMIT 1');
+        $q->execute(['courtesy:'.$invite]);
+        $sealed=(string)$q->fetchColumn();
+        t25(str_starts_with($sealed,BRVTAL_BUYER_MAIL_SEAL_PREFIX)
+            && !str_contains($sealed,'BRVTAL:T1:'),'only encrypted bearer persisted');
+        $text=brvtalBuyerMailUnseal($sealed);
+        t25(is_string($text) && preg_match('/BRVTAL:T1:[a-f0-9]{32}:[A-Za-z0-9_-]{43}/',$text,$match)===1,
+            'one-use bearer included in sealed mail');
+        return $match[0];
+    };
     $first=brvtalCourtesyIssue($db,7,'superadmin',$input);
-    t25(is_string($first['qr'])&&str_starts_with($first['qr'],'BRVTAL:T1:')
-        && !$first['sent'],'distinct QR, no provider');
+    t25($first['queued']===true&&$first['qr']===null&&!$first['sent'],
+        'queued encrypted email without plaintext or provider');
+    $firstQr=$getQr($db,$first['invite_id']);
     $replay=brvtalCourtesyIssue($db,7,'superadmin',$input);
     t25($replay['replayed']&&$replay['qr']===null,'idempotent no second secret');
     foreach ([
@@ -90,11 +105,11 @@ try {
     } catch (DomainException $error) {
         t25($error->getMessage()==='DUPLICATE_INVITATION','same guest different request denied');
     }
-    $secondInput=array_merge($input,['recipient'=>'guest02','idempotency_key'=>str_repeat('b',24)]);
+    $secondInput=array_merge($input,['recipient'=>'guest02@example.test','idempotency_key'=>str_repeat('b',24)]);
     $second=brvtalCourtesyIssue($db,7,'superadmin',$secondInput);
     t25(!$second['replayed'],'second recipient');
     try {brvtalCourtesyIssue($db,7,'superadmin',array_merge($input,
-        ['recipient'=>'guest03','idempotency_key'=>str_repeat('c',24)]));
+        ['recipient'=>'guest03@example.test','idempotency_key'=>str_repeat('c',24)]));
         throw new RuntimeException('capacity bypass');}
     catch(DomainException $e){t25($e->getMessage()==='COURTESY_CAPACITY','global and courtesy budget');}
     t25((int)$db->query('SELECT COUNT(*) FROM ticket_courtesy_invites')->fetchColumn()===2,
@@ -103,15 +118,23 @@ try {
         'never paid or Wompi revenue');
     t25((int)$db->query('SELECT COUNT(*) FROM ticket_payment_attempts')->fetchColumn()===0,
         'no payment attempts');
-    $received=brvtalTicketCheckinConsume($db,1,7,'door-A',$first['qr']);
+    $received=brvtalTicketCheckinConsume($db,1,7,'door-A',$firstQr);
     t25($received['ok']===true,'same T15 scanner accepts courtesy proof');
-    t25(brvtalTicketCheckinConsume($db,1,7,'door-B',$first['qr'])['reason']==='already_used',
+    t25(brvtalTicketCheckinConsume($db,1,7,'door-B',$firstQr)['reason']==='already_used',
         'replay denied');
+    $secondOldQr=$getQr($db,$second['invite_id']);
     $resend=brvtalCourtesyAction($db,7,'superadmin','resend',$second['invite_id']);
-    t25($resend['sent']===false,'Resend intent audited without sending');
+    t25($resend['queued']===true && $resend['sent']===false,
+        'resend queues new mail without calling provider');
+    $secondNewQr=$getQr($db,$second['invite_id']);
+    t25($secondOldQr!==$secondNewQr,'resend rotates credential');
+    t25(brvtalTicketCheckinConsume($db,1,7,'door-B',$secondOldQr)['ok']===false,
+        'old resend credential revoked');
+    t25((int)$db->query("SELECT COUNT(*) FROM ticket_inventory_holds WHERE kind='courtesy'
+        AND status='consumed'")->fetchColumn()===2, 'resend does not consume a second seat');
     brvtalCourtesyAction($db,7,'superadmin','revoke',$second['invite_id']);
-    t25(brvtalTicketCheckinConsume($db,1,7,'door-B',$second['qr'])['ok']===false,
-        'revoked QR denied');
+    t25(brvtalTicketCheckinConsume($db,1,7,'door-B',$secondNewQr)['ok']===false,
+        'revoked new QR denied');
     t25((int)$db->query("SELECT COUNT(*) FROM ticket_inventory_holds
         WHERE kind='courtesy' AND status='released'")->fetchColumn()===1,
         'revocation releases unconsumed seat');
@@ -119,4 +142,4 @@ try {
         'audit exactly one admission');
     $db=null;
 } finally {$root->exec('DROP DATABASE IF EXISTS '.$dbname);}
-echo "T25 courtesy RBAC, budget, idempotency, zero revenue, revoke and T15 scan passed.\n";
+echo "T25 real courtesy: sealed QR email, RBAC, budget, idempotency, resend, revoke, zero revenue passed.\n";
