@@ -68,14 +68,22 @@ function brvtalBuyerSessionStart(): void
         $valid = false;
         try {
             if (function_exists('db')) {
+                $checkoutOrder = (int)($_SESSION['buyer_checkout_new_order'] ?? 0);
                 $check = db()->prepare("SELECT 1 FROM ticket_buyer_sessions s
                     JOIN ticket_buyers b ON b.id=s.buyer_id
                     WHERE s.buyer_id=? AND s.session_hash=?
                       AND s.revoked_at_utc IS NULL
                       AND s.expires_at_utc>UTC_TIMESTAMP(6)
                       AND s.issued_epoch=b.security_epoch
-                      AND b.status='active' AND b.email_verified_at IS NOT NULL LIMIT 1");
-                $check->execute([$buyerId, hash('sha256', session_id())]);
+                      AND ((b.status='active' AND b.email_verified_at IS NOT NULL)
+                           OR (b.status='guest' AND b.email_verified_at IS NULL
+                               AND ? > 0 AND EXISTS (
+                                   SELECT 1 FROM ticket_orders o
+                                   WHERE o.id=? AND o.buyer_id=s.buyer_id
+                                     AND o.status='paid')))
+                    LIMIT 1");
+                $check->execute([$buyerId, hash('sha256', session_id()),
+                    $checkoutOrder, $checkoutOrder]);
                 $valid = $check->fetchColumn() !== false;
             }
         } catch (Throwable) {
@@ -100,15 +108,40 @@ function brvtalBuyerCsrfValid(mixed $token): bool
         && hash_equals($_SESSION['buyer_csrf'], $token);
 }
 
-function brvtalBuyerLoginSession(int $id, ?PDO $pdo = null): void
+/**
+ * Normal login requires a verified inbox. The optional paid checkout order
+ * instead allows a short-lived *original browser* to authenticate a newly
+ * inserted guest account that has no previous orders. It never marks email
+ * verified; reset/password login remains unavailable until mail verification.
+ */
+function brvtalBuyerLoginSession(int $id, ?PDO $pdo = null, ?int $checkoutOrderId = null): void
 {
     if ($id <= 0 || session_name() !== BRVTAL_BUYER_SESSION_NAME
         || session_status() !== PHP_SESSION_ACTIVE) {
         throw new RuntimeException('BUYER_SESSION_REQUIRED');
     }
     $pdo ??= db();
-    $query = $pdo->prepare("SELECT security_epoch FROM ticket_buyers WHERE id=?
-        AND status='active' AND email_verified_at IS NOT NULL LIMIT 1");
+    if ($checkoutOrderId !== null) {
+        if ($checkoutOrderId < 1 || (int)($_SESSION['buyer_id'] ?? 0) > 0) {
+            throw new RuntimeException('BUYER_SESSION_NOT_ELIGIBLE');
+        }
+        $token = $pdo->prepare("SELECT LOWER(HEX(o.public_id))
+            FROM ticket_orders o JOIN ticket_buyers b ON b.id=o.buyer_id
+            WHERE o.id=? AND o.buyer_id=? AND o.status='paid'
+              AND b.status='guest' AND b.email_verified_at IS NULL LIMIT 1");
+        $token->execute([$checkoutOrderId, $id]);
+        $rawToken = $token->fetchColumn();
+        $proof = is_string($rawToken) ? brvtalBuyerCheckoutPaidGrant($pdo, $rawToken) : null;
+        if (!is_array($proof) || !$proof['created_new']
+            || $proof['order_id'] !== $checkoutOrderId || $proof['buyer_id'] !== $id) {
+            throw new RuntimeException('BUYER_SESSION_NOT_ELIGIBLE');
+        }
+        $query = $pdo->prepare("SELECT security_epoch FROM ticket_buyers WHERE id=?
+            AND status='guest' AND email_verified_at IS NULL LIMIT 1");
+    } else {
+        $query = $pdo->prepare("SELECT security_epoch FROM ticket_buyers WHERE id=?
+            AND status='active' AND email_verified_at IS NOT NULL LIMIT 1");
+    }
     $query->execute([$id]);
     $epoch = $query->fetchColumn();
     if ($epoch === false || (int)$epoch < 1) {
@@ -125,6 +158,10 @@ function brvtalBuyerLoginSession(int $id, ?PDO $pdo = null): void
         'buyer_id' => $id, 'buyer_issued_at' => time(),
         'buyer_last_at' => time(), 'buyer_csrf' => brvtalBuyerNewToken(),
     ];
+    if ($checkoutOrderId !== null) {
+        // This proof is server-side only: no bearer URL or email can set it.
+        $_SESSION['buyer_checkout_new_order'] = $checkoutOrderId;
+    }
 }
 
 function brvtalBuyerLogout(): void

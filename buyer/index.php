@@ -24,6 +24,13 @@ try {
             if ($grant === null) continue;
             $order = brvtal_public_order_status($pdo, $token);
             if (!is_array($order) || ($order['state'] ?? null) !== 'approved') continue;
+            if ($grant['created_new']) {
+                // New email in THIS browser, paid by verified provider:
+                // create a real buyer session without asserting inbox ownership.
+                brvtalBuyerLoginSession($grant['buyer_id'], $pdo, $grant['order_id']);
+                $checkoutScopePurchases = [];
+                break;
+            }
             $items = [];
             foreach (($order['items'] ?? []) as $item) {
                 if (!is_array($item)) continue;
