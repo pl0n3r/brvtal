@@ -135,17 +135,43 @@ function brvtalBuyerAuthConsume(PDO $pdo, string $token, string $purpose,
               AND t.revoked_at_utc IS NULL AND t.expires_at_utc>UTC_TIMESTAMP(6) FOR UPDATE");
         $q->execute([brvtalBuyerTokenDigest($token), $purpose]);
         $row = $q->fetch(PDO::FETCH_ASSOC);
-        if (!is_array($row) || $row['status'] !== 'active') {
+        if (!is_array($row)) throw new DomainException('BUYER_TOKEN_INVALID');
+        // A purchase-email token can establish ownership of a guest mailbox.
+        // It never upgrades a different, existing registered account.
+        $newGuest = $purpose === 'reset_password'
+            && $row['status'] === 'guest'
+            && $row['email_verified_at'] === null
+            && $row['password_hash'] === null;
+        if ($row['status'] !== 'active' && !$newGuest) {
             throw new DomainException('BUYER_TOKEN_INVALID');
         }
         $buyerId = (int)$row['buyer_id'];
         if ($purpose === 'verify_email') {
             $pdo->prepare('UPDATE ticket_buyers SET email_verified_at=UTC_TIMESTAMP(6)
                 WHERE id=? AND email_verified_at IS NULL')->execute([$buyerId]);
-        } elseif ($purpose === 'reset_password' && $row['email_verified_at'] !== null) {
+        } elseif ($purpose === 'reset_password'
+            && ($row['email_verified_at'] !== null || $newGuest)) {
+            if ($newGuest) {
+                // The order is the trusted provenance. An arbitrary guest
+                // cannot create an account using an unrelated reset token.
+                $paid = $pdo->prepare("SELECT 1 FROM ticket_orders
+                    WHERE buyer_id=? AND status='paid' LIMIT 1");
+                $paid->execute([$buyerId]);
+                if ($paid->fetchColumn() === false) {
+                    throw new DomainException('BUYER_TOKEN_INVALID');
+                }
+            }
             $hash = brvtalBuyerAuthPassword($newPassword, (string)$row['password_hash']);
-            $pdo->prepare('UPDATE ticket_buyers SET password_hash=?,
-                security_epoch=security_epoch+1 WHERE id=?')->execute([$hash, $buyerId]);
+            $sql = $newGuest
+                ? "UPDATE ticket_buyers SET password_hash=?,status='active',
+                    email_verified_at=UTC_TIMESTAMP(6),security_epoch=security_epoch+1
+                    WHERE id=? AND status='guest' AND password_hash IS NULL
+                      AND email_verified_at IS NULL"
+                : "UPDATE ticket_buyers SET password_hash=?,security_epoch=security_epoch+1
+                    WHERE id=? AND status='active' AND email_verified_at IS NOT NULL";
+            $save = $pdo->prepare($sql);
+            $save->execute([$hash,$buyerId]);
+            if ($save->rowCount() !== 1) throw new DomainException('BUYER_TOKEN_INVALID');
             $pdo->prepare('UPDATE ticket_buyer_sessions SET revoked_at_utc=UTC_TIMESTAMP(6)
                 WHERE buyer_id=? AND revoked_at_utc IS NULL')->execute([$buyerId]);
         } else {
@@ -156,6 +182,30 @@ function brvtalBuyerAuthConsume(PDO $pdo, string $token, string $purpose,
         $pdo->prepare('UPDATE ticket_buyer_tokens SET revoked_at_utc=UTC_TIMESTAMP(6)
             WHERE buyer_id=? AND consumed_at_utc IS NULL AND revoked_at_utc IS NULL')->execute([$buyerId]);
     });
+}
+
+
+/**
+ * Mint the existing reset-password token inside the trusted paid-issuance
+ * transaction. Return a link only for a genuine guest without any password.
+ * The URL lives in memory until the already sealed purchase mail is queued.
+ */
+function brvtalBuyerAuthGuestPurchaseLink(PDO $pdo, int $orderId): ?string
+{
+    if (!$pdo->inTransaction()) throw new LogicException('BUYER_MAIL_TRANSACTION_REQUIRED');
+    if ($orderId < 1) throw new InvalidArgumentException('BUYER_ORDER_INVALID');
+    $q = $pdo->prepare("SELECT b.id,b.email,b.status,b.password_hash,b.email_verified_at
+        FROM ticket_orders o
+        JOIN ticket_buyers b ON b.id=o.buyer_id
+        JOIN ticket_issue_outbox x ON x.order_id=o.id AND x.state='done'
+        WHERE o.id=? AND o.status='paid' LIMIT 1 FOR UPDATE");
+    $q->execute([$orderId]);
+    $buyer = $q->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($buyer) || $buyer['status'] !== 'guest'
+        || $buyer['password_hash'] !== null || $buyer['email_verified_at'] !== null
+        || brvtalBuyerEmail($buyer['email'] ?? null) === null) return null;
+    $token = brvtalBuyerAuthToken($pdo,(int)$buyer['id'],'reset_password');
+    return brvtalBuyerMailGuestPasswordLink($token['raw']);
 }
 
 /** Resolve a public action inside the auth service, not as an inline password literal. */
@@ -178,12 +228,24 @@ function brvtalBuyerAuthRequest(PDO $pdo, mixed $emailInput, string $kind,
     if ($email === null) return ['ok' => true];
     if (!brvtalBuyerAuthThrottle($kind, $email, $rateDirectory)) return ['ok' => true];
     brvtalBuyerAuthTransaction($pdo, static function (PDO $pdo) use ($email, $kind): void {
-        $q = $pdo->prepare('SELECT id,email_verified_at,status FROM ticket_buyers WHERE email=? FOR UPDATE');
+        $q = $pdo->prepare('SELECT id,email_verified_at,status,password_hash
+            FROM ticket_buyers WHERE email=? FOR UPDATE');
         $q->execute([$email]);
         $buyer = $q->fetch(PDO::FETCH_ASSOC);
-        if (!is_array($buyer) || $buyer['status'] !== 'active') return;
-        if ($kind === 'reset_password' && $buyer['email_verified_at'] === null) return;
-        if ($kind === 'verify_email' && $buyer['email_verified_at'] !== null) return;
+        if (!is_array($buyer) || !in_array($buyer['status'], ['active','guest'], true)) return;
+        $guest = $buyer['status'] === 'guest' && $buyer['password_hash'] === null
+            && $buyer['email_verified_at'] === null;
+        if ($kind === 'reset_password' && $buyer['email_verified_at'] === null) {
+            if (!$guest) return;
+            // A guest may request a new link after expiration only if they
+            // actually have a paid order. The public response stays neutral.
+            $paid = $pdo->prepare("SELECT 1 FROM ticket_orders
+                WHERE buyer_id=? AND status='paid' LIMIT 1");
+            $paid->execute([(int)$buyer['id']]);
+            if ($paid->fetchColumn() === false) return;
+        }
+        if ($kind === 'verify_email'
+            && ($buyer['status'] !== 'active' || $buyer['email_verified_at'] !== null)) return;
         $id = (int)$buyer['id'];
         $token = brvtalBuyerAuthToken($pdo, $id, $kind);
         $mailKind = $kind === 'verify_email' ? 'verify_account' : 'reset_password';

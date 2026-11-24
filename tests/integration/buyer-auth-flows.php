@@ -345,6 +345,90 @@ buyerAuthAssert((int)$db->query("SELECT COUNT(*) FROM ticket_mail_outbox WHERE s
     LIKE '%Restablece%'")->fetchColumn() <= 6, 'IP and email rate limit bounds mail volume');
 buyerAuthAssert((int)$db->query("SELECT COUNT(*) FROM ticket_buyer_tokens WHERE token_hash
     LIKE '%SynthETIC%'")->fetchColumn() === 0, 'raw password never stored as token');
+
+// #1985: guest purchase → one-use password token → verified account.
+// Synthetic database and mail only; no external payments or messages.
+$db->exec("CREATE TABLE ticket_orders (
+    id BIGINT UNSIGNED PRIMARY KEY,buyer_id BIGINT UNSIGNED NOT NULL,
+    status VARCHAR(16) NOT NULL) ENGINE=InnoDB");
+$db->exec("CREATE TABLE ticket_issue_outbox (
+    order_id BIGINT UNSIGNED PRIMARY KEY,state VARCHAR(16) NOT NULL) ENGINE=InnoDB");
+$guestBuyer = $db->prepare("INSERT INTO ticket_buyers
+    (public_id,email,full_name,status,consent_version,consent_recorded_at)
+    VALUES (?,?,?,'guest','checkout-v1',UTC_TIMESTAMP(6))");
+$guestBuyer->execute([random_bytes(16),'guest-1985@example.test','Comprador ficticio']);
+$guestId=(int)$db->lastInsertId();
+$guestBuyer->execute([random_bytes(16),'other-1985@example.test','Otra persona']);
+$otherId=(int)$db->lastInsertId();
+$db->prepare("INSERT INTO ticket_orders VALUES (198501,?,'paid'),(198502,?,'pending')")
+    ->execute([$guestId,$otherId]);
+$db->exec("INSERT INTO ticket_issue_outbox VALUES (198501,'done'),(198502,'done')");
+try {
+    brvtalBuyerAuthGuestPurchaseLink($db,198501);
+    buyerAuthAssert(false,'guest purchase must be inside issuance transaction');
+} catch (LogicException $ignored) {}
+$db->beginTransaction();
+buyerAuthAssert(brvtalBuyerAuthGuestPurchaseLink($db,198502)===null,
+    'pending order cannot mint account-creation token');
+$link=brvtalBuyerAuthGuestPurchaseLink($db,198501);
+buyerAuthAssert(is_string($link)
+    && str_contains($link,'accion=confirm-reset')
+    && str_contains($link,'origen=compra'), 'paid guest gets purchase URL');
+parse_str((string)parse_url($link,PHP_URL_QUERY),$guestParams);
+$guestToken=(string)($guestParams['token']??'');
+buyerAuthAssert(preg_match('/^[A-Za-z0-9_-]{43}$/D',$guestToken)===1,
+    'guest token inherits reset strength');
+$db->commit();
+buyerAuthAssert(
+    $db->query("SELECT COUNT(*) FROM ticket_buyer_tokens
+        WHERE buyer_id=$guestId AND purpose='reset_password'")->fetchColumn()===1
+    && !str_contains((string)$db->query("SELECT token_hash FROM ticket_buyer_tokens
+        WHERE buyer_id=$guestId")->fetchColumn(),$guestToken),
+    'one hashed reset token, never stored raw');
+buyerAuthAssert(brvtalBuyerAuthRequest($db,'other-1985@example.test',
+    'reset_password',$rateDirectory)===['ok'=>true], 'guest reset requests are neutral');
+buyerAuthAssert((int)$db->query("SELECT COUNT(*) FROM ticket_buyer_tokens
+    WHERE buyer_id=$otherId")->fetchColumn()===0,
+    'unpaid guest may not request a creation token');
+$newGuestPassword='Synthetic-Guest-1985-P@ssword';
+brvtalBuyerAuthConsume($db,$guestToken,'reset_password',$newGuestPassword);
+$guestRecord=$db->query("SELECT status,password_hash,email_verified_at
+    FROM ticket_buyers WHERE id=$guestId")->fetch(PDO::FETCH_ASSOC);
+buyerAuthAssert($guestRecord['status']==='active'
+    && $guestRecord['email_verified_at']!==null
+    && password_verify($newGuestPassword,(string)$guestRecord['password_hash']),
+    'guest purchase link verifies mailbox and activates buyer account');
+buyerAuthAssert($db->query("SELECT status FROM ticket_buyers WHERE id=$otherId")
+    ->fetchColumn()==='guest','wrong buyer account remains guest');
+try {
+    brvtalBuyerAuthConsume($db,$guestToken,'reset_password','Another-Guest-1985-Password');
+    buyerAuthAssert(false,'used purchase token cannot replay');
+} catch (DomainException $ignored) {}
+$db->beginTransaction();
+$activatedLink=brvtalBuyerAuthGuestPurchaseLink($db,198501);
+$db->commit();
+buyerAuthAssert($activatedLink===null,
+    'already activated account never receives another creation link');
+$db->prepare("UPDATE ticket_buyers SET status='guest',password_hash=NULL,
+    email_verified_at=NULL WHERE id=?")->execute([$guestId]);
+$db->beginTransaction();
+$expiredLink=brvtalBuyerAuthGuestPurchaseLink($db,198501);
+$db->commit();
+parse_str((string)parse_url((string)$expiredLink,PHP_URL_QUERY),$expiredParams);
+$expiredToken=(string)($expiredParams['token']??'');
+$db->prepare("UPDATE ticket_buyer_tokens
+    SET expires_at_utc=DATE_SUB(UTC_TIMESTAMP(6), INTERVAL 1 SECOND)
+    WHERE token_hash=?")->execute([hash('sha256',$expiredToken)]);
+try {
+    brvtalBuyerAuthConsume($db,$expiredToken,'reset_password','Expired-Guest-1985-Password');
+    buyerAuthAssert(false,'expired guest token must fail');
+} catch (DomainException $ignored) {}
+buyerAuthAssert($db->query("SELECT status FROM ticket_buyers WHERE id=$guestId")
+    ->fetchColumn()==='guest','expired token cannot upgrade the guest');
+buyerAuthAssert(brvtalBuyerAuthRequest($db,'guest-1985@example.test',
+    'reset_password',$rateDirectory)===['ok'=>true],
+    'paid guest may request a replacement link under existing throttle');
+
 // #1877: 72h retention in a disposable DB, with production mutation opt-in.
 foreach (['old-expiring@example.test' => 73, 'young-expiring@example.test' => 71] as $address => $age) {
     $profile = $input;

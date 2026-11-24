@@ -82,3 +82,14 @@ function brvtalBuyerMailExtractLink(string $plaintext, string $kind): ?string
     if (preg_match($pattern, $plaintext, $match) !== 1) return null;
     return $match[0];
 }
+
+
+/** Purchase-only CTA. Uses the same 30-minute, one-use password reset token. */
+function brvtalBuyerMailGuestPasswordLink(string $token): string
+{
+    if (preg_match('/^[A-Za-z0-9_-]{43}$/D', $token) !== 1) {
+        throw new InvalidArgumentException('BUYER_MAIL_INVALID_TOKEN');
+    }
+    return 'https://www.brvtal.com.co/mi-cuenta/restablecer?accion=confirm-reset&token='
+        . rawurlencode($token) . '&origen=compra';
+}
