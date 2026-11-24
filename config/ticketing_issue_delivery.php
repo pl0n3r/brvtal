@@ -9,6 +9,37 @@ require_once __DIR__ . '/ticketing_mail_templates.php';
  * Runs from the trusted CLI mail worker (cron), never from a public route.
  * The QR secret only travels inside the sealed mail body, in a URL fragment.
  */
+/** #1956: last issuance failure, kept so every cron run can show it. */
+function brvtal_ticket_issue_last_failure_path(): string
+{
+    return (string)(getenv('BRVTAL_TICKET_ISSUE_LAST_FAILURE_FILE') ?: __DIR__ . '/../storage/ticket-issue-last-failure.json');
+}
+
+/** @return array{code:string,at:string}|null */
+function brvtal_ticket_issue_last_failure(): ?array
+{
+    $raw = @file_get_contents(brvtal_ticket_issue_last_failure_path());
+    $data = is_string($raw) ? json_decode($raw, true) : null;
+    if (!is_array($data) || !is_string($data['code'] ?? null) || !is_string($data['at'] ?? null)
+        || brvtal_ticket_issue_failure_code($data['code']) !== $data['code']
+        || !preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/D', $data['at'])) {
+        return null;
+    }
+    return ['code' => $data['code'], 'at' => $data['at']];
+}
+
+function brvtal_ticket_issue_remember_failure(?string $code): void
+{
+    $path = brvtal_ticket_issue_last_failure_path();
+    // Best effort only: diagnostics must never break issuance.
+    if ($code === null) {
+        @unlink($path);
+        return;
+    }
+    @file_put_contents($path, json_encode(['code' => brvtal_ticket_issue_failure_code($code),
+        'at' => gmdate('Y-m-d\TH:i:s\Z')]), LOCK_EX);
+}
+
 /** #1954: a safe, controlled failure code for the worker output. */
 function brvtal_ticket_issue_failure_code(string $message): string
 {
@@ -83,6 +114,7 @@ function brvtal_ticket_issue_process_next(PDO $db, string $origin = 'https://www
     $jobId = (int)$jobId;
     try {
         $result = brvtal_ticket_issue_consume($db, $jobId, brvtal_ticket_issue_mail_deliverer($origin));
+        brvtal_ticket_issue_remember_failure(null);
         return $result['state'] === 'duplicate' ? 'duplicate' : 'issued';
     } catch (Throwable $error) {
         $code = $error->getMessage();
@@ -97,6 +129,7 @@ function brvtal_ticket_issue_process_next(PDO $db, string $origin = 'https://www
                 updated_at_utc=UTC_TIMESTAMP(6)
             WHERE id=? AND state IN ('pending','failed')")
             ->execute([$wait ? 1 : 0, $wait ? 1 : 0, $delay, $jobId]);
+        brvtal_ticket_issue_remember_failure($code);
         // Only controlled codes leave the worker: never emails, tokens or SQL text.
         return $wait ? 'waiting' : 'failed:' . brvtal_ticket_issue_failure_code($code);
     }
