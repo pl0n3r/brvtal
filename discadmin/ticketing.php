@@ -23,36 +23,58 @@ if (!brvtalTicketingCan($role, 'view')) {
     http_response_code(403);
     exit('Acceso a Boletería no autorizado.');
 }
+// #1964 (A): sections grouped by what the operator is doing; role filtering unchanged.
+$groups = ['sale'=>'Venta', 'live'=>'En vivo', 'money'=>'Dinero', 'marketing'=>'Marketing'];
 $tabs = [
-    'dashboard'=>['Dashboard','view'], 'orders'=>['Pedidos','orders'],
-    'entries'=>['Boletas','entries'], 'buyers'=>['Compradores','buyers'],
-    'door'=>['Puerta','door'], 'finance'=>['Finanzas','finance'],
-    'promos'=>['Promos','promos'], 'promoters'=>['Promotores','promoters'],
-    'mail'=>['Correos','mail'], 'settings'=>['Ajustes','settings'],
+    'dashboard'=>['Resumen','view','sale'], 'orders'=>['Pedidos','orders','sale'],
+    'entries'=>['Boletas','entries','sale'], 'buyers'=>['Compradores','buyers','sale'],
+    'door'=>['Puerta','door','live'], 'finance'=>['Finanzas','finance','money'],
+    'promos'=>['Cupones','promos','marketing'], 'promoters'=>['Promotores','promoters','marketing'],
+    'recovery'=>['Recuperación','mail','marketing'], 'mail'=>['Correos','mail','marketing'],
 ];
-$visible = array_filter($tabs, static fn(array $tab): bool => brvtalTicketingCan($role, $tab[1]));
+$visible = array_filter($tabs, static fn(array $tab, string $id): bool => brvtalTicketingCan($role, $tab[1])
+    && ($id !== 'recovery' || brvtalTicketingCan($role, 'buyers')), ARRAY_FILTER_USE_BOTH);
 $first = array_key_first($visible);
-$providers = brvtalTicketingProviderStatus();
+$visibleGroups = array_filter($groups, static fn(string $label, string $id): bool =>
+    array_filter($visible, static fn(array $tab): bool => $tab[2] === $id) !== [], ARRAY_FILTER_USE_BOTH);
+// Real provider state, never a hard-coded "inactive" banner.
+$saleText = 'Venta en línea: apagada';
+$mailText = 'Correo: apagado';
+try {
+    require_once __DIR__ . '/../config/ticketing_wompi_client.php';
+    require_once __DIR__ . '/../config/ticketing_mail_mode.php';
+    $wompi = brvtal_ticket_wompi_status();
+    $saleText = $wompi['ready'] ? ($wompi['mode'] === 'production' ? 'Venta en línea: cobros reales' : 'Venta en línea: pruebas')
+        : ($wompi['mode'] === 'off' ? 'Venta en línea: apagada' : 'Venta en línea: incompleta');
+    $mail = brvtal_ticket_mail_status();
+    $mailText = $mail['ready'] ? ($mail['mode'] === 'live' ? 'Correo: envío real' : 'Correo: pruebas')
+        : ($mail['mode'] === 'disabled' ? 'Correo: apagado' : 'Correo: incompleto');
+} catch (Throwable) {
+    $saleText = 'Venta en línea: sin estado';
+    $mailText = 'Correo: sin estado';
+}
+$e = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
 ?>
-<section class="ticketing" data-admin-module="ticketing"
- data-ticketing-role="<?= htmlspecialchars($role, ENT_QUOTES, 'UTF-8') ?>"
- data-wompi-mode="<?= htmlspecialchars($providers['wompi'], ENT_QUOTES, 'UTF-8') ?>"
- data-resend-mode="<?= htmlspecialchars($providers['resend'], ENT_QUOTES, 'UTF-8') ?>">
-  <output class="ticketing-notice">Preparación de Boletería. Sin ventas, emisión QR ni proveedores activos.</output>
-  <?php if (brvtalTicketingCan($role, 'mail') && brvtalTicketingCan($role, 'buyers')): ?>
-  <details class="ticketing-recovery" data-ticketing-recovery>
-    <summary>Recuperación de checkout · simulación</summary>
-    <p>Vista auxiliar del mismo shell DISCADMIN, sin envío comercial ni cobro real.</p>
-    <iframe title="Panel de recuperación de checkout" src="/discadmin/ticketing-recovery.php"
-      loading="lazy" referrerpolicy="no-referrer"
-      style="width:100%;min-height:365px;border:0" ></iframe>
-  </details>
-  <?php endif; ?>
+<section class="ticketing" data-admin-module="ticketing" data-ticketing-role="<?= $e($role) ?>">
+  <p class="ticketing-status">
+    <span data-ticketing-sale-status><?= $e($saleText) ?></span>
+    <span data-ticketing-mail-status><?= $e($mailText) ?></span>
+    <?php if (brvtalTicketingCan($role, 'settings')): ?>
+    <button type="button" class="ticketing-link" data-ticketing-configure>Configurar en Integraciones</button>
+    <?php endif; ?>
+  </p>
+  <nav class="ticketing-groups" aria-label="Grupos de Boletería">
+    <?php foreach ($visibleGroups as $id => $label): ?>
+      <button type="button" data-ticketing-group="<?= $id ?>"
+       aria-pressed="<?= $visible[$first][2] === $id ? 'true' : 'false' ?>"><?= $e($label) ?></button>
+    <?php endforeach; ?>
+  </nav>
   <div class="ticketing-tabs" role="tablist" aria-label="Secciones de Boletería">
     <?php foreach ($visible as $id => $tab): ?>
       <button type="button" id="ticketing-tab-<?= $id ?>" role="tab" data-ticketing-tab="<?= $id ?>"
+       data-ticketing-tab-group="<?= $tab[2] ?>"
        aria-controls="ticketing-panel" aria-selected="<?= $id === $first ? 'true' : 'false' ?>"
-       tabindex="<?= $id === $first ? '0' : '-1' ?>"><?= htmlspecialchars($tab[0], ENT_QUOTES, 'UTF-8') ?></button>
+       tabindex="<?= $id === $first ? '0' : '-1' ?>"<?= $tab[2] === $visible[$first][2] ? '' : ' hidden' ?>><?= $e($tab[0]) ?></button>
     <?php endforeach; ?>
   </div>
   <div id="ticketing-panel" role="tabpanel" tabindex="0" aria-labelledby="ticketing-tab-<?= $first ?>"

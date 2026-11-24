@@ -1,45 +1,125 @@
 import {test, expect} from '@playwright/test';
-import {readFileSync} from 'node:fs';
+import {readFileSync, writeFileSync, mkdirSync} from 'node:fs';
+import {execFileSync} from 'node:child_process';
+// #1964 (A): Cupones uses pickers, Spanish discount types and Bogotá time.
 const source=readFileSync('discadmin/ticketing-promos.js','utf8');
-test('T23 Promos: 403, snapshots sin edición y módulo en shell a 390px',async({page})=>{
-  await page.setViewportSize({width:390,height:844});
+const css=readFileSync('discadmin/ticketing.css','utf8');
+const catalog={ok:true,events:[
+  {id:6,title:'Genesis',date:'2026-12-04 21:00:00',ticket_types:[{id:11,name:'Preventa'},{id:12,name:'VIP'}]},
+  {id:7,title:'Otra noche',date:null,ticket_types:[]}]};
+async function open(page, routeApi, src=source){
   await page.route('**/discadmin/t23.html',r=>r.fulfill({contentType:'text/html',
     body:'<!doctype html><html lang="es"><meta name="viewport" content="width=device-width,initial-scale=1">'+
-      '<main data-panel></main><script>window.csrf="test-csrf"</script></html>'}));
-  await page.route('**/discadmin/ticketing-promos.js',r=>r.fulfill({
-    contentType:'text/javascript',body:source}));
-  let deny=true,created=0,deactivated=0;
-  await page.route('**/api/ticketing/admin-promos.php*',r=>{
-    if (deny) return r.fulfill({status:403,contentType:'application/json',
-      body:'{"ok":false,"error":"FORBIDDEN"}'});
-    const post=r.request().method()==='POST';
-    if (post) {
-      expect(r.request().headers()['x-csrf-token']).toBe('test-csrf');
-      const payload=r.request().postDataJSON();
-      expect(['create','deactivate']).toContain(payload.action);
-      expect(payload).not.toHaveProperty('order_id');
-      if (payload.action==='create') created++; else deactivated++;
-    }
-    return r.fulfill({contentType:'application/json',body:JSON.stringify(
-      post?{ok:true}:{ok:true,rules:[{id:8,kind:'fixed',uses_count:1,
-        max_uses:2,active:1,campaign_key:'noche'}]})});
-  });
+      '<body style="margin:0;background:#050505;color:#f4f5f6;font-family:Arial,sans-serif">'+
+      '<section class="ticketing" style="padding:16px"><div data-panel role="tabpanel"></div></section>'+
+      '<script>window.csrf="test-csrf"</script></body></html>'}));
+  await page.route('**/discadmin/ticketing-promos.js',r=>r.fulfill({contentType:'text/javascript',body:src}));
+  await page.route('**/api/ticketing/admin-promos.php*',routeApi);
   await page.goto('https://www.brvtal.com.co/discadmin/t23.html');
+  await page.addStyleTag({content:css});
   await page.evaluate(async()=>{const m=await import('/discadmin/ticketing-promos.js');
     m.mount(document.querySelector('[data-panel]'));});
-  await page.getByLabel('Evento ID').fill('6');
-  await page.getByRole('button',{name:'Consultar reglas'}).click();
-  await expect(page.getByRole('status')).toContainText('Sin permiso');
+}
+
+test('Cupones: permisos, lista con estado en español y pausar sin editar (390px)',async({page})=>{
+  await page.setViewportSize({width:390,height:844});
+  let deny=true,deactivated=0;
+  await open(page,r=>{
+    const url=new URL(r.request().url());
+    if (url.searchParams.get('catalog')==='1') return r.fulfill({contentType:'application/json',body:JSON.stringify(catalog)});
+    if (deny) return r.fulfill({status:403,contentType:'application/json',body:'{"ok":false,"error":"FORBIDDEN"}'});
+    if (r.request().method()==='POST') {
+      expect(r.request().headers()['x-csrf-token']).toBe('test-csrf');
+      const payload=r.request().postDataJSON();
+      expect(payload).toEqual({action:'deactivate',id:8});
+      deactivated++;
+      return r.fulfill({contentType:'application/json',body:'{"ok":true}'});
+    }
+    return r.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,rules:[{id:8,kind:'fixed',value_cop:5000,
+      starts_at_utc:'2026-11-24 23:00:00',ends_at_utc:'2026-11-28 04:59:00',uses_count:1,max_uses:2,active:deactivated?0:1,campaign_key:'noche'}]})});
+  });
+  const eventPicker=page.getByLabel('Evento',{exact:true});
+  await expect(eventPicker.locator('option')).toHaveText(['Elige un evento','Genesis','Otra noche']);
+  await eventPicker.selectOption('6');
+  await expect(page.getByRole('status')).toContainText('No tienes permiso');
+  await expect(page.getByLabel('Boleta',{exact:true}).locator('option')).toHaveText(['Todas las boletas','Preventa','VIP']);
   deny=false;
-  await page.getByRole('button',{name:'Consultar reglas'}).click();
-  await expect(page.locator('[data-promo-rules]')).toContainText('1/2 usos');
+  await eventPicker.selectOption('7');
+  await eventPicker.selectOption('6');
+  const row=page.locator('.tk-table tbody tr').first();
+  await expect(row).toContainText('$5.000');
+  await expect(row).toContainText('1 / 2');
+  await expect(row).toContainText('Activo');
   await expect(page.getByRole('button',{name:/editar/i})).toHaveCount(0);
-  await page.getByRole('button',{name:'Desactivar'}).click();
+  await page.getByRole('button',{name:'Pausar'}).click();
+  await expect(page.getByRole('status')).toContainText('Las compras anteriores no cambian');
+  await expect(row).toContainText('Pausado');
   expect(deactivated).toBe(1);
-  await expect(page.getByRole('status')).toContainText('ventas anteriores');
-  expect(created).toBe(0);
-  expect(await page.evaluate(()=>document.documentElement.scrollWidth))
-    .toBeLessThanOrEqual(391);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});
+
+test('Cupones: crear con selectores, tipo en español y hora de Bogotá enviada en UTC',async({page})=>{
+  await page.setViewportSize({width:1440,height:900});
+  const posted=[];
+  await open(page,r=>{
+    const url=new URL(r.request().url());
+    if (url.searchParams.get('catalog')==='1') return r.fulfill({contentType:'application/json',body:JSON.stringify(catalog)});
+    if (r.request().method()==='POST') { posted.push(r.request().postDataJSON()); return r.fulfill({status:201,contentType:'application/json',body:'{"ok":true,"id":9}'}); }
+    return r.fulfill({contentType:'application/json',body:'{"ok":true,"rules":[]}'});
+  });
+  await page.getByLabel('Evento',{exact:true}).selectOption('6');
+  await expect(page.locator('.tk-empty-row')).toHaveText('Este evento todavía no tiene cupones.');
+  await page.getByLabel('Boleta',{exact:true}).selectOption('11');
+  await page.getByLabel('Código del cupón').fill('genesis10');
+  await expect(page.getByLabel('Tipo de descuento').locator('option')).toHaveText(['Porcentaje','Valor fijo','3 boletas por un precio','5 boletas por un precio']);
+  await page.getByLabel('Porcentaje de descuento').fill('10');
+  await page.getByLabel('Desde (hora de Bogotá)').fill('2026-11-24T18:00');
+  await page.getByLabel('Hasta (hora de Bogotá)').fill('2026-11-27T23:59');
+  await page.getByLabel('Usos en total').fill('100');
+  await page.getByLabel('Usos por comprador').fill('2');
+  await expect(page.locator('[data-promo-summary]')).toContainText('10 % de descuento en Preventa');
+  await expect(page.locator('[data-promo-summary]')).toContainText('100 usos, 2 por persona');
+  await page.getByRole('button',{name:'Crear cupón'}).click();
+  await expect(page.getByRole('status')).toHaveText('Cupón creado.');
+  expect(posted).toEqual([{action:'create',event_id:6,ticket_type_id:11,code:'GENESIS10',kind:'percent',value_cop:10,
+    starts_at_utc:'2026-11-24 23:00:00',ends_at_utc:'2026-11-28 04:59:00',max_uses:100,buyer_limit:2,campaign_key:''}]);
+  await expect(page.getByLabel('Código del cupón')).toHaveValue('');
+});
+
+test('Cupones: un campo vacío se marca y no se envía nada',async({page})=>{
+  let posts=0;
+  await open(page,r=>{
+    const url=new URL(r.request().url());
+    if (url.searchParams.get('catalog')==='1') return r.fulfill({contentType:'application/json',body:JSON.stringify(catalog)});
+    if (r.request().method()==='POST') posts++;
+    return r.fulfill({contentType:'application/json',body:'{"ok":true,"rules":[]}'});
+  });
+  await page.getByRole('button',{name:'Crear cupón'}).click();
+  await expect(page.getByRole('status')).toHaveText('Completa los campos marcados.');
+  await expect(page.getByLabel('Evento',{exact:true})).toHaveAttribute('aria-invalid','true');
+  expect(posts).toBe(0);
+});
+
+test('Cupones: capturas antes/después a 390 y 1440',async({page},testInfo)=>{
+  const before=execFileSync('git',['show','16280dbe2cdb538ca8e0292638f893b426190b9a:discadmin/ticketing-promos.js'],{encoding:'utf8'});
+  for (const [label,src] of [['antes',before],['despues',source]]) {
+    for (const [width,height] of [[390,844],[1440,900]]) {
+      await page.setViewportSize({width,height});
+      await open(page,r=>{
+        const url=new URL(r.request().url());
+        if (url.searchParams.get('catalog')==='1') return r.fulfill({contentType:'application/json',body:JSON.stringify(catalog)});
+        return r.fulfill({contentType:'application/json',body:'{"ok":true,"rules":[]}'});
+      },src);
+      await page.waitForTimeout(150);
+      const shot=await page.screenshot({fullPage:true});
+      await testInfo.attach(`cupones-${label}-${width}`,{body:shot,contentType:'image/png'});
+      if (process.env.BRVTAL_VISUAL_EVIDENCE) {
+        mkdirSync(process.env.BRVTAL_VISUAL_EVIDENCE,{recursive:true});
+        writeFileSync(`${process.env.BRVTAL_VISUAL_EVIDENCE}/cupones-${label}-${width}.png`,shot);
+      }
+      await page.unrouteAll({behavior:'ignoreErrors'});
+    }
+  }
 });
 
 test('T23: checkout sintético confirma desglose del servidor, no persiste cupón',async({page})=>{
@@ -93,36 +173,24 @@ test('T23: checkout sintético confirma desglose del servidor, no persiste cupó
     .toBeLessThanOrEqual(391);
 });
 
-test('T23: cambio de evento vacía reglas e ignora respuesta tardía', async ({page}) => {
-  const url='https://www.brvtal.com.co/discadmin/t23-event-race.html';
-  await page.route('**/discadmin/t23-event-race.html', r => r.fulfill({
-    contentType:'text/html',body:'<!doctype html><html lang="es"><main data-panel></main></html>'
-  }));
-  await page.route('**/discadmin/ticketing-promos.js', r => r.fulfill({
-    contentType:'text/javascript',body:source
-  }));
+test('Cupones: cambiar de evento ignora la respuesta tardía del anterior', async ({page}) => {
   let releaseSix;
   const pendingSix=new Promise(resolve => { releaseSix=resolve; });
-  await page.route('**/api/ticketing/admin-promos.php*', async route => {
-    const id=new URL(route.request().url()).searchParams.get('event_id');
+  await open(page, async route => {
+    const url=new URL(route.request().url());
+    if (url.searchParams.get('catalog')==='1') return route.fulfill({contentType:'application/json',body:JSON.stringify(catalog)});
+    const id=url.searchParams.get('event_id');
     if (id==='6') await pendingSix;
     await route.fulfill({contentType:'application/json',
-      body:JSON.stringify({ok:true,rules:[{id:Number(id),kind:'fixed',uses_count:0,
-        max_uses:1,active:0,campaign_key:'evento-'+id}]})});
+      body:JSON.stringify({ok:true,rules:[{id:Number(id),kind:'fixed',value_cop:1000,uses_count:0,
+        max_uses:1,active:0,campaign_key:'evento-'+id,starts_at_utc:'2026-11-24 23:00:00',ends_at_utc:'2026-11-25 23:00:00'}]})});
   });
-  await page.goto(url);
-  await page.evaluate(async()=>{const m=await import('/discadmin/ticketing-promos.js');
-    m.mount(document.querySelector('[data-panel]'));});
-  await page.getByLabel('Evento ID').fill('6');
   const requestSix=page.waitForRequest(req=>req.url().includes('event_id=6'));
-  await page.getByRole('button',{name:'Consultar reglas'}).click();
+  await page.getByLabel('Evento',{exact:true}).selectOption('6');
   await requestSix;
-  await page.getByLabel('Evento ID').fill('7');
+  await page.getByLabel('Evento',{exact:true}).selectOption('7');
+  await expect(page.locator('.tk-table tbody')).toContainText('evento-7');
   releaseSix();
-  await expect(page.getByRole('button',{name:'Consultar reglas'})).toBeEnabled();
-  await expect(page.locator('[data-promo-rules]')).toBeEmpty();
-  await page.getByRole('button',{name:'Consultar reglas'}).click();
-  await expect(page.locator('[data-promo-rules]')).toContainText('evento-7');
-  await page.getByLabel('Evento ID').fill('8');
-  await expect(page.locator('[data-promo-rules]')).toBeEmpty();
+  await page.waitForTimeout(200);
+  await expect(page.locator('.tk-table tbody')).not.toContainText('evento-6');
 });
