@@ -113,6 +113,9 @@ $origin = 'https://brvtal.invalid';
 
 // AC-01 (a): the oldest paid order is issued and its sealed QR email queued.
 deliveryAssert(brvtal_ticket_issue_process_next($db, $origin) === 'issued', 'first job issued');
+deliveryAssert(is_string($GLOBALS['BRVTAL_LOG_FILE'] ?? null)
+    && $GLOBALS['BRVTAL_LOG_FILE'] !== '',
+    'logger path survives initialization inside the paid delivery callback');
 deliveryAssert($count('SELECT COUNT(*) FROM ticket_entries e JOIN ticket_order_items i ON i.id=e.order_item_id WHERE i.order_id=100') === 3,
     'one entry per unit');
 deliveryAssert($count("SELECT COUNT(*) FROM ticket_mail_outbox WHERE message_key='order:100:payment_approved'") === 1,

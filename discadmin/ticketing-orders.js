@@ -35,6 +35,8 @@ export async function mount(panel, initialKind = 'orders') {
     draft:'Borrador', pending:'Pendiente', paid:'Pagado', failed:'Fallido',
     cancelled:'Cancelado', expired:'Expirado', refunded:'Reembolsado',
     approved:'Aprobado', declined:'Rechazado', rejected:'Rechazado',
+    created:'Iniciado', accepted:'Enviado', deferred:'Demorado',
+    bounced:'Rebotado', uncertain:'Sin confirmar',
     sent:'Enviado', delivered:'Entregado', queued:'En cola',
     no_delivery:'Sin envío', issued:'Emitida', revoked:'Anulada',
     active:'Activo', blocked:'Bloqueado', guest:'Invitado',

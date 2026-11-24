@@ -253,6 +253,50 @@ test('T18 pedidos: mobile, búsqueda, pago/correo desacoplados y detalle', async
   await expect(page.locator('[data-ticketing-records-detail]')).toContainText('Fallido');
   expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(391);
 });
+
+test('#1998: Pedidos traduce pagos iniciados y estados reales de correo en 390/1440',async({page},info)=>{
+  const cases=[
+    ['created','queued','Iniciado','En cola'],
+    ['created','accepted','Iniciado','Enviado'],
+    ['approved','delivered','Aprobado','Entregado'],
+    ['created','deferred','Iniciado','Demorado'],
+    ['created','bounced','Iniciado','Rebotado'],
+    ['created','uncertain','Iniciado','Sin confirmar']
+  ];
+  const reply=(payment,mail)=>route=>{
+    const detail=new URL(route.request().url()).searchParams.has('order_id');
+    return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:detail
+      ? {rows:[],detail:{items:[],payments:[{status:payment,gross_amount_cop:12000}],
+          mail:[{delivery_state:mail,created_at:'2026-11-24 15:00:00'}]}}
+      : {rows:[{...order,status:'paid',last_payment_state:payment,mail_state:mail}],
+          kind:'orders',has_more:false,next_cursor:null}})});
+  };
+  for(const width of [390,1440]){
+    await page.setViewportSize({width,height:width===390?844:900});
+    for(const [payment,mail,payText,mailText] of cases){
+      await start(page,reply(payment,mail));
+      const row=page.locator('.ticketing-records-table tbody tr');
+      await expect(row.locator('td[data-label="Pago reciente"]')).toHaveText(payText);
+      await expect(row.locator('td[data-label="Correo"]')).toHaveText(mailText);
+      await expect(row).not.toContainText('Estado no reconocido');
+      await page.getByRole('button',{name:'Detalle #91'}).click();
+      await expect(page.locator('[data-ticketing-records-detail]')).toContainText(mailText);
+      if(width===390)expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    }
+    // These browser captures are fixtures, NOT authentic DISCADMIN evidence
+    // for PLAN-AGENTES' separate before/after PR screenshot gate.
+    for(const [stage,source] of [
+      ['antes-fixture',js.replace(
+        "    created:'Iniciado', accepted:'Enviado', deferred:'Demorado',\n    bounced:'Rebotado', uncertain:'Sin confirmar',\n",'')],
+      ['despues-fixture',js]
+    ]){
+      await start(page,reply('created','accepted'),'orders',source,css,fixture);
+      const image=await page.screenshot({fullPage:true});
+      await info.attach('1998-'+stage+'-'+width+'px.png',{body:image,contentType:'image/png'});
+    }
+  }
+});
+
 test('T18 compradores: empty search, explicit permission denial and safe failure', async ({page}) => {
   let denied = false;
   await start(page,route => route.fulfill(denied
