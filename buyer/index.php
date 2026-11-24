@@ -123,6 +123,13 @@
   // Do not call unrestricted account or refunds APIs in this anonymous mode.
   function showScopedPurchases() {
     document.querySelector('.account-sidebar').hidden = true;
+    // A hidden sidebar must not leave its 290px grid track behind on desktop.
+    const layout = document.querySelector('.account-layout');
+    layout.style.gridTemplateColumns = 'minmax(0,1fr)';
+    const content = document.querySelector('.account-content');
+    content.style.width = '100%';
+    content.style.maxWidth = '50rem';
+    content.style.margin = '0 auto';
     $('refund-list').hidden = true;
     qr.hidden = true;
     more.hidden = true;

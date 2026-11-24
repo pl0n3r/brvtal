@@ -94,6 +94,11 @@ for (const [label, size] of [['390', { width: 390, height: 844 }], ['1440', { wi
     await expect(browserPage.locator('.account-order')).toHaveCount(1);
     await expect(browserPage.locator('.account-order')).toContainText('Pedido #6');
     await expect(browserPage.locator('.account-order')).toContainText('Preventa');
+    const accountBounds = await browserPage.locator('.account-content').boundingBox();
+    expect(accountBounds).not.toBeNull();
+    expect(accountBounds.width).toBeGreaterThan(size.width === 390 ? 310 : 620);
+    expect(await browserPage.evaluate(() => document.documentElement.scrollWidth))
+      .toBeLessThanOrEqual(size.width);
     await expect(browserPage.getByRole('link', { name: 'Iniciar sesión para otras compras' })).toBeVisible();
     await capture(browserPage, testInfo, `cuenta-compra-limitada-${label}`);
   });
