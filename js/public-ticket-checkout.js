@@ -352,6 +352,31 @@
         clear();
       }
     });
+    // Keep error presentation separate from the payment/redirect flow.
+    // Server responses stay authoritative; never infer a successful payment.
+    function reportCheckoutError(error) {
+      const guestField = {
+        GUEST_EMAIL_INVALID: 'buyer_email',
+        GUEST_NAME_INVALID: 'buyer_name',
+        GUEST_CONSENT_REQUIRED: 'buyer_consent',
+      }[error.message];
+      if (guestField) {
+        field(guestField)?.setAttribute('aria-invalid', 'true');
+        field(guestField)?.focus();
+        say(buyerErrors[guestField]);
+        return;
+      }
+      const feedback = {
+        CHECKOUT_TIMEOUT: TIMEOUT_MESSAGE,
+        CHECKOUT_EXPIRED: 'La reserva expiró. Cambia tu selección para iniciar una nueva compra.',
+        CHECKOUT_RETRYABLE: 'Otra solicitud está preparando tu reserva. Vuelve a intentarlo sin cambiar la selección.',
+        RATE_LIMITED: 'Demasiados intentos con este correo. Espera unos minutos y vuelve a intentarlo.',
+        CSRF_OR_METHOD: 'Tu sesión cambió. Recarga la página y vuelve a intentarlo.',
+        AUTH_REQUIRED: 'Tu sesión cambió. Recarga la página y vuelve a intentarlo.',
+      };
+      say(feedback[error.message] ||
+        'No fue posible reservar. Puede que ya no haya cupo; revisa tu selección y vuelve a intentarlo.');
+    }
     form.addEventListener('submit', async event => {
       event.preventDefault();
       if (submitting || pay.disabled) return;
@@ -392,25 +417,7 @@
         say('Reserva lista. Te llevamos a Wompi para pagar; el pago queda pendiente hasta que el servidor lo confirme.');
         goToWompi(result.checkout);
       } catch (error) {
-        if (error.message === 'CHECKOUT_TIMEOUT') {
-          say(TIMEOUT_MESSAGE);
-        } else if (error.message === 'CHECKOUT_EXPIRED') {
-          say('La reserva expiró. Cambia tu selección para iniciar una nueva compra.');
-        } else if (error.message === 'CHECKOUT_RETRYABLE') {
-          say('Otra solicitud está preparando tu reserva. Vuelve a intentarlo sin cambiar la selección.');
-        } else if (error.message === 'GUEST_EMAIL_INVALID' || error.message === 'GUEST_NAME_INVALID'
-          || error.message === 'GUEST_CONSENT_REQUIRED') {
-          const name = { GUEST_EMAIL_INVALID: 'buyer_email', GUEST_NAME_INVALID: 'buyer_name',
-            GUEST_CONSENT_REQUIRED: 'buyer_consent' }[error.message];
-          field(name)?.setAttribute('aria-invalid', 'true');
-          say(buyerErrors[name]);
-        } else if (error.message === 'RATE_LIMITED') {
-          say('Demasiados intentos con este correo. Espera unos minutos y vuelve a intentarlo.');
-        } else if (error.message === 'CSRF_OR_METHOD' || error.message === 'AUTH_REQUIRED') {
-          say('Tu sesión cambió. Recarga la página y vuelve a intentarlo.');
-        } else {
-          say('No fue posible reservar. Puede que ya no haya cupo; revisa tu selección y vuelve a intentarlo.');
-        }
+        reportCheckoutError(error);
       } finally {
         submitting = false;
         update();
