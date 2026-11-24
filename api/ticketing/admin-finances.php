@@ -40,7 +40,7 @@ try {
         json_response(['ok'=>false,'error'=>'INVALID_RANGE'],422);
     }
     $channel=$_GET['channel'] ?? 'all';
-    if (!in_array($channel,['all','wompi'],true)) json_response(['ok'=>false,'error'=>'INVALID_CHANNEL'],422);
+    if (!in_array($channel,['all','wompi','pos'],true)) json_response(['ok'=>false,'error'=>'INVALID_CHANNEL'],422);
     $format=$_GET['format'] ?? 'json';
     if (!in_array($format,['json','csv'],true)) json_response(['ok'=>false,'error'=>'INVALID_FORMAT'],422);
     if ($format==='csv' && !brvtalTicketingCan($role,'export')) {
@@ -52,7 +52,7 @@ try {
         header('Content-Disposition: attachment; filename="brvtal-finanzas.csv"');
         $out=fopen('php://output','wb');
         fwrite($out,"\xEF\xBB\xBF");
-        $columns=['event_id','gross_cop','discount_cop','approved_cop','paid_orders',
+        $columns=['event_id','gross_cop','discount_cop','approved_cop','pos_cop','pos_orders','paid_orders',
             'pending_orders','declined_orders','refunded_orders','unverified_orders',
             'tickets','capacity','checkins','fee_cop','fee_vat_cop','withheld_cop','payout_cop',
             'difference_cop','settlement_status'];

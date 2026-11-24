@@ -11,6 +11,8 @@ on:
       - 'api/ticketing/admin-stages.php'
       - 'database/migration_ticketing_stages_01.sql'
       - 'tests/integration/ticketing-stages.php'
+      - 'discadmin/ticketing-stages.js'
+      - 'tests/e2e/discadmin-ticketing-stages.spec.mjs'
   push:
     branches: [main]
     paths:
@@ -20,6 +22,8 @@ on:
       - 'api/ticketing/admin-stages.php'
       - 'database/migration_ticketing_stages_01.sql'
       - 'tests/integration/ticketing-stages.php'
+      - 'discadmin/ticketing-stages.js'
+      - 'tests/e2e/discadmin-ticketing-stages.spec.mjs'
 
 permissions:
   contents: read
@@ -60,3 +64,74 @@ jobs:
           ini-file: production
       - name: Exercise T22 stages and checkout against disposable MariaDB
         run: php tests/integration/ticketing-stages.php
+
+  stages-visual-evidence:
+    name: "#1990 Capturas Chromium 390/1440"
+    if: github.event_name == 'pull_request' && github.event.pull_request.number == 2003
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact PR HEAD
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Install test dependencies
+        run: npm install --prefer-offline --no-audit --no-fund
+      - name: Verify Chromium runtime
+        run: |
+          npx playwright install chromium
+          if ! node --input-type=module - <<'JS'
+          import { chromium } from '@playwright/test';
+          const browser = await chromium.launch();
+          await browser.close();
+          JS
+          then
+            npx playwright install-deps chromium
+          fi
+      - name: Capture rendered browser with synthetic business data
+        env:
+          BRVTAL_T22_VISUAL_EVIDENCE: artifacts/t22-1990
+        run: npx playwright test tests/e2e/discadmin-ticketing-stages.spec.mjs --project=chromium --workers=1 --reporter=list
+      - name: Verify four captures and exact HEAD manifest
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          folder=Path('artifacts/t22-1990')
+          names=['stage-before-390.png','stage-after-390.png',
+                 'stage-before-1440.png','stage-after-1440.png']
+          for name in names:
+              path=folder/name
+              assert path.is_file() and path.stat().st_size>1000, name
+          (folder/'manifest.json').write_text(json.dumps({
+              'issue':1990, 'head_sha':os.environ['EXPECTED_HEAD'],
+              'real_browser':True, 'fixture_business_data':'synthetic',
+              'production_observed':False, 'captures':names,
+          },indent=2)+'\n')
+          PY
+      - name: Publish exact-HEAD before/after screenshots
+        id: upload
+        if: success()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: brvtal-1990-stages-before-after-${{ github.event.pull_request.head.sha }}-${{ github.run_id }}
+          path: artifacts/t22-1990/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Link visual evidence
+        if: success() && steps.upload.outputs.artifact-url != ''
+        env:
+          EVIDENCE_URL: ${{ steps.upload.outputs.artifact-url }}
+          EXACT_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          {
+            echo "## #1990 · Etapas activas 390 y 1440 px"
+            echo "Render Chromium real con fixture sintética, sin datos productivos."
+            echo "HEAD: $EXACT_HEAD"
+            echo "[Descargar cuatro capturas y manifiesto]($EVIDENCE_URL)"
+          } >> "$GITHUB_STEP_SUMMARY"
