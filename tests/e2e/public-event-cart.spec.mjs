@@ -108,11 +108,12 @@ async function openCheckout(page, { authenticated = false, onPrepare, storage } 
     const kind = request.headers()['x-brvtal-ticket-checkout'];
     if (request.method() === 'POST' && kind === 'prepare') {
       calls.prepare.push({ headers: request.headers(), body: request.postDataJSON() });
-      return route.fulfill({ contentType: 'application/json', body: JSON.stringify(onPrepare ? onPrepare() : {
+      const response = onPrepare ? await onPrepare() : {
         ok: true, order_id: 9, order_token: orderToken,
         checkout: { environment: 'sandbox', public_key: 'pub_test_synthetic', currency: 'COP',
           amount_in_cents: 5000000, reference: 'BW7-9-CARD-' + 'c'.repeat(24),
-          signature_integrity: 'd'.repeat(64), redirect_url: url } }) });
+          signature_integrity: 'd'.repeat(64), redirect_url: url } };
+      return route.fulfill({ contentType: 'application/json', body: JSON.stringify(response) });
     }
     if (kind === 'status') {
       calls.status.push(new URL(request.url()).searchParams.toString());
@@ -200,4 +201,70 @@ test('al volver de Wompi el estado se consulta con el order_token, sin sesión',
     lines: [{ ticket_type_id: 5, quantity: 1 }], method: 'CARD' } });
   await expect(page.locator('#ticket-checkout-status')).toHaveText('Pago confirmado. Te enviamos las boletas con QR a tu correo.');
   expect(calls.status).toEqual([`order_token=${orderToken}`]);
+});
+
+function mockGuestOrder() {
+  return { ok: true, order_id: 9, order_token: orderToken, checkout: { environment: 'mock' } };
+}
+
+test('invitado: tras timeout y recarga, la misma identidad conserva la clave de reintento', async ({ page }) => {
+  let attempts = 0;
+  const calls = await openCheckout(page, { onPrepare: () => (++attempts === 1
+    ? { ok: false, error: 'CHECKOUT_TIMEOUT' } : mockGuestOrder()) });
+  await page.locator('[data-cart-type="5"] [data-cart-step="1"]').click();
+  await fillGuest(page);
+  await page.locator('[data-cart-pay]').click();
+  await expect(page.locator('#ticket-checkout-status')).toContainText('tardó demasiado');
+  const saved = await page.evaluate(() => JSON.parse(sessionStorage.getItem('brvtal-checkout:/events/cart-fixture')));
+  expect(saved.buyer_fingerprint).toMatch(/^[a-f0-9]{64}$/);
+  const firstKey = calls.prepare[0].body.idempotency_key;
+  await page.reload();
+  await page.addScriptTag({ content: script });
+  await fillGuest(page);
+  await expect(page.locator('[data-cart-pay]')).toBeEnabled();
+  await page.locator('[data-cart-pay]').click();
+  await expect.poll(() => calls.prepare.length).toBe(2);
+  expect(calls.prepare[1].body.idempotency_key).toBe(firstKey);
+  const retried = await page.evaluate(() => JSON.parse(sessionStorage.getItem('brvtal-checkout:/events/cart-fixture')));
+  expect(retried.order_token).toBe(orderToken);
+});
+
+test('invitado: un reintento fallido conserva order_token, y otro comprador usa otra clave', async ({ page }) => {
+  let attempts = 0;
+  const calls = await openCheckout(page, { onPrepare: () => (++attempts === 2
+    ? { ok: false, error: 'CHECKOUT_TIMEOUT' } : mockGuestOrder()) });
+  await page.locator('[data-cart-type="5"] [data-cart-step="1"]').click();
+  await fillGuest(page);
+  await page.locator('[data-cart-pay]').click();
+  await expect(page.locator('#ticket-checkout-status')).toContainText('Reserva preparada');
+  const originalKey = calls.prepare[0].body.idempotency_key;
+  await page.locator('[data-cart-pay]').click();
+  await expect(page.locator('#ticket-checkout-status')).toContainText('tardó demasiado');
+  const pending = await page.evaluate(() => JSON.parse(sessionStorage.getItem('brvtal-checkout:/events/cart-fixture')));
+  expect(pending.order_token).toBe(orderToken);
+  expect(pending.intent).toBe(originalKey);
+  await page.getByLabel('Correo').fill('otra@example.test');
+  await page.locator('[data-cart-pay]').click();
+  await expect.poll(() => calls.prepare.length).toBe(3);
+  expect(calls.prepare[2].body.idempotency_key).not.toBe(originalKey);
+  expect(calls.prepare[2].body.buyer.email).toBe('otra@example.test');
+});
+
+test('invitado: los datos del comprador permanecen bloqueados durante prepare', async ({ page }) => {
+  let release;
+  const calls = await openCheckout(page, {
+    onPrepare: () => new Promise(resolve => { release = resolve; }),
+  });
+  await page.locator('[data-cart-type="5"] [data-cart-step="1"]').click();
+  await fillGuest(page);
+  await page.locator('[data-cart-pay]').click();
+  await expect.poll(() => calls.prepare.length).toBe(1);
+  await expect(page.getByLabel('Correo')).not.toBeEditable();
+  await expect(page.getByLabel('Nombre')).not.toBeEditable();
+  await expect(page.getByLabel(/Acepto el tratamiento/)).toBeDisabled();
+  expect(typeof release).toBe('function');
+  release(mockGuestOrder());
+  await expect(page.locator('#ticket-checkout-status')).toContainText('Reserva preparada');
+  await expect(page.getByLabel('Correo')).toBeEditable();
+  await expect(page.getByLabel('Nombre')).toBeEditable();
 });
