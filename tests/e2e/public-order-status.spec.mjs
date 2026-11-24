@@ -5,10 +5,10 @@ import { join } from 'node:path';
 // #1958: purchase confirmation page. Only the server's state is shown.
 const root = process.cwd();
 const page = readFileSync(join(root, 'buyer/purchase.php'), 'utf8').replace(/^<\?php[\s\S]*?\?>/, '');
-const previousLogin = readFileSync(join(root, 'buyer/login.php'), 'utf8')
-  .replace(/<script>[\s\S]*?<\/script>/g, '');
+const previousLogin = readFileSync(join(root, 'buyer/login.php'), 'utf8');
 // Pre-change return: guests reached this login page, not an order confirmation.
-// This is a committed HTML fixture from main, NOT an observed production screenshot.
+// Use the exact versioned HTML. The synthetic route disables scripts via CSP,
+// rather than filtering HTML with a fragile regular expression. Not production.
 const assets = {
   '/css/buyer-access.css': ['text/css', readFileSync(join(root, 'css/buyer-access.css'))],
   '/css/public-ticket-view.css': ['text/css', readFileSync(join(root, 'css/public-ticket-view.css'))],
@@ -27,7 +27,11 @@ async function setup(browserPage, states) {
   await browserPage.route('**/*', route => {
     const url = new URL(route.request().url());
     if (url.pathname === '/mi-cuenta/acceso') {
-      return route.fulfill({ contentType: 'text/html; charset=utf-8', body: previousLogin });
+      return route.fulfill({
+        contentType: 'text/html; charset=utf-8',
+        headers: { 'Content-Security-Policy': "script-src 'none'" },
+        body: previousLogin,
+      });
     }
     if (/^\/compra\//.test(url.pathname)) return route.fulfill({ contentType: 'text/html; charset=utf-8', body: page });
     if (url.pathname === '/api/ticketing/order-status.php') {
