@@ -80,6 +80,8 @@ function brvtalBuyerAccountOrders(PDO $db, int $buyerId, array $f): array
     }
     foreach ($orders as &$order) {
         $id=(int)$order['id']; unset($order['id']);
+        // #1950: the buyer's own order number, the same one in the Wompi reference BW7-<n>-….
+        $order['order_number']=$id;
         $order['total_cop']=(int)$order['total_cop'];
         $order['items']=$byOrder[$id] ?? [];
     }

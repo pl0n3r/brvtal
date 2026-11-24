@@ -170,7 +170,7 @@
   function showQr(id){resetQr();ticket=id;qr.hidden=false;$('token').focus();}
   function card(order){
     const box=el('article'),title=el('h2',order.event_title||'Evento');box.className='account-order';box.append(title,
-      el('p','Pedido '+(statuses[order.status]||order.status)+' · Pago: '+(statuses[order.payment_status]||order.payment_status||'Sin intento')),
+      el('p',(order.order_number?'Pedido #'+order.order_number+' · ':'')+(statuses[order.status]||order.status)+' · Pago: '+(statuses[order.payment_status]||order.payment_status||'Sin intento')),
       el('small','Comprado el '+purchaseDate(order.created_at_utc)+' · '+money(order.total_cop)));
     for(const item of order.items||[]){
       const line=el('div');line.className='ticket';line.append(el('strong',item.name),el('p','Cantidad: '+item.quantity+' · Entrada: '+(statuses[item.status]||item.status)));

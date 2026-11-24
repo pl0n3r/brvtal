@@ -231,7 +231,7 @@ test('con sesión iniciada se ocultan los datos y se paga con la cuenta', async 
 test('al volver de Wompi el estado se consulta con el order_token, sin sesión', async ({ page }) => {
   const calls = await openCheckout(page, { storage: { intent: 'T13-x', order_id: '9', order_token: orderToken,
     lines: [{ ticket_type_id: 5, quantity: 1 }], method: 'CARD' } });
-  await expect(page.locator('#ticket-checkout-status')).toHaveText('Pago confirmado. Te enviamos las boletas con QR a tu correo.');
+  await expect(page.locator('#ticket-checkout-status')).toHaveText('Pedido #9: Pago confirmado. Te enviamos las boletas con QR a tu correo.');
   expect(calls.status).toEqual([`order_token=${orderToken}`]);
 });
 

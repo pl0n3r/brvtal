@@ -96,6 +96,8 @@ $text = (string)brvtalBuyerMailUnseal((string)$mail['body_text']);
 $html = (string)brvtalBuyerMailUnseal((string)$mail['body_html']);
 preg_match_all('~https://brvtal\.invalid/mi-cuenta/boleta#(BRVTAL:T1:([a-f0-9]{32}):([A-Za-z0-9_-]{43}))~', $text, $links, PREG_SET_ORDER);
 deliveryAssert(count($links) === 3, 'one link per ticket in the text body');
+deliveryAssert(str_contains($text, 'Pedido: #100') && str_contains($html, '<strong>Pedido:</strong> #100'),
+    'email shows the order number (#1950)');
 deliveryAssert(str_contains($text, 'Boleta 3 · VIP') && str_contains($html, 'Boleta 1 · Preventa'), 'tickets are labelled');
 deliveryAssert(str_contains($html, htmlspecialchars($links[0][0], ENT_QUOTES)), 'html carries the same links');
 $future = new DateTimeImmutable('+1 day', new DateTimeZone('UTC'));

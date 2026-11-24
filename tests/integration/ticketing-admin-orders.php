@@ -28,13 +28,13 @@ try {
         'CREATE TABLE ticket_buyers (id BIGINT PRIMARY KEY,email VARCHAR(190),status VARCHAR(20),created_at DATETIME)',
         'CREATE TABLE ticket_orders (id BIGINT PRIMARY KEY,buyer_id BIGINT,event_id INT,status VARCHAR(20),currency CHAR(3),total_cop BIGINT,created_at_utc DATETIME)',
         'CREATE TABLE ticket_order_items (id BIGINT PRIMARY KEY,order_id BIGINT,ticket_name_snapshot VARCHAR(100),quantity INT,unit_price_cop BIGINT,subtotal_cop BIGINT)',
-        'CREATE TABLE ticket_payment_attempts (id BIGINT PRIMARY KEY,order_id BIGINT,provider VARCHAR(20),status VARCHAR(20),gross_amount_cop BIGINT,created_at_utc DATETIME)',
+        'CREATE TABLE ticket_payment_attempts (id BIGINT PRIMARY KEY,order_id BIGINT,provider VARCHAR(20),status VARCHAR(20),gross_amount_cop BIGINT,created_at_utc DATETIME,provider_reference VARCHAR(190) NULL,provider_transaction_id VARCHAR(190) NULL)',
         'CREATE TABLE ticket_entries (id BIGINT PRIMARY KEY,order_item_id BIGINT)',
         'CREATE TABLE ticket_mail_history (id BIGINT PRIMARY KEY,order_id BIGINT,delivery_state VARCHAR(20),created_at DATETIME)',
         "INSERT INTO ticket_buyers VALUES (3,'synthetic@example.test','active','2026-11-01'),(4,'other@example.test','guest','2026-11-01')",
         "INSERT INTO ticket_orders VALUES (91,3,6,'paid','COP',75000,'2026-11-19'),(92,3,7,'pending','COP',20000,'2026-11-18'),(93,4,6,'refunded','COP',10000,'2026-11-17')",
         "INSERT INTO ticket_order_items VALUES (1,91,'General',2,30000,60000),(2,91,'VIP',1,15000,15000)",
-        "INSERT INTO ticket_payment_attempts VALUES (1,91,'wompi','pending',75000,'2026-11-19'),(2,91,'wompi','approved',75000,'2026-11-19')",
+        "INSERT INTO ticket_payment_attempts VALUES (1,91,'wompi','pending',75000,'2026-11-19','BW7-91-CARD-aaaaaaaaaaaaaaaaaaaaaaaa',NULL),(2,91,'wompi','approved',75000,'2026-11-19','BW7-91-CARD-bbbbbbbbbbbbbbbbbbbbbbbb','tx-91')",
         'INSERT INTO ticket_entries VALUES (1,1),(2,1),(3,2)',
         "INSERT INTO ticket_mail_history VALUES (1,91,'delivered','2026-11-18'),(2,91,'failed','2026-11-19')",
     ] as $sql) $pdo->exec($sql);
@@ -51,6 +51,10 @@ try {
     t18Assert(count($buyers['rows'])===1&&(int)$buyers['rows'][0]['order_count']===2,'buyers scoped aggregations');
     $detail=brvtalTicketAdminDetail($pdo,91);
     t18Assert(count($detail['items'])===2&&count($detail['payments'])===2&&count($detail['mail'])===2,'trace details');
+    // #1950: staff can cross-check each payment with Wompi.
+    t18Assert($detail['payments'][0]['provider_reference']==='BW7-91-CARD-bbbbbbbbbbbbbbbbbbbbbbbb'
+        &&$detail['payments'][0]['provider_transaction_id']==='tx-91'
+        &&$detail['payments'][1]['provider_transaction_id']===null,'payment reference and transaction id');
     $pdo->exec('DROP TABLE ticket_mail_history');
     $withoutMail=brvtalTicketAdminPage($pdo,brvtalTicketAdminFilters(['kind'=>'orders','q'=>'91']));
     t18Assert($withoutMail['rows'][0]['mail_state']===null,'mail provider unavailable is not sale unavailable');

@@ -219,7 +219,13 @@ export async function mount(panel, initialKind = 'orders') {
         if (!rows.length) { const li = document.createElement('li'); li.textContent = 'Sin evidencia'; list.append(li); }
         for (const row of rows) {
           const li = document.createElement('li');
-          li.textContent = String(row[primary]) + ' · ' + String(row[secondary]); list.append(li);
+          li.textContent = String(row[primary]) + ' · ' + String(row[secondary]);
+          // #1950: cross-check a payment with Wompi by its reference and transaction ID.
+          if (label === 'Pagos') {
+            li.textContent += ' · Ref. ' + (row.provider_reference || 'sin referencia')
+              + ' · Transacción ' + (row.provider_transaction_id || 'sin transacción');
+          }
+          list.append(li);
         }
         box.append(list);
       }

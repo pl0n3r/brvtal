@@ -117,7 +117,7 @@ function brvtalTicketAdminDetail(PDO $pdo, int $orderId): array
 {
     $items = $pdo->prepare('SELECT ticket_name_snapshot,quantity,unit_price_cop,subtotal_cop FROM ticket_order_items WHERE order_id=? ORDER BY id');
     $items->execute([$orderId]);
-    $payments = $pdo->prepare('SELECT provider,status,gross_amount_cop,created_at_utc FROM ticket_payment_attempts WHERE order_id=? ORDER BY id DESC LIMIT 30');
+    $payments = $pdo->prepare('SELECT provider,status,gross_amount_cop,provider_reference,provider_transaction_id,created_at_utc FROM ticket_payment_attempts WHERE order_id=? ORDER BY id DESC LIMIT 30');
     $payments->execute([$orderId]);
     $mails = [];
     if (brvtalTicketAdminHasTable($pdo, 'ticket_mail_history')) {
