@@ -222,7 +222,15 @@ function brvtal_ticket_mail_queue_buyer_state(PDO $db, int $orderId, string $kin
         throw new InvalidArgumentException('MAIL_ORDER_TEMPLATE_INVALID');
     }
     if (!$db->inTransaction()) throw new LogicException('MAIL_TRANSACTION_REQUIRED');
-    if (brvtal_secret_value('BRVTAL_TICKET_MAIL_MODE') === 'disabled') return null;
+    // No configured delivery mode is equivalent to disabled. Do not require
+    // the optional buyer/event tables on minimal pre-mail schemas (T18/T19).
+    // Authorization must be resolved before any buyer PII lookup.
+    $mode = brvtal_secret_value('BRVTAL_TICKET_MAIL_MODE');
+    if (!in_array($mode, ['mock', 'test', 'live'], true)) return null;
+    if ($mode === 'mock' && brvtal_secret_value('BRVTAL_TICKET_MAIL_TESTING') !== '1') return null;
+    if ($mode !== 'mock' && brvtal_secret_value('BRVTAL_TICKET_MAIL_PRIVACY_APPROVED') !== '1') return null;
+    if ($mode === 'live' && (brvtal_secret_value('BRVTAL_TICKET_MAIL_ALLOW_LIVE') !== '1'
+        || brvtal_secret_value('BRVTAL_TICKET_MAIL_DNS_VERIFIED') !== '1')) return null;
     $q = $db->prepare('SELECT b.email,e.title
         FROM ticket_orders o
         JOIN ticket_buyers b ON b.id=o.buyer_id
