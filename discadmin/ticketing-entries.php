@@ -15,20 +15,20 @@ try {
     if (!brvtalTicketingCan($role,'entries')) {http_response_code(403);exit;}
 } catch (Throwable) {http_response_code(503);exit;}
 ?>
-<section data-ticketing-entries data-ticketing-csrf="<?= htmlspecialchars(brvtal_admin_csrf_token(),ENT_QUOTES,'UTF-8') ?>"
+<section class="tk-entries" data-ticketing-entries data-ticketing-csrf="<?= htmlspecialchars(brvtal_admin_csrf_token(),ENT_QUOTES,'UTF-8') ?>"
  data-ticketing-can-reissue="<?= brvtalTicketingCan($role,'reissue')?'1':'0' ?>"
  data-ticketing-can-void="<?= brvtalTicketingCan($role,'void')?'1':'0' ?>">
  <h2>Boletas individuales</h2>
  <p>Los QR originales no se recuperan desde un hash. Para volver a mostrar uno, presenta el QR existente.
  Reemitir invalida el anterior, sin crear otra venta ni modificar el pago Wompi.</p>
- <p role="status" data-entry-status aria-live="polite">Consultando boletas…</p>
- <div data-entry-list></div>
- <button type="button" data-entry-more hidden>Más boletas</button>
- <div data-entry-detail></div>
- <div data-entry-qr hidden>
+ <p class="tk-status" role="status" data-entry-status aria-live="polite">Consultando boletas…</p>
+ <div class="tk-table-wrap" data-entry-list></div>
+ <button type="button" class="tk-button" data-entry-more hidden>Más boletas</button>
+ <div class="tk-entry-detail" data-entry-detail></div>
+ <div class="tk-qr" data-entry-qr hidden>
    <p>QR visible solo durante esta sesión de trabajo. No se guarda en el navegador.</p>
    <div data-entry-qr-image></div>
-   <button type="button" data-entry-download>Descargar imagen</button>
-   <button type="button" data-entry-close>Cerrar QR</button>
+   <button type="button" class="tk-button" data-entry-download>Descargar imagen</button>
+   <button type="button" class="tk-button" data-entry-close>Cerrar QR</button>
  </div>
 </section>

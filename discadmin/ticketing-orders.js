@@ -7,7 +7,7 @@ export async function mount(panel, initialKind = 'orders') {
   };
   const error = message => { if (active()) panel.replaceChildren(document.createTextNode(message)); };
   try {
-    const response = await fetch('/discadmin/ticketing-orders.php', {
+    const response = await fetch('/discadmin/ticketing-orders.php?kind=' + encodeURIComponent(initialKind), {
       credentials: 'same-origin', cache: 'no-store', headers: {'X-BRVTAL-ADMIN-FRAGMENT':'1'}
     });
     if (response.status === 403) return error('Sin permiso para consultar pedidos o compradores.');
@@ -31,6 +31,33 @@ export async function mount(panel, initialKind = 'orders') {
   const more = panel.querySelector('[data-ticketing-records-more]');
   const kind = form.elements.namedItem('kind');
   const state = form.elements.namedItem('status');
+  const labelState = {
+    draft:'Borrador', pending:'Pendiente', paid:'Pagado', failed:'Fallido',
+    cancelled:'Cancelado', expired:'Expirado', refunded:'Reembolsado',
+    approved:'Aprobado', declined:'Rechazado', rejected:'Rechazado',
+    sent:'Enviado', delivered:'Entregado', queued:'En cola',
+    no_delivery:'Sin envío', issued:'Emitida', revoked:'Anulada',
+    active:'Activo', blocked:'Bloqueado', guest:'Invitado',
+    processing:'En proceso', error:'Error', undelivered:'Sin entregar'
+  };
+  const displayState = code => {
+    if (code === null || code === undefined || code === '') return 'Sin registro';
+    const key = String(code).trim().toLowerCase();
+    return labelState[key] || 'Estado no reconocido';
+  };
+  const bogotaDate = value => {
+    if (!value) return 'Sin fecha';
+    const source=String(value).trim();
+    const parsed = /^\d{4}-\d{2}-\d{2}$/.test(source)
+      ? new Date(source+'T12:00:00Z')
+      : /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(?::\d{2})?$/.test(source)
+        ? new Date(source.replace(' ','T')+'Z') : new Date(source);
+    if (!Number.isFinite(parsed.getTime())) return 'Fecha no disponible';
+    return new Intl.DateTimeFormat('es-CO', {
+      timeZone:'America/Bogota',day:'2-digit',month:'short',year:'numeric',
+      ...(source.includes(':')?{hour:'2-digit',minute:'2-digit',hour12:false}:{})
+    }).format(parsed);
+  };
   const statusOptions = {
     orders: [['','Todos'],['draft','Borrador'],['pending','Pendiente'],['paid','Pagado'],
       ['failed','Fallido'],['cancelled','Cancelado'],['expired','Expirado'],['refunded','Reembolsado']],
@@ -46,9 +73,10 @@ export async function mount(panel, initialKind = 'orders') {
   options();
   let cursor = null, generation = 0;
   const params = () => new URLSearchParams(new FormData(form));
-  const cell = (tr, value) => {
+  const cell = (tr, value, label = '') => {
     const td = tr.insertCell();
-    td.textContent = value === null || value === undefined || value === '' ? 'Sin evidencia' : String(value);
+    if (label) td.dataset.label = label;
+    td.textContent = value === null || value === undefined || value === '' ? 'Sin registro' : String(value);
     return td;
   };
   const money = n => Number(n || 0).toLocaleString('es-CO') + ' COP';
@@ -58,14 +86,14 @@ export async function mount(panel, initialKind = 'orders') {
       if (!append) results.textContent = 'No hay resultados para estos filtros.';
       return;
     }
+    const headings = kind.value === 'orders'
+      ? ['Pedido','Evento','Comprador','Estado','Total','Unidades','Pagos aprobados','Pago reciente','Correo','Detalle']
+      : ['Comprador','Correo','Estado','Pedidos','Pagado'];
     let table = results.querySelector('table');
     if (!table) {
       table = document.createElement('table');
-      table.className = 'ticketing-records-table';
+      table.className = 'ticketing-records-table tk-table';
       const head = table.createTHead().insertRow();
-      const headings = kind.value === 'orders'
-        ? ['Pedido','Evento','Comprador','Estado','Total','Unidades','Pagos aprobados','Pago reciente','Correo','Detalle']
-        : ['Comprador','Correo','Estado','Pedidos','Pagado'];
       for (const title of headings) {
         const th = document.createElement('th'); th.scope = 'col'; th.textContent = title; head.appendChild(th);
       }
@@ -75,18 +103,27 @@ export async function mount(panel, initialKind = 'orders') {
     for (const row of rows) {
       const tr = body.insertRow();
       if (kind.value === 'orders') {
-        [row.id,row.event_id,row.email,row.status,money(row.total_cop),row.units,
-          row.approvals,row.last_payment_state,row.mail_state].forEach(value => cell(tr,value));
+        const values = [row.id,row.event_id,row.email,displayState(row.status),
+          money(row.total_cop),row.units,row.approvals,
+          displayState(row.last_payment_state),displayState(row.mail_state)];
+        values.forEach((value,index) => cell(tr,value,headings[index]));
+        const actionCell = tr.insertCell();
+        actionCell.dataset.label = 'Detalle';
         const action = document.createElement('button');
-        action.type = 'button'; action.textContent = 'Detalle #' + row.id;
+        action.type = 'button'; action.className = 'tk-button';
+        action.textContent = 'Detalle #' + row.id;
         action.addEventListener('click', () => void loadDetail(row.id));
-        cell(tr, '').append(action);
+        actionCell.append(action);
         if ((row.status === 'paid' && Number(row.approvals) !== 1) || Number(row.approvals) > 1) {
           tr.dataset.ticketingAnomaly = '1';
-          tr.title = 'Revisar discrepancia entre pagos y pedido; no confirma liquidación.';
+          const warning = document.createElement('span');
+          warning.className = 'tk-records-anomaly';
+          warning.textContent = 'Atención: los pagos aprobados no coinciden con el pedido. Revisar.';
+          tr.cells[3].append(warning);
         }
       } else {
-        [row.id,row.email,row.status,row.order_count,money(row.paid_total_cop)].forEach(value => cell(tr,value));
+        [row.id,row.email,displayState(row.status),row.order_count,money(row.paid_total_cop)]
+          .forEach((value,index) => cell(tr,value,headings[index]));
       }
     }
   }
@@ -219,7 +256,11 @@ export async function mount(panel, initialKind = 'orders') {
         if (!rows.length) { const li = document.createElement('li'); li.textContent = 'Sin evidencia'; list.append(li); }
         for (const row of rows) {
           const li = document.createElement('li');
-          li.textContent = String(row[primary]) + ' · ' + String(row[secondary]);
+          const first = primary === 'status' || primary === 'delivery_state'
+            ? displayState(row[primary]) : String(row[primary] ?? 'Sin registro');
+          const second = secondary === 'created_at' ? bogotaDate(row[secondary])
+            : String(row[secondary] ?? 'Sin registro');
+          li.textContent = first + ' · ' + second;
           // #1950: cross-check a payment with Wompi by its reference and transaction ID.
           if (label === 'Pagos') {
             li.textContent += ' · Ref. ' + (row.provider_reference || 'sin referencia')
@@ -257,7 +298,10 @@ export async function mount(panel, initialKind = 'orders') {
         'No se pudo consultar. Reintenta sin cambiar datos.';
     }
   }
-  kind.addEventListener('change', () => { options(); void refresh(); });
+  // The workspace (Pedidos or Compradores) comes from the shell tab, not a duplicate selector.
+  if (kind.tagName === 'SELECT') {
+    kind.addEventListener('change', () => { options(); void refresh(); });
+  }
   form.addEventListener('submit', event => { event.preventDefault(); void refresh(); });
   more.addEventListener('click', () => void refresh(true));
   const exportButton = panel.querySelector('[data-ticketing-export]');

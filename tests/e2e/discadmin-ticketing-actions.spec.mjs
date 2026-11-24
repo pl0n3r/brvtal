@@ -3,7 +3,7 @@ import {readFileSync} from 'node:fs';
 const script = readFileSync('discadmin/ticketing-orders.js','utf8');
 const css = readFileSync('discadmin/ticketing.css','utf8');
 const fragment = '<section data-ticketing-records data-ticketing-csrf="synthetic-csrf">'
-  + '<form data-ticketing-records-form><label>Vista<select name="kind"><option value="orders">Pedidos</option><option value="buyers">Compradores</option></select></label>'
+  + '<form data-ticketing-records-form><input type="hidden" name="kind" value="orders">'
   + '<input name="q"><input name="email"><input name="event_id"><select name="status"></select><input name="from"><input name="to">'
   + '<button type="submit">Consultar</button></form>'
   + '<p role="status" data-ticketing-records-status></p><div data-ticketing-records-results></div>'
@@ -17,7 +17,7 @@ async function launch(page, actionReply) {
       + '<div id="panel"></div></section></html>'}));
   await page.route('**/discadmin/ticketing-orders.js', route =>
     route.fulfill({contentType:'text/javascript',body:script}));
-  await page.route('**/discadmin/ticketing-orders.php', route =>
+  await page.route('**/discadmin/ticketing-orders.php*', route =>
     route.fulfill({contentType:'text/html',body:fragment}));
   await page.route('**/api/ticketing/admin-orders.php?*', route => {
     const detail = new URL(route.request().url()).searchParams.has('order_id');
