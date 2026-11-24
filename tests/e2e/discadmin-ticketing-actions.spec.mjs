@@ -49,6 +49,7 @@ test('1979 C móvil: pasos, alerta, diálogo, nota con autor, CSRF',async({page}
   await expect(page.locator('[data-ticketing-order-journey] li').nth(3)).toContainText('Requiere atención');
   for(const label of ['Boletas','Pago','Notas']) await expect(page.getByRole('heading',{name:label})).toBeVisible();
   await expect(page.getByText('simulación únicamente')).toHaveCount(0);
+  expect(script).not.toContain('El correo con los QR sale en el siguiente minuto.');
   await page.getByRole('button',{name:'Agregar nota'}).click();
   await page.locator('[data-ticketing-note]').fill('Revisión completada');
   await page.getByRole('button',{name:'Volver'}).click();expect(calls).toHaveLength(0);

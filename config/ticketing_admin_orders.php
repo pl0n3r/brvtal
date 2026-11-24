@@ -136,10 +136,15 @@ function brvtalTicketAdminDetail(PDO $pdo, int $orderId): array
                 'next_attempt_at_utc'=>$row['next_attempt_at_utc']];
         }
     }
-    $identity = $pdo->prepare('SELECT o.id,o.status,o.total_cop,o.currency,o.created_at_utc,
-        e.title AS event_title FROM ticket_orders o JOIN events e ON e.id=o.event_id WHERE o.id=?');
-    $identity->execute([$orderId]);
-    $order = $identity->fetch(PDO::FETCH_ASSOC);
+    // A reduced legacy/disposable fixture may omit the events table. The
+    // source order remains readable instead of converting detail to HTTP 503.
+    $order = null;
+    if (brvtalTicketAdminHasTable($pdo,'events')) {
+        $identity = $pdo->prepare('SELECT o.id,o.status,o.total_cop,o.currency,o.created_at_utc,
+            e.title AS event_title FROM ticket_orders o JOIN events e ON e.id=o.event_id WHERE o.id=?');
+        $identity->execute([$orderId]);
+        $order = $identity->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
     $notes = [];
     if (brvtalTicketAdminHasTable($pdo,'ticket_order_notes')) {
         $q = $pdo->prepare('SELECT n.note_text,n.created_at_utc,
@@ -151,12 +156,20 @@ function brvtalTicketAdminDetail(PDO $pdo, int $orderId): array
     }
     $entries = ['total'=>0,'used'=>0,'first_issued_at'=>null,'last_used_at'=>null];
     if (brvtalTicketAdminHasTable($pdo,'ticket_entries')) {
-        $q = $pdo->prepare("SELECT COUNT(*) AS total,
-            COALESCE(SUM(e.status='used'),0) AS used,
-            MIN(e.issued_at_utc) AS first_issued_at,
-            MAX(e.used_at_utc) AS last_used_at
-            FROM ticket_entries e JOIN ticket_order_items i ON i.id=e.order_item_id
-            WHERE i.order_id=?");
+        $probe = $pdo->query("SELECT COUNT(*) FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='ticket_entries'
+              AND COLUMN_NAME IN ('status','issued_at_utc','used_at_utc')");
+        $fullEntries = (int)$probe->fetchColumn()===3;
+        $q = $pdo->prepare($fullEntries
+            ? "SELECT COUNT(*) AS total, COALESCE(SUM(e.status='used'),0) AS used,
+                  MIN(e.issued_at_utc) AS first_issued_at,
+                  MAX(e.used_at_utc) AS last_used_at
+               FROM ticket_entries e JOIN ticket_order_items i ON i.id=e.order_item_id
+               WHERE i.order_id=?"
+            : "SELECT COUNT(*) AS total, 0 AS used, NULL AS first_issued_at,
+                  NULL AS last_used_at
+               FROM ticket_entries e JOIN ticket_order_items i ON i.id=e.order_item_id
+               WHERE i.order_id=?");
         $q->execute([$orderId]);
         $entries = $q->fetch(PDO::FETCH_ASSOC) ?: $entries;
     }
