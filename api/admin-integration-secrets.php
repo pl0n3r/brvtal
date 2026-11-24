@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../config/admin_auth.php';
+require_once __DIR__ . '/../config/ticketing_mail_mode.php';
 require_once __DIR__ . '/../config/integration_secrets_store.php';
 require_once __DIR__ . '/../config/ticketing_staff_permissions.php';
 require_once __DIR__ . '/../config/ticketing_wompi_client.php';
@@ -25,6 +26,9 @@ function brvtalIntegrationSecretPublicStatus(PDO $pdo): array
         'BRVTAL_TICKET_WOMPI_MODE',
         'BRVTAL_TICKET_WOMPI_ENABLED_METHODS',
         'BRVTAL_TICKET_WOMPI_RETURN_URL',
+        'BRVTAL_TICKET_MAIL_MODE',
+        'BRVTAL_TICKET_MAIL_PRIVACY_APPROVED',
+        'BRVTAL_TICKET_MAIL_DNS_VERIFIED',
     ], true);
     foreach ($items as &$item) {
         $key = (string)($item['key'] ?? '');
@@ -58,7 +62,7 @@ try {
     if ($method === 'GET') {
         json_response(['ok'=>true,'write_enabled'=>$writeEnabled && $masterAvailable,
             'master_key_configured'=>$masterAvailable, 'items'=>brvtalIntegrationSecretPublicStatus($pdo),
-            'wompi'=>brvtal_ticket_wompi_status()]);
+            'wompi'=>brvtal_ticket_wompi_status(), 'mail'=>brvtal_ticket_mail_status()]);
     }
 
     // Normalize rejected write CSRF to 403 for the documented API contract.
@@ -85,6 +89,14 @@ try {
     }
     $key = $input['key'];
     $value = $method === 'POST' ? ($input['value'] ?? null) : null;
+    if ($method === 'POST' && $key === 'BRVTAL_TICKET_MAIL_MODE') {
+        // #1962: one request applies the mode and the owner's confirmations together.
+        $mailError = brvtal_ticket_mail_mode_apply($pdo, (string)$value, ($input['privacy'] ?? false) === true,
+            ($input['dns'] ?? false) === true, $input['confirm'] ?? null, $actorId);
+        if ($mailError !== null) json_response(['ok'=>false,'error'=>$mailError], 409);
+        json_response(['ok'=>true,'items'=>brvtalIntegrationSecretPublicStatus($pdo),
+            'wompi'=>brvtal_ticket_wompi_status(),'mail'=>brvtal_ticket_mail_status()]);
+    }
     if ($method === 'POST' && $key === 'BRVTAL_TICKET_WOMPI_MODE') {
         // Real charges need explicit confirmation and a complete, valid production key set.
         $modeError = brvtal_ticket_wompi_mode_change_error((string)$value, $input['confirm'] ?? null);
@@ -92,7 +104,7 @@ try {
     }
     brvtalIntegrationSecretMutate($pdo, $method, $key, is_string($value) ? $value : null, $actorId);
     json_response(['ok'=>true,'items'=>brvtalIntegrationSecretPublicStatus($pdo),
-        'wompi'=>brvtal_ticket_wompi_status()]);
+        'wompi'=>brvtal_ticket_wompi_status(),'mail'=>brvtal_ticket_mail_status()]);
 } catch (InvalidArgumentException | JsonException) {
     json_response(['ok'=>false,'error'=>'SECRET_FORMAT_INVALID'], 422);
 } catch (DomainException) {
