@@ -152,7 +152,7 @@ function renderBeforeGuest() {
       !baseline.includes(oldAccount)) throw new Error('Guest baseline fixture not reconstructed');
   return baseline;
 }
-async function captureGuestVisual(page, testInfo, label, filename, shot) {
+async function captureGuestVisual(testInfo, filename, shot) {
   await testInfo.attach(filename, { body: shot, contentType: 'image/png' });
   // Existing Chromium CI visual-artifact upload collects this named folder.
   const dir = 'test-results/public-concept05-fidelity-1948';
@@ -172,7 +172,7 @@ for (const [label, size] of [['390', { width: 390, height: 844 }], ['1440', { wi
       route.fulfill({ contentType: 'text/html', body: renderBeforeGuest() }));
     await before.goto(url);
     await before.locator('#boletas').scrollIntoViewIfNeeded();
-    await captureGuestVisual(before, testInfo, label, `cart-guest-antes-${label}`,
+    await captureGuestVisual(testInfo, `cart-guest-antes-${label}`,
       await before.locator('#boletas').screenshot());
     await before.close();
     const calls = await openCheckout(page);
@@ -188,7 +188,7 @@ for (const [label, size] of [['390', { width: 390, height: 844 }], ['1440', { wi
     await fillGuest(page);
     await page.locator('[data-cart-buyer]').scrollIntoViewIfNeeded();
     const shot = await page.locator('#boletas').screenshot();
-    await captureGuestVisual(page, testInfo, label, `cart-guest-despues-${label}`, shot);
+    await captureGuestVisual(testInfo, `cart-guest-despues-${label}`, shot);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(size.width);
     await page.locator('[data-cart-pay]').click();
     await expect.poll(() => calls.wompi.length).toBe(1);
