@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
 // #1929: the event page is a purchase page. The ticket panel sits beside the event
 // (sticky on desktop) or right after the hero (phones), with a cart of several types.
@@ -139,9 +139,42 @@ async function fillGuest(page, { consent = true, email = 'ana@example.test' } = 
   if (consent) await page.getByLabel(/Acepto el tratamiento/).check();
 }
 
+// Reproduce the exact account-required panel from main before #1948. This
+// captures a browser-rendered pre-change fixture, NOT a production screenshot.
+function renderBeforeGuest() {
+  const current = render();
+  const oldAccount = '<p class="event-cart-account">Para pagar necesitas tu cuenta BRVTAL. '
+    + '<a href="/mi-cuenta/acceso">Inicia sesión o créala</a>.</p>';
+  const baseline = current
+    .replace(/<fieldset class="event-cart-buyer" data-cart-buyer>[\s\S]*?<\/fieldset>/, '')
+    .replace(/<p class="event-cart-account" data-cart-account>[\s\S]*?<\/p>/, oldAccount);
+  if (baseline === current || baseline.includes('data-cart-buyer') ||
+      !baseline.includes(oldAccount)) throw new Error('Guest baseline fixture not reconstructed');
+  return baseline;
+}
+async function captureGuestVisual(page, testInfo, label, filename, shot) {
+  await testInfo.attach(filename, { body: shot, contentType: 'image/png' });
+  // Existing Chromium CI visual-artifact upload collects this named folder.
+  const dir = 'test-results/public-concept05-fidelity-1948';
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(`${dir}/${filename}.png`, shot);
+  if (process.env.BRVTAL_VISUAL_EVIDENCE) {
+    mkdirSync(process.env.BRVTAL_VISUAL_EVIDENCE, { recursive: true });
+    writeFileSync(`${process.env.BRVTAL_VISUAL_EVIDENCE}/${filename}.png`, shot);
+  }
+}
 for (const [label, size] of [['390', { width: 390, height: 844 }], ['1440', { width: 1440, height: 900 }]]) {
   test(`sin cuenta: correo, nombre y consentimiento bastan para ir a Wompi (${label})`, async ({ page }, testInfo) => {
     await page.setViewportSize(size);
+    const before = await page.context().newPage();
+    await before.setViewportSize(size);
+    await before.route(/\/events\/cart-fixture(\?.*)?$/, route =>
+      route.fulfill({ contentType: 'text/html', body: renderBeforeGuest() }));
+    await before.goto(url);
+    await before.locator('#boletas').scrollIntoViewIfNeeded();
+    await captureGuestVisual(before, testInfo, label, `cart-guest-antes-${label}`,
+      await before.locator('#boletas').screenshot());
+    await before.close();
     const calls = await openCheckout(page);
     await expect(page.locator('[data-cart-buyer]')).toBeVisible();
     await expect(page.locator('#brvtal-ticket-cart')).not.toContainText('necesitas tu cuenta');
@@ -155,8 +188,7 @@ for (const [label, size] of [['390', { width: 390, height: 844 }], ['1440', { wi
     await fillGuest(page);
     await page.locator('[data-cart-buyer]').scrollIntoViewIfNeeded();
     const shot = await page.locator('#boletas').screenshot();
-    await testInfo.attach(`cart-guest-despues-${label}`, { body: shot, contentType: 'image/png' });
-    if (process.env.BRVTAL_VISUAL_EVIDENCE) writeFileSync(`${process.env.BRVTAL_VISUAL_EVIDENCE}/cart-guest-despues-${label}.png`, shot);
+    await captureGuestVisual(page, testInfo, label, `cart-guest-despues-${label}`, shot);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(size.width);
     await page.locator('[data-cart-pay]').click();
     await expect.poll(() => calls.wompi.length).toBe(1);
