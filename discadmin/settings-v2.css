@@ -181,3 +181,8 @@ html:lang(es) .settings-v2 [data-settings-pane="general"] .sv2-field:has(> input
 )){display:none}
 html:lang(es) .settings-v2 [data-settings-pane="general"] .sv2-grid:has(> .sv2-field > #sv2_site_hero_manifesto_en){display:none}
 /* End #1867. */
+/* #1962: mail switch reuses the Wompi mode control; owner confirmations below the options. */
+.sv2-mail-confirm{display:grid;gap:8px;margin-top:12px}
+.sv2-mail-confirm label{display:flex;gap:10px;align-items:flex-start;min-height:44px;padding:10px 0;color:#d8dddf;font-size:13px;line-height:1.45;cursor:pointer}
+.sv2-mail-confirm input{flex:none;width:18px;height:18px;margin:1px 0 0;accent-color:#f1f1ef}
+.sv2-mail-confirm label:has(input:focus-visible){outline:2px solid #fff;outline-offset:3px}

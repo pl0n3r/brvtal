@@ -9,6 +9,10 @@ on:
       - config/ticketing_mail_outbox.php
       - config/mail_template_renderer.php
       - config/ticketing_wompi_reconcile.php
+      - config/ticketing_mail_mode.php
+      - config/integration_secrets_store.php
+      - api/admin-integration-secrets.php
+      - tests/integration/ticketing-mail-mode.php
       - config/ticketing_wompi_webhook.php
       - config/public_ticket_checkout.php
       - tests/integration/ticketing-wompi-reconcile.php
@@ -70,4 +74,6 @@ jobs:
           php tests/integration/ticketing-mail-worker-secrets.php
           php -l config/ticketing_wompi_reconcile.php
           php tests/integration/ticketing-wompi-reconcile.php
+          php -l config/ticketing_mail_mode.php
+          php tests/integration/ticketing-mail-mode.php
           php tests/integration/ticketing-wompi-webhook.php

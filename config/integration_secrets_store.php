@@ -13,6 +13,12 @@ function brvtalIntegrationSecretCatalog(): array
         'BRVTAL_TICKET_MAIL_FROM' => ['provider'=>'resend','field'=>'from'],
         'BRVTAL_TICKET_MAIL_WEBHOOK_SECRET' => ['provider'=>'resend','field'=>'webhook_secret'],
         'BRVTAL_TICKET_MAIL_TEST_RECIPIENTS' => ['provider'=>'resend','field'=>'test_recipients'],
+        // #1962: the DISCADMIN mail switch (Apagado / Pruebas / Real) and its owner confirmations.
+        'BRVTAL_TICKET_MAIL_MODE' => ['provider'=>'resend','field'=>'mode'],
+        'BRVTAL_TICKET_MAIL_PRIVACY_APPROVED' => ['provider'=>'resend','field'=>'privacy_approved'],
+        'BRVTAL_TICKET_MAIL_DNS_VERIFIED' => ['provider'=>'resend','field'=>'dns_verified'],
+        'BRVTAL_TICKET_MAIL_ALLOW_LIVE' => ['provider'=>'resend','field'=>'allow_live'],
+        'BRVTAL_TICKET_MAIL_LOOKUP_SECRET' => ['provider'=>'resend','field'=>'lookup_secret'],
         'BRVTAL_SMTP_HOST' => ['provider'=>'smtp','field'=>'host'],
         'BRVTAL_SMTP_USER' => ['provider'=>'smtp','field'=>'user'],
         'BRVTAL_SMTP_PASSWORD' => ['provider'=>'smtp','field'=>'password'],
@@ -153,6 +159,10 @@ function brvtalIntegrationSecretValidate(string $name, string $value): void
         'BRVTAL_TICKET_WOMPI_PROD_INTEGRITY_SECRET' => preg_match('/^prod_integrity_[A-Za-z0-9_-]{8,}$/D', $value) === 1,
         'BRVTAL_TICKET_WOMPI_PROD_EVENTS_SECRET' => preg_match('/^prod_events_[A-Za-z0-9_-]{8,}$/D', $value) === 1,
         'BRVTAL_TICKET_WOMPI_MODE' => in_array($value, ['off','sandbox','production'], true),
+        'BRVTAL_TICKET_MAIL_MODE' => in_array($value, ['disabled','test','live'], true),
+        'BRVTAL_TICKET_MAIL_PRIVACY_APPROVED','BRVTAL_TICKET_MAIL_DNS_VERIFIED',
+        'BRVTAL_TICKET_MAIL_ALLOW_LIVE' => in_array($value, ['0','1'], true),
+        'BRVTAL_TICKET_MAIL_LOOKUP_SECRET' => preg_match('/^[a-f0-9]{64}$/D', $value) === 1,
         'BRVTAL_TICKET_WOMPI_ENABLED_METHODS' => brvtalIntegrationSecretValidWompiMethods($value),
         'BRVTAL_TICKET_WOMPI_RETURN_URL' => brvtalIntegrationSecretValidReturnUrl($value),
         'BRVTAL_TICKET_MAIL_FROM','BRVTAL_MAIL_FROM','BRVTAL_GA4_CLIENT_EMAIL' =>

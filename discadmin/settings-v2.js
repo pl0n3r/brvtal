@@ -228,7 +228,7 @@
     const INTEGRATION_PROVIDERS = [{"id":"resend","name":"Resend","description":"Envío de correos y confirmaciones de entradas.","fields":[{"key":"BRVTAL_TICKET_MAIL_API_KEY","label":"Clave de API","help":"Empieza por re_…","example":"re_…","kind":"password"},{"key":"BRVTAL_TICKET_MAIL_DOMAIN","label":"Dominio de envío","help":"Dominio verificado para enviar correos.","example":"correo.ejemplo.co","kind":"text"},{"key":"BRVTAL_TICKET_MAIL_FROM","label":"Remitente","help":"Correo que verán las personas al recibir un mensaje.","example":"entradas@ejemplo.co","kind":"email"},{"key":"BRVTAL_TICKET_MAIL_WEBHOOK_SECRET","label":"Secreto del webhook","help":"Clave de firma para verificar los eventos recibidos.","example":"whsec_…","kind":"password"}]},{"id":"wompi","name":"Wompi","description":"Pagos de boletas. Guarda las llaves de pruebas y de producción y elige cuáles usa la venta.","fields":[{"key":"BRVTAL_TICKET_WOMPI_PUBLIC_KEY","label":"Llave pública","help":"Llave de pruebas del panel de Wompi.","example":"pub_test_…","kind":"password","group":"Llaves de pruebas"},{"key":"BRVTAL_TICKET_WOMPI_PRIVATE_KEY","label":"Llave privada","help":"No se mostrará otra vez.","example":"prv_test_…","kind":"password","group":"Llaves de pruebas"},{"key":"BRVTAL_TICKET_WOMPI_INTEGRITY_SECRET","label":"Secreto de integridad","help":"Firma el monto de cada pago.","example":"test_integrity_…","kind":"password","group":"Llaves de pruebas"},{"key":"BRVTAL_TICKET_WOMPI_EVENTS_SECRET","label":"Secreto de eventos","help":"Verifica los avisos de pago que envía Wompi.","example":"test_events_…","kind":"password","group":"Llaves de pruebas"},{"key":"BRVTAL_TICKET_WOMPI_PROD_PUBLIC_KEY","label":"Llave pública","help":"Llave de producción del panel de Wompi.","example":"pub_prod_…","kind":"password","group":"Llaves de producción"},{"key":"BRVTAL_TICKET_WOMPI_PROD_PRIVATE_KEY","label":"Llave privada","help":"No se mostrará otra vez.","example":"prv_prod_…","kind":"password","group":"Llaves de producción"},{"key":"BRVTAL_TICKET_WOMPI_PROD_INTEGRITY_SECRET","label":"Secreto de integridad","help":"Firma el monto de cada pago real.","example":"prod_integrity_…","kind":"password","group":"Llaves de producción"},{"key":"BRVTAL_TICKET_WOMPI_PROD_EVENTS_SECRET","label":"Secreto de eventos","help":"Verifica los avisos de pagos reales.","example":"prod_events_…","kind":"password","group":"Llaves de producción"},{"key":"BRVTAL_TICKET_WOMPI_ENABLED_METHODS","label":"Métodos de pago","help":"Separados por comas: CARD, NEQUI, PSE.","example":"CARD,NEQUI,PSE","kind":"text","group":"Cobro"},{"key":"BRVTAL_TICKET_WOMPI_RETURN_URL","label":"Página de regreso","help":"Dirección HTTPS a la que vuelve la persona tras pagar.","example":"https://www.brvtal.com.co/mi-cuenta","kind":"text","group":"Cobro"}]},{"id":"smtp","name":"SMTP","description":"Servidor alternativo para el envío de correos.","fields":[{"key":"BRVTAL_SMTP_HOST","label":"Servidor","help":"Dirección del servidor de correo.","example":"smtp.ejemplo.co","kind":"text"},{"key":"BRVTAL_SMTP_USER","label":"Usuario","help":"Identificador de la cuenta de correo.","example":"cuenta@ejemplo.co","kind":"text"},{"key":"BRVTAL_SMTP_PASSWORD","label":"Contraseña","help":"Contraseña del servidor. No se mostrará después.","example":"Introduce una nueva contraseña","kind":"password"},{"key":"BRVTAL_MAIL_FROM","label":"Remitente","help":"Correo desde el que se envían los mensajes.","example":"hola@ejemplo.co","kind":"email"}]},{"id":"ga4","name":"Google Analytics 4","description":"Identidad de servicio para consultar métricas.","fields":[{"key":"BRVTAL_GA4_PROPERTY_ID","label":"ID de propiedad","help":"Solo los números del identificador de GA4.","example":"123456789","kind":"text"},{"key":"BRVTAL_GA4_CLIENT_EMAIL","label":"Correo de servicio","help":"Dirección de la cuenta de servicio.","example":"cuenta@proyecto.iam.gserviceaccount.com","kind":"email"},{"key":"BRVTAL_GA4_PRIVATE_KEY","label":"Clave privada (PEM)","help":"Pega el bloque PEM completo, con saltos de línea.","example":"-----BEGIN PRIVATE KEY-----","kind":"multiline"}]},{"id":"sentry","name":"Sentry","description":"Diagnóstico de errores del servidor.","fields":[{"key":"BRVTAL_SENTRY_DSN","label":"Dirección de conexión (DSN)","help":"Dirección HTTPS de tu proyecto.","example":"https://…@sentry.io/…","kind":"password"}]}];
   
   // Only fields explicitly allowed by the server can be displayed in Settings.
-  const INTEGRATION_PUBLIC_KEYS = new Set(["BRVTAL_TICKET_MAIL_FROM","BRVTAL_TICKET_MAIL_DOMAIN","BRVTAL_SMTP_HOST","BRVTAL_SMTP_USER","BRVTAL_MAIL_FROM","BRVTAL_GA4_PROPERTY_ID","BRVTAL_GA4_CLIENT_EMAIL","BRVTAL_TICKET_WOMPI_MODE","BRVTAL_TICKET_WOMPI_ENABLED_METHODS","BRVTAL_TICKET_WOMPI_RETURN_URL"]);
+  const INTEGRATION_PUBLIC_KEYS = new Set(["BRVTAL_TICKET_MAIL_MODE","BRVTAL_TICKET_MAIL_PRIVACY_APPROVED","BRVTAL_TICKET_MAIL_DNS_VERIFIED","BRVTAL_TICKET_MAIL_FROM","BRVTAL_TICKET_MAIL_DOMAIN","BRVTAL_SMTP_HOST","BRVTAL_SMTP_USER","BRVTAL_MAIL_FROM","BRVTAL_GA4_PROPERTY_ID","BRVTAL_GA4_CLIENT_EMAIL","BRVTAL_TICKET_WOMPI_MODE","BRVTAL_TICKET_WOMPI_ENABLED_METHODS","BRVTAL_TICKET_WOMPI_RETURN_URL"]);
   function integrationPublicValue(field,item){
     if(!INTEGRATION_PUBLIC_KEYS.has(field.key) || !['text','email'].includes(field.kind))return '';
     return item?.stored===true && typeof item.value==='string' ? item.value : '';
@@ -273,6 +273,58 @@
       ? "Venta activa en Producción: los pagos son cobros reales."
       : "Venta activa en Pruebas: los pagos no son reales.";
     return `Modo ${mode}. ${WOMPI_REASONS[status.reason]||"La venta en línea está apagada."}`;
+  }
+  // #1962: mail switch. Effective state comes from the server, never from the radios.
+  const MAIL_MODES=[
+    {value:"disabled",label:"Apagado",help:"No sale ningún correo."},
+    {value:"test",label:"Pruebas",help:"Solo a la lista de destinatarios de prueba, con «[PRUEBA]» en el asunto."},
+    {value:"live",label:"Real",help:"Cuentas, contraseñas, compras y boletas con QR a cada persona."}
+  ];
+  const MAIL_REASONS={
+    MAIL_DISABLED:"El envío está apagado: no sale ningún correo.",
+    MAIL_CREDENTIALS_MISSING:"Faltan la clave de API, el dominio o el remitente de Resend.",
+    MAIL_PRIVACY_REQUIRED:"Falta confirmar que la política de privacidad cubre compras y cuentas.",
+    MAIL_LOOKUP_SECRET_MISSING:"Vuelve a aplicar el modo para completar la configuración.",
+    MAIL_TEST_RECIPIENTS_MISSING:"Falta la lista de destinatarios de prueba.",
+    MAIL_LIVE_GATES_MISSING:"Falta confirmar el dominio verificado en Resend.",
+    MAIL_DNS_REQUIRED:"Confirma que el dominio está verificado en Resend.",
+    MAIL_LIVE_CONFIRMATION_REQUIRED:"Confirma el envío real para activarlo.",
+    MAIL_MODE_INVALID:"Elige un modo válido."
+  };
+  function integrationMailStatus(raw){
+    if(!raw || typeof raw!=="object")return null;
+    return {mode:String(raw.mode||"disabled"),ready:raw.ready===true,reason:raw.reason?String(raw.reason):null,pinned:raw.pinned===true};
+  }
+  function mailStatusText(){
+    const status=V2.mailStatus;
+    if(!status)return "";
+    const pinned=status.pinned?" El modo está fijado en la configuración privada del servidor y prevalece sobre este selector.":"";
+    if(status.ready)return (status.mode==="live"
+      ? "Envío real activo: los correos llegan a cada persona."
+      : "Pruebas activas: solo llegan a la lista de destinatarios de prueba.")+pinned;
+    return (MAIL_REASONS[status.reason]||"El envío está apagado.")+pinned;
+  }
+  function mailModeControl(provider,items,writable){
+    if(provider.id!=="resend")return "";
+    const current=V2.mailStatus?.mode||items.find(item=>item.key==="BRVTAL_TICKET_MAIL_MODE")?.value||"disabled";
+    const checked=key=>items.find(item=>item.key===key)?.value==="1"?"checked":"";
+    return `<fieldset class="sv2-wompi-mode sv2-mail-mode" data-mail-mode>
+      <legend class="sv2-secret-label">Envío de correos</legend>
+      <div class="sv2-wompi-mode-options">${MAIL_MODES.map(mode=>`<label class="sv2-wompi-mode-option${mode.value==="live"?" is-live":""}">
+        <input type="radio" name="sv2-mail-mode" value="${esc(mode.value)}" ${mode.value===current?"checked":""} ${writable?"":"disabled"}>
+        <span><strong>${esc(mode.label)}</strong><small>${esc(mode.help)}</small></span>
+      </label>`).join("")}</div>
+      <div class="sv2-mail-confirm">
+        <label><input type="checkbox" data-mail-privacy ${checked("BRVTAL_TICKET_MAIL_PRIVACY_APPROVED")} ${writable?"":"disabled"}>
+          <span>Mi política de privacidad cubre compras y cuentas de compradores.</span></label>
+        <label><input type="checkbox" data-mail-dns ${checked("BRVTAL_TICKET_MAIL_DNS_VERIFIED")} ${writable?"":"disabled"}>
+          <span>El dominio de envío aparece como verificado en Resend.</span></label>
+      </div>
+      <div class="sv2-wompi-mode-foot">
+        <p role="status" aria-live="polite" data-mail-status>${esc(mailStatusText())}</p>
+        <button type="button" class="btn ghost" data-mail-mode-apply ${writable?"":"disabled"}>Aplicar modo</button>
+      </div>
+    </fieldset>`;
   }
   function wompiModeControl(provider,items,writable){
     if(provider.id!=="wompi")return "";
@@ -352,6 +404,7 @@
        <div class="sv2-secret-card-meta"><span class="sv2-secret-badge ${state==="Falta"?"is-missing":"is-configured"}" data-provider-state>${esc(state)}</span><small data-provider-updated>${esc(updated)}</small></div>
      </header>
      ${wompiModeControl(provider,items,writable)}
+     ${mailModeControl(provider,items,writable)}
      <div class="sv2-secret-fields">${integrationFieldsHtml(provider,items,writable)}</div>
      ${provider.id==="resend"?`<div class="sv2-secret-field">
        <label class="sv2-secret-label" for="sv2-mail-test-to">Enviar prueba a</label>
@@ -419,6 +472,7 @@
      V2.integrationWritable=writable;
      V2.integrationItems=payload.items.map(integrationPublicItem);
      V2.wompiStatus=integrationWompiStatus(payload.wompi);
+     V2.mailStatus=integrationMailStatus(payload.mail);
      host.innerHTML=(writable?"":'<p class="sv2-secret-locked" role="note">La escritura de claves está bloqueada en el servidor. Puedes consultar el estado, pero no modificarlas.</p>')+
        '<div class="sv2-secret-cards">'+INTEGRATION_PROVIDERS.map(provider=>integrationCard(provider,V2.integrationItems,writable)).join("")+"</div>"+
        '<p class="sv2-secret-disclaimer">Guardar una clave no activa envíos, cobros reales ni publicación del sitio.</p>';
@@ -459,6 +513,7 @@
      throw new Error(error);
    }
    V2.wompiStatus=integrationWompiStatus(payload.wompi)||V2.wompiStatus;
+   V2.mailStatus=integrationMailStatus(payload.mail)||V2.mailStatus;
    // Only explicit public settings, never keys, ciphertext or private config.
    return payload.items.map(integrationPublicItem);
   }
@@ -471,6 +526,8 @@
    const badge=card.querySelector("[data-provider-state]");
    const wompiStatus=card.querySelector("[data-wompi-status]");
    if(wompiStatus)wompiStatus.textContent=wompiStatusText();
+   const mailStatus=card.querySelector("[data-mail-status]");
+   if(mailStatus)mailStatus.textContent=mailStatusText();
    if(badge){badge.textContent=state;badge.classList.toggle("is-missing",state==="Falta");badge.classList.toggle("is-configured",state!=="Falta");}
    const times=provider.fields.map(f=>items.find(x=>x.key===f.key)?.updated_at).filter(Boolean).sort((a,b)=>a.localeCompare(b));
    const meta=card.querySelector("[data-provider-updated]");
@@ -619,6 +676,32 @@
       message=wompiStatusText()||"Modo guardado.";
     }catch(error){
       message=integrationError(error);
+    }finally{
+      integrationFinished(id,message,items);
+    }
+  }
+
+  async function applyMailMode(){
+    const id="resend",card=integrationCardFor(id);
+    if(!card || !V2.integrationWritable || integrationOperations.has(id))return;
+    const mode=card.querySelector('input[name="sv2-mail-mode"]:checked')?.value||"disabled";
+    const feedback=card.querySelector('[data-secret-feedback]');
+    if(!feedback)return;
+    const extra={privacy:card.querySelector("[data-mail-privacy]")?.checked===true,
+      dns:card.querySelector("[data-mail-dns]")?.checked===true};
+    if(mode==="live"){
+      if(!window.confirm("¿Activar el envío real? Desde ese momento los correos de cuentas, compras y boletas llegan a cada persona."))return;
+      extra.confirm="ENVIO_REAL";
+    }
+    integrationOperations.set(id,"Aplicando modo…");
+    integrationBusy(card,true);
+    feedback.textContent="Aplicando modo…";
+    let items=null,message="";
+    try{
+      items=await integrationMutation("POST","BRVTAL_TICKET_MAIL_MODE",mode,extra);
+      message=mailStatusText()||"Modo guardado.";
+    }catch(error){
+      message=MAIL_REASONS[error.message]||integrationError(error);
     }finally{
       integrationFinished(id,message,items);
     }
@@ -1023,6 +1106,7 @@
   function handleIntegrationClick(event) {
     if(event.target.closest('[data-mail-test-send]')){void sendIntegrationTestMail();return true;}
     if(event.target.closest('[data-wompi-mode-apply]')){void applyWompiMode();return true;}
+    if(event.target.closest('[data-mail-mode-apply]')){void applyMailMode();return true;}
     const save=event.target.closest('[data-secret-provider-save]');
     if(save){void saveIntegrationProvider(save.dataset.secretProviderSave);return true;}
     const remove=event.target.closest('[data-secret-delete]');
