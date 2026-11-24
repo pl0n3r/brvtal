@@ -110,7 +110,7 @@
   }
   let csrf='',page=0,ticket='',payload='';
   const el=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=String(text);return n;};
-  const statuses={draft:'Borrador',pending:'Pago pendiente',paid:'Aprobado',failed:'Rechazado',declined:'Rechazado',error:'Error',created:'Iniciado',cancelled:'Cancelado',expired:'Expirado',refunded:'Reembolsado',issued:'Disponible',used:'Usada',revoked:'Revocada'};
+  const statuses={draft:'Borrador',pending:'Pago pendiente',paid:'Pagado',approved:'Aprobado',failed:'Rechazado',declined:'Rechazado',error:'Error',created:'Iniciado',cancelled:'Cancelado',expired:'Expirado',refunded:'Reembolsado',issued:'Disponible',used:'Usada',revoked:'Revocada'};
 
   const refundsApi='/api/buyer/refunds.php';
   const refundStates={requested:'Solicitada',approved:'Aprobada',processing:'En proceso',manual_pending:'Pendiente manual',

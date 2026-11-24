@@ -9,7 +9,11 @@ require_once __DIR__ . '/ticketing_mail_templates.php';
  * Runs from the trusted CLI mail worker (cron), never from a public route.
  * The QR secret only travels inside the sealed mail body, in a URL fragment.
  */
-const BRVTAL_TICKET_ISSUE_MAX_ATTEMPTS = 5;
+/** #1954: a safe, controlled failure code for the worker output. */
+function brvtal_ticket_issue_failure_code(string $message): string
+{
+    return preg_match('/^[A-Z][A-Z0-9_]{2,63}$/D', $message) === 1 ? $message : 'ISSUE_FAILED';
+}
 
 /** Wait without spending an attempt: the job stays pending for a later run. */
 const BRVTAL_TICKET_ISSUE_WAIT_CODES = ['MAIL_PRIVACY_NOT_APPROVED', 'MAIL_RATE_LIMITED'];
@@ -60,18 +64,20 @@ function brvtal_ticket_issue_mail_deliverer(string $origin): callable
 
 /**
  * Processes at most one issuance job. Returns a state, never buyer data or tokens:
- * idle | issued | duplicate | waiting | failed.
+ * idle | issued | duplicate | waiting | failed:<CODE>.
  */
 function brvtal_ticket_issue_process_next(PDO $db, string $origin = 'https://www.brvtal.com.co'): string
 {
     if (!in_array($origin, ['https://www.brvtal.com.co', 'https://brvtal.invalid'], true)) {
         throw new InvalidArgumentException('ISSUE_DELIVERY_ORIGIN');
     }
+    // #1954: no fixed attempt cap. A paid order must get its tickets once the
+    // cause is fixed; the growing backoff keeps a broken job from starving others.
     $next = $db->prepare("SELECT id FROM ticket_issue_outbox
-        WHERE state IN ('pending','failed') AND attempts < ?
+        WHERE state IN ('pending','failed')
           AND (next_attempt_at_utc IS NULL OR next_attempt_at_utc <= UTC_TIMESTAMP(6))
-        ORDER BY id LIMIT 1");
-    $next->execute([BRVTAL_TICKET_ISSUE_MAX_ATTEMPTS]);
+        ORDER BY next_attempt_at_utc IS NOT NULL, next_attempt_at_utc, id LIMIT 1");
+    $next->execute();
     $jobId = $next->fetchColumn();
     if ($jobId === false) return 'idle';
     $jobId = (int)$jobId;
@@ -79,14 +85,19 @@ function brvtal_ticket_issue_process_next(PDO $db, string $origin = 'https://www
         $result = brvtal_ticket_issue_consume($db, $jobId, brvtal_ticket_issue_mail_deliverer($origin));
         return $result['state'] === 'duplicate' ? 'duplicate' : 'issued';
     } catch (Throwable $error) {
-        $wait = in_array($error->getMessage(), BRVTAL_TICKET_ISSUE_WAIT_CODES, true);
-        // Back off so one broken order never starves the rest of the queue.
+        $code = $error->getMessage();
+        $wait = in_array($code, BRVTAL_TICKET_ISSUE_WAIT_CODES, true);
+        $attempts = $db->prepare('SELECT attempts FROM ticket_issue_outbox WHERE id=?');
+        $attempts->execute([$jobId]);
+        // Back off so one broken order never starves the rest of the queue: 1, 2, 4 … 60 min.
+        $delay = $wait ? 300 : min(3600, 60 * (2 ** min(6, (int)$attempts->fetchColumn())));
         $db->prepare("UPDATE ticket_issue_outbox
             SET state=IF(?=1,state,'failed'),attempts=attempts+IF(?=1,0,1),
                 next_attempt_at_utc=DATE_ADD(UTC_TIMESTAMP(6),INTERVAL ? SECOND),
                 updated_at_utc=UTC_TIMESTAMP(6)
             WHERE id=? AND state IN ('pending','failed')")
-            ->execute([$wait ? 1 : 0, $wait ? 1 : 0, $wait ? 300 : 60, $jobId]);
-        return $wait ? 'waiting' : 'failed';
+            ->execute([$wait ? 1 : 0, $wait ? 1 : 0, $delay, $jobId]);
+        // Only controlled codes leave the worker: never emails, tokens or SQL text.
+        return $wait ? 'waiting' : 'failed:' . brvtal_ticket_issue_failure_code($code);
     }
 }

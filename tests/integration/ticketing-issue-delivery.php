@@ -145,6 +145,39 @@ deliveryAssert($count("SELECT COUNT(*) FROM ticket_mail_outbox WHERE recipient_e
     'second buyer gets one email');
 deliveryAssert(brvtal_ticket_issue_process_next($db, $origin) === 'idle', 'queue drained');
 
+// #1954: a failure reports a controlled code and keeps retrying with growing backoff.
+$db->exec("INSERT INTO ticket_buyers(id,email) VALUES (10,NULL)");
+$db->exec("INSERT INTO ticket_orders(id,event_id,buyer_id,status) VALUES (105,1,10,'paid')");
+$db->exec("INSERT INTO ticket_order_items(id,order_id,event_id,ticket_type_id,quantity,ticket_name_snapshot)
+    VALUES (205,105,1,11,1,'Preventa')");
+$db->exec("INSERT INTO ticket_payment_attempts(id,order_id,provider,provider_transaction_id,status)
+    VALUES (5,105,'wompi','tx-105','approved')");
+$journal->execute([5,'tx-105',hash('sha256','synthetic-5'),'APPROVED',time()]);
+$db->beginTransaction();
+brvtal_wompi_hook_enqueue($db, 105, 5);
+$db->commit();
+deliveryAssert(brvtal_ticket_issue_process_next($db, $origin) === 'failed:ISSUE_DELIVERY_RECIPIENT',
+    'failure reports its controlled code');
+$failed = $db->query("SELECT state,attempts,TIMESTAMPDIFF(SECOND,UTC_TIMESTAMP(6),next_attempt_at_utc) AS wait
+    FROM ticket_issue_outbox WHERE order_id=105")->fetch();
+deliveryAssert($failed['state'] === 'failed' && (int)$failed['attempts'] === 1 && (int)$failed['wait'] >= 55,
+    'first retry in about a minute');
+deliveryAssert($count('SELECT COUNT(*) FROM ticket_entries e JOIN ticket_order_items i ON i.id=e.order_item_id WHERE i.order_id=105') === 0,
+    'a failed issuance leaves no tickets');
+$db->exec('UPDATE ticket_issue_outbox SET attempts=6,next_attempt_at_utc=NULL WHERE order_id=105');
+deliveryAssert(brvtal_ticket_issue_process_next($db, $origin) === 'failed:ISSUE_DELIVERY_RECIPIENT',
+    'no fixed cap: retried after 6 failures');
+$failed = $db->query("SELECT attempts,TIMESTAMPDIFF(SECOND,UTC_TIMESTAMP(6),next_attempt_at_utc) AS wait
+    FROM ticket_issue_outbox WHERE order_id=105")->fetch();
+deliveryAssert((int)$failed['attempts'] === 7 && (int)$failed['wait'] >= 3500 && (int)$failed['wait'] <= 3600,
+    'backoff capped at one hour');
+// Fixed cause: the next due run issues the tickets.
+$db->exec("UPDATE ticket_buyers SET email='carla@example.test' WHERE id=10");
+$db->exec('UPDATE ticket_issue_outbox SET next_attempt_at_utc=NULL WHERE order_id=105');
+deliveryAssert(brvtal_ticket_issue_process_next($db, $origin) === 'issued', 'issued once the cause is fixed');
+deliveryAssert(brvtal_ticket_issue_failure_code("SQLSTATE[42S02]: Base table 'x' doesn't exist") === 'ISSUE_FAILED'
+    && brvtal_ticket_issue_failure_code('ana@example.test') === 'ISSUE_FAILED', 'free text never leaves the worker');
+
 // Public origins only.
 try {
     brvtal_ticket_issue_process_next($db, 'https://evil.example');
