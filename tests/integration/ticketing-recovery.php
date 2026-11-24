@@ -106,6 +106,11 @@ try {
         'server-approved payment blocks recovery even when order state is still pending');
     t29(count(brvtalRecoveryMetrics($db))===1,'aggregate eligible only');
     $ready=['mode'=>'live','ready'=>true];
+    // No new marketing sends from a normal deploy: explicit opt-in gate required.
+    putenv('BRVTAL_RECOVERY_ENABLED');
+    t29(brvtalRecoverySend($db,7,'superadmin',$input,$ready)['reason']==='recovery_disabled',
+        'new commercial campaign defaults OFF');
+    putenv('BRVTAL_RECOVERY_ENABLED=1');
     $send=brvtalRecoverySend($db,7,'superadmin',$input,$ready);
     t29($send['state']==='queued' && $send['queued'],'valid opt-in queued');
     $again=brvtalRecoverySend($db,7,'superadmin',$input,$ready);
@@ -133,6 +138,7 @@ try {
     putenv('BRVTAL_INTEGRATION_TESTS=0');
     try {brvtalRecoveryPlan($db,7,'superadmin',$input);throw new RuntimeException('real mode');}
     catch (DomainException $e) {t29($e->getMessage()==='SYNTHETIC_ONLY','real mode blocked');}
+    putenv('BRVTAL_RECOVERY_ENABLED');
     putenv('BRVTAL_INTEGRATION_TESTS=1');
     t29((int)$db->query('SELECT COUNT(*) FROM ticket_recovery_previews')->fetchColumn()===1,
         'one preview, no duplicate');

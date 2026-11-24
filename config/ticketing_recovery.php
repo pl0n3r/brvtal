@@ -158,6 +158,12 @@ function brvtalRecoveryOptOut(PDO $db, int $buyerId, int $eventId): bool {
 
 
 /** #1983: one marketing reminder per order, queued only by authorized staff. */
+/** New commercial flow stays disabled after source deploy until deliberately enabled. */
+function brvtalRecoveryEnabled(): bool
+{
+    return getenv('BRVTAL_RECOVERY_ENABLED') === '1';
+}
+
 function brvtalRecoveryWindow(): array
 {
     $delay = getenv('BRVTAL_RECOVERY_DELAY_MINUTES');
@@ -211,6 +217,9 @@ function brvtalRecoverySend(PDO $db, int $actor, string $role, array $input, ?ar
     $input = brvtalRecoveryInput($input);
     if ($actor < 1 || !brvtalTicketingCan($role, 'mail')
         || !brvtalTicketingCan($role, 'buyers')) throw new DomainException('FORBIDDEN');
+    if (!brvtalRecoveryEnabled()) {
+        return ['state'=>'suppressed','reason'=>'recovery_disabled','queued'=>false];
+    }
     $mode = $mailState ?? brvtal_ticket_mail_status();
     if (($mode['ready'] ?? false) !== true || !in_array($mode['mode'] ?? '', ['test','live'], true)) {
         return ['state'=>'suppressed', 'reason'=>'mail_unavailable', 'queued'=>false];

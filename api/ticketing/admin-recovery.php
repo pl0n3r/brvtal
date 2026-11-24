@@ -16,7 +16,7 @@ try {
     if ($method === 'GET') {
         $mail = brvtal_ticket_mail_status();
         json_response(['ok'=>true,'data'=>brvtalRecoveryMetrics($db),
-            'mode'=>$mail['mode'],'mail_ready'=>$mail['ready'],'mail_sent'=>false]);
+            'mode'=>$mail['mode'],'mail_ready'=>($mail['ready'] && brvtalRecoveryEnabled()),'mail_sent'=>false]);
     }
     if ($method !== 'POST') {
         json_response(['ok'=>false,'error'=>'METHOD_NOT_ALLOWED'],405,['Allow'=>'GET, POST']);
