@@ -83,6 +83,11 @@ try {
         hash('sha256',$payload['reference'].'2000000COP'.$cfg['integrity']),
         'signature covers net amount, not gross items');
     $db->commit();
+    $db->beginTransaction();
+    promoWompiReject(static fn()=>brvtal_ticket_wompi_prepare(
+        $db,7,101,$key,'CARD',array_replace($cfg,['mode'=>'production'])),
+        'PROMOS_NOT_ENABLED');
+    $db->rollBack();
     promoWompiAssert((int)$db->query('SELECT gross_amount_cop FROM ticket_payment_attempts WHERE order_id=101')
         ->fetchColumn()===20000,'attempt records net Wompi gross');
     promoWompiAssert((int)$db->query("SELECT COUNT(*) FROM ticket_payment_attempts WHERE order_id=101")

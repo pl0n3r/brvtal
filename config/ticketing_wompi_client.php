@@ -179,6 +179,11 @@ function brvtal_ticket_wompi_prepare(
         if ((int)($error->errorInfo[1] ?? 0) !== 1146) throw $error;
     }
     if ($redemption) {
+        // The standalone /api/ticketing/checkout.php path also calls T07.
+        // Deny real-money coupon charges here, not only at public checkout.
+        if (($config['mode'] ?? '') === 'production') {
+            throw new DomainException('PROMOS_NOT_ENABLED');
+        }
         // Promotions apply to one ticket type per order, never mixed baskets.
         // Query the event only when a coupon exists, preserving older T07 fixtures.
         $event = $db->prepare('SELECT event_id FROM ticket_orders WHERE id=? FOR UPDATE');
