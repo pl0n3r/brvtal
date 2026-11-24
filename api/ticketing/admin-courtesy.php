@@ -35,8 +35,9 @@ try {
 } catch (DomainException $error) {
     $code=$error->getMessage();
     $status=match($code) {
-        'FORBIDDEN'=>403,'COURTESY_DISABLED'=>423,
-        'INVITATION_NOT_FOUND'=>404,
+        'FORBIDDEN','RECIPIENT_BLOCKED'=>403,
+        'COURTESY_SCHEMA_MISSING','MAIL_NOT_READY'=>423,
+        'INVITATION_NOT_FOUND'=>404,'RESEND_LIMIT'=>429,
         'DUPLICATE_INVITATION','IDEMPOTENCY_CONFLICT','COURTESY_CAPACITY','INVITATION_NOT_ACTIVE'=>409,
         default=>422,
     };
