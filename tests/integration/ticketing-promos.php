@@ -38,7 +38,8 @@ promoAssert(str_contains($checkoutCode,'$checkout = brvtal_ticket_wompi_prepare(
 promoAssert(str_contains($checkoutCode,'if ($withPromo) brvtalPromoSynthetic($db)'),
     'D-063 guard is preserved until approved production activation');
 $guardAt=strpos($checkoutCode,'brvtalPromoRejectUncodedReplay($db,$orderId)');
-$providerAt=strpos($checkoutCode,'brvtal_ticket_wompi_prepare($db,$buyerId,$orderId');
+$providerAt=strpos($checkoutCode,'$checkout = brvtal_ticket_wompi_prepare(',
+    $guardAt === false ? 0 : $guardAt);
 promoAssert($guardAt!==false && $providerAt!==false && $guardAt<$providerAt,
     'the persisted coupon guard runs before the payment provider');
 if (getenv('BRVTAL_INTEGRATION_TESTS')==='1') {
