@@ -65,7 +65,7 @@ jobs:
       - name: Exercise T22 stages and checkout against disposable MariaDB
         run: php tests/integration/ticketing-stages.php
 
-stages-visual-evidence:
+  stages-visual-evidence:
     name: "#1990 Capturas Chromium 390/1440"
     if: github.event_name == 'pull_request' && github.event.pull_request.number == 2003
     runs-on: ubuntu-24.04
