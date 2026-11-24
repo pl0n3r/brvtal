@@ -101,8 +101,24 @@ test('evento cancelado: no vende', async ({ page }) => {
 // #1948: buying without an account. The server re-validates everything; these
 // checks pin what the browser sends and what the buyer sees.
 const orderToken = 'ab'.repeat(16);
-async function openCheckout(page, { authenticated = false, onPrepare, storage } = {}) {
-  const calls = { prepare: [], status: [], wompi: [] };
+// #1958: a stand-in for Wompi's widget.js that records its config and reports a result.
+const fakeWidget = `window.WidgetCheckout = function (config) {
+  window.__wompiConfig = config;
+  this.open = function (done) { window.__wompiOpened = true; if (window.__wompiHold) return;
+    setTimeout(function () { done({ transaction: { id: 'tx-widget', status: 'APPROVED' } }); }, 50); };
+};`;
+async function openCheckout(page, { authenticated = false, onPrepare, storage, widget = 'missing' } = {}) {
+  const calls = { prepare: [], status: [], wompi: [], widget: 0, confirmation: [] };
+  await page.route('https://checkout.wompi.co/widget.js', route => {
+    calls.widget += 1;
+    return widget === 'fake'
+      ? route.fulfill({ contentType: 'text/javascript', body: fakeWidget })
+      : route.fulfill({ status: 503, body: '' });
+  });
+  await page.route(/\/compra\/[a-f0-9]{32}$/, route => {
+    calls.confirmation.push(new URL(route.request().url()).pathname);
+    return route.fulfill({ contentType: 'text/html', body: '<h1>Confirmación sintética</h1>' });
+  });
   await page.route(/\/events\/cart-fixture(\?.*)?$/, async route => {
     const request = route.request();
     const kind = request.headers()['x-brvtal-ticket-checkout'];
@@ -124,7 +140,7 @@ async function openCheckout(page, { authenticated = false, onPrepare, storage } 
   await page.route('**/api/ticketing/waitlist.php**', route => route.fulfill({ contentType: 'application/json', body: '{"ok":true,"types":[]}' }));
   await page.route('**/api/buyer/auth.php', route => route.fulfill({ contentType: 'application/json',
     body: JSON.stringify({ ok: true, authenticated, csrf: authenticated ? 'csrf-sintetico' : '' }) }));
-  await page.route('https://checkout.wompi.co/**', route => {
+  await page.route('https://checkout.wompi.co/p/**', route => {
     calls.wompi.push(route.request().url());
     return route.fulfill({ contentType: 'text/html', body: '<h1>Wompi sintético</h1>' });
   });
@@ -208,6 +224,45 @@ for (const [label, size] of [['390', { width: 390, height: 844 }], ['1440', { wi
     expect(calls.wompi[0]).toContain('public-key=pub_test_synthetic');
   });
 }
+
+test('widget de Wompi: paga sin salir de BRVTAL y termina en la confirmación del pedido', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const calls = await openCheckout(page, { widget: 'fake' });
+  await page.locator('[data-cart-type="5"] [data-cart-step="1"]').click();
+  await page.locator('[data-cart-type="5"] [data-cart-step="1"]').click();
+  await fillGuest(page);
+  await page.locator('[data-cart-pay]').click();
+  await expect.poll(() => calls.confirmation.length).toBe(1);
+  expect(calls.confirmation[0]).toBe('/compra/' + orderToken);
+  expect(calls.wompi).toHaveLength(0); // never left for Wompi's hosted page
+  expect(calls.widget).toBe(1);
+});
+
+test('widget de Wompi: recibe monto, referencia, firma y datos del comprador', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openCheckout(page, { widget: 'fake' });
+  // Keep the widget open (no callback) to inspect the config it received.
+  await page.evaluate(() => { window.__wompiHold = true; });
+  await page.locator('[data-cart-type="5"] [data-cart-step="1"]').click();
+  await fillGuest(page);
+  await page.locator('[data-cart-pay]').click();
+  await expect.poll(() => page.evaluate(() => window.__wompiOpened === true)).toBe(true);
+  const config = await page.evaluate(() => window.__wompiConfig);
+  expect(config).toEqual({ currency: 'COP', amountInCents: 5000000, reference: 'BW7-9-CARD-' + 'c'.repeat(24),
+    publicKey: 'pub_test_synthetic', signature: { integrity: 'd'.repeat(64) }, redirectUrl: url,
+    customerData: { email: 'ana@example.test', fullName: 'Ana Gómez' } });
+});
+
+test('si el widget de Wompi no carga, se paga en la página de Wompi como respaldo', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const calls = await openCheckout(page, { widget: 'missing' });
+  await page.locator('[data-cart-type="5"] [data-cart-step="1"]').click();
+  await fillGuest(page);
+  await page.locator('[data-cart-pay]').click();
+  await expect.poll(() => calls.wompi.length).toBe(1);
+  expect(calls.wompi[0]).toContain('public-key=pub_test_synthetic');
+  expect(calls.widget).toBe(1);
+});
 
 test('sin consentimiento o con correo inválido no se reserva y se dice por qué', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });

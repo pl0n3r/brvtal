@@ -42,3 +42,23 @@
 }
 .ticket-actions{margin:8px 0 0}
 .ticket-actions .access-submit{min-height:44px;display:inline-flex;align-items:center;padding:0 20px}
+
+/* #1958: purchase confirmation (/compra/<token>). State carries an icon and text, never color alone. */
+.purchase{display:grid;gap:14px;justify-items:center;text-align:center}
+.purchase-number{margin:0;font:700 14px/1.2 "Space Mono",monospace;letter-spacing:.06em;color:var(--access-muted,#b6b2ab);font-variant-numeric:tabular-nums}
+.purchase-state{display:inline-flex;align-items:center;gap:10px;min-height:44px;margin:0;padding:8px 16px;border:1px solid var(--access-line,rgba(244,241,232,.24));font-size:20px;font-weight:700}
+.purchase-state-icon{width:20px;height:20px;flex:none;border-radius:50%;border:2px solid currentColor}
+.purchase-state[data-state="pending"] .purchase-state-icon,.purchase-state[data-state="loading"] .purchase-state-icon{border-right-color:transparent;animation:purchase-spin .9s linear infinite}
+.purchase-state[data-state="approved"]{border-color:#96d35f;color:#96d35f}
+.purchase-state[data-state="approved"] .purchase-state-icon{border:0;background:#96d35f;-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M4 10.5l4 4 8-9' fill='none' stroke='%23000' stroke-width='2.6'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M4 10.5l4 4 8-9' fill='none' stroke='%23000' stroke-width='2.6'/%3E%3C/svg%3E") center/contain no-repeat}
+.purchase-state:is([data-state="failed"],[data-state="missing"],[data-state="unverified"],[data-state="expired"],[data-state="cancelled"],[data-state="offline"]){border-color:#ff6b6b;color:#ff9b9b}
+.purchase-summary{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px 16px;width:100%;max-width:360px;margin:6px 0 0;padding:16px 0;border-top:1px solid var(--access-line,rgba(244,241,232,.24));border-bottom:1px solid var(--access-line,rgba(244,241,232,.24));text-align:left}
+.purchase-summary[hidden]{display:none}
+.purchase-summary dt{color:var(--access-muted,#b6b2ab);font-size:15px}
+.purchase-summary dd{margin:0;font-size:16px;font-weight:700;overflow-wrap:anywhere}
+.purchase-total{font-variant-numeric:tabular-nums}
+.ticket-actions[hidden]{display:none}
+.purchase .ticket-actions{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;align-items:center}
+.purchase-secondary{min-height:44px;display:inline-flex;align-items:center;color:inherit;text-underline-offset:3px}
+@keyframes purchase-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.purchase-state-icon{animation:none!important}}

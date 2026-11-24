@@ -111,6 +111,9 @@ class PublicInternalFilesBlockedTests(unittest.TestCase):
         # The ticket checkout submits a GET form to Wompi's hosted page; any
         # other external form target stays blocked.
         self.assertEqual(directives["form-action"], ["'self'", "https://checkout.wompi.co"])
+        # #1958: the Wompi Widget loads its script and payment frame on BRVTAL's page.
+        self.assertIn("https://checkout.wompi.co", directives["script-src"])
+        self.assertIn("https://checkout.wompi.co", directives["frame-src"])
         self.assertIn("blob:", directives["media-src"])
 
     def test_script_src_allows_every_host_the_runtime_loader_uses(self):

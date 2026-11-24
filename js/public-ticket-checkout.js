@@ -50,6 +50,49 @@
     document.body.append(hosted);
     hosted.submit();
   }
+  // #1958: Wompi Widget (docs.wompi.co/docs/colombia/widget-checkout-web): pay without
+  // leaving BRVTAL. The widget only starts the payment; the signed webhook or the
+  // server's Wompi API check (#1952) is what confirms it. Falls back to the redirect form.
+  const WOMPI_WIDGET_SRC = 'https://checkout.wompi.co/widget.js';
+  let widgetLoading = null;
+  function loadWompiWidget() {
+    if (typeof window.WidgetCheckout === 'function') return Promise.resolve(window.WidgetCheckout);
+    widgetLoading ||= new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = WOMPI_WIDGET_SRC;
+      script.async = true;
+      const timer = setTimeout(() => reject(new Error('WIDGET_TIMEOUT')), 8000);
+      script.onload = () => {
+        clearTimeout(timer);
+        if (typeof window.WidgetCheckout === 'function') resolve(window.WidgetCheckout);
+        else reject(new Error('WIDGET_UNAVAILABLE'));
+      };
+      script.onerror = () => { clearTimeout(timer); reject(new Error('WIDGET_UNAVAILABLE')); };
+      document.head.append(script);
+    }).catch(error => { widgetLoading = null; throw error; });
+    return widgetLoading;
+  }
+  async function payWithWompi(checkout, { token = '', buyer = null } = {}) {
+    const keyPrefix = { sandbox: 'pub_test_', production: 'pub_prod_' }[checkout?.environment];
+    if (!keyPrefix || checkout.currency !== 'COP'
+      || !checkout.public_key?.startsWith(keyPrefix)) throw new Error('INVALID_ENVIRONMENT');
+    const confirmation = /^[a-f0-9]{32}$/.test(token) ? '/compra/' + token : '';
+    let Widget;
+    try {
+      Widget = await loadWompiWidget();
+    } catch {
+      goToWompi(checkout); // Widget unavailable: same payment through the hosted page.
+      return;
+    }
+    const widget = new Widget({
+      currency: 'COP', amountInCents: checkout.amount_in_cents, reference: checkout.reference,
+      publicKey: checkout.public_key, signature: { integrity: checkout.signature_integrity },
+      redirectUrl: checkout.redirect_url,
+      ...(buyer ? { customerData: { email: buyer.email, fullName: buyer.name } } : {}),
+    });
+    // Whatever the widget reports, the confirmation page asks the server.
+    widget.open(() => { if (confirmation) location.assign(confirmation); });
+  }
   // #1940: a checkout call never waits forever; 25 s then a clear, retryable message.
   const CHECKOUT_TIMEOUT_MS = Number(window.BRVTAL_CHECKOUT_TIMEOUT_MS) > 0
     ? Number(window.BRVTAL_CHECKOUT_TIMEOUT_MS) : 25000;
@@ -437,7 +480,7 @@
           idempotency_key: pending.intent, ...(buyer ? { buyer } : {}) }),
       }));
     }
-    function finishCartPrepare(pending, result) {
+    async function finishCartPrepare(pending, result, buyer) {
       save({ ...pending, order_id: String(result.order_id),
         ...(/^[a-f0-9]{32}$/.test(String(result.order_token || '')) ? { order_token: result.order_token } : {}) });
       if (result.checkout?.environment === 'mock') {
@@ -445,8 +488,8 @@
         say('Reserva preparada. El pago sigue pendiente hasta la confirmación del servidor.');
         return;
       }
-      say('Reserva lista. Te llevamos a Wompi para pagar; el pago queda pendiente hasta que el servidor lo confirme.');
-      goToWompi(result.checkout);
+      say('Reserva lista. Completa el pago en la ventana de Wompi; el pago queda pendiente hasta que el servidor lo confirme.');
+      await payWithWompi(result.checkout, { token: String(result.order_token || ''), buyer });
     }
     form.addEventListener('submit', async event => {
       event.preventDefault();
@@ -464,7 +507,7 @@
         const pending = persistCartIntent(selection, identity);
         if (!pending) return;
         const result = await sendCartPrepare(auth, identity.buyer, selection, pending);
-        finishCartPrepare(pending, result);
+        await finishCartPrepare(pending, result, identity.buyer);
       } catch (error) {
         reportCheckoutError(error);
       } finally {

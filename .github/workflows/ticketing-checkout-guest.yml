@@ -6,6 +6,9 @@ on:
       - config/public_ticket_checkout.php
       - config/buyer_auth.php
       - tests/integration/ticketing-checkout-guest.php
+      - config/public_order_status.php
+      - api/ticketing/order-status.php
+      - tests/integration/public-order-status.php
       - .github/workflows/ticketing-checkout-guest.yml
 permissions:
   contents: read
@@ -52,3 +55,6 @@ jobs:
           php -l config/public_ticket_checkout.php
           php -l tests/integration/ticketing-checkout-guest.php
           php tests/integration/ticketing-checkout-guest.php
+          php -l config/public_order_status.php
+          php -l api/ticketing/order-status.php
+          php tests/integration/public-order-status.php
