@@ -8,6 +8,10 @@ on:
       - config/ticketing_mail_templates.php
       - config/ticketing_mail_outbox.php
       - config/mail_template_renderer.php
+      - config/ticketing_wompi_reconcile.php
+      - config/ticketing_wompi_webhook.php
+      - config/public_ticket_checkout.php
+      - tests/integration/ticketing-wompi-reconcile.php
       - ops/ticketing-mail-worker.php
       - tests/integration/ticketing-issue-delivery.php
       - tests/integration/ticketing-mail-worker-secrets.php
@@ -64,3 +68,6 @@ jobs:
           php tests/integration/ticketing-issue-delivery.php
           php tests/integration/ticketing-issue.php
           php tests/integration/ticketing-mail-worker-secrets.php
+          php -l config/ticketing_wompi_reconcile.php
+          php tests/integration/ticketing-wompi-reconcile.php
+          php tests/integration/ticketing-wompi-webhook.php

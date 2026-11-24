@@ -45,6 +45,7 @@ register_shutdown_function(static function () use ($server, $dbName, $sandbox): 
     catch (Throwable) {}
     foreach (['ops/ticketing-mail-worker.php',
         'config/ticketing_mail_outbox.php', 'config/ticketing_issue_delivery.php',
+        'config/ticketing_wompi_reconcile.php',
         'config/integration_secrets_store.php', 'config/secrets.php',
         'config/config.php'] as $file) @unlink($sandbox . '/' . $file);
     @rmdir($sandbox . '/ops'); @rmdir($sandbox . '/config'); @rmdir($sandbox);
@@ -81,7 +82,7 @@ foreach (['ticketing-mail-worker.php'] as $file) {
     worker_secret_assert(copy($repo . '/ops/' . $file, $sandbox . '/ops/' . $file),
         'copy worker entrypoint');
 }
-foreach (['ticketing_mail_outbox.php','ticketing_issue_delivery.php',
+foreach (['ticketing_mail_outbox.php','ticketing_issue_delivery.php','ticketing_wompi_reconcile.php',
     'integration_secrets_store.php','secrets.php'] as $file) {
     worker_secret_assert(symlink($repo . '/config/' . $file, $sandbox . '/config/' . $file),
         'link production module read-only');
@@ -101,7 +102,7 @@ foreach (['BRVTAL_TICKET_MAIL_API_KEY','BRVTAL_TICKET_MAIL_DOMAIN',
 }
 [$exit, $out, $err] = worker_secret_run($sandbox . '/ops/ticketing-mail-worker.php', $environment);
 // #1945: no ticketing tables here, so issuance reports unavailable and mail still flows.
-worker_secret_assert($exit === 0 && trim($out) === '{"issue":"unavailable","state":"accepted"}' && $err === '',
+worker_secret_assert($exit === 0 && trim($out) === '{"reconcile":"unavailable","issue":"unavailable","state":"accepted"}' && $err === '',
     'CLI processes synthetic queued mail with encrypted-only credentials');
 worker_secret_assert((string)$pdo->query('SELECT state FROM ticket_mail_outbox')->fetchColumn()
     === 'accepted', 'outbox transitions to accepted');
