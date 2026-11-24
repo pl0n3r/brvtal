@@ -157,7 +157,8 @@ function brvtal_ticket_wompi_prepare(
     $total = 0;
     $quantities = [];
     foreach ($rows as $row) {
-        $qty = (int)$row['quantity']; $unit = (int)$row['unit_price_cop'];
+        $qty = (int)$row['quantity'];
+        $unit = (int)$row['unit_price_cop'];
         if ($row['currency'] !== 'COP' || $qty < 1 || $qty > 20 || $unit < 1
             || $unit > 10000000 || $unit * $qty !== (int)$row['subtotal_cop']) {
             throw new DomainException('WOMPI_PRICE_MISMATCH');
@@ -165,7 +166,51 @@ function brvtal_ticket_wompi_prepare(
         $total += $unit * $qty;
         $quantities[(int)$row['ticket_type_id']] = $qty;
     }
-    if ($total !== (int)$order['total_cop']) throw new DomainException('WOMPI_PRICE_MISMATCH');
+    // A coupon preserves the gross item snapshots. Its immutable, locked ledger
+    // must reconcile the authorized net charged by Wompi, down to the peso.
+    // Older installations without T23 tables support ONLY undiscounted orders.
+    $redemption = false;
+    try {
+        $r = $db->prepare('SELECT promo_id,buyer_id,event_id,ticket_type_id,quantity,
+                subtotal_cop,discount_cop,total_cop,code_digest
+            FROM ticket_promo_redemptions WHERE order_id=? FOR UPDATE');
+        $r->execute([$orderId]);
+        $redemption = $r->fetch(PDO::FETCH_ASSOC);
+    } catch (PDOException $error) {
+        if ((int)($error->errorInfo[1] ?? 0) !== 1146) {
+            throw $error;
+        }
+    }
+    if ($redemption) {
+        // The standalone /api/ticketing/checkout.php path also calls T07.
+        // Deny real-money coupon charges here, not only at public checkout.
+        if (($config['mode'] ?? '') === 'production') {
+            throw new DomainException('PROMOS_NOT_ENABLED');
+        }
+        // Promotions apply to one ticket type per order, never mixed baskets.
+        // Query the event only when a coupon exists, preserving older T07 fixtures.
+        $event = $db->prepare('SELECT event_id FROM ticket_orders WHERE id=? FOR UPDATE');
+        $event->execute([$orderId]);
+        $orderEvent = $event->fetchColumn();
+        $discount = (int)$redemption['discount_cop'];
+        if (count($rows) !== 1 || $orderEvent === false
+            || (int)$redemption['promo_id'] < 1
+            || (int)$redemption['buyer_id'] !== $buyerId
+            || (int)$redemption['event_id'] !== (int)$orderEvent
+            || (int)$redemption['ticket_type_id'] !== (int)$rows[0]['ticket_type_id']
+            || (int)$redemption['quantity'] !== (int)$rows[0]['quantity']
+            || (int)$redemption['subtotal_cop'] !== $total
+            || $discount < 0 || $discount >= $total
+            || (int)$redemption['total_cop'] !== $total - $discount
+            || (int)$order['total_cop'] !== $total - $discount
+            || preg_match('/^[a-f0-9]{64}$/D', (string)$redemption['code_digest']) !== 1) {
+            throw new DomainException('WOMPI_PRICE_MISMATCH');
+        }
+    } elseif ($total !== (int)$order['total_cop']) {
+        throw new DomainException('WOMPI_PRICE_MISMATCH');
+    }
+    // From here on every signature and provider attempt uses ONLY the net COP.
+    $total = (int)$order['total_cop'];
     $holds = $db->prepare('SELECT ticket_type_id,quantity,status,expires_at_utc
         FROM ticket_inventory_holds WHERE order_id=? FOR UPDATE');
     $holds->execute([$orderId]);
