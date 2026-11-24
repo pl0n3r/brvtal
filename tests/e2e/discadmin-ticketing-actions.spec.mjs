@@ -79,6 +79,52 @@ test('1979 C escritorio: correo fallido permite reenvío, nunca cancelar pagado'
   await expect(page.locator('[data-order-action="cancel_pending"]')).toHaveCount(0);
   await page.screenshot({path:'test-results/order-C-1440.png',fullPage:true});
 });
+
+test('1979 AC-02: cancelar pendiente exige confirmación y no toca pedidos pagados',async({page})=>{
+  await page.setViewportSize({width:390,height:844});
+  const originalStatus=row.status;
+  const originalOrderStatus=detail.order.status;
+  const originalPayment=detail.payments;
+  const originalIssue=detail.issue;
+  const originalMail=detail.mail;
+  const calls=[];
+  row.status='pending';
+  detail.order.status='pending';
+  detail.payments=[];
+  detail.issue=null;
+  detail.mail=[];
+  try {
+    await launch(page,r=>{
+      calls.push({payload:r.request().postDataJSON(),csrf:r.request().headers()['x-csrf-token']});
+      row.status='cancelled';
+      detail.order.status='cancelled';
+      r.fulfill({contentType:'application/json',
+        body:'{"ok":true,"data":{"status":"cancelled","payment_changed":false}}'});
+    });
+    await page.locator('.tk-order-menu summary').click();
+    await page.getByRole('button',{name:'Cancelar pedido pendiente'}).click();
+    await expect(page.locator('dialog')).toBeVisible();
+    await expect(page.locator('dialog')).toContainText('Se liberará su inventario');
+    await page.getByRole('button',{name:'Volver'}).click();
+    expect(calls).toHaveLength(0);
+    await page.locator('.tk-order-menu summary').click();
+    await page.getByRole('button',{name:'Cancelar pedido pendiente'}).click();
+    await page.getByRole('button',{name:'Confirmar cancelación'}).click();
+    await expect(page.locator('[data-ticketing-order-page]')).toContainText('Cancelado');
+    expect(calls).toHaveLength(1);
+    expect(calls[0].csrf).toBe('test-csrf');
+    expect(calls[0].payload.action).toBe('cancel_pending');
+    expect(calls[0].payload.order_id).toBe('91');
+    await expect(page.locator('[data-order-action="cancel_pending"]')).toHaveCount(0);
+  } finally {
+    row.status=originalStatus;
+    detail.order.status=originalOrderStatus;
+    detail.payments=originalPayment;
+    detail.issue=originalIssue;
+    detail.mail=originalMail;
+  }
+});
+
 test('1979 backend source safety contract',()=>{
   const api=readFileSync('api/ticketing/admin-actions.php','utf8');
   const core=readFileSync('config/ticketing_admin_actions.php','utf8');
