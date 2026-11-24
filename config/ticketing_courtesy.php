@@ -90,7 +90,7 @@ function brvtalCourtesyIssue(PDO $db,int $actor,string $role,array $data): array
         // The event mutex serializes paid holds and courtesy reservations.
         $q=$db->prepare('SELECT status FROM events WHERE id=? FOR UPDATE'); $q->execute([$event]);
         if (!in_array($q->fetchColumn(),['active','published'],true)) throw new DomainException('EVENT_CLOSED');
-        $q=$db->prepare('SELECT id,request_digest,ticket_type_id,category,reason FROM ticket_courtesy_invites
+        $q=$db->prepare('SELECT id,request_digest,ticket_type_id,category,reason,status FROM ticket_courtesy_invites
             WHERE event_id=? AND recipient_digest=? FOR UPDATE');
         $q->execute([$event,$recipient]); $existing=$q->fetch(PDO::FETCH_ASSOC);
         if ($existing) {
@@ -98,8 +98,13 @@ function brvtalCourtesyIssue(PDO $db,int $actor,string $role,array $data): array
             if ((int)$existing['ticket_type_id']!==$type
                 || $existing['category']!==$data['category'] || $existing['reason']!==$data['reason'])
                 throw new DomainException('IDEMPOTENCY_CONFLICT');
+            $q=$db->prepare("SELECT 1 FROM ticket_mail_outbox
+                WHERE related_ref=? AND state IN ('queued','retry','sending','accepted') LIMIT 1");
+            $q->execute(['courtesy:'.$existing['id']]);
+            $queued=$existing['status']==='issued' && $q->fetchColumn()!==false;
             $db->commit();
-            return ['invite_id'=>(int)$existing['id'],'replayed'=>true,'queued'=>true,'sent'=>false,'qr'=>null];
+            return ['invite_id'=>(int)$existing['id'],'replayed'=>true,
+                'queued'=>$queued,'needs_resend'=>!$queued,'sent'=>false,'qr'=>null];
         }
         $q=$db->prepare('SELECT id FROM ticket_courtesy_invites WHERE request_digest=?');
         $q->execute([$request]);

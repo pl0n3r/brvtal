@@ -29,7 +29,7 @@ export function mount(panel) {
   const submit=document.createElement('button');submit.type='submit';submit.textContent='Emitir cortesía';submit.className='tk-button is-primary';
   const status=document.createElement('p');status.setAttribute('role','status');status.dataset.courtesyStatus='';status.className='tk-status';
   status.textContent='Sin emisión.';
-    const management=document.createElement('div');management.className='tk-form';
+  const management=document.createElement('div');management.className='tk-form';
   const invite=document.createElement('input');invite.type='number';invite.min='1';invite.placeholder='Número de cortesía';
   invite.id='tk-courtesy-ref';invite.setAttribute('aria-label','Número de cortesía');
   const inviteField=document.createElement('div');inviteField.className='tk-field';
@@ -54,7 +54,11 @@ export function mount(panel) {
       const data=await response.json();
       if (!section.isConnected) return;
       if (!response.ok||data.ok!==true||!data.data) {
-        status.textContent='No autorizada o cupo no disponible. No se presume emisión.';
+        status.textContent=data.error==='MAIL_NOT_READY'
+          ? 'El correo aún no está configurado para este destinatario. No se emitió la cortesía.'
+          : data.error==='COURTESY_SCHEMA_MISSING'
+            ? 'La base de datos de cortesías no está preparada. No se emitió la cortesía.'
+            : 'No autorizada o cupo no disponible. No se presume emisión.';
         return;
       }
       const id=Number(data.data.invite_id);
@@ -66,7 +70,9 @@ export function mount(panel) {
         pendingIssue=null;
         invite.value=String(id);
         status.textContent=data.data.replayed
-          ? 'La cortesía ya estaba registrada; no se creó otra entrada ni otro correo.'
+          ? data.data.needs_resend===true
+            ? 'La cortesía existe, pero no tiene un envío confirmado. Usa Reenviar correo con QR.'
+            : 'La cortesía ya estaba registrada; no se creó otra entrada ni otro correo.'
           : data.data.queued===true
             ? 'Cortesía creada sin cobro. El correo con el QR quedó en cola de envío.'
             : 'La cortesía no pudo confirmarse; consulta el estado antes de reintentar.';
@@ -78,7 +84,7 @@ export function mount(panel) {
     } catch {
       if (section.isConnected) status.textContent=body.action==='issue'
         ? 'Sin confirmación del servidor. Reintenta con la misma clave.'
-        : 'Sin confirmación del servidor. El QR visible se conserva.';
+        : 'No se pudo confirmar la operación. Consulta el estado antes de reintentar.';
     } finally {busy=false;for(const button of [submit,revoke,resend])button.disabled=false;}
   }
   form.addEventListener('input',()=>{pendingIssue=null;});

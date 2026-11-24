@@ -5,7 +5,7 @@ require_once __DIR__.'/../../config/ticketing_checkin.php';
 function t25(bool $ok,string $reason):void {if(!$ok) throw new RuntimeException('T25: '.$reason);}
 $input=['action'=>'issue','event_id'=>1,'ticket_type_id'=>11,'recipient'=>'guest01@example.test',
     'category'=>'staff','reason'=>'Invitación de prueba','idempotency_key'=>str_repeat('a',24)];
-t25(brvtalCourtesyValidate($input)['recipient']==='guest01','input validation');
+t25(brvtalCourtesyValidate($input)['recipient']==='guest01@example.test','input validation');
 t25(!brvtalTicketingCan('admin','courtesy')&&brvtalTicketingCan('superadmin','courtesy'),'RBAC');
 foreach ([['action'=>'issue'],array_merge($input,['reason'=>'x']),array_merge($input,['recipient'=>'not-an-email']),array_merge($input,['extra'=>1])] as $bad) {
     try {brvtalCourtesyValidate($bad);throw new RuntimeException('invalid input accepted');}
