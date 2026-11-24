@@ -470,6 +470,20 @@ function brvtalMigrationProofSpecifications(): array
     }
     // #1995: exact, isolated proof for the nullable POS handoff and a safe
     // append-only terminal method. All checks are absent on the old schema.
+    // Cross-issue handoff #1979: this proof is dormant until the independently
+    // claimed additive order-notes migration exists in the current checkout.
+    // The tables reference T03 orders and must not run before their parent.
+    if (is_file(__DIR__ . '/../database/migration_ticketing_order_notes_01.sql')) {
+        $specifications['migration_ticketing_order_notes_01.sql'] = array_merge(
+            brvtalMigrationObjectRequirements('ticket_order_notes',
+                ['id','order_id','actor_admin_id','note_text','created_at_utc'],
+                ['PRIMARY','idx_ticket_order_note_history'],true),
+            brvtalMigrationObjectRequirements('ticket_order_action_requests',
+                ['id','order_id','actor_admin_id','action','request_key_hash',
+                 'request_hash','status','mail_outbox_id','note_id','created_at_utc'],
+                ['PRIMARY','uq_ticket_order_action_request','idx_ticket_order_action_history'],true)
+        );
+    }
     if (is_file(__DIR__ . '/../database/migration_ticketing_pos_02.sql')) {
         $specifications['migration_ticketing_pos_02.sql'] = [
             'column-unsigned-bigint-nullable:ticket_issue_outbox.payment_attempt_id',
@@ -833,6 +847,7 @@ function brvtalMigrationOrderDependencyActions(array $actions): array
         'migration_ticketing_reservations_01.sql',
         'migration_ticketing_webhook_01.sql',
         'migration_ticketing_admin_notes_01.sql',
+        'migration_ticketing_order_notes_01.sql',
     ];
     $parentIndex = null;
     $firstDependentIndex = null;
