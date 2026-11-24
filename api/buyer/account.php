@@ -28,13 +28,17 @@ try {
         json_response(['ok'=>false,'error'=>'CSRF_INVALID'],403);
     }
     $body=input_json();
-    if (array_diff(array_keys($body),['action','ticket_id','token'])
-        || ($body['action'] ?? null)!=='qr'
+    $action = $body['action'] ?? null;
+    if (!in_array($action, ['qr','qr_stored'], true)
         || !is_string($body['ticket_id'] ?? null)
-        || !is_string($body['token'] ?? null)) {
+        || array_diff(array_keys($body), $action === 'qr'
+            ? ['action','ticket_id','token'] : ['action','ticket_id'])
+        || ($action === 'qr' && !is_string($body['token'] ?? null))) {
         json_response(['ok'=>false,'error'=>'INVALID_REQUEST'],422);
     }
-    $download=brvtalBuyerAccountQr($db,$buyer,$body['ticket_id'],$body['token']);
+    $download = $action === 'qr'
+        ? brvtalBuyerAccountQr($db,$buyer,$body['ticket_id'],$body['token'])
+        : brvtalBuyerAccountStoredQr($db,$buyer,$body['ticket_id']);
     json_response(['ok'=>true,'qr'=>$download['content'],'filename'=>$download['filename']]);
 } catch (InvalidArgumentException) {
     json_response(['ok'=>false,'error'=>'INVALID_FILTER'],422);

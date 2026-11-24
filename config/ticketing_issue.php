@@ -5,9 +5,59 @@ declare(strict_types=1);
  * T09: offline issuance worker. Either a verified signed Wompi webhook or a
  * trusted, operator-confirmed POS sale. NEVER called from a public route.
  * Secrets are returned exactly once, in memory, to the trusted delivery layer;
- * only their SHA-256 digests are persisted. A lost secret must be reissued
+ * their SHA-256 digests and (after migration) AES-GCM ciphertext are persisted. A lost secret must be reissued
  * under a separate, audited owner-authorized flow, never inferred from its hash.
  */
+
+/**
+ * Recoverable QR secrets are sealed only when the additive migration exists.
+ * Ciphertext is versioned, AES-256-GCM authenticated and bound to the entry ID.
+ * Missing encryption configuration fails closed; it never stores cleartext.
+ */
+function brvtal_ticket_issue_seal_token(string $secret, string $entryPublicId): string
+{
+    if (strlen($secret) !== 32 || strlen($entryPublicId) !== 16) {
+        throw new DomainException('ISSUE_ENCRYPTION_UNAVAILABLE');
+    }
+    $master = $GLOBALS['config']['security']['encryption_key'] ?? null;
+    if (!is_string($master) || strlen($master) < 32) {
+        throw new DomainException('ISSUE_ENCRYPTION_UNAVAILABLE');
+    }
+    $key = hash_hkdf('sha256', $master, 32, 'brvtal-ticket-entry-secret-v1');
+    $iv = random_bytes(12);
+    $tag = '';
+    $ciphertext = openssl_encrypt($secret, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag, $entryPublicId, 16);
+    if (!is_string($ciphertext) || strlen($ciphertext) !== 32 || strlen($tag) !== 16) {
+        throw new DomainException('ISSUE_ENCRYPTION_UNAVAILABLE');
+    }
+    return "\x01" . $iv . $tag . $ciphertext;
+}
+
+function brvtal_ticket_issue_open_token(string $sealed, string $entryPublicId): string
+{
+    $master = $GLOBALS['config']['security']['encryption_key'] ?? null;
+    if (strlen($entryPublicId) !== 16 || strlen($sealed) !== 61 || ord($sealed[0]) !== 1
+        || !is_string($master) || strlen($master) < 32) {
+        throw new DomainException('TICKET_UNAVAILABLE');
+    }
+    $key = hash_hkdf('sha256', $master, 32, 'brvtal-ticket-entry-secret-v1');
+    $plain = openssl_decrypt(substr($sealed, 29), 'aes-256-gcm', $key, OPENSSL_RAW_DATA,
+        substr($sealed, 1, 12), substr($sealed, 13, 16), $entryPublicId);
+    if (!is_string($plain) || strlen($plain) !== 32) {
+        throw new DomainException('TICKET_UNAVAILABLE');
+    }
+    return $plain;
+}
+
+/** On pre-migration deployments the original email QR remains available. */
+function brvtal_ticket_issue_has_encrypted_column(PDO $db): bool
+{
+    $stmt = $db->prepare("SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='ticket_entry_credentials'
+          AND COLUMN_NAME='token_encrypted' LIMIT 1");
+    $stmt->execute();
+    return $stmt->fetchColumn() !== false;
+}
 
 /**
  * Proof of a manual sale must agree with the order, single line, cash
@@ -130,9 +180,14 @@ function brvtal_ticket_issue_consume(PDO $db, int $outboxId, ?callable $deliver 
             $entry = $db->prepare('INSERT INTO ticket_entries
                 (public_id,order_item_id,event_id,ticket_type_id,unit_number,issued_at_utc)
                 VALUES (?,?,?,?,?,UTC_TIMESTAMP(6))');
-            $credential = $db->prepare('INSERT INTO ticket_entry_credentials
-                (entry_id,version,token_hash,created_at_utc)
-                VALUES (?,1,?,UTC_TIMESTAMP(6))');
+            $storeEncrypted = brvtal_ticket_issue_has_encrypted_column($db);
+            $credential = $db->prepare($storeEncrypted
+                ? 'INSERT INTO ticket_entry_credentials
+                    (entry_id,version,token_hash,token_encrypted,created_at_utc)
+                    VALUES (?,1,?,?,UTC_TIMESTAMP(6))'
+                : 'INSERT INTO ticket_entry_credentials
+                    (entry_id,version,token_hash,created_at_utc)
+                    VALUES (?,1,?,UTC_TIMESTAMP(6))');
             $tickets = [];
             foreach ($rows as $item) {
                 $exists->execute([(int)$item['id']]);
@@ -146,7 +201,12 @@ function brvtal_ticket_issue_consume(PDO $db, int $outboxId, ?callable $deliver 
                     $secret = random_bytes(32);
                     $entry->execute([$id,(int)$item['id'],(int)$item['event_id'],
                         (int)$item['ticket_type_id'],$unit]);
-                    $credential->execute([(int)$db->lastInsertId(),hash('sha256',$secret,true)]);
+                    $entryId = (int)$db->lastInsertId();
+                    $params = [$entryId, hash('sha256', $secret, true)];
+                    if ($storeEncrypted) {
+                        $params[] = brvtal_ticket_issue_seal_token($secret, $id);
+                    }
+                    $credential->execute($params);
                     $tickets[] = ['public_id'=>bin2hex($id),
                         'token'=>rtrim(strtr(base64_encode($secret),'+/','-_'),'='),
                         'version'=>1];
