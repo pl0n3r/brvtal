@@ -641,6 +641,30 @@ function brvtalMigrationAssertReconciliationSql(
     $mediaGuard = 'migration_zz_media_reference_guard_01.sql';
     $allowCanonicalBootstrap = $migrationName === $mediaGuard
         && brvtalMigrationProofIsFullyAbsent($proof);
+
+    // #2000: this ONE reviewed, exact-blob expansion replaces the existing
+    // payment attempt FK without deleting rows, widens nullable and adds one
+    // optional POS method. The generic scanner rejects DROP/MODIFY, so this
+    // immutable allowlist is required; all other SQL stays fail-closed.
+    // A partially applied schema is BLOCKED, never treated as fresh.
+    if ($migrationName === 'migration_ticketing_pos_02.sql') {
+        $wanted = [
+            'column-bigint-unsigned-nullable:ticket_issue_outbox.payment_attempt_id',
+            'foreign-key:ticket_issue_outbox.fk_ticket_issue_outbox_pos_attempt=ticket_payment_attempts.id',
+            "column-type:ticket_pos_sales.method=enum('cash','terminal','transfer','wompi_qr')",
+        ];
+        $checks=$proof['checks']??null;
+        if (!is_array($checks) || array_keys($checks)!==$wanted
+            || !brvtalMigrationProofIsFullyAbsent($proof)) {
+            throw new RuntimeException('MIGRATION_POS_EXPANSION_UNSAFE_STATE');
+        }
+        $expectedBlob='c531e0b6f6aa7e09009984bd2b646449e520b95a';
+        $actualBlob=sha1('blob '.strlen($sql)."\\0".$sql);
+        if (!hash_equals($expectedBlob,$actualBlob)) {
+            throw new RuntimeException('MIGRATION_POS_EXPANSION_BLOB_MISMATCH');
+        }
+        return;
+    }
     brvtalMigrationAssertAdditiveSql($sql, $allowCanonicalBootstrap);
 }
 
