@@ -659,7 +659,7 @@ function brvtalMigrationAssertReconciliationSql(
             throw new RuntimeException('MIGRATION_POS_EXPANSION_UNSAFE_STATE');
         }
         $expectedBlob='c531e0b6f6aa7e09009984bd2b646449e520b95a';
-        $actualBlob=sha1('blob '.strlen($sql)."\\0".$sql);
+        $actualBlob=sha1('blob '.strlen($sql).chr(0).$sql);
         if (!hash_equals($expectedBlob,$actualBlob)) {
             throw new RuntimeException('MIGRATION_POS_EXPANSION_BLOB_MISMATCH');
         }
