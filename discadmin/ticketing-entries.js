@@ -61,7 +61,7 @@ export async function mount(panel,isCurrent=()=>true) {
     qrBox.hidden=false;qrBox.querySelector('[data-entry-close]').focus();
   }
   // The browser's native <dialog> traps focus, supports Escape and never exposes
-  // sensitive action values through window.prompt / window.confirm.
+  // sensitive values through external browser dialogs.
   function requestAction(row,name,trigger) {
     dialogOpen=true;
     return new Promise(resolve => {
