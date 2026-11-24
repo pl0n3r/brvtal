@@ -244,7 +244,9 @@ export async function mount(panel, initialKind = 'orders') {
     const h = document.createElement('h4'); h.textContent = 'Emisión de boletas';
     const text = document.createElement('p');
     const waiting = issue.state === 'pending' || issue.state === 'failed';
-    text.textContent = issue.state === 'issued' ? 'Boletas emitidas.'
+    // The outbox marks a finished issuance as 'done' (migration_ticketing_webhook_01).
+    text.textContent = issue.state === 'done' || issue.state === 'issued' ? 'Boletas emitidas. El correo con los QR sale en el siguiente minuto.'
+      : issue.state === 'processing' ? 'Emitiendo boletas…'
       : issue.state === 'failed' ? 'La emisión falló ' + issue.attempts + (issue.attempts === 1 ? ' vez' : ' veces')
         + '. Próximo intento: ' + bogotaDate(issue.next_attempt_at_utc) + '.'
       : issue.state === 'pending' ? 'Emisión pendiente. Próximo intento: '

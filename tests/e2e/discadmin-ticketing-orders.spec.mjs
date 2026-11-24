@@ -361,10 +361,11 @@ test('#1976: issued order has no retry; nothing pending is explained',async({pag
   await page.route('**/api/ticketing/admin-issue-retry.php', route => route.fulfill(
     {status:409,contentType:'application/json',body:'{"ok":false,"error":"NOTHING_TO_RETRY"}'}));
   await start(page,route=>issueReply(state==='issued'
-    ? {state:'issued',attempts:2,next_attempt_at_utc:null} : failedIssue)(route),'orders',js,css,retryFixture);
+    ? {state:'done',attempts:2,next_attempt_at_utc:null} : failedIssue)(route),'orders',js,css,retryFixture);
   await page.getByRole('button',{name:'Detalle #91'}).click();
   const detail = page.locator('[data-ticketing-records-detail]');
   await expect(detail).toContainText('Boletas emitidas.');
+  await expect(detail).not.toContainText('no reconocido');
   await expect(page.getByRole('button',{name:'Reintentar emisión ahora'})).toHaveCount(0);
   state = 'failed';
   await page.getByRole('button',{name:'Detalle #91'}).click();
