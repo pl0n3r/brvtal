@@ -29,7 +29,9 @@ function brvtalPosInput(array $raw): array {
     $action = $raw['action'] ?? null;
     if (!is_string($action) || !isset($shape[$action])) throw new InvalidArgumentException('POS_INVALID_ACTION');
     $keys=array_keys($raw); sort($keys);
-    $expected=$shape[$action]; sort($expected);
+    $expected=$shape[$action];
+    if ($action==='confirm' && array_key_exists('buyer_email',$raw)) $expected[]='buyer_email';
+    sort($expected);
     if ($keys!==$expected) throw new InvalidArgumentException('POS_INVALID_FIELDS');
     $result=['action'=>$action];
     foreach (['event_id','shift_id','ticket_type_id','quantity','sale_id'] as $name) {
@@ -57,6 +59,14 @@ function brvtalPosInput(array $raw): array {
     if ($action==='confirm') {
         if ($raw['confirm']!==true) throw new InvalidArgumentException('POS_CONFIRMATION_REQUIRED');
         $result['confirm']=true;
+        if (array_key_exists('buyer_email',$raw)) {
+            $email=$raw['buyer_email'];
+            if (!is_string($email) || strlen($email)>190
+                || ($email!=='' && filter_var($email,FILTER_VALIDATE_EMAIL)===false)) {
+                throw new InvalidArgumentException('POS_INVALID_EMAIL');
+            }
+            $result['buyer_email']=$email===''?null:strtolower($email);
+        }
     }
     return $result;
 }
@@ -158,9 +168,26 @@ function brvtalPosConfirm(PDO $db,int $actor,array $i): array {
     $row=brvtalPosSale($db,$actor,$i);
     if ($row['method']!=='cash') throw new DomainException('POS_PROVIDER_PROOF_REQUIRED');
     // A separate POS evidence row, never a forged Wompi approval or payout.
-    $db->prepare("INSERT INTO ticket_buyers(public_id,status) VALUES (?,'guest')")
-        ->execute([random_bytes(16)]);
-    $buyer=(int)$db->lastInsertId();
+    // No marketing consent is inferred. The address is used only for the
+    // transactional QR delivery after a trusted cash/terminal confirmation.
+    $email=$i['buyer_email']??null;
+    if ($email!==null) {
+        $read=$db->prepare('SELECT id FROM ticket_buyers WHERE email=? FOR UPDATE');
+        $read->execute([$email]);
+        $existing=$read->fetchColumn();
+        if ($existing!==false) {
+            $buyer=(int)$existing;
+        } else {
+            $db->prepare("INSERT INTO ticket_buyers(public_id,email,status)
+                VALUES (?,?,'guest') ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)")
+                ->execute([random_bytes(16),$email]);
+            $buyer=(int)$db->lastInsertId();
+        }
+    } else {
+        $db->prepare("INSERT INTO ticket_buyers(public_id,status) VALUES (?,'guest')")
+            ->execute([random_bytes(16)]);
+        $buyer=(int)$db->lastInsertId();
+    }
     $db->prepare("INSERT INTO ticket_orders
         (public_id,buyer_id,event_id,checkout_key_hash,status,currency,total_cop)
         VALUES (?,?,?,?,'draft','COP',?)")
