@@ -8,7 +8,7 @@ from pathlib import Path
 
 WORKFLOWS = Path(__file__).resolve().parents[1] / ".github" / "workflows"
 CHECKOUT = "3d3c42e5aac5ba805825da76410c181273ba90b1"
-FACTORY = "dc7a24a7ff16aa01857009aff7f9e13b0bc0ca46"
+FACTORY = "64e30344a1cd56e6d849552fd46ef13d2d0ecd24"
 UPLOAD = "cf430e030ddbb5b0abf93d22962f4752f3646cd9"
 NODE = "949feb2413d6458794dcd2491c4babbbce0c15c1"
 PHP = "eb7c497e18156a6bbabfef1d3a82760b9eda3962"
