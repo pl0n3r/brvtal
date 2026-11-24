@@ -30,9 +30,16 @@ promoAssert(str_contains($checkoutCode,"'promo_code'"),'coupon is strictly white
 promoAssert(str_contains($checkoutCode,'brvtalPromoQuote('),'quote before order');
 promoAssert(str_contains($checkoutCode,'brvtalPromoReserve('),'ledger reservation in checkout tx');
 promoAssert(str_contains($checkoutCode,"'promo_breakdown'"),'server returns immutable COP breakdown');
-promoAssert(str_contains($checkoutCode,"'environment'=>'mock'"),'T23 never creates real provider attempts');
+promoAssert(!str_contains($checkoutCode,"'provider_activation'=>false")
+    && !str_contains($checkoutCode,"'environment'=>'mock'"),
+    'coupon checkout cannot return an unsigned simulated quote');
+promoAssert(str_contains($checkoutCode,'$checkout = brvtal_ticket_wompi_prepare('),
+    'coupon path uses the same provider preparation after ledger verification');
+promoAssert(str_contains($checkoutCode,'if ($withPromo) brvtalPromoSynthetic($db)'),
+    'D-063 guard is preserved until approved production activation');
 $guardAt=strpos($checkoutCode,'brvtalPromoRejectUncodedReplay($db,$orderId)');
-$providerAt=strpos($checkoutCode,'brvtal_ticket_wompi_prepare($db,$buyerId,$orderId');
+$providerAt=strpos($checkoutCode,'$checkout = brvtal_ticket_wompi_prepare(',
+    $guardAt === false ? 0 : $guardAt);
 promoAssert($guardAt!==false && $providerAt!==false && $guardAt<$providerAt,
     'the persisted coupon guard runs before the payment provider');
 if (getenv('BRVTAL_INTEGRATION_TESTS')==='1') {
@@ -192,5 +199,24 @@ if (getenv('BRVTAL_INTEGRATION_TESTS')==='1') {
         ->fetchColumn()===$frozen,'paid snapshot never edited');
     promoAssert((int)$db->query('SELECT total_cop FROM ticket_orders WHERE id=100')
         ->fetchColumn()===25000,'paid order immutable');
+    // No zero-COP checkout is valid for hosted Wompi, regardless of rule kind.
+    foreach ([
+        ['code'=>'FREEFIXED26','kind'=>'fixed','value_cop'=>15000],
+        ['code'=>'FREEPERCENT26','kind'=>'percent','value_cop'=>100],
+    ] as $freeRule) {
+        brvtalPromoCreate($db,array_replace($rule,$freeRule));
+        $db->beginTransaction();
+        try {
+            brvtalPromoQuote($db,1,10,3,1,15000,$freeRule['code'],[],$now);
+            throw new RuntimeException('T23: zero-COP promotion accepted');
+        } catch (DomainException $e) {
+            promoAssert($e->getMessage()==='PROMO_ZERO_TOTAL',
+                'free coupon denied before attempting a provider charge');
+        } finally {
+            $db->rollBack();
+        }
+    }
 }
 echo "T23 promo windows, quotas, lock, snapshots and integer COP OK (synthetic).".PHP_EOL;
+// Run coupon Wompi ledger regression under the same isolated T23 MariaDB matrix.
+require __DIR__.'/ticketing-wompi.php';
