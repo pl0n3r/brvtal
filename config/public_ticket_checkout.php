@@ -40,6 +40,13 @@ function brvtal_public_ticket_checkout_offers(PDO $db, int $eventId): array
         $eventFree = (int)$event['event_capacity'] - array_sum($eventUsage);
         $offers = [];
         $inviteMode = brvtal_waitlist_offers_enabled();
+        // Display the same stage price as checkout instead of the legacy type
+        // price. The final checkout re-quotes under the Event mutex.
+        $stageTable = (int)$db->query("SELECT COUNT(*) FROM information_schema.TABLES
+            WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='ticket_type_stages'")->fetchColumn();
+        $stageLookup = $stageTable ? $db->prepare('SELECT code,price_cop,cumulative_capacity,
+            opens_at_local,closes_at_local FROM ticket_type_stages
+            WHERE event_id=? AND ticket_type_id=?') : null;
         foreach ($q->fetchAll(PDO::FETCH_ASSOC) as $type) {
             if (!brvtal_ticket_inventory_saleable($event,$type,$now)
                 || (int)$type['capacity'] < 1) continue;
@@ -50,6 +57,26 @@ function brvtal_public_ticket_checkout_offers(PDO $db, int $eventId): array
             }
             $usage = brvtal_ticket_inventory_usage($db,$eventId,(int)$type['id'],$utc);
             $free = min($eventFree,(int)$type['capacity'] - array_sum($usage));
+            if ($stageLookup !== null) {
+                $stageLookup->execute([$eventId,(int)$type['id']]);
+                $stages = $stageLookup->fetchAll(PDO::FETCH_ASSOC);
+                if ($stages) {
+                    foreach ($stages as &$stage) {
+                        $stage['price_cop'] = (int)$stage['price_cop'];
+                        $stage['cumulative_capacity'] = (int)$stage['cumulative_capacity'];
+                    }
+                    unset($stage);
+                    try {
+                        $quote = brvtalTicketStageQuote($stages,array_sum($usage),
+                            1,max(0,$free),$now);
+                        $price = $quote['unit_price_cop'];
+                        $free = min($free,$quote['available']);
+                    } catch (DomainException) {
+                        if (!$inviteMode) continue;
+                        $free = 0; // Invitation only; no payment quote is promised.
+                    }
+                }
+            }
             if ($free < 1 && !$inviteMode) continue;
             $offers[] = [
                 'id'=>(int)$type['id'], 'title'=>(string)$type['name'],

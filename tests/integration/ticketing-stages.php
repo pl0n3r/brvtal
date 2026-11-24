@@ -72,6 +72,9 @@ stageAssert(str_contains($checkoutSource, "brvtal_public_ticket_checkout_stage_q
     'server-side quote is invoked in checkout before order insertion');
 stageAssert(str_contains($checkoutSource, "unit_price_cop,subtotal_cop"),
     'idempotent checkout reads the immutable item price snapshot');
+stageAssert(str_contains($checkoutSource, 'Display the same stage price as checkout')
+    && str_contains($checkoutSource, "\$price = \$quote['unit_price_cop'];"),
+    'public offers show active stage price, not stale editorial price');
 $core = (string)file_get_contents(__DIR__.'/../../discadmin/content-core.js');
 stageAssert((bool)preg_match("~import\\('/discadmin/ticketing-stages\\.js'\\s*\\+~", $core),
     'stage editor mounted through cache-versioned dynamic import');
