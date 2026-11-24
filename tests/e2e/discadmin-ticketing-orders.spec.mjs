@@ -317,3 +317,87 @@ test('#1969: browser-generated before/after orders at 390 and 1440',async({page}
     }
   }
 });
+
+// #1976: a stuck issuance is visible in the order detail and can be retried now.
+const retryFixture = fixture.replace('<section data-ticketing-records>',
+  '<section data-ticketing-records data-ticketing-csrf="csrf-sintetico">');
+const issueReply = issue => route => {
+  const detail = new URL(route.request().url()).searchParams.has('order_id');
+  return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:detail
+    ? {rows:[],detail:{items:[{ticket_name_snapshot:'Preventa',quantity:2}],
+        payments:[{status:'approved',gross_amount_cop:50000}],mail:[],issue}}
+    : {rows:[{...order,status:'paid',last_payment_state:'approved',mail_state:null}],
+        kind:'orders',has_more:false,next_cursor:null}})});
+};
+const failedIssue = {state:'failed',attempts:9,next_attempt_at_utc:'2026-11-24 16:23:02'};
+
+test('#1976: failed issuance shows its state and retries with CSRF',async({page})=>{
+  await page.setViewportSize({width:390,height:844});
+  const posts = [];
+  await page.route('**/api/ticketing/admin-issue-retry.php', route => {
+    posts.push({headers:route.request().headers(),body:route.request().postDataJSON()});
+    return route.fulfill({contentType:'application/json',body:'{"ok":true,"data":{"scheduled":true}}'});
+  });
+  await start(page,issueReply(failedIssue),'orders',js,css,retryFixture);
+  await page.getByRole('button',{name:'Detalle #91'}).click();
+  const detail = page.locator('[data-ticketing-records-detail]');
+  await expect(detail).toContainText('Emisión de boletas');
+  await expect(detail).toContainText('La emisión falló 9 veces');
+  await expect(detail).toContainText('24 de nov de 2026, 11:23');
+  await expect(detail).not.toContainText('MAIL_');
+  const retry = page.getByRole('button',{name:'Reintentar emisión ahora'});
+  expect((await retry.boundingBox()).height).toBeGreaterThanOrEqual(44);
+  await retry.click();
+  await expect(detail.locator('[data-issue-retry-feedback]')).toContainText('Reintento programado');
+  expect(posts).toHaveLength(1);
+  expect(posts[0].headers['x-csrf-token']).toBe('csrf-sintetico');
+  expect(posts[0].body).toEqual({order_id:91});
+  await expect(retry).toBeDisabled();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});
+
+test('#1976: issued order has no retry; nothing pending is explained',async({page})=>{
+  let state = 'issued';
+  await page.route('**/api/ticketing/admin-issue-retry.php', route => route.fulfill(
+    {status:409,contentType:'application/json',body:'{"ok":false,"error":"NOTHING_TO_RETRY"}'}));
+  await start(page,route=>issueReply(state==='issued'
+    ? {state:'issued',attempts:2,next_attempt_at_utc:null} : failedIssue)(route),'orders',js,css,retryFixture);
+  await page.getByRole('button',{name:'Detalle #91'}).click();
+  const detail = page.locator('[data-ticketing-records-detail]');
+  await expect(detail).toContainText('Boletas emitidas.');
+  await expect(page.getByRole('button',{name:'Reintentar emisión ahora'})).toHaveCount(0);
+  state = 'failed';
+  await page.getByRole('button',{name:'Detalle #91'}).click();
+  await page.getByRole('button',{name:'Reintentar emisión ahora'}).click();
+  await expect(detail.locator('[data-issue-retry-feedback]')).toContainText('no tiene una emisión pendiente');
+});
+
+test('#1976: retry endpoint requires session, CSRF, mail permission and only moves the due time',()=>{
+  const endpoint = readFileSync('api/ticketing/admin-issue-retry.php','utf8');
+  const delivery = readFileSync('config/ticketing_issue_delivery.php','utf8');
+  expect(endpoint).toContain('brvtal_admin_require();');
+  expect(endpoint).toContain('brvtal_admin_require_csrf();');
+  expect(endpoint).toContain("brvtalTicketingCan((string)($q->fetchColumn() ?: ''), 'mail')");
+  const retry = delivery.slice(delivery.indexOf('function brvtal_ticket_issue_retry_now'));
+  expect(retry).toContain("state IN ('pending','failed')");
+  expect(retry).not.toContain('brvtal_ticket_issue_consume');
+});
+
+test('#1976: browser-generated before/after order detail at 390 and 1440',async({page},info)=>{
+  for (const [version,issue] of [['antes',null],['despues',failedIssue]]) {
+    for (const width of [390,1440]) {
+      await page.setViewportSize({width,height:width===390?844:900});
+      await start(page,issueReply(issue),'orders',js,css,retryFixture);
+      await page.getByRole('button',{name:'Detalle #91'}).click();
+      await expect(page.locator('[data-ticketing-records-detail]')).toContainText('Preventa');
+      const image=await page.screenshot({fullPage:true});
+      expect(image.byteLength).toBeGreaterThan(1500);
+      await info.attach('emision-'+version+'-'+width,{body:image,contentType:'image/png'});
+      if(process.env.BRVTAL_VISUAL_EVIDENCE) {
+        mkdirSync(process.env.BRVTAL_VISUAL_EVIDENCE,{recursive:true});
+        writeFileSync(process.env.BRVTAL_VISUAL_EVIDENCE+'/emision-'+version+'-'+width+'.png',image);
+      }
+      expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    }
+  }
+});
