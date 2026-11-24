@@ -19,7 +19,7 @@ function brvtal_mail_webhook_verify(string $raw,array $headers,string $secret,?i
 }
 /** Fail closed; no sensitive request/exception body ever returned. */
 function brvtal_mail_webhook_process(PDO $pdo,string $raw,array $headers,string $secret,?int $now=null): int {
-    if (brvtal_secret_value('BRVTAL_TICKET_MAIL_WEBHOOK_ENABLED')!=='1' || !brvtal_mail_history_allowed()) return 503;
+    if (!brvtal_mail_history_allowed()) return 503;
     if (strlen($raw)>65536) return 413;
     if (!brvtal_mail_webhook_verify($raw,$headers,$secret,$now)) return 401;
     $e=json_decode($raw,true);

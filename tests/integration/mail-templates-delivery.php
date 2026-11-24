@@ -242,6 +242,130 @@ try {
     foreach (explode(';',(string)preg_replace('/^\h*--[^\r\n]*$/m','',$history)) as $sql) {
         if (trim($sql)!=='') $db->exec($sql);
     }
+
+    // #1998: provider acceptance and webhook delivery converge on the
+    // existing private history row; no live provider calls or recipients.
+    require_once __DIR__ . '/../../api/ticketing/webhook-resend.php';
+    $db->exec("UPDATE ticket_mail_outbox SET state='accepted' WHERE state IN ('queued','retry')");
+    $oldHookFlag=getenv('BRVTAL_TICKET_MAIL_WEBHOOK_ENABLED');
+    putenv('BRVTAL_TICKET_MAIL_WEBHOOK_ENABLED=0'); // legacy flag no longer required
+    $hookSecret='whsec_'.base64_encode(str_repeat('k',32)); // synthetic key only
+    $GLOBALS['config']['ticketing']['mail']['webhook_secret']=$hookSecret;
+    mail_delivery_assert(brvtal_secret_value('BRVTAL_TICKET_MAIL_WEBHOOK_SECRET')===$hookSecret,
+        'stored webhook secret is resolved by server configuration');
+    $makeMail=static function(string $key)use($db):int {
+        $db->beginTransaction();
+        try {
+            $id=brvtal_ticket_mail_enqueue($db,$key,'order:1998','buyer@example.test',
+                'Aviso privado de prueba','Contenido de prueba sin datos personales');
+            brvtal_mail_history_record($db,$id,[
+                'order_id'=>1998,'template_key'=>'order_pending','actor_kind'=>'system']);
+            $db->commit();
+            return $id;
+        } catch(Throwable $e) {
+            if($db->inTransaction())$db->rollBack();
+            throw $e;
+        }
+    };
+    $hook=static function(string $type,string $provider,string $id,int $at)use($hookSecret):array {
+        $raw=json_encode(['type'=>$type,'created_at'=>gmdate('c',$at),
+            'data'=>['email_id'=>$provider]],JSON_THROW_ON_ERROR);
+        $stamp=(string)time();
+        $mac=base64_encode(hash_hmac('sha256',$id.'.'.$stamp.'.'.$raw,
+            base64_decode(substr($hookSecret,6),true),true));
+        return [$raw,['svix-id'=>$id,'svix-timestamp'=>$stamp,
+            'svix-signature'=>'v1,'.$mac]];
+    };
+    $delivery=static function(string $provider):callable {
+        return static fn(array $payload,array $headers):array =>
+            ['status'=>200,'body'=>json_encode(['id'=>$provider],JSON_THROW_ON_ERROR)];
+    };
+    $historyState=static function(int $id)use($db):array {
+        $q=$db->prepare('SELECT resend_email_id,delivery_state,state_at,order_id,template_key
+            FROM ticket_mail_history WHERE outbox_id=?');
+        $q->execute([$id]);
+        return $q->fetch(PDO::FETCH_ASSOC) ?: [];
+    };
+    $provider1='synthetic-1998-early';
+    $mail1=$makeMail('test:1998:early');
+    [$earlyRaw,$earlyHeaders]=$hook('email.delivered',$provider1,'msg-1998-early',time()-30);
+    mail_delivery_assert(brvtal_mail_webhook_process($db,$earlyRaw,$earlyHeaders,$hookSecret)===200,
+        'early signed webhook accepted without legacy flag');
+    mail_delivery_assert($historyState($mail1)['delivery_state']==='queued',
+        'early webhook persists as independent receipt before provider linking');
+    mail_delivery_assert(brvtal_ticket_mail_deliver_one($db,$delivery($provider1))==='accepted',
+        'worker records provider acceptance');
+    $joined=$historyState($mail1);
+    mail_delivery_assert($joined['resend_email_id']===$provider1
+        && $joined['delivery_state']==='delivered'
+        && $joined['state_at']!==null && (int)$joined['order_id']===1998
+        && $joined['template_key']==='order_pending',
+        'provider linked in original scope, early delivered event wins');
+    mail_delivery_assert(brvtal_mail_webhook_process($db,$earlyRaw,$earlyHeaders,$hookSecret)===200,
+        'identical webhook replay is idempotent');
+    [$conflictRaw,$conflictHeaders]=$hook('email.bounced',$provider1,'msg-1998-early',time());
+    mail_delivery_assert(brvtal_mail_webhook_process($db,$conflictRaw,$conflictHeaders,$hookSecret)===409,
+        'same webhook id with changed hash rejected without mutation');
+    [$delayedRaw,$delayedHeaders]=$hook('email.sent',$provider1,'msg-1998-delayed',time()-90);
+    mail_delivery_assert(brvtal_mail_webhook_process($db,$delayedRaw,$delayedHeaders,$hookSecret)===200
+        && $historyState($mail1)['delivery_state']==='delivered',
+        'older delivery events cannot downgrade a delivered receipt');
+
+    $provider2='synthetic-1998-bounce';
+    $mail2=$makeMail('test:1998:bounce');
+    mail_delivery_assert(brvtal_ticket_mail_deliver_one($db,$delivery($provider2))==='accepted'
+        && $historyState($mail2)['delivery_state']==='accepted',
+        'provider acceptance becomes Enviado, not Entregado');
+    [$bouncedRaw,$bouncedHeaders]=$hook('email.bounced',$provider2,'msg-1998-bounced',time());
+    mail_delivery_assert(brvtal_mail_webhook_process($db,$bouncedRaw,$bouncedHeaders,$hookSecret)===200
+        && $historyState($mail2)['delivery_state']==='bounced',
+        'signed bounce updates only the existing receipt');
+    $badHeaders=$bouncedHeaders;
+    $badHeaders['svix-id']='msg-1998-forged';
+    mail_delivery_assert(brvtal_mail_webhook_process($db,$bouncedRaw,$badHeaders,$hookSecret)===401,
+        'modified signature rejected before database changes');
+    mail_delivery_assert(brvtal_mail_webhook_process($db,$bouncedRaw,$bouncedHeaders,'')===401,
+        'missing signing secret cannot bypass verification');
+    $count=$db->query('SELECT COUNT(*) FROM ticket_mail_provider_events')->fetchColumn();
+    mail_delivery_assert((int)$count===3, 'invalid/duplicate webhook did not add provider event');
+
+    $mail3=$makeMail('test:1998:conflict');
+    $db->prepare('UPDATE ticket_mail_history SET resend_email_id=? WHERE outbox_id=?')
+        ->execute(['synthetic-1998-old-provider',$mail3]);
+    try {
+        brvtal_ticket_mail_deliver_one($db,$delivery('synthetic-1998-new-provider'));
+        mail_delivery_assert(false,'mismatched provider id must reject acceptance transaction');
+    } catch(DomainException $error) {
+        mail_delivery_assert($error->getMessage()==='MAIL_HISTORY_PROVIDER_CONFLICT',
+            'provider mismatch fails closed');
+    }
+    $q=$db->prepare('SELECT state,attempts FROM ticket_mail_outbox WHERE id=?');
+    $q->execute([$mail3]);$fenced=$q->fetch(PDO::FETCH_ASSOC);
+    mail_delivery_assert($fenced['state']==='uncertain' && (int)$fenced['attempts']===1,
+        'failed receipt/history transaction fenced against automatic second email');
+    mail_delivery_assert($historyState($mail3)['delivery_state']==='queued',
+        'failed history transaction did not overwrite scope/state');
+
+    $mail4=$makeMail('test:1998:lease');
+    $fenceResponse=static function(array $payload,array $headers)use($db,$mail4):array {
+        $db->prepare("UPDATE ticket_mail_outbox SET state='uncertain' WHERE id=?")
+            ->execute([$mail4]);
+        return ['status'=>200,'body'=>'{"id":"synthetic-1998-late-worker"}'];
+    };
+    mail_delivery_assert(brvtal_ticket_mail_deliver_one($db,$fenceResponse)==='lease_lost'
+        && $historyState($mail4)['delivery_state']==='queued',
+        'lost worker lease cannot publish false accepted history');
+
+    $GLOBALS['config']['ticketing']['mail']['testing']='0';
+    $GLOBALS['config']['ticketing']['mail']['privacy_approved']='0';
+    [$privacyRaw,$privacyHeaders]=$hook('email.sent',$provider2,'msg-1998-privacy',time());
+    mail_delivery_assert(brvtal_mail_webhook_process($db,$privacyRaw,$privacyHeaders,$hookSecret)===503,
+        'privacy approval remains required for provider event persistence');
+    $GLOBALS['config']['ticketing']['mail']['testing']='1';
+    $GLOBALS['config']['ticketing']['mail']['privacy_approved']='1';
+    putenv($oldHookFlag===false ? 'BRVTAL_TICKET_MAIL_WEBHOOK_ENABLED'
+        : 'BRVTAL_TICKET_MAIL_WEBHOOK_ENABLED='.$oldHookFlag);
+
     foreach ([
         'CREATE TABLE events (id INT PRIMARY KEY,title VARCHAR(160) NOT NULL) ENGINE=InnoDB',
         'CREATE TABLE ticket_buyers (id BIGINT PRIMARY KEY,email VARCHAR(190) NOT NULL) ENGINE=InnoDB',
