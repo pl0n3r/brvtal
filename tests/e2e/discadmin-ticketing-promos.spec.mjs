@@ -110,8 +110,13 @@ test('Cupones: capturas antes/después a 390 y 1440',async({page},testInfo)=>{
         if (url.searchParams.get('catalog')==='1') return r.fulfill({contentType:'application/json',body:JSON.stringify(catalog)});
         return r.fulfill({contentType:'application/json',body:'{"ok":true,"rules":[]}'});
       },src);
-      await page.waitForTimeout(150);
+      await expect(page.locator('[data-panel]')).toBeVisible();
+      // A screenshot is not proof of a rendered interface: assert the mounted
+      // controls before saving evidence for each viewport and version.
+      await expect(page.locator('[data-panel]')).not.toBeEmpty();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
       const shot=await page.screenshot({fullPage:true});
+      expect(shot.byteLength).toBeGreaterThan(2000);
       await testInfo.attach(`cupones-${label}-${width}`,{body:shot,contentType:'image/png'});
       if (process.env.BRVTAL_VISUAL_EVIDENCE) {
         mkdirSync(process.env.BRVTAL_VISUAL_EVIDENCE,{recursive:true});
