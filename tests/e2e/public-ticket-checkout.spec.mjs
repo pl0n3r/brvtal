@@ -102,7 +102,8 @@ test('T13 huésped, timeout, retry y redirect nunca confirman pago', async ({ pa
   await plus(page, 5).click();
   const button=payButton(page);
   await button.click();
-  await expect(page.locator('#ticket-checkout-status')).toContainText('Inicia sesión');
+  // #1948: without a session the cart asks for the buyer's details instead of a login.
+  await expect(page.locator('#ticket-checkout-status')).toHaveText('Escribe un correo válido: ahí te llegan las boletas.');
   expect(requests).toHaveLength(0);
   allowed=true;
   await button.click();
@@ -148,7 +149,7 @@ test('T13 recupera pago cuando la última boleta agotó el inventario', async ({
   await request;
   await expect(page.locator('#checkout-boletas')).toBeVisible();
   await expect(page.locator('#ticket-checkout-status'))
-    .toHaveText('Pago confirmado por el servidor. Consulta tus entradas en tu cuenta.');
+    .toHaveText('Pago confirmado. Te enviamos las boletas con QR a tu correo.');
   expect(orderIds).toEqual(['51']);
   await expect(page.locator('#brvtal-ticket-checkout')).toHaveCount(0);
 });

@@ -71,16 +71,21 @@
     if (!response.ok || !payload.ok) throw new Error(payload.error || 'CHECKOUT_UNAVAILABLE');
     return payload;
   }
-  async function refresh(orderId) {
+  async function refresh(saved) {
     if (panel) panel.hidden = false;
     const url = new URL(location.pathname, location.origin);
-    url.searchParams.set('order_id', String(orderId));
+    // #1948: guests have no session; their opaque order_token identifies the order.
+    if (/^[a-f0-9]{32}$/.test(String(saved?.order_token || ''))) {
+      url.searchParams.set('order_token', saved.order_token);
+    } else {
+      url.searchParams.set('order_id', String(saved.order_id));
+    }
     try {
       const response = await fetch(url, { credentials: 'same-origin', cache: 'no-store',
         headers: { 'X-BRVTAL-TICKET-CHECKOUT': 'status' } });
       const payload = await json(response);
       const states = {
-        approved: 'Pago confirmado por el servidor. Consulta tus entradas en tu cuenta.',
+        approved: 'Pago confirmado. Te enviamos las boletas con QR a tu correo.',
         failed: 'El pago no fue aprobado. Puedes volver a intentarlo.',
         cancelled: 'El pago fue cancelado.',
         pending: 'Pago pendiente de confirmación. Actualiza esta página para consultar el estado.',
@@ -96,7 +101,7 @@
     }
   }
   if (/^[1-9]\d{0,17}$/.test(String(record?.order_id || ''))) {
-    void refresh(record.order_id);
+    void refresh(record);
   }
 
   // T28 public discovery is read-only and independent of public_page.php.
@@ -241,6 +246,54 @@
     const stickyPay = document.querySelector('[data-cart-sticky-pay]');
     const stickyIdle = stickySummary?.textContent || '';
     let submitting = false;
+    const buyerBox = form.querySelector('[data-cart-buyer]');
+    const accountNote = form.querySelector('[data-cart-account]');
+    const field = name => form.elements.namedItem(name);
+    const buyerErrors = {
+      buyer_email: 'Escribe un correo válido: ahí te llegan las boletas.',
+      buyer_name: 'Escribe tu nombre (mínimo 2 letras).',
+      buyer_consent: 'Acepta el tratamiento de datos para poder comprar.',
+    };
+    // Guest details: validated here for fast feedback, re-validated by the server.
+    function readBuyer() {
+      for (const name of Object.keys(buyerErrors)) field(name)?.removeAttribute('aria-invalid');
+      const email = field('buyer_email');
+      const name = field('buyer_name');
+      const consent = field('buyer_consent');
+      email.value = email.value.trim();
+      name.value = name.value.replace(/\s+/gu, ' ').trim();
+      for (const input of [email, name, consent]) {
+        if (!input.checkValidity() || (input === name && name.value.length < 2)) {
+          input.setAttribute('aria-invalid', 'true');
+          say(buyerErrors[input.name]);
+          input.focus();
+          return null;
+        }
+      }
+      return { email: email.value, name: name.value, consent: true, website: field('website')?.value || '' };
+    }
+    // Store only a digest of the buyer identity in sessionStorage. A reload with
+    // the same normalized buyer must reuse its original idempotency key.
+    async function buyerFingerprint(buyer) {
+      const data = new TextEncoder().encode(buyer.email.toLowerCase() + '\u0000' + buyer.name);
+      const digest = await crypto.subtle.digest('SHA-256', data);
+      return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+    }
+    function lockBuyer(locked) {
+      for (const name of ['buyer_email', 'buyer_name']) {
+        const input = field(name);
+        if (input) input.readOnly = locked;
+      }
+      const consent = field('buyer_consent');
+      if (consent) consent.disabled = locked;
+    }
+    const signedIn = authenticated => {
+      if (buyerBox) buyerBox.hidden = authenticated;
+      if (accountNote) accountNote.hidden = authenticated;
+    };
+    fetch('/api/buyer/auth.php', { credentials: 'same-origin', cache: 'no-store' })
+      .then(response => response.json()).then(auth => signedIn(auth?.authenticated === true))
+      .catch(() => { /* Unknown session: keep the guest fields visible. */ });
     const method = () => form.querySelector('input[name="method"]:checked')?.value || '';
     const lines = () => rows.filter(item => quantities.get(item.id) > 0)
       .map(item => ({ ticket_type_id: item.id, quantity: quantities.get(item.id) }));
@@ -308,7 +361,91 @@
     });
     form.addEventListener('change', event => {
       if (event.target.name === 'method') newPurchase();
+      // Buyer identity is compared at submit, not on each field change: after
+      // a reload, re-entering the same email/name must preserve the retry key.
     });
+    // Keep error presentation separate from the payment/redirect flow.
+    // Server responses stay authoritative; never infer a successful payment.
+    function reportCheckoutError(error) {
+      const guestField = {
+        GUEST_EMAIL_INVALID: 'buyer_email',
+        GUEST_NAME_INVALID: 'buyer_name',
+        GUEST_CONSENT_REQUIRED: 'buyer_consent',
+      }[error.message];
+      if (guestField) {
+        field(guestField)?.setAttribute('aria-invalid', 'true');
+        field(guestField)?.focus();
+        say(buyerErrors[guestField]);
+        return;
+      }
+      const feedback = {
+        CHECKOUT_TIMEOUT: TIMEOUT_MESSAGE,
+        CHECKOUT_EXPIRED: 'La reserva expiró. Cambia tu selección para iniciar una nueva compra.',
+        CHECKOUT_RETRYABLE: 'Otra solicitud está preparando tu reserva. Vuelve a intentarlo sin cambiar la selección.',
+        RATE_LIMITED: 'Demasiados intentos con este correo. Espera unos minutos y vuelve a intentarlo.',
+        CSRF_OR_METHOD: 'Tu sesión cambió. Recarga la página y vuelve a intentarlo.',
+        AUTH_REQUIRED: 'Tu sesión cambió. Recarga la página y vuelve a intentarlo.',
+        // The public API intentionally masks blocked accounts as unavailable
+        // to avoid revealing account status to unauthenticated visitors.
+        CHECKOUT_UNAVAILABLE: 'No fue posible reservar. Verifica el cupo; si tu cuenta está bloqueada, contacta con BRVTAL.',
+      };
+      say(feedback[error.message] ||
+        'No fue posible reservar. Puede que ya no haya cupo; revisa tu selección y vuelve a intentarlo.');
+    }
+    async function resolveCartBuyer(auth) {
+      signedIn(auth.authenticated === true);
+      if (auth.authenticated) return { buyer: null, fingerprint: null };
+      const buyer = readBuyer();
+      if (!buyer) return null;
+      // Freeze the selected identity while prepare is in flight. It is unlocked
+      // in the submit handler's finally even on timeout or network failure.
+      lockBuyer(true);
+      return { buyer, fingerprint: await buyerFingerprint(buyer) };
+    }
+    function persistCartIntent(selection, identity) {
+      const { buyer, fingerprint } = identity;
+      if (record && (buyer ? record.buyer_fingerprint !== fingerprint : Boolean(record.buyer_fingerprint))) {
+        // A different buyer must never reuse a key or token from a prior order.
+        intent = null;
+        clear();
+      }
+      if (record?.lines && (!sameLines(record.lines, selection.lines) || record.method !== selection.method)) {
+        say('Tu selección cambió. Ajusta las boletas para empezar una nueva compra.');
+        return null;
+      }
+      intent ||= 'T13-' + crypto.randomUUID();
+      const pending = { intent, lines: selection.lines, method: selection.method,
+        ...(fingerprint ? { buyer_fingerprint: fingerprint } : {}),
+        ...(record?.order_id ? { order_id: record.order_id } : {}),
+        ...(/^[a-f0-9]{32}$/.test(String(record?.order_token || ''))
+          ? { order_token: record.order_token } : {}) };
+      if (!save(pending)) {
+        say('No se pudo guardar tu reserva para reintentos. Activa el almacenamiento de sesión.');
+        return null;
+      }
+      return pending;
+    }
+    async function sendCartPrepare(auth, buyer, selection, pending) {
+      return json(await timedFetch(location.pathname, {
+        method: 'POST', credentials: 'same-origin', cache: 'no-store',
+        // Guests prove same-origin via browser Fetch Metadata, not session CSRF.
+        headers: { 'Content-Type': 'application/json', 'X-BRVTAL-TICKET-CHECKOUT': 'prepare',
+          ...(buyer ? {} : { 'X-CSRF-TOKEN': auth.csrf }) },
+        body: JSON.stringify({ lines: selection.lines, method: selection.method,
+          idempotency_key: pending.intent, ...(buyer ? { buyer } : {}) }),
+      }));
+    }
+    function finishCartPrepare(pending, result) {
+      save({ ...pending, order_id: String(result.order_id),
+        ...(/^[a-f0-9]{32}$/.test(String(result.order_token || '')) ? { order_token: result.order_token } : {}) });
+      if (result.checkout?.environment === 'mock') {
+        // Synthetic mode never charges.
+        say('Reserva preparada. El pago sigue pendiente hasta la confirmación del servidor.');
+        return;
+      }
+      say('Reserva lista. Te llevamos a Wompi para pagar; el pago queda pendiente hasta que el servidor lo confirme.');
+      goToWompi(result.checkout);
+    }
     form.addEventListener('submit', async event => {
       event.preventDefault();
       if (submitting || pay.disabled) return;
@@ -317,46 +454,19 @@
       update();
       say('Verificando acceso y cupo…');
       try {
-        const auth = await json(await timedFetch('/api/buyer/auth.php', { credentials: 'same-origin', cache: 'no-store' }));
-        if (!auth.authenticated) {
-          say('Inicia sesión para pagar. Si olvidaste tu clave, recupera el acceso desde tu cuenta BRVTAL.');
-          return;
-        }
-        if (record?.lines && (!sameLines(record.lines, selection.lines) || record.method !== selection.method)) {
-          say('Tu selección cambió. Ajusta las boletas para empezar una nueva compra.');
-          return;
-        }
-        intent ||= 'T13-' + crypto.randomUUID();
-        const pending = { intent, lines: selection.lines, method: selection.method,
-          ...(record?.order_id ? { order_id: record.order_id } : {}) };
-        if (!save(pending)) {
-          say('No se pudo guardar tu reserva para reintentos. Activa el almacenamiento de sesión.');
-          return;
-        }
-        const result = await json(await timedFetch(location.pathname, {
-          method: 'POST', credentials: 'same-origin', cache: 'no-store',
-          headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': auth.csrf,
-            'X-BRVTAL-TICKET-CHECKOUT': 'prepare' },
-          body: JSON.stringify({ lines: selection.lines, method: selection.method, idempotency_key: intent }),
+        const auth = await json(await timedFetch('/api/buyer/auth.php', {
+          credentials: 'same-origin', cache: 'no-store',
         }));
-        save({ ...pending, order_id: String(result.order_id) });
-        if (result.checkout?.environment === 'mock') { // Synthetic mode never charges.
-          say('Reserva preparada. El pago sigue pendiente hasta la confirmación del servidor.');
-          return;
-        }
-        say('Reserva lista. Te llevamos a Wompi para pagar; el pago queda pendiente hasta que el servidor lo confirme.');
-        goToWompi(result.checkout);
+        const identity = await resolveCartBuyer(auth);
+        if (!identity) return;
+        const pending = persistCartIntent(selection, identity);
+        if (!pending) return;
+        const result = await sendCartPrepare(auth, identity.buyer, selection, pending);
+        finishCartPrepare(pending, result);
       } catch (error) {
-        if (error.message === 'CHECKOUT_TIMEOUT') {
-          say(TIMEOUT_MESSAGE);
-        } else if (error.message === 'CHECKOUT_EXPIRED') {
-          say('La reserva expiró. Cambia tu selección para iniciar una nueva compra.');
-        } else if (error.message === 'CHECKOUT_RETRYABLE') {
-          say('Otra solicitud está preparando tu reserva. Vuelve a intentarlo sin cambiar la selección.');
-        } else {
-          say('No fue posible reservar. Puede que ya no haya cupo; revisa tu selección y vuelve a intentarlo.');
-        }
+        reportCheckoutError(error);
       } finally {
+        lockBuyer(false);
         submitting = false;
         update();
       }
