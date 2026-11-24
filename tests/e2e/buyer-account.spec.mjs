@@ -58,7 +58,7 @@ test('mobile: empty orders and filters are clear and do not reveal a QR', async 
   expect(calls.some(x=>x.url.includes('from=2026-11-01'))).toBe(true);
 });
 
-test('desktop: pending, expired, used, revoked, paid and secure scannable SVG download', async ({page}) => {
+test('desktop: pending, expired, used, revoked, paid and secure scannable PNG download', async ({page}) => {
   await page.setViewportSize({width:1280,height:900});
   const calls=await fakeAccount(page,[paid,{...base,public_id:'p',status:'pending',payment_status:'pending',items:[]},
     {...base,public_id:'e',status:'expired',payment_status:'declined',items:[]}]);
@@ -82,8 +82,8 @@ test('desktop: pending, expired, used, revoked, paid and secure scannable SVG do
   expect(calls.find(x=>x.method==='POST')?.data?.ticket_id).toBe('abcdefabcdefabcdefabcdefabcdefab');
   expect(page.url()).not.toContain('BRVTAL:T1:');
   const download=page.waitForEvent('download');
-  await page.getByRole('button',{name:'Descargar QR SVG'}).click();
-  expect((await download).suggestedFilename()).toBe('entrada-brvtal.svg');
+  await page.getByRole('button',{name:'Descargar QR PNG'}).click();
+  expect((await download).suggestedFilename()).toBe('entrada-brvtal.png');
 });
 
 test('mobile: invalid/revoked token remains hidden and pagination stays read-only', async ({page}) => {
@@ -106,4 +106,106 @@ test('API read failure is accessible, without misreporting success', async ({pag
   await page.goto(url);
   await expect(page.getByRole('status').first()).toContainText('No pudimos cargar tus compras');
   await expect(page.getByRole('button',{name:'Ver más pedidos'})).toBeHidden();
+});
+
+// #1978: account-owned QR without manual token, with real responsive captures.
+test('buyer can open and download a stored QR at 390 and 1440 px', async ({page},testInfo) => {
+  for(const width of [390,1440]){
+    await page.setViewportSize({width,height:900});
+    const stored={...paid,items:[{...paid.items[0],qr_stored:true}]};
+    const calls=await fakeAccount(page,[stored]);
+    await page.goto(url);
+    await expect(page.getByRole('button',{name:'Ver QR'})).toBeVisible();
+    await page.screenshot({path:testInfo.outputPath('account-'+width+'-before.png')});
+    await page.getByRole('button',{name:'Ver QR'}).click();
+    await expect(page.locator('#qr-output svg')).toBeVisible();
+    await expect(page.getByLabel('Credencial original')).toBeHidden();
+    expect(calls.find(x=>x.method==='POST')?.data?.action).toBe('qr_stored');
+    expect(calls.find(x=>x.method==='POST')?.headers['x-csrf-token']).toBe('fake-csrf');
+    await page.screenshot({path:testInfo.outputPath('account-'+width+'-after.png')});
+    const download=page.waitForEvent('download');
+    await page.getByRole('button',{name:'Descargar QR PNG'}).click();
+    expect((await download).suggestedFilename()).toBe('entrada-brvtal.png');
+  }
+});
+
+test('stored QR owner mismatch yields 404-equivalent and no visible QR', async ({page}) => {
+  const stored={...paid,items:[{...paid.items[0],qr_stored:true}]};
+  await fakeAccount(page,[stored],404);
+  await page.goto(url);
+  await page.getByRole('button',{name:'Ver QR'}).click();
+  await expect(page.getByText(/No se pudo autorizar esta entrada/)).toBeVisible();
+  await expect(page.locator('#qr-output svg')).toHaveCount(0);
+  await expect(page.getByLabel('Credencial original')).toBeVisible();
+});
+
+test('stale QR response cannot replace a newer selected ticket', async ({page}) => {
+  const first='abcdefabcdefabcdefabcdefabcdefab', second='dddddddddddddddddddddddddddddddd';
+  const withTwo={...paid,items:[
+    {...paid.items[0],ticket_id:first,qr_stored:true},
+    {...paid.items[0],ticket_id:second,qr_stored:true}
+  ]};
+  let releaseFirst;
+  const delayed=new Promise(resolve=>{releaseFirst=resolve;});
+  await page.route(url,route=>route.fulfill({contentType:'text/html',body:html}));
+  await page.route('**/api/buyer/auth.php',route=>route.fulfill({contentType:'application/json',
+    body:JSON.stringify({ok:true,authenticated:true,csrf:'fake-csrf'})}));
+  await page.route('**/api/buyer/account.php**',async route=>{
+    if(route.request().method()==='GET')return route.fulfill({contentType:'application/json',
+      body:JSON.stringify({ok:true,data:{orders:[withTwo],has_more:false,page:0}})});
+    const id=route.request().postDataJSON()?.ticket_id;
+    if(id===first)await delayed;
+    return route.fulfill({contentType:'application/json',
+      body:JSON.stringify({ok:true,qr:'BRVTAL:T1:'+id+':'+'A'.repeat(43)})});
+  });
+  await page.goto(url);
+  const buttons=page.getByRole('button',{name:'Ver QR'});
+  await expect(buttons).toHaveCount(2);
+  await buttons.nth(0).click();
+  await buttons.nth(1).click();
+  await expect(page.locator('#qr-output svg')).toBeVisible();
+  const freshSvg=await page.locator('#qr-output').innerHTML();
+  releaseFirst();
+  await page.waitForTimeout(100);
+  expect(await page.locator('#qr-output').innerHTML()).toBe(freshSvg);
+  await expect(page.locator('#qr-feedback')).toContainText('QR autorizado');
+});
+
+test('switching from pending stored QR to legacy ticket restores the manual submit', async ({page}) => {
+  const storedId='abcdefabcdefabcdefabcdefabcdefab';
+  const legacyId='eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
+  const two={...paid,items:[
+    {...paid.items[0],ticket_id:storedId,qr_stored:true},
+    {...paid.items[0],ticket_id:legacyId,qr_stored:false}
+  ]};
+  let releaseStored;
+  const pending=new Promise(resolve=>{releaseStored=resolve;});
+  await page.route(url,route=>route.fulfill({contentType:'text/html',body:html}));
+  await page.route('**/api/buyer/auth.php',route=>route.fulfill({contentType:'application/json',
+    body:JSON.stringify({ok:true,authenticated:true,csrf:'fake-csrf'})}));
+  const sent=[];
+  await page.route('**/api/buyer/account.php**',async route=>{
+    if(route.request().method()==='GET')return route.fulfill({contentType:'application/json',
+      body:JSON.stringify({ok:true,data:{orders:[two],has_more:false,page:0}})});
+    const body=route.request().postDataJSON();sent.push(body);
+    if(body.ticket_id===storedId)await pending;
+    return route.fulfill({contentType:'application/json',
+      body:JSON.stringify({ok:true,qr:'BRVTAL:T1:'+body.ticket_id+':'+'A'.repeat(43)})});
+  });
+  await page.goto(url);
+  const buttons=page.getByRole('button',{name:'Ver QR'});
+  await expect(buttons).toHaveCount(2);
+  await buttons.nth(0).click();
+  await buttons.nth(1).click();
+  const submit=page.getByRole('button',{name:'Mostrar QR'});
+  await expect(submit).toBeEnabled();
+  await page.getByLabel('Credencial original').fill('A'.repeat(43));
+  await submit.click();
+  await expect(page.locator('#qr-output svg')).toBeVisible();
+  const expectedSvg=await page.locator('#qr-output').innerHTML();
+  releaseStored();
+  await page.waitForTimeout(100);
+  expect(await page.locator('#qr-output').innerHTML()).toBe(expectedSvg);
+  expect(sent.some(x=>x.ticket_id===legacyId&&x.action==='qr')).toBe(true);
+  await expect(page.locator('#qr-feedback')).toContainText('QR autorizado');
 });

@@ -48,10 +48,36 @@ function brvtalBuyerAccountAuthorized(PDO $db, int $buyerId): bool
     return $q->fetchColumn() !== false;
 }
 
+/**
+ * Only a verified buyer can see all their orders. A paid-checkout guest
+ * session must remain limited to its single server-issued checkout grant.
+ */
+function brvtalBuyerAccountCheckoutScope(PDO $db, int $buyerId): ?int
+{
+    if ($buyerId < 1) throw new DomainException('TICKET_UNAVAILABLE');
+    $q = $db->prepare('SELECT status,email_verified_at FROM ticket_buyers WHERE id=? LIMIT 1');
+    $q->execute([$buyerId]);
+    $buyer = $q->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($buyer)) throw new DomainException('TICKET_UNAVAILABLE');
+    if ($buyer['status'] === 'active' && $buyer['email_verified_at'] !== null) return null;
+    if ($buyer['status'] !== 'guest' || $buyer['email_verified_at'] !== null
+        || (int)($_SESSION['buyer_id'] ?? 0) !== $buyerId) {
+        throw new DomainException('TICKET_UNAVAILABLE');
+    }
+    $order = (int)($_SESSION['buyer_checkout_new_order'] ?? 0);
+    if ($order < 1) throw new DomainException('TICKET_UNAVAILABLE');
+    $paid = $db->prepare("SELECT 1 FROM ticket_orders WHERE id=? AND buyer_id=? AND status='paid' LIMIT 1");
+    $paid->execute([$order, $buyerId]);
+    if ($paid->fetchColumn() === false) throw new DomainException('TICKET_UNAVAILABLE');
+    return $order;
+}
+
 function brvtalBuyerAccountOrders(PDO $db, int $buyerId, array $f): array
 {
     if ($buyerId < 1) throw new DomainException('AUTH_REQUIRED');
+    $scope = brvtalBuyerAccountCheckoutScope($db, $buyerId);
     $where = ['o.buyer_id=?']; $args = [$buyerId];
+    if ($scope !== null) { $where[] = 'o.id=?'; $args[] = $scope; }
     if ($f['event_id'] !== null) { $where[] = 'o.event_id=?'; $args[] = $f['event_id']; }
     if ($f['from']) { $where[] = 'o.created_at_utc>=?'; $args[] = $f['from']->format('Y-m-d 00:00:00'); }
     if ($f['to']) { $where[] = 'o.created_at_utc<?'; $args[] = $f['to']->modify('+1 day')->format('Y-m-d 00:00:00'); }
@@ -68,9 +94,12 @@ function brvtalBuyerAccountOrders(PDO $db, int $buyerId, array $f): array
     if ($more) array_pop($orders);
     if (!$orders) return ['orders'=>[],'has_more'=>false,'page'=>$f['page']];
     $ids = array_map(static fn($row) => (int)$row['id'], $orders);
+    $encryptedAvailable = brvtal_ticket_issue_has_encrypted_column($db);
+    $storedSql = $encryptedAvailable ? 'CASE WHEN c.token_encrypted IS NULL THEN 0 ELSE 1 END' : '0';
     $items = $db->prepare('SELECT i.order_id,i.ticket_name_snapshot,i.quantity,
         LOWER(HEX(t.public_id)) AS ticket_id,t.status AS ticket_status,
-        CASE WHEN c.id IS NULL THEN 0 ELSE 1 END AS credential_active
+        CASE WHEN c.id IS NULL THEN 0 ELSE 1 END AS credential_active,
+        ' . $storedSql . ' AS qr_stored
         FROM ticket_order_items i LEFT JOIN ticket_entries t ON t.order_item_id=i.id
         LEFT JOIN ticket_entry_credentials c ON c.entry_id=t.id AND c.status=\'active\'
         WHERE i.order_id IN ('.implode(',',array_fill(0,count($ids),'?')).') ORDER BY i.id,t.unit_number');
@@ -82,6 +111,7 @@ function brvtalBuyerAccountOrders(PDO $db, int $buyerId, array $f): array
             'name'=>$row['ticket_name_snapshot'],'quantity'=>(int)$row['quantity'],
             'ticket_id'=>$row['ticket_id'], 'status'=>$row['ticket_status'] ?? 'pending',
             'qr_requires_original_token'=>(bool)$row['credential_active'],
+            'qr_stored'=>(bool)$row['qr_stored'],
         ];
     }
     foreach ($orders as &$order) {
@@ -101,16 +131,52 @@ function brvtalBuyerAccountQr(PDO $db, int $buyerId, string $ticketId, string $t
     if ($buyerId < 1 || !preg_match('/^[a-f0-9]{32}$/D', $ticketId)) {
         throw new DomainException('TICKET_UNAVAILABLE');
     }
+    $scope = brvtalBuyerAccountCheckoutScope($db, $buyerId);
     $q=$db->prepare('SELECT e.event_date FROM ticket_entries t
         JOIN ticket_order_items i ON i.id=t.order_item_id
         JOIN ticket_orders o ON o.id=i.order_id
         JOIN events e ON e.id=o.event_id
         WHERE t.public_id=UNHEX(?) AND o.buyer_id=? AND o.status=\'paid\'
-        AND t.status=\'issued\' LIMIT 1');
-    $q->execute([$ticketId,$buyerId]);
+        AND t.status=\'issued\'' . ($scope === null ? '' : ' AND o.id=?') . ' LIMIT 1');
+    $args = [$ticketId, $buyerId];
+    if ($scope !== null) $args[] = $scope;
+    $q->execute($args);
     $eventDate=$q->fetchColumn();
     if (!is_string($eventDate) || $eventDate === '') throw new DomainException('TICKET_UNAVAILABLE');
     $cutoff=new DateTimeImmutable($eventDate,new DateTimeZone('America/Bogota'))
         ->modify('+1 day')->setTimezone(new DateTimeZone('UTC'));
     return brvtal_ticket_issue_download($db,$buyerId,$ticketId,$token,$cutoff);
+}
+
+/** Account-only QR recovery, preserving the original-token path for historical entries. */
+function brvtalBuyerAccountStoredQr(PDO $db, int $buyerId, string $ticketId): array
+{
+    if ($buyerId < 1 || !preg_match('/^[a-f0-9]{32}$/D', $ticketId)
+        || !brvtal_ticket_issue_has_encrypted_column($db)) {
+        throw new DomainException('TICKET_UNAVAILABLE');
+    }
+    $scope = brvtalBuyerAccountCheckoutScope($db, $buyerId);
+    try {
+        $stmt = $db->prepare("SELECT t.public_id,c.token_encrypted
+            FROM ticket_entries t
+            JOIN ticket_order_items i ON i.id=t.order_item_id
+            JOIN ticket_orders o ON o.id=i.order_id
+            JOIN ticket_entry_credentials c ON c.entry_id=t.id AND c.status='active'
+            WHERE t.public_id=UNHEX(?) AND o.buyer_id=? AND o.status='paid'
+              AND t.status='issued' AND t.event_id=o.event_id
+              AND c.token_encrypted IS NOT NULL" . ($scope === null ? '' : ' AND o.id=?') . " LIMIT 1");
+        $params = [$ticketId, $buyerId];
+        if ($scope !== null) $params[] = $scope;
+        $stmt->execute($params);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    } catch (PDOException) {
+        throw new DomainException('TICKET_UNAVAILABLE');
+    }
+    if (!is_array($row) || !is_string($row['token_encrypted'] ?? null)
+        || !is_string($row['public_id'] ?? null)) {
+        throw new DomainException('TICKET_UNAVAILABLE');
+    }
+    $raw = brvtal_ticket_issue_open_token($row['token_encrypted'], $row['public_id']);
+    $token = rtrim(strtr(base64_encode($raw), '+/', '-_'), '=');
+    return brvtalBuyerAccountQr($db, $buyerId, $ticketId, $token);
 }
