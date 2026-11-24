@@ -32,7 +32,7 @@ export function mount(target) {
   const buyerEmailInput=el('input');buyerEmailInput.type='email';
   buyerEmailInput.maxLength=190;buyerEmailInput.autocomplete='email';
   const buyerEmail=field(sale,'Correo del comprador (opcional)','buyer_email',buyerEmailInput,
-    'Se usará únicamente para enviar las boletas de esta venta; no da consentimiento publicitario.');
+    'Correo solo para entrega transaccional. En esta demostración no se envían correos ni se hacen cobros.');
   for (const [value,label,enabled] of [
     ['cash','Efectivo',true],['transfer','Transferencia: no disponible',false],
     ['wompi_qr','QR Wompi: no disponible',false]
