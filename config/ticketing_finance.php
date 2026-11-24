@@ -175,10 +175,10 @@ function brvtalFinanceReport(PDO $db, ?int $eventId, ?string $from, ?string $to,
         }
     }
     if ($channel==='pos') {
-        $allowed=array_fill_keys(array_map('intval',array_column($sales,'order_id')),true);
+        $allowed=array_fill_keys(array_map(intval(...),array_column($sales,'order_id')),true);
         $orders=array_values(array_filter($orders,static fn($o)=>isset($allowed[(int)$o['id']])));
     } elseif ($channel==='wompi') {
-        $allowed=array_fill_keys(array_map('intval',array_column($attempts,'order_id')),true);
+        $allowed=array_fill_keys(array_map(intval(...),array_column($attempts,'order_id')),true);
         $orders=array_values(array_filter($orders,static fn($o)=>isset($allowed[(int)$o['id']])));
     }
     $report=brvtalFinanceSummarize($orders,$items,$attempts,$sales);
