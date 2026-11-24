@@ -1,6 +1,9 @@
 /* Ticketing T17: read-only workspace inside the canonical DISCADMIN shell. */
 window.BRVTALTicketing = (() => {
   'use strict';
+  // #1986: modules are served immutable for a year; carry this deploy's ?v= to every import.
+  const moduleVersion = (() => { try { return new URL(document.currentScript.src).search; } catch { return ''; } })();
+  const modulePath = name => '/discadmin/' + name + '.js' + moduleVersion;
   // #1964 (A): task-oriented copy; provider state lives in the status strip above.
   const descriptions = {
     dashboard:'Aquí verás ventas, ingresos y lo que necesita atención de cada evento.',
@@ -69,7 +72,7 @@ window.BRVTALTicketing = (() => {
           const fragment = new DOMParser().parseFromString(await response.text(), 'text/html');
           const door = fragment.querySelector('[data-door]');
           if (!door) throw new Error('Respuesta inválida');
-          const module = await import('/discadmin/ticketing-door.js');
+          const module = await import(modulePath('ticketing-door'));
           if (!panel.isConnected || panel.getAttribute('aria-labelledby') !== active.id) return;
           if (!document.querySelector('link[data-brvtal-ticketing-door]')) {
             const style = document.createElement('link');
@@ -90,7 +93,7 @@ window.BRVTALTicketing = (() => {
       panel.appendChild(launch);
     }
     if (key === 'entries') {
-      import('/discadmin/ticketing-entries.js').then(mod => {
+      import(modulePath('ticketing-entries')).then(mod => {
         if (panel.isConnected && panel.getAttribute('aria-labelledby') === active.id
             && generation === selectionGeneration)
           return mod.mount(panel, () => panel.isConnected
@@ -102,7 +105,7 @@ window.BRVTALTicketing = (() => {
       });
     }
     if (key === 'orders' || key === 'buyers') {
-      import('/discadmin/ticketing-orders.js').then(mod => {
+      import(modulePath('ticketing-orders')).then(mod => {
         if (panel.isConnected && panel.getAttribute('aria-labelledby') === active.id) {
           return mod.mount(panel, key);
         }
@@ -113,7 +116,7 @@ window.BRVTALTicketing = (() => {
       });
     }
     if (key === 'finance') {
-      import('/discadmin/ticketing-finance.js').then(async mod => {
+      import(modulePath('ticketing-finance')).then(async mod => {
         if (!panel.isConnected || panel.getAttribute('aria-labelledby') !== active.id) return;
         await mod.mount(panel);
         if (!panel.isConnected || panel.getAttribute('aria-labelledby') !== active.id) return;
@@ -127,7 +130,7 @@ window.BRVTALTicketing = (() => {
             openRefunds.disabled = true;
             const outlet = panel.querySelector('[data-finance-tool-panel]') || panel;
             try {
-              const refunds = await import('/discadmin/ticketing-refunds.js');
+              const refunds = await import(modulePath('ticketing-refunds'));
               if (panel.isConnected && panel.getAttribute('aria-labelledby') === active.id) {
                 if (outlet !== panel) outlet.replaceChildren();
                 await refunds.mount(outlet);
@@ -147,7 +150,7 @@ window.BRVTALTicketing = (() => {
       });
     }
     if (key === 'promos') {
-      import('/discadmin/ticketing-promos.js').then(mod => {
+      import(modulePath('ticketing-promos')).then(mod => {
         if (panel.isConnected && panel.getAttribute('aria-labelledby') === active.id)
           mod.mount(panel);
       }).catch(() => {
@@ -164,7 +167,7 @@ window.BRVTALTicketing = (() => {
         style.dataset.brvtalTicketingMail = '1';
         document.head.append(style);
       }
-      import('./ticketing-mail-templates.js').then(mod => {
+      import(modulePath('ticketing-mail-templates')).then(mod => {
         if (!panel.isConnected || panel.getAttribute('aria-labelledby') !== active.id
             || generation !== selectionGeneration) return;
         stopMail = mod.mount(panel, () => panel.isConnected

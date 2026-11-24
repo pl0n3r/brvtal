@@ -361,10 +361,11 @@ test('#1976: issued order has no retry; nothing pending is explained',async({pag
   await page.route('**/api/ticketing/admin-issue-retry.php', route => route.fulfill(
     {status:409,contentType:'application/json',body:'{"ok":false,"error":"NOTHING_TO_RETRY"}'}));
   await start(page,route=>issueReply(state==='issued'
-    ? {state:'issued',attempts:2,next_attempt_at_utc:null} : failedIssue)(route),'orders',js,css,retryFixture);
+    ? {state:'done',attempts:2,next_attempt_at_utc:null} : failedIssue)(route),'orders',js,css,retryFixture);
   await page.getByRole('button',{name:'Detalle #91'}).click();
   const detail = page.locator('[data-ticketing-records-detail]');
   await expect(detail).toContainText('Boletas emitidas.');
+  await expect(detail).not.toContainText('no reconocido');
   await expect(page.getByRole('button',{name:'Reintentar emisión ahora'})).toHaveCount(0);
   state = 'failed';
   await page.getByRole('button',{name:'Detalle #91'}).click();
@@ -400,4 +401,35 @@ test('#1976: browser-generated before/after order detail at 390 and 1440',async(
       expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
     }
   }
+});
+
+// #1986: modules are served immutable for a year, so every dynamic import must carry the deploy ?v=.
+test('#1986: no DISCADMIN dynamic import omits the deploy version',()=>{
+  const files = ['discadmin/ticketing.js','discadmin/ticketing-orders.js','discadmin/ticketing-finance.js','discadmin/content-core.js'];
+  for (const file of files) {
+    const text = readFileSync(file,'utf8');
+    expect(text,file).not.toMatch(/import\(\s*['"][^'"]+\.js['"]\s*\)/);
+  }
+});
+
+test('#1986: Boletería loaded as ticketing.js?v=X requests Pedidos with ?v=X',async({page})=>{
+  const shell = readFileSync('discadmin/ticketing.js','utf8');
+  const requested = [];
+  await page.route('**/discadmin/ticketing.js?v=abc1234', route => route.fulfill({contentType:'text/javascript',body:shell}));
+  await page.route(/\/discadmin\/ticketing-orders\.js/, route => {
+    requested.push(new URL(route.request().url()).search);
+    return route.fulfill({contentType:'text/javascript',body:'export async function mount(){}'});
+  });
+  await page.route('**/discadmin/ticketing.php', route => route.fulfill({contentType:'text/html; charset=utf-8',
+    body:'<section class="ticketing" data-admin-module="ticketing" data-ticketing-role="superadmin">'
+      + '<div role="tablist"><button role="tab" type="button" data-ticketing-tab="orders" data-ticketing-tab-group="sale" aria-selected="true">Pedidos</button></div>'
+      + '<div id="ticketing-panel" role="tabpanel" data-ticketing-panel></div></section>'}));
+  await page.route('**/discadmin/module-cache-fixture.html', route => route.fulfill({contentType:'text/html; charset=utf-8',
+    body:'<!doctype html><html lang="es"><body><div id="admin-module-host"></div>'
+      + '<script>window.state={authed:true,section:"ticketing"};</script>'
+      + '<script src="/discadmin/ticketing.js?v=abc1234"></script></body></html>'}));
+  await page.goto('https://www.brvtal.com.co/discadmin/module-cache-fixture.html');
+  await page.evaluate(() => window.BRVTALTicketing.mount());
+  await expect.poll(() => requested).toContain('?v=abc1234');
+  expect(requested).not.toContain('');
 });

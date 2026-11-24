@@ -24,7 +24,7 @@ export async function mount(panel, initialKind = 'orders') {
   // T25 mounts only in the existing Orders workspace; no second admin shell.
   if (initialKind === 'orders' && ['superadmin','root','owner','platform_owner']
     .includes(panel.closest('[data-admin-module="ticketing"]')?.dataset.ticketingRole)) {
-    import('/discadmin/ticketing-courtesy.js')
+    import('/discadmin/ticketing-courtesy.js' + new URL(import.meta.url).search)
       .then(({mount}) => {if (active()) mount(panel);})
       .catch(() => {if (active()) status.textContent='Cortesías no disponibles.';});
   }
@@ -244,7 +244,9 @@ export async function mount(panel, initialKind = 'orders') {
     const h = document.createElement('h4'); h.textContent = 'Emisión de boletas';
     const text = document.createElement('p');
     const waiting = issue.state === 'pending' || issue.state === 'failed';
-    text.textContent = issue.state === 'issued' ? 'Boletas emitidas.'
+    // The outbox marks a finished issuance as 'done' (migration_ticketing_webhook_01).
+    text.textContent = issue.state === 'done' || issue.state === 'issued' ? 'Boletas emitidas. El correo con los QR sale en el siguiente minuto.'
+      : issue.state === 'processing' ? 'Emitiendo boletas…'
       : issue.state === 'failed' ? 'La emisión falló ' + issue.attempts + (issue.attempts === 1 ? ' vez' : ' veces')
         + '. Próximo intento: ' + bogotaDate(issue.next_attempt_at_utc) + '.'
       : issue.state === 'pending' ? 'Emisión pendiente. Próximo intento: '

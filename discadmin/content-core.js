@@ -581,7 +581,7 @@ function addTicket(t={}){
       }
       host.replaceChildren();
       try {
-        const module = await import('/discadmin/ticketing-stages.js');
+        const module = await import('/discadmin/ticketing-stages.js' + (BRVTAL_CONTENT_CORE_SCRIPT_SRC ? new URL(BRVTAL_CONTENT_CORE_SCRIPT_SRC).search : ''));
         if (!d.isConnected || !host.isConnected
             || Number(currentEvent?.id) !== eventId) return;
         module.mount(host, () => host.replaceChildren(), {eventId, typeId});
@@ -720,7 +720,7 @@ function refreshTicketInventory(eventId){
   const host=$('#ticketInventory');
   if(!host)return;
   const id=Number(eventId||0);
-  import('./ticketing-inventory.js')
+  import('/discadmin/ticketing-inventory.js' + (BRVTAL_CONTENT_CORE_SCRIPT_SRC ? new URL(BRVTAL_CONTENT_CORE_SCRIPT_SRC).search : ''))
     .then(module=>{if(Number(currentEvent?.id||0)===id&&host.isConnected)return module.mount(host,{eventId:id});})
     .catch(()=>{if(host.isConnected)host.textContent='No fue posible abrir el cupo de boletas.';});
 }
