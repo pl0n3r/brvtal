@@ -485,7 +485,7 @@ function brvtalMigrationDurationColumnMatches(mixed $row): bool
 {
     return is_array($row)
         && strtolower((string)($row['DATA_TYPE'] ?? '')) === 'int'
-        && preg_match('/\\bunsigned\\b/i', (string)($row['COLUMN_TYPE'] ?? '')) === 1
+            && str_contains(strtolower((string)($row['COLUMN_TYPE']??'')), 'unsigned')
         && strtoupper((string)($row['IS_NULLABLE'] ?? '')) === 'YES';
 }
 
