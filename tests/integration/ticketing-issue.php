@@ -205,6 +205,20 @@ t09($db->query('SELECT payment_attempt_id FROM ticket_issue_outbox WHERE order_i
     ->fetchColumn()===null,'POS outbox never fabricates a Wompi attempt');
 $job=(int)$db->query('SELECT id FROM ticket_issue_outbox WHERE order_id=105')
     ->fetchColumn();
+// Delivery is part of the same transaction. Missing email or a rejected
+// privacy gate must roll back minted secrets and preserve the pending POS job.
+foreach (['ISSUE_DELIVERY_RECIPIENT','MAIL_PRIVACY_NOT_APPROVED'] as $deliveryError) {
+    $rejectDelivery = static function (PDO $connection, int $orderId, array $tickets) use ($deliveryError): void {
+        throw new DomainException($deliveryError);
+    };
+    t09Reject(fn()=>brvtal_ticket_issue_consume($db,$job,$rejectDelivery), $deliveryError);
+    t09((int)$db->query('SELECT COUNT(*) FROM ticket_entries e
+        JOIN ticket_order_items i ON i.id=e.order_item_id
+        WHERE i.order_id=105')->fetchColumn()===0,
+        'delivery failure rolls back QR entries and hashes');
+    t09($db->query('SELECT state FROM ticket_issue_outbox WHERE order_id=105')->fetchColumn()==='pending',
+        'delivery failure leaves trusted POS work pending');
+}
 $result=brvtal_ticket_issue_consume($db,$job);
 t09($result['state']==='issued' && count($result['tickets'])===1,
     'trusted POS payment issues exactly one ticket with the same worker');
