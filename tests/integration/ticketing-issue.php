@@ -192,6 +192,23 @@ foreach(explode(';',$posDdl) as $statement) if(trim($statement)!=='') $db->exec(
 $posProofAfter=brvtalMigrationSchemaProof($db,'migration_ticketing_pos_02.sql');
 t09(($posProofAfter['complete']??false)===true,
     'post-migration MariaDB must prove nullable unsigned FK and preserved POS method');
+// A matching target/column with ON DELETE CASCADE is NOT our immutable ledger
+// proof: deletion of a Wompi attempt must never cascade into issuance evidence.
+$db->exec('ALTER TABLE ticket_issue_outbox
+    DROP FOREIGN KEY fk_ticket_issue_outbox_pos_attempt,
+    ADD CONSTRAINT fk_ticket_issue_outbox_pos_attempt FOREIGN KEY (payment_attempt_id)
+    REFERENCES ticket_payment_attempts(id) ON DELETE CASCADE');
+$cascadeProof=brvtalMigrationSchemaProof($db,'migration_ticketing_pos_02.sql');
+$fkRule='fk-reference:ticket_issue_outbox.fk_ticket_issue_outbox_pos_attempt=payment_attempt_id:ticket_payment_attempts.id';
+t09(($cascadeProof['complete']??true)===false
+    && ($cascadeProof['checks'][$fkRule]??true)===false,
+    'CASCADE may not be accepted as a valid POS Wompi evidence baseline');
+$db->exec('ALTER TABLE ticket_issue_outbox
+    DROP FOREIGN KEY fk_ticket_issue_outbox_pos_attempt,
+    ADD CONSTRAINT fk_ticket_issue_outbox_pos_attempt FOREIGN KEY (payment_attempt_id)
+    REFERENCES ticket_payment_attempts(id) ON DELETE RESTRICT');
+t09((brvtalMigrationSchemaProof($db,'migration_ticketing_pos_02.sql')['complete']??false)===true,
+    'restoring RESTRICT must restore the exact POS FK proof');
 $db->exec("INSERT INTO ticket_orders (id,event_id,buyer_id,status,total_cop,currency)
     VALUES (105,1,8,'paid',5000,'COP'),(106,1,8,'paid',5000,'COP')");
 $db->exec("INSERT INTO ticket_order_items
