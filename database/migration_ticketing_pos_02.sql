@@ -7,6 +7,7 @@ ALTER TABLE ticket_issue_outbox
     FOREIGN KEY (payment_attempt_id)
     REFERENCES ticket_payment_attempts(id) ON DELETE RESTRICT;
 
+-- Append terminal AFTER existing enum options so existing MariaDB ordinal values stay stable.
 -- A terminal is recorded by an authorized operator; not a processor integration.
 ALTER TABLE ticket_pos_sales
-  MODIFY COLUMN method ENUM('cash','terminal','transfer','wompi_qr') NOT NULL;
+  MODIFY COLUMN method ENUM('cash','transfer','wompi_qr','terminal') NOT NULL;
