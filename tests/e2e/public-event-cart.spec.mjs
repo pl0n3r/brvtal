@@ -186,6 +186,15 @@ for (const [label, size] of [['390', { width: 390, height: 844 }], ['1440', { wi
     await page.locator('[data-cart-type="5"] [data-cart-step="1"]').click();
     await page.locator('[data-cart-type="5"] [data-cart-step="1"]').click();
     await fillGuest(page);
+    if (size.width > 900) {
+      // #1950: the sticky panel never hides Pagar below the fold; it scrolls inside itself.
+      await page.locator('#lineup').scrollIntoViewIfNeeded();
+      const panel = await page.locator('#boletas').boundingBox();
+      expect(panel.y + panel.height).toBeLessThanOrEqual(size.height + 1);
+      await page.locator('[data-cart-pay]').scrollIntoViewIfNeeded();
+      await expect(page.locator('[data-cart-pay]')).toBeInViewport();
+      await page.evaluate(() => scrollTo(0, 0));
+    }
     await page.locator('[data-cart-buyer]').scrollIntoViewIfNeeded();
     const shot = await page.locator('#boletas').screenshot();
     await captureGuestVisual(testInfo, `cart-guest-despues-${label}`, shot);

@@ -143,6 +143,15 @@ body.cromo-page.entity-page--event .event-sticky-buy button.event-buy-button{
 }
 /* #1935 · The panel sits under the measured navigation (two rows at ~1280px). */
 body.cromo-page.entity-page--event .event-buy-panel{top:calc(var(--event-nav-h,76px) + 16px)}
+/* #1950 · With the guest fields the panel can be taller than the window. A sticky
+   box taller than the viewport hides its own bottom (consent + Pagar) until the page
+   ends, so on desktop it scrolls inside itself instead. */
+@media(min-width:901px){
+  body.cromo-page.entity-page--event .event-buy-panel{
+    max-height:calc(100svh - var(--event-nav-h,76px) - 32px);
+    overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#5a5a5a transparent
+  }
+}
 .event-buy-notify{
   display:flex;align-items:center;justify-content:center;min-height:48px;margin-top:12px;
   border:2px solid #fff;color:#fff;text-decoration:none;font:800 20px/1.1 "Barlow Condensed",sans-serif;
