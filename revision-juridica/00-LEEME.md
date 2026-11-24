@@ -1,4 +1,4 @@
-Última actualización automática de las fuentes: 2026-11-24 · SHA-256 de fuentes: `47813d5b4a73f1773df601784b466631747d21f524cf6f58532583961beafb7a`
+Última actualización automática de las fuentes: 2026-11-24 · SHA-256 de fuentes: `b675920d0ffdc354c2fa6636c30c253a91c4a65509413362e6df1b6fb4fc954d`
 
 # Carpeta de revisión jurídica · BRVTAL
 
@@ -7,7 +7,7 @@
 ## Procedencia
 
 - Proyecto `pl0n3r/brvtal`, versión declarada `0.1.338`.
-- Fuentes canónicas `docs/privacidad/` y `datos.yml`. Última modificación de contenido registrada: 2026-11-24; huella SHA-256 de las fuentes: `47813d5b4a73f1773df601784b466631747d21f524cf6f58532583961beafb7a`.
+- Fuentes canónicas `docs/privacidad/` y `datos.yml`. Última modificación de contenido registrada: 2026-11-24; huella SHA-256 de las fuentes: `b675920d0ffdc354c2fa6636c30c253a91c4a65509413362e6df1b6fb4fc954d`.
 - Los seis documentos incluidos son copias byte a byte de sus fuentes. Las correcciones jurídicas se hacen en las fuentes, y luego se regenera.
 
 ## Documentos que valida el abogado
