@@ -181,8 +181,20 @@ deliveryAssert((int)$failed['attempts'] === 7 && (int)$failed['wait'] >= 3500 &&
     'backoff capped at one hour');
 // Fixed cause: the next due run issues the tickets.
 $db->exec("UPDATE ticket_buyers SET email='carla@example.test' WHERE id=10");
-$db->exec('UPDATE ticket_issue_outbox SET next_attempt_at_utc=NULL WHERE order_id=105');
+// #1976: the job waits an hour; the admin retry brings it forward without issuing itself.
+deliveryAssert(brvtal_ticket_issue_process_next($db, $origin) === 'idle', 'hour-long backoff hides the job');
+deliveryAssert(brvtal_ticket_issue_retry_now($db, 105) === true, 'admin retry accepted for a failed job');
+deliveryAssert($count('SELECT COUNT(*) FROM ticket_entries e JOIN ticket_order_items i ON i.id=e.order_item_id WHERE i.order_id=105') === 0,
+    'the retry itself issues nothing');
+deliveryAssert(brvtal_ticket_issue_retry_now($db, 105) === true, 'retrying an already due job is harmless');
 deliveryAssert(brvtal_ticket_issue_process_next($db, $origin) === 'issued', 'issued once the cause is fixed');
+deliveryAssert(brvtal_ticket_issue_retry_now($db, 105) === false, 'an issued order has nothing to retry');
+deliveryAssert(brvtal_ticket_issue_retry_now($db, 999) === false, 'an unknown order has nothing to retry');
+try {
+    brvtal_ticket_issue_retry_now($db, 0);
+    deliveryAssert(false, 'invalid order id accepted');
+} catch (InvalidArgumentException) {
+}
 deliveryAssert(brvtal_ticket_issue_last_failure() === null, 'a successful issuance clears the last failure');
 file_put_contents($lastFailureFile, json_encode(['code'=>'ana@example.test','at'=>'2026-11-24T00:00:00Z']));
 deliveryAssert(brvtal_ticket_issue_last_failure() === null, 'a tampered diagnostic is never printed');

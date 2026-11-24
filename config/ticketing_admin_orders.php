@@ -125,5 +125,17 @@ function brvtalTicketAdminDetail(PDO $pdo, int $orderId): array
         $history->execute([$orderId]);
         $mails = $history->fetchAll(PDO::FETCH_ASSOC);
     }
-    return ['items'=>$items->fetchAll(PDO::FETCH_ASSOC), 'payments'=>$payments->fetchAll(PDO::FETCH_ASSOC), 'mail'=>$mails];
+    // #1976: issuance state, so the admin can see a stuck order and retry it.
+    $issue = null;
+    if (brvtalTicketAdminHasTable($pdo, 'ticket_issue_outbox')) {
+        $job = $pdo->prepare('SELECT state,attempts,next_attempt_at_utc FROM ticket_issue_outbox WHERE order_id=? LIMIT 1');
+        $job->execute([$orderId]);
+        $row = $job->fetch(PDO::FETCH_ASSOC);
+        if (is_array($row)) {
+            $issue = ['state'=>(string)$row['state'], 'attempts'=>(int)$row['attempts'],
+                'next_attempt_at_utc'=>$row['next_attempt_at_utc']];
+        }
+    }
+    return ['items'=>$items->fetchAll(PDO::FETCH_ASSOC), 'payments'=>$payments->fetchAll(PDO::FETCH_ASSOC),
+        'mail'=>$mails, 'issue'=>$issue];
 }

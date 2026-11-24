@@ -134,3 +134,22 @@ function brvtal_ticket_issue_process_next(PDO $db, string $origin = 'https://www
         return $wait ? 'waiting' : 'failed:' . brvtal_ticket_issue_failure_code($code);
     }
 }
+
+/**
+ * #1976: an admin asks for the next issuance attempt of one order to happen now.
+ * Only moves the due time of a pending or failed job; the CLI worker still issues.
+ */
+function brvtal_ticket_issue_retry_now(PDO $db, int $orderId): bool
+{
+    if ($orderId < 1) throw new InvalidArgumentException('ISSUE_RETRY_ORDER');
+    $retry = $db->prepare("UPDATE ticket_issue_outbox
+        SET next_attempt_at_utc=UTC_TIMESTAMP(6),updated_at_utc=UTC_TIMESTAMP(6)
+        WHERE order_id=? AND state IN ('pending','failed')");
+    $retry->execute([$orderId]);
+    if ($retry->rowCount() > 0) return true;
+    // Already due: rowCount can be 0 when nothing changed, so ask again.
+    $due = $db->prepare("SELECT 1 FROM ticket_issue_outbox
+        WHERE order_id=? AND state IN ('pending','failed') LIMIT 1");
+    $due->execute([$orderId]);
+    return $due->fetchColumn() !== false;
+}

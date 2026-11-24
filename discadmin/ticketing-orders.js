@@ -237,6 +237,54 @@ export async function mount(panel, initialKind = 'orders') {
     box.append(section);
   }
 
+  // #1976: issuance state of the order's tickets, with a retry that only brings
+  // the worker's next attempt forward. The cron still issues within a minute.
+  function addIssueRetry(box, id, issue) {
+    if (!issue) return;
+    const h = document.createElement('h4'); h.textContent = 'Emisión de boletas';
+    const text = document.createElement('p');
+    const waiting = issue.state === 'pending' || issue.state === 'failed';
+    text.textContent = issue.state === 'issued' ? 'Boletas emitidas.'
+      : issue.state === 'failed' ? 'La emisión falló ' + issue.attempts + (issue.attempts === 1 ? ' vez' : ' veces')
+        + '. Próximo intento: ' + bogotaDate(issue.next_attempt_at_utc) + '.'
+      : issue.state === 'pending' ? 'Emisión pendiente. Próximo intento: '
+        + (issue.next_attempt_at_utc ? bogotaDate(issue.next_attempt_at_utc) : 'en el siguiente minuto') + '.'
+      : 'Estado de emisión no reconocido.';
+    box.append(h, text);
+    if (!waiting) return;
+    const button = document.createElement('button');
+    button.type = 'button'; button.className = 'tk-button is-primary';
+    button.textContent = 'Reintentar emisión ahora';
+    const feedback = document.createElement('p');
+    feedback.setAttribute('role', 'status'); feedback.setAttribute('aria-live', 'polite');
+    feedback.dataset.issueRetryFeedback = '';
+    button.addEventListener('click', async () => {
+      button.disabled = true;
+      feedback.textContent = 'Programando el reintento…';
+      try {
+        const response = await fetch('/api/ticketing/admin-issue-retry.php', {
+          method:'POST',credentials:'same-origin',cache:'no-store',
+          headers:{'Content-Type':'application/json','X-CSRF-Token':
+            panel.querySelector('[data-ticketing-records]')?.dataset.ticketingCsrf || ''},
+          body:JSON.stringify({order_id:Number(id)})
+        });
+        const payload = await response.json().catch(() => null);
+        if (!active()) return;
+        if (response.ok && payload?.ok) {
+          feedback.textContent = 'Reintento programado. Las boletas se emiten en el próximo minuto; vuelve a abrir el detalle para confirmarlo.';
+          return;
+        }
+        feedback.textContent = response.status === 403 ? 'Sin permiso para reintentar la emisión.'
+          : response.status === 409 ? 'Este pedido no tiene una emisión pendiente.'
+          : 'No se pudo programar el reintento. Intenta de nuevo.';
+      } catch {
+        if (active()) feedback.textContent = 'Error de conexión. No se programó el reintento.';
+      }
+      button.disabled = false;
+    });
+    box.append(button, feedback);
+  }
+
   async function loadDetail(id) {
     detail.textContent = 'Consultando el detalle…';
     try {
@@ -270,6 +318,7 @@ export async function mount(panel, initialKind = 'orders') {
         }
         box.append(list);
       }
+      addIssueRetry(box, id, data.data.detail.issue);
       addSyntheticActions(box, id);
       detail.replaceChildren(box);
     } catch { if (active()) detail.textContent = 'No se pudo cargar el detalle. No se modificó el pedido.'; }
