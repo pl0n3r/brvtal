@@ -122,7 +122,7 @@ test('T13 huésped, timeout, retry y redirect nunca confirman pago', async ({ pa
   await page.addScriptTag({content:script});
   await statusRequest;
   await expect(page.locator('#ticket-checkout-status'))
-    .toHaveText('El pago no fue aprobado. Puedes volver a intentarlo.');
+    .toHaveText('Pedido #42: El pago no fue aprobado. Puedes volver a intentarlo.');
   expect(statusOrders).toEqual(['42']);
   await expect(page.getByText('Pago confirmado por el servidor.')).toHaveCount(0);
 });
@@ -149,7 +149,7 @@ test('T13 recupera pago cuando la última boleta agotó el inventario', async ({
   await request;
   await expect(page.locator('#checkout-boletas')).toBeVisible();
   await expect(page.locator('#ticket-checkout-status'))
-    .toHaveText('Pago confirmado. Te enviamos las boletas con QR a tu correo.');
+    .toHaveText('Pedido #51: Pago confirmado. Te enviamos las boletas con QR a tu correo.');
   expect(orderIds).toEqual(['51']);
   await expect(page.locator('#brvtal-ticket-checkout')).toHaveCount(0);
 });

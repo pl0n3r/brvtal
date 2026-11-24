@@ -52,6 +52,7 @@ function brvtal_ticket_issue_mail_deliverer(string $origin): callable
         brvtal_ticket_mail_queue_order($db, $orderId, 'payment_approved', $row['email'], [
             'event' => (string)$row['title'],
             'link' => $origin . '/buyer/',
+            'order_number' => $orderId,
             'tickets' => $links,
         ]);
     };

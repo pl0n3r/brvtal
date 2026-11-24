@@ -116,6 +116,11 @@ function brvtal_mail_delivery_render(PDO $pdo, string $kind, array $data): array
         }
     }
     $tickets = brvtal_mail_delivery_tickets($kind, $data['tickets'] ?? null, $fixture);
+    // #1950: the order number the buyer sees in Mi cuenta and in the Wompi reference.
+    $orderNumber = $data['order_number'] ?? null;
+    if ($orderNumber !== null && (!is_int($orderNumber) || $orderNumber < 1)) {
+        throw new InvalidArgumentException('MAIL_ORDER_NUMBER_INVALID');
+    }
     $resolved = brvtal_mail_delivery_document($pdo,$kind);
     $copy = $resolved['document'];
     $replace = static fn(string $value): string => str_replace('{{event_name}}',$event,$value);
@@ -133,7 +138,8 @@ function brvtal_mail_delivery_render(PDO $pdo, string $kind, array $data): array
         : '<img alt="BRVTAL" width="145" src="'.$escape($logo).'" style="max-width:145px;height:auto">';
     $heroMarkup=$hero===null ? '' : '<p><img alt="" src="'.$escape($hero).'"
         style="max-width:100%;height:auto" width="560"></p>';
-    $eventText=$event!=='' ? "Evento: ".$event."\n\n" : '';
+    $eventText=($event!=='' ? "Evento: ".$event."\n" : '').($orderNumber!==null ? 'Pedido: #'.$orderNumber."\n" : '');
+    $eventText=$eventText!=='' ? $eventText."\n" : '';
     $ticketText='';
     $ticketHtml='';
     foreach ($tickets as $ticket) {
@@ -161,6 +167,7 @@ function brvtal_mail_delivery_render(PDO $pdo, string $kind, array $data): array
         .$logoMarkup.$heroMarkup
         .'<h1 style="font-size:26px;line-height:1.3">'.$escape($title).'</h1>'
         .($event!==''?'<p><strong>Evento:</strong> '.$escape($event).'</p>':'')
+        .($orderNumber!==null?'<p><strong>Pedido:</strong> #'.$orderNumber.'</p>':'')
         .'<p style="white-space:pre-line;line-height:1.6">'.nl2br($escape($message),false).'</p>'
         .$ticketHtml
         .'<p style="padding:18px 0"><a href="'.$escape($link).'"'

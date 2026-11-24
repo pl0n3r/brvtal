@@ -91,7 +91,9 @@
         pending: 'Pago pendiente de confirmación. Actualiza esta página para consultar el estado.',
         unverified: 'No existe una confirmación verificable. No se han emitido boletas.',
       };
-      say(states[payload.state] || states.unverified);
+      // #1950: the same order number the buyer sees in Mi cuenta and in Wompi (BW7-<n>-…).
+      const number = /^[1-9]\d{0,17}$/.test(String(saved?.order_id || '')) ? `Pedido #${saved.order_id}: ` : '';
+      say(number + (states[payload.state] || states.unverified));
       if (['approved', 'failed', 'cancelled'].includes(payload.state)) {
         clear();
         intent = null;

@@ -10,7 +10,7 @@ const config = readFileSync(join(root, 'config/buyer_account.php'), 'utf8');
 const api = readFileSync(join(root, 'api/buyer/account.php'), 'utf8');
 const url = 'http://127.0.0.1:4173/buyer/index.php';
 const base = { public_id:'0123456789abcdef0123456789abcdef', event_title:'Noche sintética', currency:'COP', total_cop:25000, created_at_utc:'2026-11-01 21:00:00' };
-const paid = { ...base, status:'paid', payment_status:'approved', items:[
+const paid = { ...base, order_number:77, status:'paid', payment_status:'approved', items:[
   {name:'General',quantity:1,ticket_id:'abcdefabcdefabcdefabcdefabcdefab',status:'issued',qr_requires_original_token:true},
   {name:'General',quantity:1,ticket_id:'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',status:'used',qr_requires_original_token:true},
   {name:'General',quantity:1,ticket_id:'cccccccccccccccccccccccccccccccc',status:'revoked',qr_requires_original_token:false},
@@ -65,6 +65,8 @@ test('desktop: pending, expired, used, revoked, paid and secure scannable SVG do
   await page.goto(url);
   await expect(page.getByText('Noche sintética').first()).toBeVisible();
   await expect(page.getByText('Pago pendiente').first()).toBeVisible();
+  // #1950: the order number matches the Wompi reference BW7-<n>-….
+  await expect(page.getByText(/^Pedido #77 · /)).toBeVisible();
   await expect(page.getByText(/Expirado/)).toBeVisible();
   await expect(page.getByText(/Rechazado/)).toBeVisible();
   await expect(page.getByText(/Usada/)).toBeVisible();
