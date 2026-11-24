@@ -115,6 +115,14 @@ function brvtal_mail_delivery_render(PDO $pdo, string $kind, array $data): array
             throw new InvalidArgumentException('MAIL_LINK_NOT_PROTECTED');
         }
     }
+    // A purchase-only server-generated URL, never an editable template URL.
+    $guestPasswordLink = $data['guest_password_link'] ?? null;
+    if (array_key_exists('guest_password_link', $data)
+        && ($kind !== 'payment_approved' || !is_string($guestPasswordLink)
+            || preg_match('~^https://www\.brvtal\.com\.co/mi-cuenta/restablecer\?accion=confirm-reset&token=[A-Za-z0-9_-]{43}&origen=compra$~D',
+                $guestPasswordLink) !== 1)) {
+        throw new InvalidArgumentException('MAIL_GUEST_PASSWORD_LINK_INVALID');
+    }
     $tickets = brvtal_mail_delivery_tickets($kind, $data['tickets'] ?? null, $fixture);
     // #1950: the order number the buyer sees in Mi cuenta and in the Wompi reference.
     $orderNumber = $data['order_number'] ?? null;
@@ -156,7 +164,19 @@ function brvtal_mail_delivery_render(PDO $pdo, string $kind, array $data): array
             .' para mostrar el código QR. No compartas este correo: quien tenga el enlace puede entrar.</p>'
             .$ticketHtml;
     }
-    $text=$title."\n\n".$eventText.$message."\n\n".$ticketText.$cta.': '.$link."\n\n".$footer;
+    $guestText = $guestPasswordLink === null ? '' : "\n\n"
+        . "Crea tu contraseña para entrar a Mi cuenta y ver tus pedidos:\n"
+        . $guestPasswordLink . "\n"
+        . "Enlace de un solo uso, válido durante 30 minutos. Si caduca, solicita otro desde Mi cuenta.";
+    $guestHtml = $guestPasswordLink === null ? '' :
+        '<p style="line-height:1.6">Crea tu contraseña para entrar a Mi cuenta y ver tus pedidos.</p>'
+        .'<p style="padding:18px 0"><a href="'.$escape($guestPasswordLink).'"'
+        .' style="display:inline-block;min-height:44px;padding:14px 18px;background:'.$theme['accent']
+        .';color:'.$theme['background'].';text-decoration:underline;font-weight:bold">'
+        .'Crea tu contraseña</a></p>'
+        .'<p style="font-size:13px;line-height:1.5">Enlace de un solo uso, válido durante 30 minutos.'
+        .' Si caduca, solicita otro desde Mi cuenta.</p>';
+    $text=$title."\n\n".$eventText.$message."\n\n".$ticketText.$cta.': '.$link.$guestText."\n\n".$footer;
     $html='<!doctype html><html lang="es"><head><meta charset="utf-8">'
         .'<meta name="viewport" content="width=device-width,initial-scale=1"></head>'
         .'<body style="margin:0;padding:0;background:'.$theme['background'].';color:'.$theme['foreground'].';font-family:Arial,sans-serif">'
@@ -169,7 +189,7 @@ function brvtal_mail_delivery_render(PDO $pdo, string $kind, array $data): array
         .($event!==''?'<p><strong>Evento:</strong> '.$escape($event).'</p>':'')
         .($orderNumber!==null?'<p><strong>Pedido:</strong> #'.$orderNumber.'</p>':'')
         .'<p style="white-space:pre-line;line-height:1.6">'.nl2br($escape($message),false).'</p>'
-        .$ticketHtml
+        .$ticketHtml.$guestHtml
         .'<p style="padding:18px 0"><a href="'.$escape($link).'"'
         .' style="display:inline-block;padding:14px 18px;background:'.$theme['accent']
         .';color:'.$theme['background'].';text-decoration:underline;font-weight:bold">'

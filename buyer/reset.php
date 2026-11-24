@@ -52,6 +52,15 @@
   const form = document.getElementById('reset-form');
   const primary = document.getElementById('reset-password');
   const verification = document.getElementById('reset-verify');
+  // Copy changes only. Server trust comes from the one-use token, never from
+  // the untrusted 'origen' parameter in the purchase email.
+  const fromPurchase = params.get('origen') === 'compra' && !verifying;
+  if (fromPurchase) {
+    document.getElementById('reset-heading').firstChild.textContent = 'Crea tu ';
+    primary.querySelector('.access-lead').textContent =
+      'Crea una contraseña para acceder a tus pedidos y boletas en Mi cuenta.';
+    form.querySelector('[type="submit"]').firstChild.textContent = 'Crear contraseña ';
+  }
   let csrf = '';
   let busy = false;
   function announce(text, tone = 'neutral') {
@@ -147,7 +156,9 @@
     announce('Guardando contraseña…');
     try {
       const result = await send('confirm-reset', { token, password });
-      if (result.ok) success('Contraseña actualizada. Ya puedes entrar a tu cuenta.');
+      if (result.ok) success(fromPurchase
+        ? 'Contraseña creada. Entra a Mi cuenta para ver tus pedidos.'
+        : 'Contraseña actualizada. Ya puedes entrar a tu cuenta.');
       else explain(result);
     } finally { busy = false; if (!form.hidden && !button.closest('form').querySelector('[disabled][name="password"]')) button.disabled = false; }
   });

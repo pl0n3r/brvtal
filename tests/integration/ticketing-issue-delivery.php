@@ -46,7 +46,8 @@ foreach ([
     "CREATE TABLE event_ticket_types(id INT UNSIGNED PRIMARY KEY,event_id INT UNSIGNED NOT NULL) ENGINE=InnoDB",
     "CREATE TABLE admins(id INT UNSIGNED PRIMARY KEY) ENGINE=InnoDB",
     "CREATE TABLE ticket_buyers(id BIGINT UNSIGNED PRIMARY KEY,email VARCHAR(190) NULL,
-        status ENUM('guest','active') NOT NULL DEFAULT 'guest',email_verified_at DATETIME NULL) ENGINE=InnoDB",
+        status ENUM('guest','active') NOT NULL DEFAULT 'guest',
+        password_hash VARCHAR(255) NULL,email_verified_at DATETIME NULL) ENGINE=InnoDB",
     "CREATE TABLE ticket_orders(id BIGINT UNSIGNED PRIMARY KEY,event_id INT UNSIGNED NOT NULL,
         buyer_id BIGINT UNSIGNED NOT NULL,status VARCHAR(20) NOT NULL,
         public_id BINARY(16) NULL,total_cop BIGINT NOT NULL DEFAULT 0,
@@ -57,6 +58,10 @@ foreach ([
         ticket_name_snapshot VARCHAR(120) NOT NULL) ENGINE=InnoDB",
     "CREATE TABLE ticket_payment_attempts(id BIGINT UNSIGNED PRIMARY KEY,order_id BIGINT UNSIGNED NOT NULL,
         provider VARCHAR(24) NOT NULL,provider_transaction_id VARCHAR(190) NULL,status VARCHAR(20) NOT NULL) ENGINE=InnoDB",
+    "CREATE TABLE ticket_buyer_tokens(id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        buyer_id BIGINT UNSIGNED NOT NULL,purpose ENUM('verify_email','reset_password') NOT NULL,
+        token_hash CHAR(64) NOT NULL,expires_at_utc DATETIME(6) NOT NULL,
+        consumed_at_utc DATETIME(6) NULL,revoked_at_utc DATETIME(6) NULL) ENGINE=InnoDB",
 ] as $ddl) {
     $db->exec($ddl);
 }
@@ -108,6 +113,14 @@ $origin = 'https://brvtal.invalid';
 
 // AC-01 (a): the oldest paid order is issued and its sealed QR email queued.
 deliveryAssert(brvtal_ticket_issue_process_next($db, $origin) === 'issued', 'first job issued');
+// Regression: loading logger.php for the first time from a callback must
+// still initialize the GLOBAL path used by exception/shutdown handlers.
+(static function (): void {
+    require_once __DIR__ . '/../../config/logger.php';
+})();
+deliveryAssert(is_string($GLOBALS['BRVTAL_LOG_FILE'] ?? null)
+    && $GLOBALS['BRVTAL_LOG_FILE'] !== '',
+    'logger path survives initialization inside the paid delivery callback');
 deliveryAssert($count('SELECT COUNT(*) FROM ticket_entries e JOIN ticket_order_items i ON i.id=e.order_item_id WHERE i.order_id=100') === 3,
     'one entry per unit');
 deliveryAssert($count("SELECT COUNT(*) FROM ticket_mail_outbox WHERE message_key='order:100:payment_approved'") === 1,
@@ -122,6 +135,9 @@ foreach (['body_text','body_html'] as $column) {
 }
 $text = (string)brvtalBuyerMailUnseal((string)$mail['body_text']);
 $html = (string)brvtalBuyerMailUnseal((string)$mail['body_html']);
+deliveryAssert(!str_contains($text,'Crea tu contraseña')
+    && !str_contains($html,'Crea tu contraseña'),
+    'registered buyer receives no guest-only password link');
 preg_match_all('~https://brvtal\.invalid/mi-cuenta/boleta#(BRVTAL:T1:([a-f0-9]{32}):([A-Za-z0-9_-]{43}))~', $text, $links, PREG_SET_ORDER);
 deliveryAssert(count($links) === 3, 'one link per ticket in the text body');
 deliveryAssert(str_contains($text, 'Pedido: #100') && str_contains($html, '<strong>Pedido:</strong> #100'),
@@ -312,6 +328,65 @@ try {
 }
 $GLOBALS['config']['ticketing']['mail'] = ['testing'=>'1'];
 putenv('BRVTAL_TICKET_MAIL_TESTING=1');
+
+
+// #1985: the REAL issuance path includes a sealed, one-use setup URL in the
+// same QR purchase email for a guest, never for a registered buyer.
+$db->exec("INSERT INTO ticket_buyers(id,email,status,email_verified_at,password_hash)
+    VALUES (12,'guest-1985@example.test','guest',NULL,NULL)");
+$db->exec("INSERT INTO ticket_orders(id,event_id,buyer_id,status)
+    VALUES (108,1,12,'paid')");
+$db->exec("INSERT INTO ticket_order_items
+    (id,order_id,event_id,ticket_type_id,quantity,ticket_name_snapshot)
+    VALUES (208,108,1,11,1,'Preventa')");
+$db->exec("INSERT INTO ticket_payment_attempts
+    (id,order_id,provider,provider_transaction_id,status)
+    VALUES (8,108,'wompi','tx-108','approved')");
+$journal->execute([8,'tx-108',hash('sha256','synthetic-8'),'APPROVED',time()]);
+$db->beginTransaction();
+brvtal_wompi_hook_enqueue($db,108,8);
+$db->commit();
+deliveryAssert(brvtal_ticket_issue_process_next($db,$origin)==='issued',
+    'guest paid order uses the same verified ticket issuance');
+$guestMail=$db->query("SELECT recipient_email,body_text,body_html
+    FROM ticket_mail_outbox WHERE message_key='order:108:payment_approved'")->fetch(PDO::FETCH_ASSOC);
+deliveryAssert(is_array($guestMail)
+    && $guestMail['recipient_email']==='guest-1985@example.test'
+    && str_starts_with((string)$guestMail['body_text'],BRVTAL_BUYER_MAIL_SEAL_PREFIX)
+    && str_starts_with((string)$guestMail['body_html'],BRVTAL_BUYER_MAIL_SEAL_PREFIX),
+    'one guest purchase email is sealed at rest');
+$guestText=(string)brvtalBuyerMailUnseal((string)$guestMail['body_text']);
+$guestHtml=(string)brvtalBuyerMailUnseal((string)$guestMail['body_html']);
+deliveryAssert(str_contains($guestText,'Crea tu contraseña')
+    && str_contains($guestHtml,'Crea tu contraseña')
+    && str_contains($guestText,'Boleta 1 · Preventa'),
+    'the single purchase email contains both QR and setup CTA');
+deliveryAssert(preg_match(
+    '~https://www\.brvtal\.com\.co/mi-cuenta/restablecer\?accion=confirm-reset&token=([A-Za-z0-9_-]{43})&origen=compra~',
+    $guestText,$passwordLink)===1, 'guest link has canonical reset route');
+$guestToken=$passwordLink[1];
+$tokenDigest=$db->query("SELECT token_hash FROM ticket_buyer_tokens
+    WHERE buyer_id=12 AND purpose='reset_password'")->fetchColumn();
+deliveryAssert(is_string($tokenDigest)
+    && hash_equals($tokenDigest,hash('sha256',$guestToken))
+    && !str_contains((string)$guestMail['body_text'],$guestToken),
+    'one-use guest token persisted as hash; no plaintext in DB');
+deliveryAssert(str_contains($guestHtml,htmlspecialchars($passwordLink[0],ENT_QUOTES)),
+    'the HTML CTA uses the same token as text');
+deliveryAssert($count("SELECT COUNT(*) FROM ticket_mail_outbox
+    WHERE message_key='order:108:payment_approved'")===1
+    && brvtal_ticket_issue_process_next($db,$origin)==='idle',
+    'worker replay cannot duplicate the guest mail or setup token');
+try {
+    brvtal_mail_delivery_render($db,'payment_approved',[
+        'event'=>'GENESIS','link'=>'https://brvtal.invalid/buyer/',
+        'guest_password_link'=>'https://evil.invalid/?token='.str_repeat('A',43),
+    ]);
+    deliveryAssert(false,'untrusted account creation link rendered');
+} catch (InvalidArgumentException $e) {
+    deliveryAssert($e->getMessage()==='MAIL_GUEST_PASSWORD_LINK_INVALID',
+        'renderer rejects externally supplied account-creation URL');
+}
 
 // Public origins only.
 try {

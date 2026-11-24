@@ -93,10 +93,17 @@ mail_t11_assert(brvtal_mail_webhook_process($pdo,$delivered,$sign('msg_upgraded'
     'upgraded delivered');
 $bind->execute([$id3]);$bound=$bind->fetch(PDO::FETCH_ASSOC);
 mail_t11_assert($bound['delivery_state']==='delivered','upgrade receipt persisted');
+// #1998: the authenticated whsec_ signature + privacy gate suffice;
+// the legacy operational toggle is no longer a separate veto.
 putenv('BRVTAL_TICKET_MAIL_WEBHOOK_ENABLED=0');
-mail_t11_assert(brvtal_mail_webhook_process($pdo,$raw,$headers,$secret,$now)===503,'disabled fail closed');
+mail_t11_assert(brvtal_mail_webhook_process($pdo,$raw,$headers,$secret,$now)===200,
+    'signed webhook accepted without undocumented flag');
+mail_t11_assert((int)$pdo->query('SELECT COUNT(*) FROM ticket_mail_provider_events')->fetchColumn()===5,
+    'legacy flag off does not duplicate the signed provider receipt');
 putenv('BRVTAL_TICKET_MAIL_TESTING=0');
 putenv('BRVTAL_TICKET_MAIL_PRIVACY_APPROVED=0');
+mail_t11_assert(brvtal_mail_webhook_process($pdo,$raw,$headers,$secret,$now)===503,
+    'privacy gate still denies signed webhook without approval');
 try {brvtal_mail_history_record($pdo,1);mail_t11_assert(false,'privacy denied');}
 catch (RuntimeException $e) {mail_t11_assert($e->getMessage()==='MAIL_PRIVACY_NOT_APPROVED','privacy gate');}
 

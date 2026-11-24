@@ -22,6 +22,10 @@ $BRVTAL_LOG_FILE = (
     ? $GLOBALS['brvtalSentryTestLogFile']
     : $BRVTAL_LOG_DIR . '/brvtal.log';
 
+// A module may first be included from a callback; local file-scope variables
+// are not PHP globals in that context. Keep the global handler's path valid.
+$GLOBALS['BRVTAL_LOG_FILE'] = $BRVTAL_LOG_FILE;
+
 if (!is_dir($BRVTAL_LOG_DIR)) {
     @mkdir($BRVTAL_LOG_DIR, 0755, true);
 }

@@ -170,6 +170,8 @@ def real_witnesses() -> dict[str, bool]:
     # password_hash alone or MIME sniffing alone is not product protection.
     password_source = (ROOT / "config/admin_password_security.php").read_text(
         encoding="utf-8")
+    password_policy_source = (ROOT / "config/password_policy.php").read_text(
+        encoding="utf-8")
     uploads_source = (ROOT / "api/media-library.php").read_text(encoding="utf-8")
     auth_source = (ROOT / "config/admin_auth.php").read_text(encoding="utf-8")
     outputs = {
@@ -205,7 +207,8 @@ def real_witnesses() -> dict[str, bool]:
         "S42-R005": (
             password and
             "password_hash($newPassword, PASSWORD_DEFAULT)" in password_source and
-            "password_verify($password, $currentHash)" in password_source),
+            "require_once __DIR__ . '/password_policy.php';" in password_source and
+            "password_verify($password, $currentHash)" in password_policy_source),
         "S42-R006": (
             upload and "is_uploaded_file($tmp)" in uploads_source and
             "finfo(FILEINFO_MIME_TYPE)" in uploads_source),

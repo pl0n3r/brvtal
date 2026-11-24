@@ -80,3 +80,57 @@ test('mobile buyer login stays pending until reply, then navigates to Mis compra
   await expect(page).toHaveURL('http://127.0.0.1:4173/mi-cuenta');
   await expect(page.getByRole('heading', { name: 'Mis compras' })).toBeVisible();
 });
+
+
+test('AC-02 #1985: enlace de compra configura contraseña y acceso a pedidos a 390/1440', async ({page}, info) => {
+  const purchase = readFileSync(join(root,'buyer/reset.php'),'utf8');
+  const login = readFileSync(join(root,'buyer/login.php'),'utf8');
+  const token = 'A'.repeat(43);
+  for (const width of [390,1440]) {
+    await page.setViewportSize({width,height:900});
+    const previous='http://127.0.0.1:4173/buyer/reset.php?accion=confirm-reset&token='+token;
+    const purchaseLink=previous+'&origen=compra';
+    let confirmed=0;
+    await page.route('**/buyer/reset.php*', route=>route.fulfill({contentType:'text/html',body:purchase}));
+    await page.route('**/mi-cuenta/acceso*', route=>route.fulfill({contentType:'text/html',body:login}));
+    await page.route('**/mi-cuenta', route=>route.fulfill({
+      contentType:'text/html',body:'<!doctype html><html lang="es"><body><h1>Mis compras</h1><p>Pedido confirmado</p></body></html>'
+    }));
+    await page.route('**/api/buyer/auth.php',async route=>{
+      if(route.request().method()==='GET')return route.fulfill({
+        contentType:'application/json',body:JSON.stringify({ok:true,csrf:'synthetic-csrf'})
+      });
+      const submitted=route.request().postDataJSON();
+      if(submitted.action==='confirm-reset'){
+        expect(submitted.token).toBe(token);
+        expect(submitted.password).toBe('Synthetic-Guest-1985-Long');
+        expect(route.request().headers()['x-csrf-token']).toBe('synthetic-csrf');
+        confirmed++;
+      }
+      return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true})});
+    });
+    await page.goto(previous);
+    await expect(page.getByRole('heading',{name:'Nueva contraseña.'})).toBeVisible();
+    await info.attach('1985-before-'+width,{body:await page.screenshot({fullPage:true}),contentType:'image/png'});
+    await page.goto(purchaseLink);
+    await expect(page.getByRole('heading',{name:'Crea tu contraseña.'})).toBeVisible();
+    await expect(page.getByRole('button',{name:/Crear contraseña/})).toBeVisible();
+    await info.attach('1985-after-'+width,{body:await page.screenshot({fullPage:true}),contentType:'image/png'});
+    const dimensions=await page.evaluate(()=>({
+      client:document.documentElement.clientWidth,
+      scroll:document.documentElement.scrollWidth
+    }));
+    expect(dimensions.scroll).toBeLessThanOrEqual(dimensions.client);
+    await page.locator('#reset-new-password').fill('Synthetic-Guest-1985-Long');
+    await page.locator('#reset-confirm-password').fill('Synthetic-Guest-1985-Long');
+    await page.getByRole('button',{name:/Crear contraseña/}).click();
+    await expect(page.getByRole('status')).toContainText('Contraseña creada.');
+    expect(confirmed).toBe(1);
+    await page.getByRole('link',{name:'Entrar a mi cuenta'}).click();
+    await page.locator('#entrar-email').fill('guest-1985@example.test');
+    await page.locator('#entrar-password').fill('Synthetic-Guest-1985-Long');
+    await page.getByRole('button',{name:'Entrar',exact:true}).click();
+    await expect(page.getByRole('heading',{name:'Mis compras'})).toBeVisible();
+    await page.unrouteAll({behavior:'ignoreErrors'});
+  }
+});
