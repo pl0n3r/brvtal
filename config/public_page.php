@@ -554,8 +554,16 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
                 . '<p class="event-cart-total"><span>Total</span><strong data-cart-total>' . $escape($money(0)) . '</strong></p>'
                 . '<small>Sin recargos BRVTAL. El cupo y el precio se confirman al reservar.</small></div>'
                 . '<fieldset class="event-cart-methods"><legend>Método de pago</legend>' . $methods . '</fieldset>'
+                // #1948: no account needed; the server creates a guest buyer for this email.
+                . '<fieldset class="event-cart-buyer" data-cart-buyer><legend>Tus datos</legend>'
+                . '<p class="event-cart-buyer-note">Te enviamos las boletas con QR a este correo. No necesitas cuenta.</p>'
+                . '<label class="event-cart-field"><span>Correo</span><input type="email" name="buyer_email" autocomplete="email" inputmode="email" maxlength="190" spellcheck="false" required></label>'
+                . '<label class="event-cart-field"><span>Nombre</span><input type="text" name="buyer_name" autocomplete="name" minlength="2" maxlength="120" required></label>'
+                . '<label class="event-cart-consent"><input type="checkbox" name="buyer_consent" required><span>Acepto el tratamiento de mis datos para esta compra según la <a href="/privacy">política de privacidad</a>.</span></label>'
+                . '<div class="event-cart-trap" aria-hidden="true"><label>No llenar <input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>'
+                . '</fieldset>'
                 . '<button type="submit" class="event-cart-pay" data-cart-pay disabled>Elige tus boletas</button>'
-                . '<p class="event-cart-account">Para pagar necesitas tu cuenta BRVTAL. <a href="/mi-cuenta/acceso">Inicia sesión o créala</a>.</p>'
+                . '<p class="event-cart-account" data-cart-account>¿Ya tienes cuenta? <a href="/mi-cuenta/acceso">Inicia sesión</a> y tus boletas quedan también en Mi cuenta.</p>'
                 . '</form>';
             $checkoutPanel = '<section class="event-ticket-checkout" id="checkout-boletas" aria-label="Estado de compra">'
                 . '<p id="ticket-checkout-status" role="status" aria-live="polite"></p></section>';

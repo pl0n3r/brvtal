@@ -78,6 +78,27 @@ body.cromo-page.entity-page--event .event-buy-panel ::selection{background:var(-
 .event-cart-method:hover span{border-color:#9a9a9a}
 .event-cart-method input:checked+span{background:#fff;border-color:#fff;color:#050505}
 .event-cart-method input:focus-visible+span{outline:3px solid var(--event-signal);outline-offset:3px}
+/* #1948: guest details. Visible labels, 44px targets, 16px inputs so iOS never zooms. */
+.event-cart-buyer{margin:0;padding:0;border:0;display:grid;gap:12px;min-width:0}
+.event-cart-buyer[hidden]{display:none}
+.event-cart-buyer legend{margin-bottom:10px;padding:0;font:700 13px "Space Mono",monospace;text-transform:uppercase;letter-spacing:.08em;color:#bdbdbd}
+.event-cart-buyer-note{margin:0;font:400 13px/1.55 "Space Mono",monospace;color:#bdbdbd}
+.event-cart-field{display:grid;gap:6px;min-width:0}
+.event-cart-field span{font:700 13px "Space Mono",monospace;color:#e6e6e6}
+.event-cart-field input{
+  box-sizing:border-box;width:100%;min-height:44px;padding:10px 12px;border:1px solid #5a5a5a;border-radius:0;
+  background:#050505;color:#f4f4f2;font:400 16px/1.3 "Space Mono",monospace;
+  transition:border-color .15s ease-out
+}
+.event-cart-field input:hover{border-color:#9a9a9a}
+.event-cart-field input:focus-visible{outline:3px solid var(--event-signal);outline-offset:2px;border-color:#f4f4f2}
+.event-cart-buyer [aria-invalid="true"]{border-color:#ff6b6b}
+.event-cart-consent{display:flex;gap:10px;align-items:flex-start;min-height:44px;font:400 13px/1.55 "Space Mono",monospace;color:#d6d6d6;cursor:pointer}
+.event-cart-consent input{flex:none;width:22px;height:22px;margin:1px 0 0;accent-color:var(--event-signal)}
+.event-cart-consent input[aria-invalid="true"]{outline:2px solid #ff6b6b;outline-offset:2px}
+.event-cart-consent a{color:inherit;text-underline-offset:3px}
+.event-cart-trap{position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden}
+.event-cart-account[hidden]{display:none}
 .event-cart-pay{
   min-height:58px;padding:14px 20px;border:2px solid var(--event-signal);background:var(--event-signal);
   color:var(--event-ink,#050505);font:800 22px/1.1 "Barlow Condensed",sans-serif;letter-spacing:.015em;cursor:pointer;

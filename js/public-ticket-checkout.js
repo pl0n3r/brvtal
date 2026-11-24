@@ -71,16 +71,21 @@
     if (!response.ok || !payload.ok) throw new Error(payload.error || 'CHECKOUT_UNAVAILABLE');
     return payload;
   }
-  async function refresh(orderId) {
+  async function refresh(saved) {
     if (panel) panel.hidden = false;
     const url = new URL(location.pathname, location.origin);
-    url.searchParams.set('order_id', String(orderId));
+    // #1948: guests have no session; their opaque order_token identifies the order.
+    if (/^[a-f0-9]{32}$/.test(String(saved?.order_token || ''))) {
+      url.searchParams.set('order_token', saved.order_token);
+    } else {
+      url.searchParams.set('order_id', String(saved.order_id));
+    }
     try {
       const response = await fetch(url, { credentials: 'same-origin', cache: 'no-store',
         headers: { 'X-BRVTAL-TICKET-CHECKOUT': 'status' } });
       const payload = await json(response);
       const states = {
-        approved: 'Pago confirmado por el servidor. Consulta tus entradas en tu cuenta.',
+        approved: 'Pago confirmado. Te enviamos las boletas con QR a tu correo.',
         failed: 'El pago no fue aprobado. Puedes volver a intentarlo.',
         cancelled: 'El pago fue cancelado.',
         pending: 'Pago pendiente de confirmación. Actualiza esta página para consultar el estado.',
@@ -96,7 +101,7 @@
     }
   }
   if (/^[1-9]\d{0,17}$/.test(String(record?.order_id || ''))) {
-    void refresh(record.order_id);
+    void refresh(record);
   }
 
   // T28 public discovery is read-only and independent of public_page.php.
@@ -241,6 +246,39 @@
     const stickyPay = document.querySelector('[data-cart-sticky-pay]');
     const stickyIdle = stickySummary?.textContent || '';
     let submitting = false;
+    const buyerBox = form.querySelector('[data-cart-buyer]');
+    const accountNote = form.querySelector('[data-cart-account]');
+    const field = name => form.elements.namedItem(name);
+    const buyerErrors = {
+      buyer_email: 'Escribe un correo válido: ahí te llegan las boletas.',
+      buyer_name: 'Escribe tu nombre (mínimo 2 letras).',
+      buyer_consent: 'Acepta el tratamiento de datos para poder comprar.',
+    };
+    // Guest details: validated here for fast feedback, re-validated by the server.
+    function readBuyer() {
+      for (const name of Object.keys(buyerErrors)) field(name)?.removeAttribute('aria-invalid');
+      const email = field('buyer_email');
+      const name = field('buyer_name');
+      const consent = field('buyer_consent');
+      email.value = email.value.trim();
+      name.value = name.value.replace(/\s+/gu, ' ').trim();
+      for (const input of [email, name, consent]) {
+        if (!input.checkValidity() || (input === name && name.value.length < 2)) {
+          input.setAttribute('aria-invalid', 'true');
+          say(buyerErrors[input.name]);
+          input.focus();
+          return null;
+        }
+      }
+      return { email: email.value, name: name.value, consent: true, website: field('website')?.value || '' };
+    }
+    const signedIn = authenticated => {
+      if (buyerBox) buyerBox.hidden = authenticated;
+      if (accountNote) accountNote.hidden = authenticated;
+    };
+    fetch('/api/buyer/auth.php', { credentials: 'same-origin', cache: 'no-store' })
+      .then(response => response.json()).then(auth => signedIn(auth?.authenticated === true))
+      .catch(() => { /* Unknown session: keep the guest fields visible. */ });
     const method = () => form.querySelector('input[name="method"]:checked')?.value || '';
     const lines = () => rows.filter(item => quantities.get(item.id) > 0)
       .map(item => ({ ticket_type_id: item.id, quantity: quantities.get(item.id) }));
@@ -308,6 +346,11 @@
     });
     form.addEventListener('change', event => {
       if (event.target.name === 'method') newPurchase();
+      // A different buyer is a different purchase: never reuse the previous key.
+      if (['buyer_email', 'buyer_name'].includes(event.target.name) && !submitting) {
+        intent = null;
+        clear();
+      }
     });
     form.addEventListener('submit', async event => {
       event.preventDefault();
@@ -318,10 +361,9 @@
       say('Verificando acceso y cupo…');
       try {
         const auth = await json(await timedFetch('/api/buyer/auth.php', { credentials: 'same-origin', cache: 'no-store' }));
-        if (!auth.authenticated) {
-          say('Inicia sesión para pagar. Si olvidaste tu clave, recupera el acceso desde tu cuenta BRVTAL.');
-          return;
-        }
+        signedIn(auth.authenticated === true);
+        const buyer = auth.authenticated ? null : readBuyer();
+        if (!auth.authenticated && !buyer) return;
         if (record?.lines && (!sameLines(record.lines, selection.lines) || record.method !== selection.method)) {
           say('Tu selección cambió. Ajusta las boletas para empezar una nueva compra.');
           return;
@@ -335,11 +377,14 @@
         }
         const result = await json(await timedFetch(location.pathname, {
           method: 'POST', credentials: 'same-origin', cache: 'no-store',
-          headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': auth.csrf,
-            'X-BRVTAL-TICKET-CHECKOUT': 'prepare' },
-          body: JSON.stringify({ lines: selection.lines, method: selection.method, idempotency_key: intent }),
+          // Guests prove same-origin via the browser's Fetch Metadata, not a session CSRF.
+          headers: { 'Content-Type': 'application/json', 'X-BRVTAL-TICKET-CHECKOUT': 'prepare',
+            ...(buyer ? {} : { 'X-CSRF-TOKEN': auth.csrf }) },
+          body: JSON.stringify({ lines: selection.lines, method: selection.method, idempotency_key: intent,
+            ...(buyer ? { buyer } : {}) }),
         }));
-        save({ ...pending, order_id: String(result.order_id) });
+        save({ ...pending, order_id: String(result.order_id),
+          ...(/^[a-f0-9]{32}$/.test(String(result.order_token || '')) ? { order_token: result.order_token } : {}) });
         if (result.checkout?.environment === 'mock') { // Synthetic mode never charges.
           say('Reserva preparada. El pago sigue pendiente hasta la confirmación del servidor.');
           return;
@@ -353,6 +398,16 @@
           say('La reserva expiró. Cambia tu selección para iniciar una nueva compra.');
         } else if (error.message === 'CHECKOUT_RETRYABLE') {
           say('Otra solicitud está preparando tu reserva. Vuelve a intentarlo sin cambiar la selección.');
+        } else if (error.message === 'GUEST_EMAIL_INVALID' || error.message === 'GUEST_NAME_INVALID'
+          || error.message === 'GUEST_CONSENT_REQUIRED') {
+          const name = { GUEST_EMAIL_INVALID: 'buyer_email', GUEST_NAME_INVALID: 'buyer_name',
+            GUEST_CONSENT_REQUIRED: 'buyer_consent' }[error.message];
+          field(name)?.setAttribute('aria-invalid', 'true');
+          say(buyerErrors[name]);
+        } else if (error.message === 'RATE_LIMITED') {
+          say('Demasiados intentos con este correo. Espera unos minutos y vuelve a intentarlo.');
+        } else if (error.message === 'CSRF_OR_METHOD' || error.message === 'AUTH_REQUIRED') {
+          say('Tu sesión cambió. Recarga la página y vuelve a intentarlo.');
         } else {
           say('No fue posible reservar. Puede que ya no haya cupo; revisa tu selección y vuelve a intentarlo.');
         }

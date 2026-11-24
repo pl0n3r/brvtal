@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 
 // #1929: the event page is a purchase page. The ticket panel sits beside the event
 // (sticky on desktop) or right after the hero (phones), with a cart of several types.
@@ -96,4 +96,108 @@ test('evento cancelado: no vende', async ({ page }) => {
   await expect(page.locator('#brvtal-ticket-cart')).toHaveCount(0);
   await expect(page.locator('[data-cart-pay]')).toHaveCount(0);
   await expect(page.locator('.event-buy-button[href="#boletas"]:has-text("Comprar")')).toHaveCount(0);
+});
+
+// #1948: buying without an account. The server re-validates everything; these
+// checks pin what the browser sends and what the buyer sees.
+const orderToken = 'ab'.repeat(16);
+async function openCheckout(page, { authenticated = false, onPrepare, storage } = {}) {
+  const calls = { prepare: [], status: [], wompi: [] };
+  await page.route(/\/events\/cart-fixture(\?.*)?$/, async route => {
+    const request = route.request();
+    const kind = request.headers()['x-brvtal-ticket-checkout'];
+    if (request.method() === 'POST' && kind === 'prepare') {
+      calls.prepare.push({ headers: request.headers(), body: request.postDataJSON() });
+      return route.fulfill({ contentType: 'application/json', body: JSON.stringify(onPrepare ? onPrepare() : {
+        ok: true, order_id: 9, order_token: orderToken,
+        checkout: { environment: 'sandbox', public_key: 'pub_test_synthetic', currency: 'COP',
+          amount_in_cents: 5000000, reference: 'BW7-9-CARD-' + 'c'.repeat(24),
+          signature_integrity: 'd'.repeat(64), redirect_url: url } }) });
+    }
+    if (kind === 'status') {
+      calls.status.push(new URL(request.url()).searchParams.toString());
+      return route.fulfill({ contentType: 'application/json', body: '{"ok":true,"state":"approved"}' });
+    }
+    return route.fulfill({ contentType: 'text/html', body: render() });
+  });
+  await page.route('**/api/ticketing/waitlist.php**', route => route.fulfill({ contentType: 'application/json', body: '{"ok":true,"types":[]}' }));
+  await page.route('**/api/buyer/auth.php', route => route.fulfill({ contentType: 'application/json',
+    body: JSON.stringify({ ok: true, authenticated, csrf: authenticated ? 'csrf-sintetico' : '' }) }));
+  await page.route('https://checkout.wompi.co/**', route => {
+    calls.wompi.push(route.request().url());
+    return route.fulfill({ contentType: 'text/html', body: '<h1>Wompi sintético</h1>' });
+  });
+  await page.goto(url);
+  if (storage) await page.evaluate(value => sessionStorage.setItem('brvtal-checkout:/events/cart-fixture', JSON.stringify(value)), storage);
+  await page.addScriptTag({ content: script });
+  return calls;
+}
+async function fillGuest(page, { consent = true, email = 'ana@example.test' } = {}) {
+  await page.getByLabel('Correo').fill(email);
+  await page.getByLabel('Nombre').fill('Ana Gómez');
+  if (consent) await page.getByLabel(/Acepto el tratamiento/).check();
+}
+
+for (const [label, size] of [['390', { width: 390, height: 844 }], ['1440', { width: 1440, height: 900 }]]) {
+  test(`sin cuenta: correo, nombre y consentimiento bastan para ir a Wompi (${label})`, async ({ page }, testInfo) => {
+    await page.setViewportSize(size);
+    const calls = await openCheckout(page);
+    await expect(page.locator('[data-cart-buyer]')).toBeVisible();
+    await expect(page.locator('#brvtal-ticket-cart')).not.toContainText('necesitas tu cuenta');
+    // Honeypot: off-screen, out of the tab order and hidden from assistive tech.
+    const trap = page.locator('input[name="website"]');
+    await expect(trap).toHaveAttribute('tabindex', '-1');
+    await expect(page.locator('.event-cart-trap')).toHaveAttribute('aria-hidden', 'true');
+    expect((await trap.boundingBox()).x).toBeLessThan(0);
+    await page.locator('[data-cart-type="5"] [data-cart-step="1"]').click();
+    await page.locator('[data-cart-type="5"] [data-cart-step="1"]').click();
+    await fillGuest(page);
+    await page.locator('[data-cart-buyer]').scrollIntoViewIfNeeded();
+    const shot = await page.locator('#boletas').screenshot();
+    await testInfo.attach(`cart-guest-despues-${label}`, { body: shot, contentType: 'image/png' });
+    if (process.env.BRVTAL_VISUAL_EVIDENCE) writeFileSync(`${process.env.BRVTAL_VISUAL_EVIDENCE}/cart-guest-despues-${label}.png`, shot);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(size.width);
+    await page.locator('[data-cart-pay]').click();
+    await expect.poll(() => calls.wompi.length).toBe(1);
+    const [prepare] = calls.prepare;
+    expect(prepare.headers['x-csrf-token']).toBeUndefined();
+    expect(prepare.body.buyer).toEqual({ email: 'ana@example.test', name: 'Ana Gómez', consent: true, website: '' });
+    expect(prepare.body.lines).toEqual([{ ticket_type_id: 5, quantity: 2 }]);
+    expect(calls.wompi[0]).toContain('public-key=pub_test_synthetic');
+  });
+}
+
+test('sin consentimiento o con correo inválido no se reserva y se dice por qué', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const calls = await openCheckout(page);
+  await page.locator('[data-cart-type="5"] [data-cart-step="1"]').click();
+  await fillGuest(page, { consent: false });
+  await page.locator('[data-cart-pay]').click();
+  await expect(page.locator('#ticket-checkout-status')).toHaveText('Acepta el tratamiento de datos para poder comprar.');
+  await expect(page.locator('input[name="buyer_consent"]')).toHaveAttribute('aria-invalid', 'true');
+  await page.getByLabel(/Acepto el tratamiento/).check();
+  await page.getByLabel('Correo').fill('no-es-correo');
+  await page.locator('[data-cart-pay]').click();
+  await expect(page.locator('#ticket-checkout-status')).toHaveText('Escribe un correo válido: ahí te llegan las boletas.');
+  await expect(page.getByLabel('Correo')).toBeFocused();
+  expect(calls.prepare).toHaveLength(0);
+});
+
+test('con sesión iniciada se ocultan los datos y se paga con la cuenta', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const calls = await openCheckout(page, { authenticated: true });
+  await expect(page.locator('[data-cart-buyer]')).toBeHidden();
+  await expect(page.locator('[data-cart-account]')).toBeHidden();
+  await page.locator('[data-cart-type="6"] [data-cart-step="1"]').click();
+  await page.locator('[data-cart-pay]').click();
+  await expect.poll(() => calls.wompi.length).toBe(1);
+  expect(calls.prepare[0].headers['x-csrf-token']).toBe('csrf-sintetico');
+  expect(calls.prepare[0].body.buyer).toBeUndefined();
+});
+
+test('al volver de Wompi el estado se consulta con el order_token, sin sesión', async ({ page }) => {
+  const calls = await openCheckout(page, { storage: { intent: 'T13-x', order_id: '9', order_token: orderToken,
+    lines: [{ ticket_type_id: 5, quantity: 1 }], method: 'CARD' } });
+  await expect(page.locator('#ticket-checkout-status')).toHaveText('Pago confirmado. Te enviamos las boletas con QR a tu correo.');
+  expect(calls.status).toEqual([`order_token=${orderToken}`]);
 });
