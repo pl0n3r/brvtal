@@ -45,4 +45,22 @@ return [
         'message' => 'La devolución fue registrada en el pedido. La acreditación del dinero depende del proveedor y debe confirmarse por separado.',
         'cta' => 'Consultar estado',
     ],
+    'admin_new_order' => [
+        'subject' => 'BRVTAL | Nuevo pedido pagado',
+        'title' => 'Nuevo pedido confirmado',
+        'message' => 'Se confirmó un pago para este evento. Consulta el pedido en DISCADMIN; este aviso no incluye datos privados del comprador.',
+        'cta' => 'Abrir DISCADMIN',
+    ],
+    'order_cancelled' => [
+        'subject' => 'BRVTAL | Tu pedido fue cancelado',
+        'title' => 'Tu pedido se canceló',
+        'message' => 'El pedido fue cancelado y sus boletas no son válidas. Puedes iniciar una nueva compra si aún hay disponibilidad.',
+        'cta' => 'Volver a comprar',
+    ],
+    'order_expired' => [
+        'subject' => 'BRVTAL | Tu pedido venció',
+        'title' => 'El tiempo para pagar terminó',
+        'message' => 'El plazo de pago del pedido terminó sin confirmación. No se emitieron boletas; puedes volver a comprar si aún hay disponibilidad.',
+        'cta' => 'Volver a comprar',
+    ],
 ];
