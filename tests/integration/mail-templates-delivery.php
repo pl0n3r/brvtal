@@ -6,6 +6,11 @@ require_once __DIR__ . '/../../config/buyer_auth_mail_templates.php';
 function mail_delivery_assert(bool $ok, string $reason): void {
     if (!$ok) throw new RuntimeException('MAIL_DELIVERY_FAILED: '.$reason);
 }
+/** Safe shape check even when a mocked provider callback has not run. */
+function mail_delivery_has_header(mixed $payload, string $header): bool {
+    return is_array($payload) && is_array($payload['headers'] ?? null)
+        && array_key_exists($header, $payload['headers']);
+}
 $source=(string)file_get_contents(__DIR__.'/../../config/ticketing_resend.php');
 mail_delivery_assert(str_contains($source,"$"."payload['html']"), 'Resend HTML payload');
 $schema=(string)file_get_contents(__DIR__.'/../../database/migration_ticket_mail_html_01.sql');
@@ -186,7 +191,7 @@ try {
     mail_delivery_assert($sent['state']==='accepted'
         && $payload['from']==='BRVTAL <no-reply@brvtal.invalid>'
         && $payload['reply_to']==='soporte@brvtal.invalid'
-        && !isset($payload['headers']['List-Unsubscribe']), 'transactional sender with no unsubscribe');
+        && !mail_delivery_has_header($payload, 'List-Unsubscribe'), 'transactional sender with no unsubscribe');
     foreach (['verify_account','reset_password','order_pending','refund'] as $kind) {
         $payload=null;
         $sent=brvtal_ticket_resend_send(array_merge($deliveryJob,
@@ -194,7 +199,7 @@ try {
         mail_delivery_assert($sent['state']==='accepted'
             && $payload['from']==='BRVTAL <no-reply@brvtal.invalid>'
             && $payload['reply_to']==='soporte@brvtal.invalid'
-            && !isset($payload['headers']['List-Unsubscribe']), 'no unsubscribe for '.$kind);
+            && !mail_delivery_has_header($payload, 'List-Unsubscribe'), 'no unsubscribe for '.$kind);
     }
     $GLOBALS['config']['ticketing']['mail']['from_name']='';
     $GLOBALS['config']['ticketing']['mail']['reply_to']='';
