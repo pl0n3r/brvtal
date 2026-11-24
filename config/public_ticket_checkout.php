@@ -653,6 +653,13 @@ function brvtal_public_ticket_checkout_http(PDO $db, int $eventId): void
         unset($body['buyer']); // A signed-in buyer keeps their account; the field is ignored.
         $result = brvtal_public_ticket_checkout_prepare($db,$eventId,$buyerId,$body);
         $result['order_token'] = brvtal_public_ticket_checkout_order_token($db, (int)$result['order_id']);
+        // #1958: Wompi returns the buyer to this order's confirmation page (no login needed),
+        // on the same HTTPS origin the operator pinned as the return URL.
+        $pinned = parse_url((string)($result['checkout']['redirect_url'] ?? ''));
+        if (is_array($pinned) && ($pinned['scheme'] ?? '') === 'https' && isset($pinned['host'])
+            && preg_match('/^[a-f0-9]{32}$/D', $result['order_token'])) {
+            $result['checkout']['redirect_url'] = 'https://' . $pinned['host'] . '/compra/' . $result['order_token'];
+        }
         json_response(['ok'=>true]+$result,200);
     } catch (InvalidArgumentException $error) {
         brvtal_public_ticket_checkout_log($error, $action);
