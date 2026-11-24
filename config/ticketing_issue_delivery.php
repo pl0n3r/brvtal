@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/ticketing_issue.php';
 require_once __DIR__ . '/ticketing_mail_templates.php';
+require_once __DIR__ . '/buyer_auth_flows.php';
 
 /**
  * #1945: issue the oldest paid order and queue its QR email atomically.
@@ -84,12 +85,20 @@ function brvtal_ticket_issue_mail_deliverer(string $origin): callable
             $links[] = ['label' => sprintf('Boleta %d · %s', $index + 1, $byId[$id]),
                 'url' => brvtal_ticket_issue_ticket_url($id, (string)($ticket['token'] ?? ''), $origin)];
         }
-        brvtal_ticket_mail_queue_order($db, $orderId, 'payment_approved', $row['email'], [
+        // The trusted issuance transaction has already verified payment and
+        // moved the issue outbox to "done". The token and sealed message either
+        // commit together or both roll back.
+        $guestPasswordLink = brvtalBuyerAuthGuestPurchaseLink($db, $orderId);
+        $mailData = [
             'event' => (string)$row['title'],
             'link' => $origin . '/buyer/',
             'order_number' => $orderId,
             'tickets' => $links,
-        ]);
+        ];
+        if ($guestPasswordLink !== null) {
+            $mailData['guest_password_link'] = $guestPasswordLink;
+        }
+        brvtal_ticket_mail_queue_order($db, $orderId, 'payment_approved', $row['email'], $mailData);
     };
 }
 
