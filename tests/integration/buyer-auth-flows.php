@@ -1,6 +1,17 @@
 <?php
 declare(strict_types=1);
 
+// The harness must fail closed if a future dependency calls exit(0) before
+// running AC-01 (e.g. an unexpected admin bootstrap without config.php).
+if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
+    $GLOBALS['brvtal_buyer_auth_suite_completed'] = false;
+    register_shutdown_function(static function (): void {
+        if (($GLOBALS['brvtal_buyer_auth_suite_completed'] ?? false) !== true) {
+            fwrite(STDERR, "BUYER_AUTH_SUITE_EARLY_EXIT\n");
+            exit(1);
+        }
+    });
+}
 require_once __DIR__ . '/../../config/buyer_auth_flows.php';
 
 function buyerAuthAssert(bool $ok, string $reason): void
@@ -470,6 +481,9 @@ putenv('BRVTAL_TICKET_MAIL_TESTING');
 putenv($oldMailApproval === false ? 'BRVTAL_TICKET_MAIL_PRIVACY_APPROVED'
     : 'BRVTAL_TICKET_MAIL_PRIVACY_APPROVED=' . $oldMailApproval);
 $GLOBALS['config'] = $originalConfig;
+buyerAuthAssert(brvtal_admin_password_error('password1234') === 'PASSWORD_COMMON',
+    'shared admin/buyer password policy is loaded without admin bootstrap');
+$GLOBALS['brvtal_buyer_auth_suite_completed'] = true;
 echo "BRVTAL buyer-auth MariaDB integration passed.\n";
 // #1877: all public form abuse bursts run from the existing buyer-auth CI entrypoint.
 require __DIR__ . '/public-forms-abuse.php';

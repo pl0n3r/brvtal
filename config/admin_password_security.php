@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/password_policy.php';
+
 require_once __DIR__ . '/totp.php';
 require_once __DIR__ . '/totp_auth.php';
 require_once __DIR__ . '/password_rate_limit.php';
@@ -47,29 +49,6 @@ function brvtalAdminPasswordNotifyChanged(string $email, string $channel, ?PDO $
             'channel' => $channel,
         ]);
     }
-}
-
-function brvtal_admin_password_error(string $password, string $currentHash = ''): ?string
-{
-    if (mb_strlen($password) < 12) {
-        return 'PASSWORD_TOO_SHORT';
-    }
-    if (mb_strlen($password) > 4096) {
-        return 'PASSWORD_TOO_LONG';
-    }
-    if ($currentHash !== '' && password_verify($password, $currentHash)) {
-        return 'PASSWORD_REUSED';
-    }
-
-    $normalized = strtolower(trim($password));
-    $common = [
-        'password1234', 'password123!', 'admin123456', 'qwerty123456',
-        '123456789012', 'letmein123456', 'brvtal123456',
-    ];
-    if (in_array($normalized, $common, true)) {
-        return 'PASSWORD_COMMON';
-    }
-    return null;
 }
 
 function brvtal_password_reset_token_hash(string $token): string

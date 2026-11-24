@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/buyer_auth.php';
 require_once __DIR__ . '/version.php';
-require_once __DIR__ . '/admin_password_security.php';
+require_once __DIR__ . '/password_policy.php';
 require_once __DIR__ . '/ticketing_mail_outbox.php';
 require_once __DIR__ . '/buyer_auth_mail_templates.php';
 
