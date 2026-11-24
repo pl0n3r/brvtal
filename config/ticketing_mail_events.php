@@ -67,6 +67,11 @@ function brvtal_mail_history_accept(PDO $pdo, int $outboxId, string $provider): 
     if (!$pdo->inTransaction()) throw new RuntimeException('MAIL_TRANSACTION_REQUIRED');
     if ($outboxId < 1 || preg_match('/^[A-Za-z0-9_-]{1,128}$/D',$provider) !== 1)
         throw new InvalidArgumentException('MAIL_INVALID_PROVIDER');
+    // T10 predates T11: workers must still accept messages on an outbox-only
+    // database. Never create history without its scoped T11 audit record.
+    $historyReady=$pdo->query("SELECT COUNT(*) FROM information_schema.TABLES
+        WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='ticket_mail_history'");
+    if ((int)$historyReady->fetchColumn()===0) return;
     $q=$pdo->prepare('SELECT id,resend_email_id FROM ticket_mail_history WHERE outbox_id=? FOR UPDATE');
     $q->execute([$outboxId]);
     $history=$q->fetch(PDO::FETCH_ASSOC);
