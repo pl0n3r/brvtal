@@ -4,6 +4,34 @@ import {readFileSync, writeFileSync, mkdirSync} from 'node:fs';
 // #1964 (A): Cupones uses pickers, Spanish discount types and Bogotá time.
 const source=readFileSync('discadmin/ticketing-promos.js','utf8');
 const css=readFileSync('discadmin/ticketing.css','utf8');
+// Frozen baseline CSS from main@16280dbe2cdb538ca8e0292638f893b426190b9a (blob e3d959d6ece80d9951800a0be5847f24fa41b9c2).
+const BEFORE_PROMOS_CSS = [
+  ".ticketing{margin-top:22px;max-width:1100px}\n.ticketing-notice{display:block;bor",
+  "der:1px solid #444;background:#101214;padding:14px;color:#d6d8da;font-size:13px}",
+  "\n.ticketing-tabs{display:flex;flex-wrap:wrap;gap:8px;margin:20px 0}\n.ticketing-t",
+  "abs button{background:#101214;color:#d2d2d2;border:1px solid #34393e;padding:12p",
+  "x 15px;font-size:12px}\n.ticketing-tabs button[aria-selected=\"true\"]{background:#",
+  "b20f29;color:#fff;border-color:#b20f29}\n.ticketing :is(button,input):focus-visib",
+  "le{outline:3px solid #fff;outline-offset:3px}\n.ticketing [role=\"tabpanel\"]{backg",
+  "round:#0a0b0c;border:1px solid #292d31;min-height:180px;padding:24px}\n.ticketing",
+  " h2{font-size:21px;margin:0 0 14px}\n.ticketing-empty{color:#aeb4b9}\n.ticketing-s",
+  "ettings{display:grid;gap:14px;border:1px solid #34393e;margin-top:22px;padding:1",
+  "8px}\n.ticketing-settings label{display:flex;gap:10px;align-items:center}\n.ticket",
+  "ing button:disabled{opacity:.55;cursor:not-allowed}\n.ticketing-error,.ticketing-",
+  "denied{color:#ffb0b8}\n@media(max-width:600px){.ticketing-tabs{display:grid;grid-",
+  "template-columns:repeat(2,minmax(0,1fr))}.ticketing-tabs button{min-width:0}.tic",
+  "keting [role=\"tabpanel\"]{padding:16px}}\n\n/* T18: one responsive records workspac",
+  "e; tables scroll inside the module, never the page. */\n.ticketing-records-form{d",
+  "isplay:grid;grid-template-columns:repeat(auto-fit,minmax(min(180px,100%),1fr));g",
+  "ap:12px;margin:16px 0}\n.ticketing-records-form label{display:grid;gap:5px;min-wi",
+  "dth:0}\n.ticketing-records-form :is(input,select,button){min-width:0;max-width:10",
+  "0%;box-sizing:border-box;padding:10px}\n[data-ticketing-records-results]{max-widt",
+  "h:100%;overflow-x:auto}\n.ticketing-records-table{border-collapse:collapse;min-wi",
+  "dth:780px;width:100%}\n.ticketing-records-table :is(th,td){padding:10px;border-bo",
+  "ttom:1px solid #34393e;text-align:left}\n.ticketing-records-table tr[data-ticketi",
+  "ng-anomaly]{outline:2px dashed #d29c37}\n[data-ticketing-records-detail]{margin-t",
+  "op:18px}\n"
+].join('');
 // Frozen source of main@16280dbe2cdb538ca8e0292638f893b426190b9a:discadmin/ticketing-promos.js
 // (Git blob 454927d4e987c578d29a141d64c64b2d73da6bf8). The screenshot is a synthetic browser render,
 // not a historical screenshot of production.
@@ -77,7 +105,7 @@ const BEFORE_PROMOS_SOURCE = [
 const catalog={ok:true,events:[
   {id:6,title:'Genesis',date:'2026-12-04 21:00:00',ticket_types:[{id:11,name:'Preventa'},{id:12,name:'VIP'}]},
   {id:7,title:'Otra noche',date:null,ticket_types:[]}]};
-async function open(page, routeApi, src=source){
+async function open(page, routeApi, src=source, stylesheet=css){
   await page.route('**/discadmin/t23.html',r=>r.fulfill({contentType:'text/html',
     body:'<!doctype html><html lang="es"><meta name="viewport" content="width=device-width,initial-scale=1">'+
       '<body style="margin:0;background:#050505;color:#f4f5f6;font-family:Arial,sans-serif">'+
@@ -86,7 +114,7 @@ async function open(page, routeApi, src=source){
   await page.route('**/discadmin/ticketing-promos.js',r=>r.fulfill({contentType:'text/javascript',body:src}));
   await page.route('**/api/ticketing/admin-promos.php*',routeApi);
   await page.goto('https://www.brvtal.com.co/discadmin/t23.html');
-  await page.addStyleTag({content:css});
+  await page.addStyleTag({content:stylesheet});
   await page.evaluate(async()=>{const m=await import('/discadmin/ticketing-promos.js');
     m.mount(document.querySelector('[data-panel]'));});
 }
@@ -179,7 +207,7 @@ test('Cupones: capturas antes/después a 390 y 1440',async({page},testInfo)=>{
         const url=new URL(r.request().url());
         if (url.searchParams.get('catalog')==='1') return r.fulfill({contentType:'application/json',body:JSON.stringify(catalog)});
         return r.fulfill({contentType:'application/json',body:'{"ok":true,"rules":[]}'});
-      },src);
+      },src,label==='antes'?BEFORE_PROMOS_CSS:css);
       await expect(page.locator('[data-panel]')).toBeVisible();
       // A screenshot is not proof of a rendered interface: assert the mounted
       // controls before saving evidence for each viewport and version.
