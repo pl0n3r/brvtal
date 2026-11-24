@@ -552,24 +552,50 @@ function brvtal_public_ticket_checkout_order_token(PDO $db, int $orderId): strin
     return (string)$q->fetchColumn();
 }
 
+/**
+ * #1952: when the buyer asks about a still-pending order, ask Wompi directly
+ * (server to server) in case the signed webhook was lost. Best effort: any
+ * failure keeps the stored status; only a verified APPROVED changes it.
+ */
+function brvtal_public_ticket_checkout_refreshed_status(PDO $db, mixed $order): ?string
+{
+    if (!is_array($order)) return null;
+    if (!in_array($order['status'], ['draft','pending'], true)) return (string)$order['status'];
+    try {
+        require_once __DIR__ . '/ticketing_wompi_reconcile.php';
+        // A public trigger never queries Wompi more than once every 10 s per attempt.
+        $open = $db->prepare("SELECT id FROM ticket_payment_attempts
+            WHERE order_id=? AND provider='wompi' AND status IN ('created','pending')
+              AND updated_at_utc <= UTC_TIMESTAMP(6) - INTERVAL 10 SECOND ORDER BY id DESC LIMIT 1");
+        $open->execute([(int)$order['id']]);
+        $attempt = $open->fetchColumn();
+        if ($attempt !== false) brvtal_wompi_reconcile_attempt($db, (int)$attempt);
+        $again = $db->prepare('SELECT status FROM ticket_orders WHERE id=?');
+        $again->execute([(int)$order['id']]);
+        return (string)$again->fetchColumn();
+    } catch (Throwable) {
+        return (string)$order['status'];
+    }
+}
+
 function brvtal_public_ticket_checkout_state_by_token(PDO $db, int $eventId, string $token): string
 {
     if (!preg_match('/^[a-f0-9]{32}$/D', $token)) return 'unverified';
-    $q = $db->prepare('SELECT status FROM ticket_orders WHERE public_id=UNHEX(?) AND event_id=? LIMIT 1');
+    $q = $db->prepare('SELECT id,status FROM ticket_orders WHERE public_id=UNHEX(?) AND event_id=? LIMIT 1');
     $q->execute([$token, $eventId]);
-    return match ($q->fetchColumn()) {
+    return match (brvtal_public_ticket_checkout_refreshed_status($db, $q->fetch(PDO::FETCH_ASSOC))) {
         'paid' => 'approved', 'failed' => 'failed', 'cancelled' => 'cancelled',
         'draft','pending' => 'pending', default => 'unverified',
     };
 }
 
-/** Only verified database state, updated by the signed T08 webhook, is authoritative. */
+/** Only verified database state (signed T08 webhook or #1952 Wompi API check) is authoritative. */
 function brvtal_public_ticket_checkout_state(PDO $db, int $eventId, int $buyerId, int $orderId): string
 {
-    $q = $db->prepare('SELECT status FROM ticket_orders
+    $q = $db->prepare('SELECT id,status FROM ticket_orders
         WHERE id=? AND event_id=? AND buyer_id=? LIMIT 1');
     $q->execute([$orderId,$eventId,$buyerId]);
-    return match ($q->fetchColumn()) {
+    return match (brvtal_public_ticket_checkout_refreshed_status($db, $q->fetch(PDO::FETCH_ASSOC))) {
         'paid' => 'approved', 'failed' => 'failed', 'cancelled' => 'cancelled',
         'draft','pending' => 'pending', default => 'unverified',
     };
