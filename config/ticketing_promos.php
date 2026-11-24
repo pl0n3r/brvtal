@@ -176,6 +176,8 @@ function brvtalPromoQuote(PDO $db,int $eventId,int $typeId,int $buyerId,
         'percent'=>intdiv($subtotal*$value,100),
         'group3','group5'=>max(0,$subtotal-$value)
     };
+    // Wompi cannot charge zero COP. Roll back the entire checkout and its hold.
+    if ($discount >= $subtotal) throw new DomainException('PROMO_ZERO_TOTAL');
     return [
         'promo_id'=>(int)$rule['id'], 'code_digest'=>$rule['code_digest'],
         'event_id'=>$eventId,'ticket_type_id'=>$typeId,'buyer_id'=>$buyerId,

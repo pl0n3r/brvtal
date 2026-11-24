@@ -310,9 +310,13 @@ function brvtal_public_ticket_checkout_prepare(PDO $db, int $eventId, int $buyer
     if ($withOffer && !brvtal_waitlist_offers_enabled()) {
         throw new DomainException('WAITLIST_OFFERS_DISABLED');
     }
-    // D-063 / T23: never apply promos outside synthetic, isolated MariaDB.
+    // D-063: preparation only on isolated disposable DB until the owner
+    // completes the privacy/go-live gate; no real coupon payments are enabled.
     if ($withPromo) brvtalPromoSynthetic($db);
     $settings = brvtal_ticket_wompi_config();
+    if ($withPromo && $settings['mode'] === 'production') {
+        throw new DomainException('PROMOS_NOT_ENABLED');
+    }
     if (!in_array($method,$settings['methods'],true)) {
         throw new InvalidArgumentException('INVALID_CHECKOUT_METHOD');
     }
@@ -433,15 +437,11 @@ function brvtal_public_ticket_checkout_prepare(PDO $db, int $eventId, int $buyer
             }
             throw $error;
         }
-        // T23 never activates a provider charge: Wompi T07 presently requires
-        // sum(item subtotals) === order total, which excludes a discount ledger.
-        // Return a synthetic quote only; do not create a payment attempt.
-        // Activation needs a separate reviewed T07 ledger-aware adapter.
-        $checkout = $withPromo ? [
-            'environment'=>'mock','state'=>'awaiting_provider',
-            'currency'=>'COP','amount_in_cents'=>$total*100,
-            'provider_activation'=>false,
-        ] : brvtal_ticket_wompi_prepare($db,$buyerId,$orderId,$key,$method,$settings);
+        // T07 checks the frozen coupon ledger before signing the net COP.
+        // T23 still fails closed outside disposable test DBs (D-063).
+        $checkout = brvtal_ticket_wompi_prepare(
+            $db,$buyerId,$orderId,$key,$method,$settings
+        );
         $db->commit();
         $response=['order_id'=>$orderId,'checkout'=>$checkout];
         if ($withPromo) {
