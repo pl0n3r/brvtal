@@ -85,14 +85,14 @@ export async function mount(panel, initialKind = 'orders') {
       if (!append) results.textContent = 'No hay resultados para estos filtros.';
       return;
     }
+    const headings = kind.value === 'orders'
+      ? ['Pedido','Evento','Comprador','Estado','Total','Unidades','Pagos aprobados','Pago reciente','Correo','Detalle']
+      : ['Comprador','Correo','Estado','Pedidos','Pagado'];
     let table = results.querySelector('table');
     if (!table) {
       table = document.createElement('table');
       table.className = 'ticketing-records-table tk-table';
       const head = table.createTHead().insertRow();
-      const headings = kind.value === 'orders'
-        ? ['Pedido','Evento','Comprador','Estado','Total','Unidades','Pagos aprobados','Pago reciente','Correo','Detalle']
-        : ['Comprador','Correo','Estado','Pedidos','Pagado'];
       for (const title of headings) {
         const th = document.createElement('th'); th.scope = 'col'; th.textContent = title; head.appendChild(th);
       }
