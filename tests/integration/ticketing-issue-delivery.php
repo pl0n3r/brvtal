@@ -189,6 +189,43 @@ deliveryAssert(brvtal_ticket_issue_last_failure() === null, 'a tampered diagnost
 deliveryAssert(brvtal_ticket_issue_failure_code("SQLSTATE[42S02]: Base table 'x' doesn't exist") === 'ISSUE_FAILED'
     && brvtal_ticket_issue_failure_code('ana@example.test') === 'ISSUE_FAILED', 'free text never leaves the worker');
 
+// #1966: a verified payment's tickets never hit the public per-recipient limit; account mail still does.
+$limitFile = __DIR__ . '/../../storage/rate_limits/public-mail-hourly.json';
+$limitBackup = is_file($limitFile) ? file_get_contents($limitFile) : null;
+register_shutdown_function(static function () use ($limitFile, $limitBackup): void {
+    if ($limitBackup === null) @unlink($limitFile); else file_put_contents($limitFile, $limitBackup);
+});
+$GLOBALS['config']['ticketing']['mail'] = ['testing'=>'0', 'privacy_approved'=>'1', 'lookup_secret'=>str_repeat('a', 64)];
+putenv('BRVTAL_TICKET_MAIL_TESTING=0');
+$rateRecipient = 'rate-' . bin2hex(random_bytes(3)) . '@example.test';
+for ($i = 0; $i < 6; $i++) brvtal_public_abuse_mail_limit($rateRecipient);
+deliveryAssert(brvtal_public_abuse_mail_limit($rateRecipient)['allowed'] === false, 'recipient limit exhausted');
+$db->exec("INSERT INTO ticket_buyers(id,email) VALUES (11,'$rateRecipient')");
+$db->exec("INSERT INTO ticket_orders(id,event_id,buyer_id,status) VALUES (106,1,11,'paid')");
+$db->exec("INSERT INTO ticket_order_items(id,order_id,event_id,ticket_type_id,quantity,ticket_name_snapshot)
+    VALUES (206,106,1,11,1,'Preventa')");
+$db->exec("INSERT INTO ticket_payment_attempts(id,order_id,provider,provider_transaction_id,status)
+    VALUES (6,106,'wompi','tx-106','approved')");
+$journal->execute([6,'tx-106',hash('sha256','synthetic-6'),'APPROVED',time()]);
+$db->beginTransaction();
+brvtal_wompi_hook_enqueue($db, 106, 6);
+$db->commit();
+deliveryAssert(brvtal_ticket_issue_process_next($db, 'https://www.brvtal.com.co') === 'issued',
+    'paid tickets are issued despite an exhausted recipient limit');
+deliveryAssert($count("SELECT COUNT(*) FROM ticket_mail_outbox WHERE message_key='order:106:payment_approved'") === 1,
+    'paid tickets email queued');
+$db->beginTransaction();
+try {
+    brvtal_ticket_mail_enqueue($db, 'buyer:11:reset_password:1', 'buyer:11', $rateRecipient, 'Restablece', 'Texto');
+    deliveryAssert(false, 'account mail must stay rate limited');
+} catch (DomainException $error) {
+    deliveryAssert($error->getMessage() === 'MAIL_RATE_LIMITED', 'account mail keeps the public limit');
+} finally {
+    $db->rollBack();
+}
+$GLOBALS['config']['ticketing']['mail'] = ['testing'=>'1'];
+putenv('BRVTAL_TICKET_MAIL_TESTING=1');
+
 // Public origins only.
 try {
     brvtal_ticket_issue_process_next($db, 'https://evil.example');
