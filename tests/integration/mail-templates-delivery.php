@@ -276,10 +276,8 @@ try {
         return [$raw,['svix-id'=>$id,'svix-timestamp'=>$stamp,
             'svix-signature'=>'v1,'.$mac]];
     };
-    $delivery=static function(string $provider):callable {
-        return static fn(array $payload,array $headers):array =>
-            ['status'=>200,'body'=>json_encode(['id'=>$provider],JSON_THROW_ON_ERROR)];
-    };
+    $delivery=(static fn(string $provider): callable => static fn(array $payload,array $headers):array =>
+        ['status'=>200,'body'=>json_encode(['id'=>$provider],JSON_THROW_ON_ERROR)]);
     $historyState=static function(int $id)use($db):array {
         $q=$db->prepare('SELECT resend_email_id,delivery_state,state_at,order_id,template_key
             FROM ticket_mail_history WHERE outbox_id=?');
