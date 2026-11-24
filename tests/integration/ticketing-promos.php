@@ -200,3 +200,5 @@ if (getenv('BRVTAL_INTEGRATION_TESTS')==='1') {
         ->fetchColumn()===25000,'paid order immutable');
 }
 echo "T23 promo windows, quotas, lock, snapshots and integer COP OK (synthetic).".PHP_EOL;
+// Run coupon Wompi ledger regression under the same isolated T23 MariaDB matrix.
+require __DIR__.'/ticketing-wompi.php';
