@@ -76,9 +76,10 @@ try {
         t25(str_starts_with($sealed,BRVTAL_BUYER_MAIL_SEAL_PREFIX)
             && !str_contains($sealed,'BRVTAL:T1:'),'only encrypted bearer persisted');
         $text=brvtalBuyerMailUnseal($sealed);
+        $match=[];
         t25(is_string($text) && preg_match('/BRVTAL:T1:[a-f0-9]{32}:[A-Za-z0-9_-]{43}/',$text,$match)===1,
             'one-use bearer included in sealed mail');
-        return $match[0];
+        return (string)($match[0] ?? '');
     };
     $first=brvtalCourtesyIssue($db,7,'superadmin',$input);
     t25($first['queued']===true&&$first['qr']===null&&!$first['sent'],
