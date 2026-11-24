@@ -351,6 +351,32 @@ migrations_assert(
     'T03 must precede order notes FK without changing other migration order'
 );
 
+// #1995: fresh installs list POS 02 before webhook by filename; the outbox
+// table must be created before the non-additive, exact-blob POS handoff.
+$pendingPOS = [
+    ['migration'=>'migration_ticketing_pos_02.sql','action'=>'apply'],
+    ['migration'=>'migration_ticketing_order_notes_01.sql','action'=>'apply'],
+    ['migration'=>'migration_ticketing_webhook_01.sql','action'=>'apply'],
+    ['migration'=>'migration_ticketing_orders_01.sql','action'=>'apply'],
+    ['migration'=>'migration_ticketing_entries_01.sql','action'=>'apply'],
+];
+$orderedPOS = array_column(brvtalMigrationOrderDependencyActions($pendingPOS), 'migration');
+migrations_assert(
+    array_search('migration_ticketing_orders_01.sql', $orderedPOS, true)
+        < array_search('migration_ticketing_webhook_01.sql', $orderedPOS, true)
+    && array_search('migration_ticketing_webhook_01.sql', $orderedPOS, true)
+        < array_search('migration_ticketing_pos_02.sql', $orderedPOS, true),
+    'new POS 02 must run after both T03 order schema and T10 webhook outbox'
+);
+$webhookFirst = [
+    ['migration'=>'migration_ticketing_webhook_01.sql','action'=>'apply'],
+    ['migration'=>'migration_ticketing_pos_02.sql','action'=>'apply'],
+];
+migrations_assert(
+    brvtalMigrationOrderDependencyActions($webhookFirst) === $webhookFirst,
+    'existing correct webhook before POS ordering must remain stable'
+);
+
 $posRequirements = [
     'column-unsigned-bigint-nullable:ticket_issue_outbox.payment_attempt_id',
     "column-type:ticket_pos_sales.method=enum('cash','transfer','wompi_qr','terminal')",
