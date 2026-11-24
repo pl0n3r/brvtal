@@ -109,6 +109,8 @@ $public = [
     'api/buyer/account.php' => ['brvtalBuyerAccountAuthorized(', 'brvtalBuyerCsrfValid('],
     'api/buyer/refunds.php' => ['brvtalBuyerAccountAuthorized(', 'brvtalBuyerCsrfValid('],
     'api/contact.php' => ['brvtal_contact_consume_rate_limit(', 'brvtal_public_abuse_check('],
+    // A public-prefixed route can still be private; verify both admin gates.
+    'api/public-preview.php' => ['brvtal_admin_require(', 'brvtal_admin_require_csrf('],
     'api/ticketing/checkout.php' => ['brvtalBuyerSessionStart(', 'brvtalBuyerCsrfValid('],
     'api/ticketing/inventory.php' => ['INVENTORY_ENDPOINT_NOT_ENABLED'],
     'api/ticketing/waitlist.php' => ['brvtal_public_abuse_check('],
