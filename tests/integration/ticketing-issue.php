@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require_once __DIR__ . '/../../config/ticketing_issue.php';
 require_once __DIR__ . '/../../config/ticketing_wompi_webhook.php';
+require_once __DIR__ . '/../../config/migration_reconcile.php';
 
 function t09(bool $ok, string $message): void {
     if (!$ok) throw new RuntimeException('T09: '.$message);
@@ -180,11 +181,17 @@ $db->exec("CREATE TABLE ticket_pos_sales (id BIGINT UNSIGNED PRIMARY KEY,
     unit_price_cop BIGINT UNSIGNED NOT NULL,amount_cop BIGINT UNSIGNED NOT NULL,
     status VARCHAR(24) NOT NULL,method VARCHAR(24) NOT NULL,
     completed_at_utc DATETIME(6) NULL) ENGINE=InnoDB");
+$posProofBefore=brvtalMigrationSchemaProof($db,'migration_ticketing_pos_02.sql');
+t09(brvtalMigrationProofIsFullyAbsent($posProofBefore),
+    'all POS handoff proof checks must be absent before the compatibility ALTER');
 $posDdl=(string)file_get_contents(__DIR__.'/../../database/migration_ticketing_pos_02.sql');
 t09(str_contains($posDdl,'payment_attempt_id BIGINT UNSIGNED NULL'),
     'POS migration must preserve Wompi while allowing a NULL attempt');
 $posDdl=(string)preg_replace('/^\h*--[^\r\n]*$/m','',$posDdl);
 foreach(explode(';',$posDdl) as $statement) if(trim($statement)!=='') $db->exec($statement);
+$posProofAfter=brvtalMigrationSchemaProof($db,'migration_ticketing_pos_02.sql');
+t09(($posProofAfter['complete']??false)===true,
+    'post-migration MariaDB must prove nullable unsigned FK and preserved POS method');
 $db->exec("INSERT INTO ticket_orders (id,event_id,buyer_id,status,total_cop,currency)
     VALUES (105,1,8,'paid',5000,'COP'),(106,1,8,'paid',5000,'COP')");
 $db->exec("INSERT INTO ticket_order_items
