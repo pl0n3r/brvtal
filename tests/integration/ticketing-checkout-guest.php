@@ -133,4 +133,49 @@ guestAssert(brvtal_public_ticket_checkout_state_by_token($db, 1, $token) === 'ap
 guestAssert(brvtal_public_ticket_checkout_state_by_token($db, 2, $token) === 'unverified', 'token is bound to its event');
 guestAssert(brvtal_public_ticket_checkout_state_by_token($db, 1, str_repeat('0', 32)) === 'unverified', 'unknown token reveals nothing');
 guestAssert(brvtal_public_ticket_checkout_state_by_token($db, 1, "' OR 1=1 --") === 'unverified', 'malformed token rejected');
+
+
+// BRVTAL #1988: grants are browser-session capabilities, not order-URL auth.
+// Only paid purchases in the original cookie may be upgraded in phase B.
+brvtalBuyerSessionStart();
+guestAssert(brvtalBuyerCheckoutPaidGrant($db, $token) === null,
+    'bearer order URL alone cannot authorize the buyer');
+brvtalBuyerCheckoutRememberOrder($guestId, (int)$result['order_id'], true);
+$newGrant = brvtalBuyerCheckoutPaidGrant($db, $token);
+guestAssert($newGrant === [
+    'order_id'=>(int)$result['order_id'], 'buyer_id'=>$guestId, 'created_new'=>true,
+], 'paid newly created guest has only its own browser grant');
+guestAssert(brvtalBuyerCheckoutPaidGrant($db, str_repeat('0', 32)) === null,
+    'unknown token does not borrow an existing browser grant');
+guestAssert(brvtalBuyerCheckoutPaidGrant($db, "' OR 1=1 --") === null,
+    'injection-shaped token does not authorize checkout');
+
+$originalGrants = $_SESSION['buyer_checkout_orders'];
+$_SESSION['buyer_checkout_orders'] = []; // Second browser: same URL, no originating cookie.
+guestAssert(brvtalBuyerCheckoutPaidGrant($db, $token) === null,
+    'second browser with bearer URL never gains session');
+$_SESSION['buyer_checkout_orders'] = $originalGrants;
+$_SESSION['buyer_checkout_orders'][(string)$result['order_id']]['buyer_id'] = $memberId;
+guestAssert(brvtalBuyerCheckoutPaidGrant($db, $token) === null,
+    'grant with another buyer ID is rejected');
+$_SESSION['buyer_checkout_orders'] = $originalGrants;
+$_SESSION['buyer_checkout_orders'][(string)$result['order_id']]['issued_at'] -=
+    BRVTAL_BUYER_CHECKOUT_GRANT_SECONDS + 1;
+guestAssert(brvtalBuyerCheckoutPaidGrant($db, $token) === null,
+    'expired browser proof cannot elevate purchase');
+$_SESSION['buyer_checkout_orders'] = $originalGrants;
+
+$db->exec("INSERT INTO ticket_orders(event_id,buyer_id,status,public_id,checkout_key_hash,currency,total_cop)
+    VALUES (1,$memberId,'paid',RANDOM_BYTES(16),SHA2('existing-buyer-order',256),'COP',30000)");
+$existingOrder = (int)$db->lastInsertId();
+$existingToken = brvtal_public_ticket_checkout_order_token($db, $existingOrder);
+brvtalBuyerCheckoutRememberOrder($memberId, $existingOrder, false);
+$existingGrant = brvtalBuyerCheckoutPaidGrant($db, $existingToken);
+guestAssert($existingGrant === [
+    'order_id'=>$existingOrder, 'buyer_id'=>$memberId, 'created_new'=>false,
+], 'existing account gets only the purchased order, never full account login');
+guestAssert((int)($_SESSION['buyer_id'] ?? 0) === 0,
+    'checkout grant does not authenticate any existing account');
+unset($_SESSION['buyer_checkout_orders']);
+
 echo "BRVTAL #1943 guest checkout: input, same-origin, guest buyer, reuse, blocked, order and token status passed.\n";

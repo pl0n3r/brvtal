@@ -170,3 +170,98 @@ function brvtalBuyerSchemaReady(PDO $pdo): bool
             AND COLUMN_NAME IN ('id', 'email', 'full_name', 'password_hash', 'email_verified_at')";
     return (int)$pdo->query($sql)->fetchColumn() === 5;
 }
+
+/**
+ * #1988: temporary proof of the ORIGINAL checkout browser, never of email
+ * ownership. A public /compra/<token> URL alone cannot create this grant.
+ * Checkout must explicitly call this AFTER persisting the matching order.
+ * Kept outside buyer_id so an existing email can never log into its account.
+ */
+const BRVTAL_BUYER_CHECKOUT_GRANT_SECONDS = 7200;
+function brvtalBuyerCheckoutRememberOrder(int $buyerId, int $orderId, bool $createdNewBuyer): void
+{
+    if ($buyerId < 1 || $orderId < 1 || session_status() !== PHP_SESSION_ACTIVE
+        || session_name() !== BRVTAL_BUYER_SESSION_NAME
+        || (int)($_SESSION['buyer_id'] ?? 0) > 0) {
+        throw new RuntimeException('BUYER_CHECKOUT_SESSION_REQUIRED');
+    }
+    $now = time();
+    $prior = $_SESSION['buyer_checkout_orders'] ?? [];
+    $grants = [];
+    if (is_array($prior)) {
+        foreach ($prior as $id => $entry) {
+            if (!ctype_digit((string)$id) || !is_array($entry)
+                || !is_int($entry['issued_at'] ?? null)
+                || $entry['issued_at'] > $now
+                || $entry['issued_at'] < $now - BRVTAL_BUYER_CHECKOUT_GRANT_SECONDS
+                || !is_int($entry['buyer_id'] ?? null)
+                || $entry['buyer_id'] < 1
+                || !is_bool($entry['created_new'] ?? null)) {
+                continue;
+            }
+            $grants[(string)$id] = $entry;
+        }
+    }
+    $key = (string)$orderId;
+    // Idempotent retries in this SAME browser must not lose the original
+    // "new buyer" provenance; another browser never inherits that marker.
+    $previous = $grants[$key] ?? null;
+    $createdNewBuyer = $createdNewBuyer || (
+        is_array($previous) && $previous['buyer_id'] === $buyerId
+        && $previous['created_new'] === true
+    );
+    unset($grants[$key]);
+    $grants[$key] = [
+        'buyer_id' => $buyerId, 'created_new' => $createdNewBuyer,
+        'issued_at' => $now,
+    ];
+    $grants = array_slice($grants, -8, null, true);
+    // Rotate the browser's anonymous session at the time the grant is issued;
+    // a fixed pre-checkout PHP session ID must never inherit paid-order access.
+    if (!session_regenerate_id(true)) {
+        throw new RuntimeException('BUYER_SESSION_ROTATION_FAILED');
+    }
+    $_SESSION['buyer_checkout_orders'] = $grants;
+}
+
+/**
+ * Only a PAID order matching a short-lived grant in this PHP session is
+ * usable. Never infer session authority from a bearer URL, buyer email,
+ * payment redirect, or Wompi callback query parameter.
+ * @return array{order_id:int,buyer_id:int,created_new:bool}|null
+ */
+function brvtalBuyerCheckoutPaidGrant(PDO $pdo, string $orderToken): ?array
+{
+    if (session_status() !== PHP_SESSION_ACTIVE
+        || session_name() !== BRVTAL_BUYER_SESSION_NAME
+        || preg_match('/^[a-f0-9]{32}$/D', $orderToken) !== 1) {
+        return null;
+    }
+    $grants = $_SESSION['buyer_checkout_orders'] ?? null;
+    if (!is_array($grants) || count($grants) > 8) return null;
+    $stmt = $pdo->prepare("SELECT o.id,o.buyer_id,b.status AS buyer_status,b.email_verified_at
+        FROM ticket_orders o JOIN ticket_buyers b ON b.id=o.buyer_id
+        WHERE o.public_id=UNHEX(?) AND o.status='paid' LIMIT 1");
+    $stmt->execute([$orderToken]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($row)) return null;
+    $id = (int)$row['id'];
+    $buyerId = (int)$row['buyer_id'];
+    $grant = $grants[(string)$id] ?? null;
+    $now = time();
+    if ($id < 1 || $buyerId < 1 || !is_array($grant)
+        || !is_int($grant['buyer_id'] ?? null)
+        || $grant['buyer_id'] !== $buyerId
+        || !is_bool($grant['created_new'] ?? null)
+        || !is_int($grant['issued_at'] ?? null)
+        || $grant['issued_at'] > $now
+        || $grant['issued_at'] < $now - BRVTAL_BUYER_CHECKOUT_GRANT_SECONDS) {
+        return null;
+    }
+    // A new-email claim does not verify control of the inbox. In particular,
+    // a reused or verified account MUST fall back to purchase-only access.
+    $isFreshGuest = $grant['created_new'] === true
+        && $row['buyer_status'] === 'guest' && $row['email_verified_at'] === null;
+    return ['order_id'=>$id, 'buyer_id'=>$buyerId, 'created_new'=>$isFreshGuest];
+}
+
