@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/ticketing_issue.php';
 require_once __DIR__ . '/ticketing_mail_templates.php';
-require_once __DIR__ . '/buyer_auth_flows.php';
 
 /**
  * #1945: issue the oldest paid order and queue its QR email atomically.
@@ -88,6 +87,10 @@ function brvtal_ticket_issue_mail_deliverer(string $origin): callable
         // The trusted issuance transaction has already verified payment and
         // moved the issue outbox to "done". The token and sealed message either
         // commit together or both roll back.
+        // Lazy-load the account-creation integration only after the paid
+        // issuance path has been reached. The mail-only CLI worker also runs
+        // on pre-ticketing / restricted schemas and must remain functional.
+        require_once __DIR__ . '/buyer_auth_flows.php';
         $guestPasswordLink = brvtalBuyerAuthGuestPurchaseLink($db, $orderId);
         $mailData = [
             'event' => (string)$row['title'],
