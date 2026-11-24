@@ -1,0 +1,116 @@
+name: DISCADMIN Ticketing Records Visual Evidence
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - 'discadmin/ticketing-orders.js'
+      - 'discadmin/ticketing-entries.js'
+      - 'discadmin/ticketing.css'
+      - 'tests/e2e/discadmin-ticketing-orders.spec.mjs'
+      - 'tests/e2e/discadmin-ticketing-entries.spec.mjs'
+      - '.github/workflows/discadmin-ticketing-records-visual.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ticketing-records-evidence-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  evidence:
+    name: "#1969 Pedidos + Boletas before/after 390/1440"
+    if: github.event.pull_request.number == 1972
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - name: Checkout exact PR HEAD
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify HEAD identity
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+      - name: Install pinned browser dependencies
+        run: npm install --prefer-offline --no-audit --no-fund
+      - name: Install Chromium and verify runtime
+        shell: bash
+        run: |
+          npx playwright install chromium
+          if ! node --input-type=module - <<'JS'
+          import { chromium } from '@playwright/test';
+          const browser = await chromium.launch();
+          await browser.close();
+          JS
+          then
+            npx playwright install-deps chromium
+          fi
+      - name: Render eight source-derived screenshots in Chromium
+        env:
+          BRVTAL_VISUAL_EVIDENCE: artifacts/visual-1969
+        run: |
+          npx playwright test tests/e2e/discadmin-ticketing-orders.spec.mjs tests/e2e/discadmin-ticketing-entries.spec.mjs --project=chromium --grep="browser-generated before/after" --workers=1 --reporter=list
+      - name: Verify PNG dimensions and write exact-HEAD manifest
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          python3 - <<'PY'
+          import hashlib, json, os, struct
+          from pathlib import Path
+          root = Path('artifacts/visual-1969')
+          expected = [f'{module}-{state}-{width}.png'
+                      for module in ('pedidos', 'boletas')
+                      for state in ('antes', 'despues')
+                      for width in (390, 1440)]
+          captures = []
+          for filename in expected:
+              data = (root / filename).read_bytes()
+              if len(data) <= 1500 or data[:8] != b'\x89PNG\r\n\x1a\n':
+                  raise SystemExit(f'Invalid PNG: {filename}')
+              width, height = struct.unpack('>II', data[16:24])
+              if width != int(filename.split('-')[-1].split('.')[0]) or height < 200:
+                  raise SystemExit(f'Wrong screenshot dimensions: {filename}')
+              captures.append({
+                  'name': filename, 'width': width, 'height': height,
+                  'sha256': hashlib.sha256(data).hexdigest()
+              })
+          (root / 'manifest.json').write_text(json.dumps({
+              'issue': 1969, 'pr': 1972, 'head_sha': os.environ['EXPECTED_HEAD'],
+              'baseline_sha': '589e712a788d9835054c692eae7af13d01b469aa',
+              'provenance': 'synthetic source-derived fixture from authentic versioned JS/CSS',
+              'production_observed': False, 'captures': captures
+          }, indent=2) + '\n')
+          PY
+      - name: Publish before/after evidence
+        id: capture
+        if: success()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: discadmin-ticketing-1969-before-after-${{ github.event.pull_request.head.sha }}-${{ github.run_id }}
+          path: artifacts/visual-1969/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Link screenshots for human review
+        if: success() && steps.capture.outputs.artifact-url != ''
+        env:
+          ARTIFACT_URL: ${{ steps.capture.outputs.artifact-url }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          {
+            echo "## #1969 · Pedidos y Boletas"
+            printf 'HEAD exacto: `%s`\n' "$EXPECTED_HEAD"
+            echo "Ocho PNG sintéticos A/B: pedidos/boletas, antes/después, 390/1440 px."
+            echo "Los estados «antes» se renderizan con JS/CSS versionados, no desde producción."
+            echo "[Descargar capturas y manifiesto SHA]($ARTIFACT_URL)"
+          } >> "$GITHUB_STEP_SUMMARY"
