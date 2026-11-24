@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/ticketing_staff_permissions.php';
+require_once __DIR__ . '/ticketing_mail_mode.php';
 
 /** Share one verified, read-only staff-role lookup across view and JSON controller. */
 function brvtalRecoveryAdminIdentity(PDO $db): array
@@ -130,7 +131,7 @@ function brvtalRecoveryPlan(PDO $db, int $actor, string $role, array $input): ar
 }
 /** Aggregate only eligible *current* attempts, never paid, refunded, opted-out. */
 function brvtalRecoveryMetrics(PDO $db): array {
-    if (!brvtalRecoverySynthetic($db)) return [];
+    if (!brvtalRecoverySynthetic($db)) return brvtalRecoveryLiveMetrics($db);
     $sql = "SELECT p.event_id,p.campaign_key,p.stage,COUNT(*) AS previews
         FROM ticket_recovery_previews p
         JOIN ticket_orders o ON o.id=p.order_id AND o.status IN ('draft','pending')
@@ -148,9 +149,153 @@ function brvtalRecoveryMetrics(PDO $db): array {
 }
 /** Future authenticated buyer action may call this. Never exposed to staff. */
 function brvtalRecoveryOptOut(PDO $db, int $buyerId, int $eventId): bool {
-    if (!brvtalRecoverySynthetic($db) || $buyerId<1 || $eventId<1) return false;
+    if ($buyerId<1 || $eventId<1) return false;
     $q=$db->prepare('UPDATE ticket_recovery_consents SET revoked_at_utc=UTC_TIMESTAMP(6)
         WHERE buyer_id=? AND event_id=? AND revoked_at_utc IS NULL');
     $q->execute([$buyerId,$eventId]);
     return $q->rowCount()===1;
+}
+
+
+/** #1983: one marketing reminder per order, queued only by authorized staff. */
+function brvtalRecoveryWindow(): array
+{
+    $delay = getenv('BRVTAL_RECOVERY_DELAY_MINUTES');
+    $window = getenv('BRVTAL_RECOVERY_WINDOW_MINUTES');
+    $delay = $delay === false ? '15' : $delay;
+    $window = $window === false ? '1440' : $window;
+    if (!ctype_digit($delay) || !ctype_digit($window)) return [0, 0];
+    $min = (int)$delay; $max = (int)$window;
+    return ($min >= 1 && $min <= 1440 && $max > $min && $max <= 10080)
+        ? [$min, $max] : [0, 0];
+}
+
+/** Immutable, no tracking: the opaque /compra URL only exposes the existing order page. */
+function brvtalRecoveryReminder(string $event, string $token): array
+{
+    if (!preg_match('/^[0-9a-f]{32}$/D', $token)) {
+        throw new DomainException('RECOVERY_ORDER_TOKEN_INVALID');
+    }
+    $event = trim(preg_replace('/[\r\n\x00-\x1f]+/u', ' ', $event) ?? '');
+    $event = mb_substr($event, 0, 120, 'UTF-8');
+    if ($event === '') $event = 'tu evento';
+    $link = 'https://www.brvtal.com.co/compra/' . $token;
+    $optOut = 'https://www.brvtal.com.co/contact';
+    $subject = 'BRVTAL | Tu compra sigue pendiente';
+    $body = "Tu compra para {$event} todavía está pendiente.\n\n"
+        . "Si deseas continuar, consulta tu pedido aquí:\n{$link}\n\n"
+        . "Los cupos y precios pueden cambiar. Este mensaje no confirma el pago ni reserva boletas.\n\n"
+        . "Recibes este recordatorio comercial porque aceptaste comunicaciones del evento. "
+        . "Puedes solicitar la baja de estos mensajes en {$optOut}.\n\nBRVTAL";
+    $safeEvent = htmlspecialchars($event, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $safeLink = htmlspecialchars($link, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $html = '<!doctype html><html lang="es"><head><meta charset="utf-8">'
+        . '<meta name="viewport" content="width=device-width,initial-scale=1"></head>'
+        . '<body style="margin:0;background:#111;color:#f7f7f7;font:16px/1.6 Arial,sans-serif">'
+        . '<main style="max-width:600px;margin:auto;padding:32px 20px">'
+        . '<h1 style="font-size:27px;margin:0 0 20px">Tu compra sigue pendiente</h1>'
+        . '<p>Puedes volver a consultar tu compra para ' . $safeEvent . '.</p>'
+        . '<p><a style="display:inline-block;padding:14px 18px;background:#ff2038;color:#090b0d;'
+        . 'text-decoration:none;font-weight:bold" href="' . $safeLink . '">Consultar mi compra</a></p>'
+        . '<p>Los cupos y precios pueden cambiar. Este aviso no confirma pagos ni reservas.</p>'
+        . '<p style="font-size:13px;color:#b5bcc3">Es un recordatorio comercial solicitado. '
+        . 'Puedes <a style="color:#f7f7f7" href="' . $optOut . '">solicitar la baja</a> '
+        . 'de comunicaciones de marketing.</p>'
+        . '<p>BRVTAL · RAVE TILL GRAVE</p></main></body></html>';
+    return ['subject'=>$subject, 'text'=>$body, 'html'=>$html, 'link'=>$link];
+}
+
+/** Only queue. The CLI mail worker performs delivery under existing transport gates. */
+function brvtalRecoverySend(PDO $db, int $actor, string $role, array $input, ?array $mailState = null): array
+{
+    $input = brvtalRecoveryInput($input);
+    if ($actor < 1 || !brvtalTicketingCan($role, 'mail')
+        || !brvtalTicketingCan($role, 'buyers')) throw new DomainException('FORBIDDEN');
+    $mode = $mailState ?? brvtal_ticket_mail_status();
+    if (($mode['ready'] ?? false) !== true || !in_array($mode['mode'] ?? '', ['test','live'], true)) {
+        return ['state'=>'suppressed', 'reason'=>'mail_unavailable', 'queued'=>false];
+    }
+    [$minAge, $maxAge] = brvtalRecoveryWindow();
+    if ($minAge === 0) return ['state'=>'suppressed', 'reason'=>'window_unavailable', 'queued'=>false];
+
+    $db->beginTransaction();
+    try {
+        $suppress = static function (string $reason) use ($db): array {
+            $db->commit();
+            return ['state'=>'suppressed','reason'=>$reason,'queued'=>false];
+        };
+        $q = $db->prepare('SELECT o.id,o.status,o.created_at_utc,o.expires_at_utc,
+            LOWER(HEX(o.public_id)) AS public_token,b.email,b.status AS buyer_status,
+            b.email_verified_at,c.policy_version,c.consented_at_utc,c.revoked_at_utc,
+            c.expires_at_utc AS consent_expires,e.title AS event_title
+            FROM ticket_orders o JOIN ticket_buyers b ON b.id=o.buyer_id
+            JOIN events e ON e.id=o.event_id
+            LEFT JOIN ticket_recovery_consents c ON c.buyer_id=o.buyer_id AND c.event_id=o.event_id
+            WHERE o.id=? FOR UPDATE');
+        $q->execute([$input['order_id']]);
+        $order = $q->fetch(PDO::FETCH_ASSOC);
+        if (!$order || $order['status'] !== 'pending') return $suppress('order_not_pending');
+        $utc = new DateTimeZone('UTC');
+        $now = new DateTimeImmutable('now', $utc);
+        $created = new DateTimeImmutable((string)$order['created_at_utc'], $utc);
+        $expiry = new DateTimeImmutable((string)$order['expires_at_utc'], $utc);
+        if ($expiry <= $now) return $suppress('checkout_expired');
+        if ($created > $now->modify("-{$minAge} minutes")
+            || $created < $now->modify("-{$maxAge} minutes")) {
+            return $suppress('outside_window');
+        }
+        $nowText = $now->format('Y-m-d H:i:s.u');
+        if ($order['buyer_status'] !== 'active' || !$order['email_verified_at']
+            || !filter_var($order['email'], FILTER_VALIDATE_EMAIL)
+            || !is_string($order['policy_version'])
+            || !preg_match('/^marketing-[a-z0-9._-]{1,30}$/D', $order['policy_version'])
+            || !$order['consented_at_utc'] || (string)$order['consented_at_utc'] > $nowText
+            || $order['revoked_at_utc'] !== null
+            || !$order['consent_expires'] || (string)$order['consent_expires'] <= $nowText) {
+            return $suppress('consent_unavailable');
+        }
+        $payment = $db->prepare("SELECT id FROM ticket_payment_attempts
+            WHERE order_id=? AND status='approved' LIMIT 1 FOR UPDATE");
+        $payment->execute([$input['order_id']]);
+        if ($payment->fetchColumn()) return $suppress('payment_confirmed');
+        $key = 'order:' . $input['order_id'] . ':reminder';
+        $prior = $db->prepare('SELECT id FROM ticket_mail_outbox WHERE message_key=? LIMIT 1 FOR UPDATE');
+        $prior->execute([$key]);
+        if ($prior->fetchColumn()) return $suppress('already_reminded');
+        if (($mode['mode'] ?? '') === 'test') {
+            if (!function_exists('brvtal_ticket_test_recipient_allowed')) {
+                require_once __DIR__ . '/ticketing_resend.php';
+            }
+            if (!brvtal_ticket_test_recipient_allowed((string)$order['email'])) {
+                return $suppress('test_recipient_blocked');
+            }
+        }
+        $message = brvtalRecoveryReminder((string)$order['event_title'], (string)$order['public_token']);
+        if (!function_exists('brvtal_ticket_mail_enqueue')) {
+            require_once __DIR__ . '/ticketing_mail_outbox.php';
+        }
+        $mailId = brvtal_ticket_mail_enqueue($db, $key, 'order:' . $input['order_id'],
+            (string)$order['email'], $message['subject'], $message['text'],
+            $message['html'], 'reminder');
+        $db->commit();
+        return ['state'=>'queued', 'queued'=>true, 'replayed'=>false, 'mail_id'=>$mailId];
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        throw $e;
+    }
+}
+
+/** Aggregated operational results, without leaking buyer data or bearer URLs. */
+function brvtalRecoveryLiveMetrics(PDO $db): array
+{
+    $sql = "SELECT o.event_id,
+        COUNT(*) AS reminders,
+        SUM(m.state IN ('queued','retry','sending')) AS queued,
+        SUM(m.state='accepted') AS accepted,
+        SUM(m.state IN ('failed','dead')) AS failed
+        FROM ticket_mail_outbox m
+        JOIN ticket_orders o ON m.related_ref=CONCAT('order:',o.id)
+            AND m.message_key=CONCAT('order:',o.id,':reminder')
+        GROUP BY o.event_id ORDER BY o.event_id";
+    return $db->query($sql)->fetchAll(PDO::FETCH_ASSOC);
 }

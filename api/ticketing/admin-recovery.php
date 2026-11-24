@@ -12,13 +12,11 @@ try {
         || !brvtalTicketingCan($role,'buyers')) {
         json_response(['ok'=>false,'error'=>'FORBIDDEN'],403);
     }
-    if (!brvtalRecoverySynthetic($db)) {
-        json_response(['ok'=>false,'error'=>'SYNTHETIC_ONLY'],423);
-    }
     $method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
     if ($method === 'GET') {
+        $mail = brvtal_ticket_mail_status();
         json_response(['ok'=>true,'data'=>brvtalRecoveryMetrics($db),
-            'mode'=>'synthetic','mail_sent'=>false]);
+            'mode'=>$mail['mode'],'mail_ready'=>$mail['ready'],'mail_sent'=>false]);
     }
     if ($method !== 'POST') {
         json_response(['ok'=>false,'error'=>'METHOD_NOT_ALLOWED'],405,['Allow'=>'GET, POST']);
@@ -36,8 +34,8 @@ try {
     if (!is_array($input) || array_is_list($input)) {
         json_response(['ok'=>false,'error'=>'INVALID_PAYLOAD'],422);
     }
-    $preview = brvtalRecoveryPlan($db,$actor,$role,$input);
-    json_response(['ok'=>true,'data'=>$preview,'mail_sent'=>false]);
+    $result = brvtalRecoverySend($db,$actor,$role,$input);
+    json_response(['ok'=>true,'data'=>$result,'mail_sent'=>false]);
 } catch (InvalidArgumentException | JsonException) {
     json_response(['ok'=>false,'error'=>'INVALID_PAYLOAD'],422);
 } catch (DomainException $e) {
