@@ -76,7 +76,11 @@ try {
     }
     $result = brvtal_ticket_mail_deliver_one($pdo);
     // Deliberately print only a state, never recipient, body, key or token.
-    fwrite(STDOUT, json_encode(['reconcile' => $reconcile, 'issue' => $issue, 'state' => $result], JSON_THROW_ON_ERROR) . "\n");
+    $output = ['reconcile' => $reconcile, 'issue' => $issue, 'state' => $result];
+    // #1956: the last issuance failure stays visible until an issuance succeeds.
+    $last = function_exists('brvtal_ticket_issue_last_failure') ? brvtal_ticket_issue_last_failure() : null;
+    if ($last !== null) $output['issue_last'] = $last['code'] . '@' . $last['at'];
+    fwrite(STDOUT, json_encode($output, JSON_THROW_ON_ERROR) . "\n");
     exit(in_array($result, ['idle', 'accepted'], true) ? 0 : 1);
 } catch (Throwable) {
     fwrite(STDERR, "ticket_mail_worker_unavailable\n");

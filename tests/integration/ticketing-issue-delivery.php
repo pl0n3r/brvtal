@@ -34,6 +34,10 @@ $db = new PDO("mysql:host=$host;port=$port;dbname=$name;charset=utf8mb4", $user,
 $GLOBALS['config'] = ['security'=>['encryption_key'=>str_repeat('k', 48)],
     'ticketing'=>['mail'=>['testing'=>'1']]];
 putenv('BRVTAL_TICKET_MAIL_TESTING=1');
+// #1956: keep the last-failure diagnostic inside the test's own temp file.
+$lastFailureFile = sys_get_temp_dir() . '/brvtal-issue-last-' . bin2hex(random_bytes(4)) . '.json';
+putenv('BRVTAL_TICKET_ISSUE_LAST_FAILURE_FILE=' . $lastFailureFile);
+register_shutdown_function(static fn() => @unlink($lastFailureFile));
 foreach ([
     "CREATE TABLE events(id INT UNSIGNED PRIMARY KEY,title VARCHAR(180) NOT NULL) ENGINE=InnoDB",
     "CREATE TABLE event_ticket_types(id INT UNSIGNED PRIMARY KEY,event_id INT UNSIGNED NOT NULL) ENGINE=InnoDB",
@@ -162,6 +166,10 @@ $failed = $db->query("SELECT state,attempts,TIMESTAMPDIFF(SECOND,UTC_TIMESTAMP(6
     FROM ticket_issue_outbox WHERE order_id=105")->fetch();
 deliveryAssert($failed['state'] === 'failed' && (int)$failed['attempts'] === 1 && (int)$failed['wait'] >= 55,
     'first retry in about a minute');
+$last = brvtal_ticket_issue_last_failure();
+deliveryAssert($last !== null && $last['code'] === 'ISSUE_DELIVERY_RECIPIENT'
+    && preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/D', $last['at']) === 1, 'last failure remembered (#1956)');
+deliveryAssert(!str_contains((string)file_get_contents($lastFailureFile), '@example'), 'diagnostic holds no buyer data');
 deliveryAssert($count('SELECT COUNT(*) FROM ticket_entries e JOIN ticket_order_items i ON i.id=e.order_item_id WHERE i.order_id=105') === 0,
     'a failed issuance leaves no tickets');
 $db->exec('UPDATE ticket_issue_outbox SET attempts=6,next_attempt_at_utc=NULL WHERE order_id=105');
@@ -175,6 +183,9 @@ deliveryAssert((int)$failed['attempts'] === 7 && (int)$failed['wait'] >= 3500 &&
 $db->exec("UPDATE ticket_buyers SET email='carla@example.test' WHERE id=10");
 $db->exec('UPDATE ticket_issue_outbox SET next_attempt_at_utc=NULL WHERE order_id=105');
 deliveryAssert(brvtal_ticket_issue_process_next($db, $origin) === 'issued', 'issued once the cause is fixed');
+deliveryAssert(brvtal_ticket_issue_last_failure() === null, 'a successful issuance clears the last failure');
+file_put_contents($lastFailureFile, json_encode(['code'=>'ana@example.test','at'=>'2026-11-24T00:00:00Z']));
+deliveryAssert(brvtal_ticket_issue_last_failure() === null, 'a tampered diagnostic is never printed');
 deliveryAssert(brvtal_ticket_issue_failure_code("SQLSTATE[42S02]: Base table 'x' doesn't exist") === 'ISSUE_FAILED'
     && brvtal_ticket_issue_failure_code('ana@example.test') === 'ISSUE_FAILED', 'free text never leaves the worker');
 
