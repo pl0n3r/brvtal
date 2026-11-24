@@ -40,6 +40,11 @@ try {
     $status = match ($code) {
         'FORBIDDEN' => 403, 'ORDER_NOT_FOUND' => 404,
         'IDEMPOTENCY_CONFLICT' => 409, 'SYNTHETIC_ONLY' => 423,
+        'ORDER_NOT_PENDING' => 409, 'ORDER_NOT_PAID' => 409,
+        'PAYMENT_RECONCILIATION_REQUIRED' => 409,
+        'ORDER_ALREADY_ISSUED' => 409, 'TICKETS_NOT_ISSUED' => 409,
+        'MAIL_PAYLOAD_NOT_RECOVERABLE' => 409, 'MAIL_NOT_ENABLED' => 423,
+        'MAIL_RATE_LIMITED' => 429,
         default => 403,
     };
     json_response(['ok'=>false,'error'=>$code],$status);
