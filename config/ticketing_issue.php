@@ -2,12 +2,58 @@
 declare(strict_types=1);
 
 /**
- * T09: offline issuance worker. Only a verified Wompi webhook can enqueue a
- * paid order. Called by a trusted backend worker, NEVER by a public route.
+ * T09: offline issuance worker. Either a verified signed Wompi webhook or a
+ * trusted, operator-confirmed POS sale. NEVER called from a public route.
  * Secrets are returned exactly once, in memory, to the trusted delivery layer;
  * only their SHA-256 digests are persisted. A lost secret must be reissued
  * under a separate, audited owner-authorized flow, never inferred from its hash.
  */
+
+/**
+ * Proof of a manual sale must agree with the order, single line, cash
+ * transaction, operator, and shift. Never use fake Wompi approvals.
+ */
+function brvtal_ticket_pos_verified(PDO $db, int $orderId): bool
+{
+    if ($orderId<1) return false;
+    try {
+        $q=$db->prepare("SELECT 1 FROM ticket_pos_sales s
+            JOIN ticket_pos_shifts sh ON sh.id=s.shift_id
+                AND sh.event_id=s.event_id AND sh.operator_admin_id=s.operator_admin_id
+            JOIN ticket_orders o ON o.id=s.order_id AND o.event_id=s.event_id
+                AND o.status='paid' AND o.currency='COP' AND o.total_cop=s.amount_cop
+            JOIN ticket_order_items i ON i.order_id=o.id AND i.event_id=s.event_id
+                AND i.ticket_type_id=s.ticket_type_id AND i.quantity=s.quantity
+                AND i.unit_price_cop=s.unit_price_cop AND i.subtotal_cop=s.amount_cop
+            WHERE s.order_id=? AND s.status='paid' AND s.method IN ('cash','terminal')
+                AND s.completed_at_utc IS NOT NULL
+                AND (SELECT COUNT(*) FROM ticket_order_items x WHERE x.order_id=o.id)=1
+                AND NOT EXISTS(SELECT 1 FROM ticket_payment_attempts a WHERE a.order_id=o.id)
+            LIMIT 1");
+        $q->execute([$orderId]);
+        return $q->fetchColumn()!==false;
+    } catch (PDOException $e) {
+        if ($e->getCode()==='42S02') return false;
+        throw $e;
+    }
+}
+
+/** Requires the operator's sale and order to have committed in this transaction. */
+function brvtal_ticket_pos_enqueue(PDO $db, int $orderId): void
+{
+    if ($orderId<1 || !$db->inTransaction()) throw new DomainException('POS_ISSUE_TRANSACTION');
+    if (!brvtal_ticket_pos_verified($db,$orderId)) throw new DomainException('POS_ISSUE_UNVERIFIED');
+    $db->prepare("INSERT INTO ticket_issue_outbox (order_id,payment_attempt_id)
+        VALUES (?,NULL) ON DUPLICATE KEY UPDATE order_id=ticket_issue_outbox.order_id")
+        ->execute([$orderId]);
+    $q=$db->prepare("SELECT id,payment_attempt_id FROM ticket_issue_outbox WHERE order_id=? FOR UPDATE");
+    $q->execute([$orderId]);
+    $row=$q->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($row) || $row['payment_attempt_id']!==null) {
+        throw new DomainException('POS_ISSUE_CONFLICT');
+    }
+}
+
 function brvtal_ticket_issue_consume(PDO $db, int $outboxId, ?callable $deliver = null): array
 {
     if ($outboxId < 1 || $db->inTransaction()) {
@@ -46,16 +92,23 @@ function brvtal_ticket_issue_consume(PDO $db, int $outboxId, ?callable $deliver 
             if ($order['status'] !== 'paid') {
                 throw new DomainException('ISSUE_NOT_PAID');
             }
-            $approval = $db->prepare("SELECT a.id FROM ticket_payment_attempts a
-                WHERE a.id=? AND a.order_id=? AND a.provider='wompi'
-                  AND a.status='approved' AND a.provider_transaction_id IS NOT NULL
-                  AND EXISTS (SELECT 1 FROM ticket_payment_webhook_events w
-                      WHERE w.attempt_id=a.id
-                        AND w.provider_transaction_id=a.provider_transaction_id)
-                LIMIT 1");
-            $approval->execute([(int)$job['payment_attempt_id'],(int)$orderId]);
-            if ($approval->fetchColumn() === false) {
-                throw new DomainException('ISSUE_UNVERIFIED_PAYMENT');
+            if ($job['payment_attempt_id'] === null) {
+                if (!brvtal_ticket_pos_verified($db,(int)$orderId)) {
+                    throw new DomainException('ISSUE_UNVERIFIED_PAYMENT');
+                }
+            } else {
+                // Preserve the signed Wompi gate for web payments.
+                $approval = $db->prepare("SELECT a.id FROM ticket_payment_attempts a
+                    WHERE a.id=? AND a.order_id=? AND a.provider='wompi'
+                      AND a.status='approved' AND a.provider_transaction_id IS NOT NULL
+                      AND EXISTS (SELECT 1 FROM ticket_payment_webhook_events w
+                          WHERE w.attempt_id=a.id
+                            AND w.provider_transaction_id=a.provider_transaction_id)
+                    LIMIT 1");
+                $approval->execute([(int)$job['payment_attempt_id'],(int)$orderId]);
+                if ($approval->fetchColumn() === false) {
+                    throw new DomainException('ISSUE_UNVERIFIED_PAYMENT');
+                }
             }
             $items = $db->prepare('SELECT id,event_id,ticket_type_id,quantity
                 FROM ticket_order_items WHERE order_id=? ORDER BY id FOR UPDATE');
@@ -159,7 +212,24 @@ function brvtal_ticket_issue_qr_payload(
             LIMIT 1");
         $read->execute([$publicId,$buyerId]);
         $hash = $read->fetchColumn();
-    } catch (PDOException) {
+        if ($hash === false) {
+            $pos=$db->prepare("SELECT c.token_hash,o.id AS order_id
+                FROM ticket_entries e
+                JOIN ticket_order_items i ON i.id=e.order_item_id
+                JOIN ticket_orders o ON o.id=i.order_id
+                JOIN ticket_issue_outbox b ON b.order_id=o.id
+                    AND b.state='done' AND b.payment_attempt_id IS NULL
+                JOIN ticket_entry_credentials c ON c.entry_id=e.id AND c.status='active'
+                WHERE e.public_id=UNHEX(?) AND o.buyer_id=? AND o.status='paid'
+                  AND e.status='issued' AND e.event_id=o.event_id LIMIT 1");
+            $pos->execute([$publicId,$buyerId]);
+            $row=$pos->fetch(PDO::FETCH_ASSOC);
+            if (is_array($row) && brvtal_ticket_pos_verified($db,(int)$row['order_id'])) {
+                $hash=$row['token_hash'];
+            }
+        }
+    } catch (PDOException $e) {
+        if ($e->getCode()==='42S02') throw new DomainException('TICKET_UNAVAILABLE');
         throw new RuntimeException('TICKET_STORAGE_UNAVAILABLE');
     }
     if (!is_string($hash) || !hash_equals($hash, hash('sha256',$raw,true))) {
