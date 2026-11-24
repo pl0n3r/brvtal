@@ -468,6 +468,15 @@ function brvtalMigrationProofSpecifications(): array
                 ['uq_recovery_request','idx_recovery_frequency','idx_recovery_reporting'], true)
         );
     }
+    // #2000: POS V2 migration lives on another reserved branch. Only advertise
+    // its proof when the exact migration is present in this checkout.
+    if (is_file(__DIR__ . '/../database/migration_ticketing_pos_02.sql')) {
+        $specifications['migration_ticketing_pos_02.sql'] = [
+            'column-bigint-unsigned-nullable:ticket_issue_outbox.payment_attempt_id',
+            'foreign-key:ticket_issue_outbox.fk_ticket_issue_outbox_pos_attempt=ticket_payment_attempts.id',
+            "column-type:ticket_pos_sales.method=enum('cash','terminal','transfer','wompi_qr')",
+        ];
+    }
     return $specifications;
 }
 
@@ -489,6 +498,29 @@ function brvtalMigrationProbeRequirement(PDO $pdo, string $requirement): bool
         );
         $statement->execute([$match[1], $match[2]]);
         return brvtalMigrationDurationColumnMatches($statement->fetch(PDO::FETCH_ASSOC));
+    }
+    if (preg_match('/^column-bigint-unsigned-nullable:([A-Za-z0-9_]+)\\.([A-Za-z0-9_]+)$/', $requirement, $match)) {
+        $stmt=$pdo->prepare('SELECT DATA_TYPE,COLUMN_TYPE,IS_NULLABLE FROM information_schema.COLUMNS '
+            . 'WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?');
+        $stmt->execute([$match[1],$match[2]]);
+        $row=$stmt->fetch(PDO::FETCH_ASSOC);
+        return is_array($row) && strtolower((string)($row['DATA_TYPE']??''))==='bigint'
+            && preg_match('/\\bunsigned\\b/i,(string)($row['COLUMN_TYPE']??''))===1
+            && strtoupper((string)($row['IS_NULLABLE']??''))==='YES';
+    }
+    if (preg_match('/^foreign-key:([A-Za-z0-9_]+)\\.([A-Za-z0-9_]+)=([A-Za-z0-9_]+)\\.([A-Za-z0-9_]+)$/', $requirement, $match)) {
+        $stmt=$pdo->prepare("SELECT COUNT(*) FROM information_schema.KEY_COLUMN_USAGE k
+            JOIN information_schema.REFERENTIAL_CONSTRAINTS r
+              ON r.CONSTRAINT_SCHEMA=k.CONSTRAINT_SCHEMA
+             AND r.CONSTRAINT_NAME=k.CONSTRAINT_NAME
+             AND r.TABLE_NAME=k.TABLE_NAME
+            WHERE k.CONSTRAINT_SCHEMA=DATABASE() AND k.TABLE_SCHEMA=DATABASE()
+              AND k.TABLE_NAME=? AND k.CONSTRAINT_NAME=?
+              AND k.COLUMN_NAME='payment_attempt_id'
+              AND k.REFERENCED_TABLE_NAME=? AND k.REFERENCED_COLUMN_NAME=?
+              AND r.DELETE_RULE IN ('RESTRICT','NO ACTION')");
+        $stmt->execute([$match[1],$match[2],$match[3],$match[4]]);
+        return (int)$stmt->fetchColumn()===1;
     }
     if (preg_match("/^column-type:([A-Za-z0-9_]+)\\.([A-Za-z0-9_]+)=([A-Za-z0-9_(),'.-]+)$/", $requirement, $match)) {
         $statement = $pdo->prepare(
