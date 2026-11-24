@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/ticketing_resend.php';
+require_once __DIR__ . '/ticketing_mail_events.php';
 require_once __DIR__ . '/public_abuse_guard.php';
 require_once __DIR__ . '/mail_template_renderer.php';
 
@@ -176,18 +177,53 @@ function brvtal_ticket_mail_deliver_one(PDO $pdo, ?callable $request = null): st
         'transport_disabled','transport_unavailable'];
     $code = in_array($code, $allowedCodes, true) ? $code : 'unspecified';
     $accepted = $state === 'accepted';
+    $providerId = $accepted ? (string)($result['id'] ?? '') : '';
+    if ($accepted && preg_match('/^[A-Za-z0-9_-]{1,128}$/D', $providerId) !== 1) {
+        // A provider response without a usable receipt must never be replayed.
+        $accepted = false;
+        $state = 'uncertain';
+        $code = 'receipt_unknown';
+    }
     $sql = "UPDATE ticket_mail_outbox
         SET state=?,next_attempt_at=DATE_ADD(UTC_TIMESTAMP(),INTERVAL {$next} SECOND),
             locked_until=NULL,last_error_code=?,provider_message_id=?,
             accepted_at=IF(?=1,UTC_TIMESTAMP(),accepted_at),updated_at=UTC_TIMESTAMP()
         WHERE id=? AND attempts=? AND state='sending'";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([
-        $state, $accepted ? null : $code,
-        $accepted ? (string)($result['id'] ?? '') : null,
-        $accepted ? 1 : 0, (int)$job['id'], $attempts
-    ]);
-    return $stmt->rowCount() === 1 ? $state : 'lease_lost';
+    $pdo->beginTransaction();
+    try {
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([
+            $state, $accepted ? null : $code,
+            $accepted ? $providerId : null,
+            $accepted ? 1 : 0, (int)$job['id'], $attempts
+        ]);
+        if ($stmt->rowCount() !== 1) {
+            $pdo->rollBack();
+            return 'lease_lost';
+        }
+        // Same transaction and fencing generation: preserve the original
+        // history scope and reconcile webhooks that arrived before this receipt.
+        if ($accepted) brvtal_mail_history_accept($pdo, (int)$job['id'], $providerId);
+        $pdo->commit();
+        return $state;
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        if ($accepted) {
+            // Resend already accepted the email. If receipt/history persistence
+            // fails, fence out automatic retry rather than sending it twice.
+            // Resend's 24h idempotency and the first_attempt_at cutoff remain.
+            try {
+                $uncertain = $pdo->prepare("UPDATE ticket_mail_outbox
+                    SET state='uncertain',locked_until=NULL,last_error_code='receipt_unknown',
+                        updated_at=UTC_TIMESTAMP()
+                    WHERE id=? AND attempts=? AND state='sending'");
+                $uncertain->execute([(int)$job['id'], $attempts]);
+            } catch (Throwable) {
+                // Database unavailable: preserve the exception for operator recovery.
+            }
+        }
+        throw $error;
+    }
 }
 
 /** Manual redrive only for definite, non-accepted failures; never uncertain. */

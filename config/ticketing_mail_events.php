@@ -56,6 +56,37 @@ function brvtal_mail_history_record(PDO $pdo, int $outboxId, array $meta = []): 
         throw $e;
     }
 }
+
+/**
+ * Link a successful Resend receipt without replacing the saved history scope.
+ * Called only within the outbox worker's fenced acceptance transaction.
+ * Terminal delivery events win over the initial provider acceptance.
+ */
+function brvtal_mail_history_accept(PDO $pdo, int $outboxId, string $provider): void {
+    if (!brvtal_mail_history_allowed()) return;
+    if (!$pdo->inTransaction()) throw new RuntimeException('MAIL_TRANSACTION_REQUIRED');
+    if ($outboxId < 1 || preg_match('/^[A-Za-z0-9_-]{1,128}$/D',$provider) !== 1)
+        throw new InvalidArgumentException('MAIL_INVALID_PROVIDER');
+    // T10 predates T11: workers must still accept messages on an outbox-only
+    // database. Never create history without its scoped T11 audit record.
+    $historyReady=$pdo->query("SELECT COUNT(*) FROM information_schema.TABLES
+        WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='ticket_mail_history'");
+    if ((int)$historyReady->fetchColumn()===0) return;
+    $q=$pdo->prepare('SELECT id,resend_email_id FROM ticket_mail_history WHERE outbox_id=? FOR UPDATE');
+    $q->execute([$outboxId]);
+    $history=$q->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($history)) return; // Future scope-aware history record will link the accepted outbox.
+    $linked=(string)($history['resend_email_id'] ?? '');
+    if ($linked !== '' && !hash_equals($linked,$provider))
+        throw new DomainException('MAIL_HISTORY_PROVIDER_CONFLICT');
+    $update=$pdo->prepare("UPDATE ticket_mail_history SET resend_email_id=?,
+        state_at=IF(delivery_state='queued',UTC_TIMESTAMP(),state_at),
+        delivery_state=IF(delivery_state='queued','accepted',delivery_state)
+        WHERE id=?");
+    $update->execute([$provider,(int)$history['id']]);
+    brvtal_mail_history_reconcile($pdo,$provider);
+}
+
 /** Durable unique receipt even if history/backfill has not yet linked the Resend email_id. */
 function brvtal_mail_history_event(PDO $pdo, string $webhookId, string $provider,
     string $state, DateTimeImmutable $when, string $hash): void {

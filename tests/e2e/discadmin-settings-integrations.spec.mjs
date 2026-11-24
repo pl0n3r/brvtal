@@ -106,6 +106,28 @@ async function setup(page,{writable=true}={}) {
   return page.locator('[data-settings-integrations]');
 }
 
+
+test('#1998: instrucciones de webhook Resend verificables, privadas y responsive',async({page})=>{
+  for(const width of [390,1440]){
+    await page.setViewportSize({width,height:width===390?844:900});
+    await setup(page);
+    const resend=page.locator('[data-integration-provider="resend"]');
+    const secret=resend.locator('[data-secret-key="BRVTAL_TICKET_MAIL_WEBHOOK_SECRET"]');
+    const help=resend.locator('[data-secret-row="BRVTAL_TICKET_MAIL_WEBHOOK_SECRET"] .sv2-secret-help');
+    await expect(secret).toHaveAttribute('type','password');
+    await expect(help).toContainText('https://www.brvtal.com.co/api/ticketing/webhook-resend.php');
+    for(const event of ['email.sent','email.delivered','email.delivery_delayed','email.bounced','email.failed']){
+      await expect(help).toContainText(event);
+    }
+    await expect(resend.getByText('Secreto del webhook',{exact:true})).toBeVisible();
+    const dimensions=await page.evaluate(()=>({
+      client:document.documentElement.clientWidth,scroll:document.documentElement.scrollWidth
+    }));
+    expect(dimensions.scroll).toBeLessThanOrEqual(dimensions.client);
+    expect((await page.locator('body').innerText())).not.toContain('whsec_synthetic_not_for_logging');
+  }
+});
+
 test('AC-01: Resend se guarda y elimina en Settings sin exponer el valor',async({page})=>{
   await setup(page);
   const resend=page.locator('[data-integration-provider="resend"]');
