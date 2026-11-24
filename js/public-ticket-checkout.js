@@ -392,6 +392,60 @@
       say(feedback[error.message] ||
         'No fue posible reservar. Puede que ya no haya cupo; revisa tu selección y vuelve a intentarlo.');
     }
+    async function resolveCartBuyer(auth) {
+      signedIn(auth.authenticated === true);
+      if (auth.authenticated) return { buyer: null, fingerprint: null };
+      const buyer = readBuyer();
+      if (!buyer) return null;
+      // Freeze the selected identity while prepare is in flight. It is unlocked
+      // in the submit handler's finally even on timeout or network failure.
+      lockBuyer(true);
+      return { buyer, fingerprint: await buyerFingerprint(buyer) };
+    }
+    function persistCartIntent(selection, identity) {
+      const { buyer, fingerprint } = identity;
+      if (record && (buyer ? record.buyer_fingerprint !== fingerprint : Boolean(record.buyer_fingerprint))) {
+        // A different buyer must never reuse a key or token from a prior order.
+        intent = null;
+        clear();
+      }
+      if (record?.lines && (!sameLines(record.lines, selection.lines) || record.method !== selection.method)) {
+        say('Tu selección cambió. Ajusta las boletas para empezar una nueva compra.');
+        return null;
+      }
+      intent ||= 'T13-' + crypto.randomUUID();
+      const pending = { intent, lines: selection.lines, method: selection.method,
+        ...(fingerprint ? { buyer_fingerprint: fingerprint } : {}),
+        ...(record?.order_id ? { order_id: record.order_id } : {}),
+        ...(/^[a-f0-9]{32}$/.test(String(record?.order_token || ''))
+          ? { order_token: record.order_token } : {}) };
+      if (!save(pending)) {
+        say('No se pudo guardar tu reserva para reintentos. Activa el almacenamiento de sesión.');
+        return null;
+      }
+      return pending;
+    }
+    async function sendCartPrepare(auth, buyer, selection, pending) {
+      return json(await timedFetch(location.pathname, {
+        method: 'POST', credentials: 'same-origin', cache: 'no-store',
+        // Guests prove same-origin via browser Fetch Metadata, not session CSRF.
+        headers: { 'Content-Type': 'application/json', 'X-BRVTAL-TICKET-CHECKOUT': 'prepare',
+          ...(buyer ? {} : { 'X-CSRF-TOKEN': auth.csrf }) },
+        body: JSON.stringify({ lines: selection.lines, method: selection.method,
+          idempotency_key: pending.intent, ...(buyer ? { buyer } : {}) }),
+      }));
+    }
+    function finishCartPrepare(pending, result) {
+      save({ ...pending, order_id: String(result.order_id),
+        ...(/^[a-f0-9]{32}$/.test(String(result.order_token || '')) ? { order_token: result.order_token } : {}) });
+      if (result.checkout?.environment === 'mock') {
+        // Synthetic mode never charges.
+        say('Reserva preparada. El pago sigue pendiente hasta la confirmación del servidor.');
+        return;
+      }
+      say('Reserva lista. Te llevamos a Wompi para pagar; el pago queda pendiente hasta que el servidor lo confirme.');
+      goToWompi(result.checkout);
+    }
     form.addEventListener('submit', async event => {
       event.preventDefault();
       if (submitting || pay.disabled) return;
@@ -400,48 +454,15 @@
       update();
       say('Verificando acceso y cupo…');
       try {
-        const auth = await json(await timedFetch('/api/buyer/auth.php', { credentials: 'same-origin', cache: 'no-store' }));
-        signedIn(auth.authenticated === true);
-        const buyer = auth.authenticated ? null : readBuyer();
-        if (!auth.authenticated && !buyer) return;
-        // Do not let an in-flight prepare use one buyer and a subsequent retry
-        // silently use another. Inputs unlock only after the request settles.
-        if (buyer) lockBuyer(true);
-        const fingerprint = buyer ? await buyerFingerprint(buyer) : null;
-        if (record && (buyer ? record.buyer_fingerprint !== fingerprint : Boolean(record.buyer_fingerprint))) {
-          intent = null;
-          clear();
-        }
-        if (record?.lines && (!sameLines(record.lines, selection.lines) || record.method !== selection.method)) {
-          say('Tu selección cambió. Ajusta las boletas para empezar una nueva compra.');
-          return;
-        }
-        intent ||= 'T13-' + crypto.randomUUID();
-        const pending = { intent, lines: selection.lines, method: selection.method,
-          ...(fingerprint ? { buyer_fingerprint: fingerprint } : {}),
-          ...(record?.order_id ? { order_id: record.order_id } : {}),
-          ...(/^[a-f0-9]{32}$/.test(String(record?.order_token || ''))
-            ? { order_token: record.order_token } : {}) };
-        if (!save(pending)) {
-          say('No se pudo guardar tu reserva para reintentos. Activa el almacenamiento de sesión.');
-          return;
-        }
-        const result = await json(await timedFetch(location.pathname, {
-          method: 'POST', credentials: 'same-origin', cache: 'no-store',
-          // Guests prove same-origin via the browser's Fetch Metadata, not a session CSRF.
-          headers: { 'Content-Type': 'application/json', 'X-BRVTAL-TICKET-CHECKOUT': 'prepare',
-            ...(buyer ? {} : { 'X-CSRF-TOKEN': auth.csrf }) },
-          body: JSON.stringify({ lines: selection.lines, method: selection.method, idempotency_key: intent,
-            ...(buyer ? { buyer } : {}) }),
+        const auth = await json(await timedFetch('/api/buyer/auth.php', {
+          credentials: 'same-origin', cache: 'no-store',
         }));
-        save({ ...pending, order_id: String(result.order_id),
-          ...(/^[a-f0-9]{32}$/.test(String(result.order_token || '')) ? { order_token: result.order_token } : {}) });
-        if (result.checkout?.environment === 'mock') { // Synthetic mode never charges.
-          say('Reserva preparada. El pago sigue pendiente hasta la confirmación del servidor.');
-          return;
-        }
-        say('Reserva lista. Te llevamos a Wompi para pagar; el pago queda pendiente hasta que el servidor lo confirme.');
-        goToWompi(result.checkout);
+        const identity = await resolveCartBuyer(auth);
+        if (!identity) return;
+        const pending = persistCartIntent(selection, identity);
+        if (!pending) return;
+        const result = await sendCartPrepare(auth, identity.buyer, selection, pending);
+        finishCartPrepare(pending, result);
       } catch (error) {
         reportCheckoutError(error);
       } finally {
