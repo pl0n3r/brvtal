@@ -12,6 +12,7 @@ function brvtal_mail_template_catalog(): array
     $ticketKeys = [
         'verify_account', 'reset_password', 'order_pending', 'order_rejected',
         'payment_approved', 'reminder', 'refund',
+        'admin_new_order', 'order_cancelled', 'order_expired',
     ];
     $catalog = [];
     foreach ($ticketKeys as $key) {

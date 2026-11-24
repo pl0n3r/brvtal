@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/ticketing_staff_permissions.php';
 require_once __DIR__ . '/ticketing_mail_outbox.php';
 require_once __DIR__ . '/ticketing_mail_events.php';
+require_once __DIR__ . '/ticketing_mail_templates.php';
 
 /**
  * T18b is an offline-only feature. Even a valid admin session cannot mutate
@@ -192,6 +193,10 @@ function brvtalTicketAdminRecordOrderAction(PDO $pdo, int $actorId, string $role
             $q = $pdo->prepare("UPDATE ticket_inventory_holds
                 SET status='released' WHERE order_id=? AND status='active'");
             $q->execute([$orderId]);
+            // Same order lock and transaction: enqueue only once, after a
+            // provider-safe cancellation. No network request runs here.
+            $outboxId = brvtal_ticket_mail_queue_buyer_state(
+                $pdo,$orderId,'order_cancelled');
             $state = 'cancelled';
         } else {
             if ($order['status']!=='paid') throw new DomainException('ORDER_NOT_PAID');

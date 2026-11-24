@@ -10,10 +10,10 @@ function mail_store_reject(callable $test, string $reason): void {
     throw new RuntimeException('MAIL STORE TEST FAILED: '.$reason);
 }
 $catalog = brvtal_mail_template_catalog();
-mail_store_assert(count($catalog) === 10, '7 ticketing + 2 staff + global theme');
+mail_store_assert(count($catalog) === 13, '10 ticketing + 2 staff + global theme');
 $ticketingDefaults = require __DIR__ . '/../../templates/ticketing/transactional.php';
 mail_store_assert(array_keys($ticketingDefaults) ===
-    array_slice(array_keys($catalog),0,7), 'no new transactional events');
+    array_slice(array_keys($catalog),0,10), 'only 10 allowlisted ticketing events');
 $original = $catalog['order_pending']['defaults'];
 $mail = brvtal_mail_template_validate('order_pending','ticketing',$original);
 mail_store_assert($mail['subject'] === $original['subject'], 'allowed static copy');

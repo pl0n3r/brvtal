@@ -95,7 +95,7 @@ admin_mail_check($active['source']==='catalog' && $active['revision']===0,
 admin_mail_reject(static fn()=>brvtalMailAdminDispatch($pdo,'admin',7,'POST',$draft,$audit),
     'read-only admin cannot mutate',DomainException::class);
 $catalogResponse=brvtalMailAdminDispatch($pdo,'admin',7,'GET',['view'=>'catalog'],$audit);
-admin_mail_check(count($catalogResponse['items'])===10,'catalog allowlist');
+admin_mail_check(count($catalogResponse['items'])===13,'catalog includes three #1984 transaction templates');
 $previewResponse=brvtalMailAdminDispatch($pdo,'admin',7,'POST',$preview,$audit);
 admin_mail_check($previewResponse['mail_sent']===false && count($events)===0,
     'preview never sends, logs or saves');
