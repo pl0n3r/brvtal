@@ -124,7 +124,7 @@ export async function mount(panel) {
       const refundButton=panel.querySelector('[data-finance-open-refunds]');
       posButton.disabled=true;outlet.replaceChildren();
       try {
-        const module=await import('/discadmin/ticketing-pos.js');
+        const module=await import('/discadmin/ticketing-pos.js' + new URL(import.meta.url).search);
         if (!live()) return;
         module.mount(outlet);
         posButton.setAttribute('aria-pressed','true');

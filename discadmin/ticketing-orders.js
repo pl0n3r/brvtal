@@ -24,7 +24,7 @@ export async function mount(panel, initialKind = 'orders') {
   // T25 mounts only in the existing Orders workspace; no second admin shell.
   if (initialKind === 'orders' && ['superadmin','root','owner','platform_owner']
     .includes(panel.closest('[data-admin-module="ticketing"]')?.dataset.ticketingRole)) {
-    import('/discadmin/ticketing-courtesy.js')
+    import('/discadmin/ticketing-courtesy.js' + new URL(import.meta.url).search)
       .then(({mount}) => {if (active()) mount(panel);})
       .catch(() => {if (active()) status.textContent='Cortesías no disponibles.';});
   }

@@ -401,3 +401,34 @@ test('#1976: browser-generated before/after order detail at 390 and 1440',async(
     }
   }
 });
+
+// #1986: modules are served immutable for a year, so every dynamic import must carry the deploy ?v=.
+test('#1986: no DISCADMIN dynamic import omits the deploy version',()=>{
+  const files = ['discadmin/ticketing.js','discadmin/ticketing-orders.js','discadmin/ticketing-finance.js','discadmin/content-core.js'];
+  for (const file of files) {
+    const text = readFileSync(file,'utf8');
+    expect(text,file).not.toMatch(/import\(\s*['"][^'"]+\.js['"]\s*\)/);
+  }
+});
+
+test('#1986: Boletería loaded as ticketing.js?v=X requests Pedidos with ?v=X',async({page})=>{
+  const shell = readFileSync('discadmin/ticketing.js','utf8');
+  const requested = [];
+  await page.route('**/discadmin/ticketing.js?v=abc1234', route => route.fulfill({contentType:'text/javascript',body:shell}));
+  await page.route(/\/discadmin\/ticketing-orders\.js/, route => {
+    requested.push(new URL(route.request().url()).search);
+    return route.fulfill({contentType:'text/javascript',body:'export async function mount(){}'});
+  });
+  await page.route('**/discadmin/ticketing.php', route => route.fulfill({contentType:'text/html; charset=utf-8',
+    body:'<section class="ticketing" data-admin-module="ticketing" data-ticketing-role="superadmin">'
+      + '<div role="tablist"><button role="tab" type="button" data-ticketing-tab="orders" data-ticketing-tab-group="sale" aria-selected="true">Pedidos</button></div>'
+      + '<div id="ticketing-panel" role="tabpanel" data-ticketing-panel></div></section>'}));
+  await page.route('**/discadmin/module-cache-fixture.html', route => route.fulfill({contentType:'text/html; charset=utf-8',
+    body:'<!doctype html><html lang="es"><body><div id="admin-module-host"></div>'
+      + '<script>window.state={authed:true,section:"ticketing"};</script>'
+      + '<script src="/discadmin/ticketing.js?v=abc1234"></script></body></html>'}));
+  await page.goto('https://www.brvtal.com.co/discadmin/module-cache-fixture.html');
+  await page.evaluate(() => window.BRVTALTicketing.mount());
+  await expect.poll(() => requested).toContain('?v=abc1234');
+  expect(requested).not.toContain('');
+});
