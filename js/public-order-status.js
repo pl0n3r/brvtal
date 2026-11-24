@@ -2,7 +2,7 @@
   'use strict';
   // #1958: purchase confirmation. Only the server's state is shown; nothing in the
   // URL or from Wompi's window can mark an order as paid.
-  const token = (location.pathname.match(/^\/compra\/([a-f0-9]{32})\/?$/) || [])[1] || '';
+  const token = (/^\/compra\/([a-f0-9]{32})\/?$/.exec(location.pathname) || [])[1] || '';
   const $ = id => document.getElementById(id);
   const box = $('purchase');
   const stateEl = $('purchase-state');
@@ -53,7 +53,7 @@
       next = 8000;
     }
     // Poll for about three minutes; after that the buyer can reload or check Mi cuenta.
-    if (++polls < 45) setTimeout(refresh, window.BRVTAL_ORDER_POLL_MS || next);
+    if (++polls < 45) setTimeout(() => { void refresh(); }, window.BRVTAL_ORDER_POLL_MS || next);
   }
-  refresh();
+  void refresh();
 })();

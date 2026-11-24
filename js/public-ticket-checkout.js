@@ -480,7 +480,7 @@
           idempotency_key: pending.intent, ...(buyer ? { buyer } : {}) }),
       }));
     }
-    async function finishCartPrepare(pending, result, buyer) {
+    function finishCartPrepare(pending, result, buyer) {
       save({ ...pending, order_id: String(result.order_id),
         ...(/^[a-f0-9]{32}$/.test(String(result.order_token || '')) ? { order_token: result.order_token } : {}) });
       if (result.checkout?.environment === 'mock') {
@@ -489,7 +489,7 @@
         return;
       }
       say('Reserva lista. Completa el pago en la ventana de Wompi; el pago queda pendiente hasta que el servidor lo confirme.');
-      await payWithWompi(result.checkout, { token: String(result.order_token || ''), buyer });
+      return payWithWompi(result.checkout, { token: String(result.order_token || ''), buyer });
     }
     form.addEventListener('submit', async event => {
       event.preventDefault();

@@ -22,5 +22,7 @@ try {
 } catch (Throwable) {
     json_response(['ok' => false, 'error' => 'ORDER_UNAVAILABLE'], 503);
 }
-if ($order === null) json_response(['ok' => false, 'error' => 'ORDER_NOT_FOUND'], 404);
+if ($order === null) {
+    json_response(['ok' => false, 'error' => 'ORDER_NOT_FOUND'], 404);
+}
 json_response(['ok' => true, 'order' => $order], 200);
