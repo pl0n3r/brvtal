@@ -53,6 +53,84 @@ $payments[0]['gross_amount_cop']=89999;
 $invalid=brvtalFinanceSummarize($orders,$items,$payments)[0];
 t20($invalid['paid_orders']===0 && $invalid['unverified_orders']===2,
     'provider gross mismatch cannot certify revenue');
-echo "T20 finance synthetic invariants OK\n";
+$posOrder=['id'=>5,'event_id'=>9,'status'=>'paid','total_cop'=>20000,'currency'=>'COP'];
+$posItem=['order_id'=>5,'ticket_type_id'=>7,'quantity'=>1,'subtotal_cop'=>20000];
+$posSale=['id'=>15,'order_id'=>5,'event_id'=>9,'ticket_type_id'=>7,'quantity'=>1,
+    'amount_cop'=>20000,'method'=>'cash','status'=>'paid'];
+$summary=brvtalFinanceSummarize([$posOrder],[$posItem],[],[$posSale])[0];
+t20($summary['pos_cop']===20000 && $summary['pos_orders']===1
+    && $summary['approved_cop']===0 && $summary['paid_orders']===1,
+    'POS counted apart from Wompi');
+t20($summary['fee_cop']===0 && $summary['payout_cop']===0
+    && $summary['transactions'][0]['fee_cop']===null,
+    'no invented POS commission or settlement');
+$bad=$posSale;$bad['amount_cop']=20001;
+$invalidPos=brvtalFinanceSummarize([$posOrder],[$posItem],[],[$bad])[0];
+t20($invalidPos['unverified_orders']===1 && $invalidPos['pos_cop']===0,
+    'mismatched cash evidence rejected');
+$terminal=$posSale;$terminal['method']='terminal';
+$terminalSummary=brvtalFinanceSummarize([$posOrder],[$posItem],[],[$terminal])[0];
+t20($terminalSummary['pos_cop']===20000,'operator-confirmed terminal accepted without provider fee');
+// Real MariaDB negative cases: channel selection can remove all matched orders.
+// Only run on a disposable DB with the integration-test flag.
+if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
+    $prefix=(string)(getenv('BRVTAL_TEST_DB_NAME')?:'');
+    t20((bool)preg_match('/^brvtal_test[a-zA-Z0-9_]*$/D', $prefix),
+        'filtered channel regressions require disposable DB');
+    $name=$prefix.'_t20filter_'.bin2hex(random_bytes(4));
+    $host=(string)(getenv('BRVTAL_TEST_DB_HOST')?:'127.0.0.1');
+    $port=(int)(getenv('BRVTAL_TEST_DB_PORT')?:3306);
+    $user=(string)(getenv('BRVTAL_TEST_DB_USER')?:'root');
+    $pass=(string)(getenv('BRVTAL_TEST_DB_PASS')?:'');
+    $opts=[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES=>false];
+    $server=new PDO("mysql:host={$host};port={$port};charset=utf8mb4",$user,$pass,$opts);
+    $server->exec('CREATE DATABASE '.$name.' CHARACTER SET utf8mb4');
+    try {
+        $db=new PDO("mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4",
+            $user,$pass,$opts);
+        foreach ([
+            'CREATE TABLE ticket_orders (
+                id INT PRIMARY KEY,event_id INT NOT NULL,status VARCHAR(20) NOT NULL,
+                total_cop BIGINT NOT NULL,currency CHAR(3) NOT NULL,
+                created_at_utc DATETIME(6) NOT NULL) ENGINE=InnoDB',
+            'CREATE TABLE ticket_order_items (
+                order_id INT NOT NULL,ticket_type_id INT NOT NULL,quantity INT NOT NULL,
+                subtotal_cop BIGINT NOT NULL) ENGINE=InnoDB',
+            'CREATE TABLE ticket_payment_attempts (
+                id INT PRIMARY KEY,order_id INT NOT NULL,provider VARCHAR(20) NOT NULL,
+                provider_transaction_id VARCHAR(30),status VARCHAR(20) NOT NULL,
+                gross_amount_cop BIGINT,fee_amount_cop BIGINT,fee_vat_cop BIGINT,
+                withheld_amount_cop BIGINT,net_amount_cop BIGINT) ENGINE=InnoDB',
+            'CREATE TABLE ticket_pos_shifts (
+                id INT PRIMARY KEY,event_id INT NOT NULL,operator_admin_id INT NOT NULL
+                ) ENGINE=InnoDB',
+            'CREATE TABLE ticket_pos_sales (
+                id INT PRIMARY KEY,shift_id INT NOT NULL,event_id INT NOT NULL,
+                operator_admin_id INT NOT NULL,order_id INT NOT NULL,
+                ticket_type_id INT NOT NULL,quantity INT NOT NULL,amount_cop BIGINT NOT NULL,
+                method VARCHAR(20),status VARCHAR(20) NOT NULL,
+                completed_at_utc DATETIME(6)) ENGINE=InnoDB',
+            "INSERT INTO ticket_orders VALUES
+                (41,1,'paid',10000,'COP',UTC_TIMESTAMP(6)),
+                (42,2,'paid',20000,'COP',UTC_TIMESTAMP(6))",
+            'INSERT INTO ticket_order_items VALUES (41,7,1,10000),(42,7,1,20000)',
+            "INSERT INTO ticket_payment_attempts VALUES
+                (51,41,'wompi','WOMPI-41','approved',10000,300,57,0,9643)",
+            'INSERT INTO ticket_pos_shifts VALUES (1,2,7)',
+            "INSERT INTO ticket_pos_sales VALUES
+                (61,1,2,7,42,7,1,20000,'cash','paid',UTC_TIMESTAMP(6))",
+        ] as $sql) $db->exec($sql);
+        t20(brvtalFinanceReport($db,1,null,null,'pos')===[],
+            'POS channel excludes Wompi-only event without generating IN ()');
+        t20(brvtalFinanceReport($db,2,null,null,'wompi')===[],
+            'Wompi channel excludes POS-only event without generating IN ()');
+    } finally {
+        $server->exec('DROP DATABASE IF EXISTS '.$name);
+    }
+}
+
+echo "T20 finance + POS synthetic invariants OK\n";
 // T21 synthetic MariaDB regressions execute in the existing finance integration harness.
 require __DIR__.'/ticketing-refunds.php';

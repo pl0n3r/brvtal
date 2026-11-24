@@ -14,6 +14,11 @@ function posDenies(callable $run,string $code): void {
 $prepare=['action'=>'prepare','shift_id'=>'1','ticket_type_id'=>'10',
           'quantity'=>'1','method'=>'cash','idempotency_key'=>str_repeat('a',32)];
 posAssert(brvtalPosInput($prepare)['quantity']===1,'typed prepare');
+$typedEmail=brvtalPosInput(['action'=>'confirm','sale_id'=>'1',
+    'confirmation_token'=>str_repeat('b',48),'confirm'=>true,
+    'buyer_email'=>'PUERTA@example.test']);
+posAssert($typedEmail['buyer_email']==='puerta@example.test',
+    'optional buyer email canonicalized for transactional delivery');
 posAssert(brvtalPosCan('superadmin')&&brvtalPosCan('admin'),'seller roles');
 posAssert(!brvtalPosCan('door')&&!brvtalPosCan('viewer'),'door cannot sell');
 foreach ([
@@ -22,6 +27,10 @@ foreach ([
   [array_replace($prepare,['quantity'=>'0']),'POS_INVALID_NUMBER'],
   [array_replace($prepare,['idempotency_key'=>'short']),'POS_INVALID_PREPARE'],
   [array_replace($prepare,['method'=>'wire']),'POS_INVALID_PREPARE'],
+  [['action'=>'confirm','sale_id'=>'1','confirmation_token'=>str_repeat('b',48),
+    'confirm'=>true,'buyer_email'=>"a@example.test\r\nBcc:x"],'POS_INVALID_EMAIL'],
+  [['action'=>'confirm','sale_id'=>'1','confirmation_token'=>str_repeat('b',48),
+    'confirm'=>true,'buyer_email'=>str_repeat('a',192).'@test.co'],'POS_INVALID_EMAIL'],
   [['action'=>'confirm','sale_id'=>'1','confirmation_token'=>str_repeat('b',48),'confirm'=>false],
     'POS_CONFIRMATION_REQUIRED'],
 ] as [$bad,$code]) posDenies(static fn()=>brvtalPosInput($bad),$code);
@@ -60,7 +69,7 @@ $ddl=[
       status VARCHAR(24),currency CHAR(3),available_from DATETIME NULL,available_until DATETIME NULL,
       UNIQUE KEY uq_t03_ticket_type_event(id,event_id)) ENGINE=InnoDB",
   "CREATE TABLE ticket_buyers (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-      public_id BINARY(16),status VARCHAR(24)) ENGINE=InnoDB",
+      public_id BINARY(16),email VARCHAR(190) NULL UNIQUE,status VARCHAR(24)) ENGINE=InnoDB",
   "CREATE TABLE ticket_orders (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
       public_id BINARY(16),buyer_id BIGINT UNSIGNED,event_id INT UNSIGNED,
       checkout_key_hash CHAR(64) UNIQUE,status VARCHAR(24),currency CHAR(3),total_cop BIGINT UNSIGNED,
@@ -130,7 +139,8 @@ posAssert($repeat['replayed']&&$repeat['confirmation_token']===null,'replay cann
 posDenies(static fn()=>brvtalPosRun($db,1,'admin',array_replace($req,['quantity'=>'2'])),
     'POS_IDEMPOTENCY_CONFLICT');
 $confirm=['action'=>'confirm','sale_id'=>(string)$prepared['sale_id'],
-    'confirmation_token'=>$prepared['confirmation_token'],'confirm'=>true];
+    'confirmation_token'=>$prepared['confirmation_token'],'confirm'=>true,
+    'buyer_email'=>'puerta@example.test'];
 posDenies(static fn()=>brvtalPosRun($db,2,'admin',$confirm),'POS_SHIFT_UNAVAILABLE');
 posDenies(static fn()=>brvtalPosRun($db,1,'admin',array_replace($confirm,
     ['confirmation_token'=>str_repeat('e',48)])),'POS_SALE_UNAVAILABLE');
@@ -140,6 +150,8 @@ $paid=brvtalPosRun($db,1,'admin',$confirm);
 posAssert($paid['status']==='paid'&&count($paid['tickets'])===1,'one ticket');
 posAssert((int)$db->query('SELECT COUNT(*) FROM ticket_entries')->fetchColumn()===1,
     'exactly one committed entry');
+posAssert($db->query("SELECT email FROM ticket_buyers WHERE email='puerta@example.test'")->fetchColumn()
+    ==='puerta@example.test','transactional buyer email persisted in disposable fixture');
 posAssert((int)$db->query('SELECT COUNT(*) FROM ticket_payment_attempts')->fetchColumn()===0,
     'no forged Wompi approved attempt');
 posDenies(static fn()=>brvtalPosRun($db,1,'admin',$confirm),'POS_SALE_UNAVAILABLE');

@@ -36,9 +36,15 @@ function brvtalBuyerAccountFilters(array $input): array
 
 function brvtalBuyerAccountAuthorized(PDO $db, int $buyerId): bool
 {
-    if ($buyerId <= 0) return false;
-    $q = $db->prepare("SELECT id FROM ticket_buyers WHERE id=? AND status='active' AND email_verified_at IS NOT NULL LIMIT 1");
-    $q->execute([$buyerId]);
+    if ($buyerId <= 0 || (int)($_SESSION['buyer_id'] ?? 0) !== $buyerId) return false;
+    $checkoutOrder = (int)($_SESSION['buyer_checkout_new_order'] ?? 0);
+    $q = $db->prepare("SELECT id FROM ticket_buyers b WHERE b.id=?
+        AND ((b.status='active' AND b.email_verified_at IS NOT NULL)
+             OR (b.status='guest' AND b.email_verified_at IS NULL
+                 AND ? > 0 AND EXISTS (
+                     SELECT 1 FROM ticket_orders o WHERE o.id=?
+                       AND o.buyer_id=b.id AND o.status='paid'))) LIMIT 1");
+    $q->execute([$buyerId, $checkoutOrder, $checkoutOrder]);
     return $q->fetchColumn() !== false;
 }
 

@@ -56,21 +56,28 @@ try {
 $read=(string)file_get_contents(__DIR__.'/../../api/ticketing/admin-stages.php');
 stageAssert(str_contains($read,'brvtal_admin_require_csrf'),'admin POST CSRF required');
 stageAssert(str_contains($read,"'settings'"),'admin settings permission required');
-stageAssert(str_contains((string)file_get_contents(__DIR__.'/../../config/ticketing_stages.php'),
-    'BRVTAL_INTEGRATION_TESTS'),'writes must be synthetic only');
+stageAssert(!str_contains((string)file_get_contents(__DIR__.'/../../config/ticketing_stages.php'),
+    'BRVTAL_INTEGRATION_TESTS'),'stage writes do not require a synthetic flag');
 stageAssert(!str_contains($read,'ticket_order_items'),'API must not rewrite order snapshots');
 $checkoutSource = (string)file_get_contents(__DIR__.'/../../config/public_ticket_checkout.php');
-stageAssert(str_contains($checkoutSource, "BRVTAL_INTEGRATION_TESTS")
-    && str_contains($checkoutSource, "STAGE_TRANSACTION_REQUIRED")
-    && str_contains($checkoutSource, "FOR UPDATE"),
-    'stage checkout quote remains synthetic and serialized');
+$stageQuoteSource=substr($checkoutSource,
+    strpos($checkoutSource,'function brvtal_public_ticket_checkout_stage_quote('),
+    strpos($checkoutSource,'function brvtal_public_ticket_checkout_cart_lines(')
+      - strpos($checkoutSource,'function brvtal_public_ticket_checkout_stage_quote('));
+stageAssert(!str_contains($stageQuoteSource,'BRVTAL_INTEGRATION_TESTS')
+    && str_contains($stageQuoteSource,'STAGE_TRANSACTION_REQUIRED')
+    && str_contains($stageQuoteSource,'FOR UPDATE'),
+    'stage checkout quote works without a test flag under the event mutex');
 stageAssert(str_contains($checkoutSource, "brvtal_public_ticket_checkout_stage_quote("),
     'server-side quote is invoked in checkout before order insertion');
 stageAssert(str_contains($checkoutSource, "unit_price_cop,subtotal_cop"),
     'idempotent checkout reads the immutable item price snapshot');
+stageAssert(str_contains($checkoutSource, 'Display the same stage price as checkout')
+    && str_contains($checkoutSource, "\$price = \$quote['unit_price_cop'];"),
+    'public offers show active stage price, not stale editorial price');
 $core = (string)file_get_contents(__DIR__.'/../../discadmin/content-core.js');
-stageAssert(str_contains($core,"import('/discadmin/ticketing-stages.js')"),
-    'stage editor mounted inside existing event ticket type shell');
+stageAssert((bool)preg_match("~import\\('/discadmin/ticketing-stages\\.js'\\s*\\+~", $core),
+    'stage editor mounted through cache-versioned dynamic import');
 stageAssert(str_contains($core,'Number(currentEvent?.id)'),
     'stage editor only for persisted event with valid identity');
 
@@ -119,6 +126,9 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
     $db->exec("INSERT INTO event_ticket_types VALUES(10,1)");
     $db->exec("INSERT INTO ticket_inventory_events VALUES(1,5)");
     $db->exec("INSERT INTO ticket_inventory_types VALUES(10,1,5)");
+    // The env flag is needed only to provision an isolated MariaDB database.
+    // Business behavior must now work without it, as it does in production.
+    putenv('BRVTAL_INTEGRATION_TESTS=0');
     brvtalTicketStageSave($db,1,10,$stages);
     $quoted = $db->beginTransaction();
     $quoted = brvtal_public_ticket_checkout_stage_quote($db,1,10,2,$now('2026-12-01 09:01:00'));
@@ -141,6 +151,68 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
         stageAssert($e->getMessage()==='STAGE_NOT_SALEABLE','server refuses closed window');
     }
     $db->rollBack();
+    // Two independent connections attempt the final Early Bird allocation.
+    // The second checkout must observe the first hold after the Event mutex.
+    $db->beginTransaction();
+    $first=brvtal_public_ticket_checkout_stage_quote(
+        $db,1,10,2,$now('2026-12-01 09:01:00'));
+    stageAssert($first['code']==='early_bird','first checkout receives active stage');
+    $worker=tempnam(sys_get_temp_dir(),'brvtal_t22_');
+    stageAssert(is_string($worker),'temporary concurrency worker');
+    $code=<<<'WORKER_WRAP'
+    <?php
+    declare(strict_types=1);
+    require_once $argv[1];
+    $db=new PDO('mysql:host='.getenv('BRVTAL_TEST_DB_HOST').';port='.
+        getenv('BRVTAL_TEST_DB_PORT').';dbname='.getenv('BRVTAL_WORKER_DB').';charset=utf8mb4',
+        getenv('BRVTAL_TEST_DB_USER'),getenv('BRVTAL_TEST_DB_PASS'),
+        [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_EMULATE_PREPARES=>false]);
+    $db->exec('SET SESSION innodb_lock_wait_timeout=5');
+    $db->beginTransaction();
+    echo "READY\n";flush();
+    try {
+        $quote=brvtal_public_ticket_checkout_stage_quote($db,1,10,1,
+          new DateTimeImmutable('2026-12-01 09:01:00',new DateTimeZone('America/Bogota')));
+        echo $quote['code']."\n";
+    } catch (DomainException $e) {
+        echo $e->getMessage()."\n";
+    }
+    $db->rollBack();
+    WORKER_WRAP;
+    file_put_contents($worker,$code);
+    $env=array_merge($_ENV,[
+      'BRVTAL_INTEGRATION_TESTS'=>'0',
+      'BRVTAL_TEST_DB_HOST'=>$host,
+      'BRVTAL_TEST_DB_PORT'=>(string)$port,
+      'BRVTAL_TEST_DB_USER'=>$user,
+      'BRVTAL_TEST_DB_PASS'=>$pass,
+      'BRVTAL_WORKER_DB'=>$name
+    ]);
+    $proc=proc_open([PHP_BINARY,$worker,__DIR__.'/../../config/public_ticket_checkout.php'],
+        [0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes,null,$env);
+    stageAssert(is_resource($proc),'second checkout process started');
+    fclose($pipes[0]);
+    stageAssert(trim((string)fgets($pipes[1]))==='READY',
+        'second checkout connected before first committed');
+    usleep(150000);
+    $db->exec("INSERT INTO ticket_inventory_holds
+        (order_id,event_id,ticket_type_id,quantity,kind,status,expires_at_utc)
+        VALUES(101,1,10,2,'paid','active','2099-01-01 00:00:00')");
+    $db->commit();
+    $second=trim((string)stream_get_contents($pipes[1]));
+    $errors=stream_get_contents($pipes[2]);
+    fclose($pipes[1]);fclose($pipes[2]);
+    $exit=proc_close($proc);
+    @unlink($worker);
+    stageAssert($exit===0 && $second==='STAGE_NOT_SALEABLE',
+      'concurrent checkout must not exceed Early Bird cap: '.$second.' '.$errors);
+    $db->beginTransaction();
+    $rollover=brvtal_public_ticket_checkout_stage_quote(
+        $db,1,10,1,$now('2026-12-02 09:01:00'));
+    stageAssert($rollover['code']==='preventa' && $rollover['unit_price_cop']===20000,
+      'sold-out stage rolls into next stage at opening time');
+    $db->rollBack();
+    $db->exec('DELETE FROM ticket_inventory_holds WHERE order_id=101');
     $db->exec("INSERT INTO ticket_orders VALUES(100,1,'paid')");
     $db->exec("INSERT INTO ticket_order_items VALUES(100,10,1,15000,15000)");
     brvtalTicketStageSave($db,1,10,[array_replace($stages[0],['price_cop'=>16000])]);
@@ -158,4 +230,4 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
     }
 }
 
-echo "T22 stage windows, quotas, snapshots and input guards OK (synthetic).".PHP_EOL;
+echo "T22 live stage pricing, Event-lock concurrency, snapshots and inputs OK (disposable DB).".PHP_EOL;
