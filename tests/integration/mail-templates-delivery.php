@@ -147,6 +147,80 @@ try {
             && str_contains((string)$captured['html'],$token)
             && str_contains((string)$captured['text'],$token),'same in-memory sealed snapshot '.$kind);
     }
+    // #1993: names, Reply-To, defaults, negative injection checks and
+    // marketing-only unsubscribe must be enforced by the real Resend adapter.
+    foreach ([
+        ['BRVTAL_TICKET_MAIL_FROM_NAME', "BRVTAL\r\nBcc: bad@example.test"],
+        ['BRVTAL_TICKET_MAIL_FROM_NAME', 'Bad <Sender>'],
+        ['BRVTAL_TICKET_MAIL_FROM_NAME', "BRVTAL\nOther"],
+        ['BRVTAL_TICKET_MAIL_REPLY_TO', "soporte@example.test\r\nBcc: bad@example.test"],
+        ['BRVTAL_TICKET_MAIL_REPLY_TO', "soporte@example.test\n"],
+        ['BRVTAL_TICKET_MAIL_REPLY_TO', 'Not an address'],
+        ['BRVTAL_TICKET_MAIL_REPLY_TO', 'Alias <soporte@example.test>'],
+    ] as [$name, $value]) {
+        $normalized = brvtalIntegrationSecretNormalize($name, $value);
+        try {
+            brvtalIntegrationSecretValidate($name, $normalized);
+            mail_delivery_assert(false, 'reject malformed sender identity '.$name);
+        } catch (InvalidArgumentException $error) {
+            mail_delivery_assert($error->getMessage()==='SECRET_FORMAT_INVALID', 'safe sender rejection');
+        }
+    }
+    brvtalIntegrationSecretValidate('BRVTAL_TICKET_MAIL_FROM_NAME', 'BRVTAL Música');
+    brvtalIntegrationSecretValidate('BRVTAL_TICKET_MAIL_REPLY_TO', 'soporte@brvtal.com.co');
+    $GLOBALS['config']['ticketing']['mail'] = [
+        'mode'=>'test', 'api_key'=>'re_synthetic_mail_delivery_123456',
+        'domain'=>'brvtal.invalid','from'=>'no-reply@brvtal.invalid',
+        'from_name'=>'BRVTAL','reply_to'=>'soporte@brvtal.invalid',
+        'test_recipients'=>'buyer@example.test',
+    ];
+    $payload=null;
+    $headersRequest=static function(array $message, array $headers) use (&$payload): array {
+        $payload=$message;
+        return ['status'=>200,'body'=>'{"id":"synthetic-mail-deliverability-1993"}'];
+    };
+    $deliveryJob=['recipient_email'=>'buyer@example.test','message_key'=>'test:headers:1',
+        'subject'=>'Confirmación de boleta','body_text'=>'Entrada sin cobro',
+        'template_key'=>'payment_approved'];
+    $sent=brvtal_ticket_resend_send($deliveryJob,$headersRequest);
+    mail_delivery_assert($sent['state']==='accepted'
+        && $payload['from']==='BRVTAL <no-reply@brvtal.invalid>'
+        && $payload['reply_to']==='soporte@brvtal.invalid'
+        && !isset($payload['headers']['List-Unsubscribe']), 'transactional sender with no unsubscribe');
+    foreach (['verify_account','reset_password','order_pending','refund'] as $kind) {
+        $payload=null;
+        $sent=brvtal_ticket_resend_send(array_merge($deliveryJob,
+            ['message_key'=>'test:headers:'. $kind,'template_key'=>$kind]),$headersRequest);
+        mail_delivery_assert($sent['state']==='accepted'
+            && $payload['from']==='BRVTAL <no-reply@brvtal.invalid>'
+            && $payload['reply_to']==='soporte@brvtal.invalid'
+            && !isset($payload['headers']['List-Unsubscribe']), 'no unsubscribe for '.$kind);
+    }
+    $GLOBALS['config']['ticketing']['mail']['from_name']='';
+    $GLOBALS['config']['ticketing']['mail']['reply_to']='';
+    $payload=null;
+    $sent=brvtal_ticket_resend_send(array_merge($deliveryJob,['message_key'=>'test:headers:fallback']),
+        $headersRequest);
+    mail_delivery_assert($sent['state']==='accepted'
+        && $payload['from']==='BRVTAL <no-reply@brvtal.invalid>'
+        && $payload['reply_to']==='no-reply@brvtal.invalid', 'sender defaults are safe');
+    $GLOBALS['config']['ticketing']['mail']['from_name']='BRVTAL';
+    $GLOBALS['config']['ticketing']['mail']['reply_to']='soporte@brvtal.invalid';
+    $payload=null;
+    $marketing=array_merge($deliveryJob,['message_key'=>'test:headers:reminder',
+        'template_key'=>'reminder',
+        'unsubscribe_url'=>'https://www.brvtal.com.co/correo/baja?token=fixture']);
+    $sent=brvtal_ticket_resend_send($marketing,$headersRequest);
+    mail_delivery_assert($sent['state']==='accepted'
+        && $payload['headers']['List-Unsubscribe']
+            ==='<https://www.brvtal.com.co/correo/baja?token=fixture>', 'marketing only unsubscribe');
+    $marketing['message_key']='test:headers:bad-unsubscribe';
+    $marketing['unsubscribe_url']="https://www.brvtal.com.co/correo/baja\r\nBcc:bad@example.test";
+    mail_delivery_assert(brvtal_ticket_resend_send($marketing,$headersRequest)['code']
+        ==='invalid_configuration', 'unsubscribe header injection rejected');
+    $GLOBALS['config']['ticketing']['mail']['from_name']="BRVTAL\nBcc:evil";
+    mail_delivery_assert(brvtal_ticket_resend_send($deliveryJob,$headersRequest)['code']
+        ==='invalid_configuration', 'invalid private sender config fails closed');
 } finally {
     if($old===null)unset($GLOBALS['config']);else $GLOBALS['config']=$old;
     putenv($oldTesting===false ? 'BRVTAL_TICKET_MAIL_TESTING' : 'BRVTAL_TICKET_MAIL_TESTING='.$oldTesting);
