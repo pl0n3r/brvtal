@@ -199,6 +199,23 @@ if (getenv('BRVTAL_INTEGRATION_TESTS')==='1') {
         ->fetchColumn()===$frozen,'paid snapshot never edited');
     promoAssert((int)$db->query('SELECT total_cop FROM ticket_orders WHERE id=100')
         ->fetchColumn()===25000,'paid order immutable');
+    // No zero-COP checkout is valid for hosted Wompi, regardless of rule kind.
+    foreach ([
+        ['code'=>'FREEFIXED26','kind'=>'fixed','value_cop'=>15000],
+        ['code'=>'FREEPERCENT26','kind'=>'percent','value_cop'=>100],
+    ] as $freeRule) {
+        brvtalPromoCreate($db,array_replace($rule,$freeRule));
+        $db->beginTransaction();
+        try {
+            brvtalPromoQuote($db,1,10,3,1,15000,$freeRule['code'],[],$now);
+            throw new RuntimeException('T23: zero-COP promotion accepted');
+        } catch (DomainException $e) {
+            promoAssert($e->getMessage()==='PROMO_ZERO_TOTAL',
+                'free coupon denied before attempting a provider charge');
+        } finally {
+            $db->rollBack();
+        }
+    }
 }
 echo "T23 promo windows, quotas, lock, snapshots and integer COP OK (synthetic).".PHP_EOL;
 // Run coupon Wompi ledger regression under the same isolated T23 MariaDB matrix.
