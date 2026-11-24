@@ -1,3 +1,51 @@
+<?php
+declare(strict_types=1);
+// #1988: Paid purchases are visible only to the originating checkout cookie.
+// The public order token is not proof of account ownership.
+require_once __DIR__ . '/../config/bootstrap.php';
+require_once __DIR__ . '/../config/buyer_auth.php';
+require_once __DIR__ . '/../config/public_order_status.php';
+header('Cache-Control: private, no-store, max-age=0');
+header('Referrer-Policy: no-referrer');
+header('X-Robots-Tag: noindex, nofollow');
+$checkoutScopePurchases = [];
+try {
+    brvtalBuyerSessionStart();
+    if ((int)($_SESSION['buyer_id'] ?? 0) === 0
+        && is_array($_SESSION['buyer_checkout_orders'] ?? null)) {
+        $pdo = db();
+        $tokenForId = $pdo->prepare('SELECT LOWER(HEX(public_id)) FROM ticket_orders WHERE id=? LIMIT 1');
+        foreach (array_keys($_SESSION['buyer_checkout_orders']) as $id) {
+            if (!ctype_digit((string)$id) || (int)$id < 1) continue;
+            $tokenForId->execute([(int)$id]);
+            $token = $tokenForId->fetchColumn();
+            if (!is_string($token)) continue;
+            $grant = brvtalBuyerCheckoutPaidGrant($pdo, $token);
+            if ($grant === null) continue;
+            $order = brvtal_public_order_status($pdo, $token);
+            if (!is_array($order) || ($order['state'] ?? null) !== 'approved') continue;
+            $items = [];
+            foreach (($order['items'] ?? []) as $item) {
+                if (!is_array($item)) continue;
+                $items[] = ['name'=>(string)($item['name'] ?? 'Boleta'),
+                    'quantity'=>(int)($item['quantity'] ?? 0)];
+            }
+            $checkoutScopePurchases[] = [
+                'token'=>$token,
+                'order_number'=>(int)$order['order_number'],
+                'event_title'=>(string)$order['event_title'],
+                'total_cop'=>(int)$order['total_cop'],
+                'items'=>$items,
+            ];
+        }
+    }
+} catch (Throwable) {
+    // Full login still works if checkout storage is unavailable.
+    $checkoutScopePurchases = [];
+} finally {
+    if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
+}
+?>
 <!doctype html>
 <html lang="es-CO">
 <head>
@@ -75,12 +123,20 @@
   </div>
 </main>
 <footer class="access-footer account-footer"><span>BRVTAL / RAVE TILL GRAVE</span><a href="/">← Volver al inicio</a></footer>
+<script type="application/json" id="checkout-scoped-purchases"><?= json_encode($checkoutScopePurchases, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?></script>
 <script>
 (() => {
   'use strict';
   const $ = id => document.getElementById(id), api='/api/buyer/account.php';
   const filters=$('filters'),orders=$('orders'),feedback=$('feedback'),more=$('more'),qr=$('qr');
   const eventSelect=$('event-select'),eventNames=new Map();
+  const scopedPurchases = (() => {
+    try {
+      const data = JSON.parse(document.getElementById('checkout-scoped-purchases')?.textContent || '[]');
+      return Array.isArray(data) ? data : [];
+    } catch (_) { return []; }
+  })();
+
   const money=(value)=>new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}).format(Number(value)||0);
   function purchaseDate(value){
     if(typeof value!=='string'||!value.trim())return 'Fecha por confirmar';
@@ -110,6 +166,45 @@
   }
   let csrf='',page=0,ticket='',payload='';
   const el=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=String(text);return n;};
+  // The server scopes these orders to a paid checkout plus its original cookie.
+  // Do not call unrestricted account or refunds APIs in this anonymous mode.
+  function showScopedPurchases() {
+    document.querySelector('.account-sidebar').hidden = true;
+    $('refund-list').hidden = true;
+    qr.hidden = true;
+    more.hidden = true;
+    $('logout').hidden = true;
+    const link = el('a', 'Iniciar sesión para otras compras');
+    link.href = '/mi-cuenta/acceso';
+    document.querySelector('.account-nav').append(link);
+    orders.replaceChildren();
+    for (const info of scopedPurchases) {
+      if (!info || !/^[a-f0-9]{32}$/.test(info.token || '')
+          || !Array.isArray(info.items)) continue;
+      const box = el('article');
+      box.className = 'account-order';
+      box.append(el('h2', info.event_title || 'Evento'),
+        el('p', 'Pedido #' + Number(info.order_number) + ' · Pago confirmado'),
+        el('p', 'Total: ' + money(info.total_cop)));
+      for (const item of info.items) {
+        const entry = el('div');
+        entry.className = 'ticket';
+        entry.append(el('strong', item.name || 'Boleta'),
+          el('p', 'Cantidad: ' + Number(item.quantity || 0)));
+        box.append(entry);
+      }
+      const detail = el('a', 'Abrir esta compra');
+      detail.href = '/compra/' + info.token;
+      detail.className = 'account-action';
+      box.append(detail);
+      orders.append(box);
+    }
+    feedback.textContent = 'Estas compras están disponibles solo en este navegador. '
+      + 'Las credenciales QR llegan al correo de la compra. '
+      + 'Inicia sesión para consultar otros pedidos.';
+    feedback.dataset.tone = 'neutral';
+  }
+
   const statuses={draft:'Borrador',pending:'Pago pendiente',paid:'Pagado',approved:'Aprobado',failed:'Rechazado',declined:'Rechazado',error:'Error',created:'Iniciado',cancelled:'Cancelado',expired:'Expirado',refunded:'Reembolsado',issued:'Disponible',used:'Usada',revoked:'Revocada'};
 
   const refundsApi='/api/buyer/refunds.php';
@@ -263,7 +358,7 @@
     const a=el('a');a.href=url;a.download='entrada-brvtal.svg';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),0);
   });
   (async()=>{try{const r=await fetch('/api/buyer/auth.php',{credentials:'same-origin',cache:'no-store'});const d=await r.json();
-    if(!r.ok||!d.authenticated){location.href='/buyer/login.php';return;}csrf=String(d.csrf||'');if(!csrf)throw Error('AUTH');await load();await loadRefunds();
-  }catch(_){feedback.textContent='No está disponible tu cuenta. Reintenta más tarde.';orders.replaceChildren();}})();
+    if(!r.ok||!d.authenticated){if(scopedPurchases.length){showScopedPurchases();return;}location.href='/buyer/login.php';return;}csrf=String(d.csrf||'');if(!csrf)throw Error('AUTH');await load();await loadRefunds();
+  }catch(_){if(scopedPurchases.length){showScopedPurchases();return;}feedback.textContent='No está disponible tu cuenta. Reintenta más tarde.';orders.replaceChildren();}})();
 })();
 </script></body></html>
