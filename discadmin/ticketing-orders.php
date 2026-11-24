@@ -10,36 +10,36 @@ try {
     $stmt = db()->prepare('SELECT staff_role FROM admins WHERE id=? AND is_active=1 LIMIT 1');
     $stmt->execute([(int)($_SESSION['admin_id'] ?? 0)]);
     $role = (string)($stmt->fetchColumn() ?: '');
-    if (!brvtalTicketingCan($role, 'orders') || !brvtalTicketingCan($role, 'buyers')) {
+    // A role only needs the capability of the requested workspace.
+    $kind = ($_GET['kind'] ?? 'orders') === 'buyers' ? 'buyers' : 'orders';
+    if (!brvtalTicketingCan($role, $kind)) {
         http_response_code(403); exit;
     }
 } catch (Throwable) { http_response_code(503); exit; }
 ?>
 <section data-ticketing-records data-ticketing-csrf="<?= htmlspecialchars(brvtal_admin_csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
-  <h2>Pedidos y compradores</h2>
+  <h2><?= $kind === 'buyers' ? 'Compradores' : 'Pedidos' ?></h2>
   <p>Consulta privada. El estado «pagado» solo procede de la verificación del servidor. No se reembolsan ni emiten boletas aquí.</p>
-  <form data-ticketing-records-form class="ticketing-records-form">
-    <label>Vista <select name="kind">
-      <option value="orders">Pedidos</option><option value="buyers">Compradores</option>
-    </select></label>
-    <label>Buscar pedido o correo <input type="search" name="q" maxlength="120" autocomplete="off"></label>
-    <label>Correo exacto <input type="email" name="email" maxlength="120" autocomplete="off"></label>
-    <label>Evento <input type="number" min="1" name="event_id" placeholder="Todos"></label>
-    <label>Estado <select name="status"><option value="">Todos</option>
+  <form data-ticketing-records-form class="ticketing-records-form tk-form">
+    <input type="hidden" name="kind" value="<?= htmlspecialchars($kind, ENT_QUOTES, 'UTF-8') ?>">
+    <label class="tk-field">Buscar pedido o correo <input type="search" name="q" maxlength="120" autocomplete="off"></label>
+    <label class="tk-field">Correo exacto <input type="email" name="email" maxlength="120" autocomplete="off"></label>
+    <label class="tk-field">Evento <input type="number" min="1" name="event_id" placeholder="Todos"></label>
+    <label class="tk-field">Estado <select name="status"><option value="">Todos</option>
       <option value="draft">Borrador</option><option value="pending">Pendiente</option>
       <option value="paid">Pagado</option><option value="failed">Fallido</option>
       <option value="cancelled">Cancelado</option><option value="expired">Expirado</option>
       <option value="refunded">Reembolsado</option>
     </select></label>
-    <label>Desde UTC <input type="date" name="from"></label>
-    <label>Hasta UTC <input type="date" name="to"></label>
-    <button type="submit">Consultar</button>
+    <label class="tk-field">Desde (fecha) <input type="date" name="from"></label>
+    <label class="tk-field">Hasta (fecha) <input type="date" name="to"></label>
+    <button type="submit" class="tk-button is-primary">Consultar</button>
     <?php if (brvtalTicketingCan($role, 'export')): ?>
-      <button type="button" data-ticketing-export>Exportar CSV de esta página</button>
+      <button type="button" class="tk-button" data-ticketing-export>Exportar CSV de esta página</button>
     <?php endif; ?>
   </form>
-  <p role="status" data-ticketing-records-status aria-live="polite">Consultando...</p>
+  <p class="tk-status" role="status" data-ticketing-records-status aria-live="polite">Consultando...</p>
   <div data-ticketing-records-results></div>
-  <button type="button" data-ticketing-records-more hidden>Cargar más</button>
+  <button type="button" class="tk-button" data-ticketing-records-more hidden>Cargar más</button>
   <div data-ticketing-records-detail aria-live="polite"></div>
 </section>
