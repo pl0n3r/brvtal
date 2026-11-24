@@ -29,6 +29,10 @@ export function mount(target) {
   const type=field(sale,'Boleta','ticket_type_id',select());type.required=true;
   const qty=field(sale,'Cantidad','quantity',number('1','1','10'));
   const method=field(sale,'Método','method',select());
+  const buyerEmailInput=el('input');buyerEmailInput.type='email';
+  buyerEmailInput.maxLength=190;buyerEmailInput.autocomplete='email';
+  const buyerEmail=field(sale,'Correo del comprador (opcional)','buyer_email',buyerEmailInput,
+    'Se usará únicamente para enviar las boletas de esta venta; no da consentimiento publicitario.');
   for (const [value,label,enabled] of [
     ['cash','Efectivo',true],['transfer','Transferencia: no disponible',false],
     ['wompi_qr','QR Wompi: no disponible',false]
@@ -135,7 +139,7 @@ export function mount(target) {
   });
   confirm.addEventListener('click',()=>{
     if(!pending)return;
-    void execute({action:'confirm',...pending,confirm:true},d=>{
+    void execute({action:'confirm',...pending,confirm:true,buyer_email:buyerEmail.value.trim()},d=>{
       pending=null;confirm.hidden=true;cancel.hidden=true;
       status.textContent='Registro de demostración: '+d.receipt+'. No constituye un cobro Wompi.';
       receipts.replaceChildren(el('p','Recibo y boletas disponibles una sola vez:'));
