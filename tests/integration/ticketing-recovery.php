@@ -76,6 +76,15 @@ try {
     $db->exec('CREATE TABLE ticket_mail_outbox (id BIGINT AUTO_INCREMENT PRIMARY KEY,
         message_key VARCHAR(128) NOT NULL UNIQUE,related_ref VARCHAR(128) NOT NULL,
         state VARCHAR(20) NOT NULL)');
+    // Real checkout holds expire in 10 minutes. A reminder must fit inside that hold.
+    $db->exec("UPDATE ticket_orders SET
+        created_at_utc=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 6 MINUTE),
+        expires_at_utc=DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 4 MINUTE) WHERE id=91");
+    $db->exec("INSERT INTO ticket_orders
+        (id,buyer_id,event_id,status,expires_at_utc,created_at_utc,public_id)
+        VALUES (96,3,6,'pending',DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 8 MINUTE),
+            DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 2 MINUTE),UNHEX(LPAD(HEX(96),32,'0')))");
+
     $input=['order_id'=>91,'campaign'=>'noviembre','idempotency_key'=>str_repeat('a',32)];
     $result=brvtalRecoveryPlan($db,7,'superadmin',$input);
     t29($result['state']==='planned' && $result['stage']==='payment_open'
@@ -102,7 +111,8 @@ try {
     $again=brvtalRecoverySend($db,7,'superadmin',$input,$ready);
     t29($again['reason']==='already_reminded','one reminder per order');
     foreach ([92=>'consent_unavailable',93=>'order_not_pending',
-              94=>'checkout_expired',95=>'payment_confirmed'] as $id=>$reason) {
+              94=>'checkout_expired',95=>'payment_confirmed',
+              96=>'outside_window'] as $id=>$reason) {
         $once=brvtalRecoverySend($db,7,'superadmin',
             array_merge($input,['order_id'=>$id]),$ready);
         t29($once['reason']===$reason,"suppression $id");

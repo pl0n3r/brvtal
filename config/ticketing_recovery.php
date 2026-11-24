@@ -162,7 +162,7 @@ function brvtalRecoveryWindow(): array
 {
     $delay = getenv('BRVTAL_RECOVERY_DELAY_MINUTES');
     $window = getenv('BRVTAL_RECOVERY_WINDOW_MINUTES');
-    $delay = $delay === false ? '15' : $delay;
+    $delay = $delay === false ? '5' : $delay; // checkout hold normally expires in 10 minutes
     $window = $window === false ? '1440' : $window;
     if (!ctype_digit($delay) || !ctype_digit($window)) return [0, 0];
     $min = (int)$delay; $max = (int)$window;
