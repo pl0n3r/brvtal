@@ -11,6 +11,8 @@ function brvtalIntegrationSecretCatalog(): array
         'BRVTAL_TICKET_MAIL_API_KEY' => ['provider'=>'resend','field'=>'api_key'],
         'BRVTAL_TICKET_MAIL_DOMAIN' => ['provider'=>'resend','field'=>'domain'],
         'BRVTAL_TICKET_MAIL_FROM' => ['provider'=>'resend','field'=>'from'],
+        'BRVTAL_TICKET_MAIL_FROM_NAME' => ['provider'=>'resend','field'=>'from_name'],
+        'BRVTAL_TICKET_MAIL_REPLY_TO' => ['provider'=>'resend','field'=>'reply_to'],
         'BRVTAL_TICKET_MAIL_WEBHOOK_SECRET' => ['provider'=>'resend','field'=>'webhook_secret'],
         'BRVTAL_TICKET_MAIL_TEST_RECIPIENTS' => ['provider'=>'resend','field'=>'test_recipients'],
         // #1962: the DISCADMIN mail switch (Apagado / Pruebas / Real) and its owner confirmations.
@@ -127,6 +129,22 @@ function brvtalIntegrationSecretValidReturnUrl(string $value): bool
         && !isset($parts['fragment']) && filter_var($value, FILTER_VALIDATE_URL) !== false;
 }
 
+/** Strict sender identity: prevent CR/LF and RFC 5322 punctuation injection. */
+function brvtalIntegrationSecretValidFromName(string $value): bool
+{
+    return $value !== '' && strlen($value) <= 80 && trim($value) === $value
+        && strpbrk($value, "\r\n") === false
+        && preg_match('/\A[\p{L}\p{N}][\p{L}\p{N} ._-]*\z/u', $value) === 1;
+}
+
+/** One bare Reply-To mailbox; never accept display names or header delimiters. */
+function brvtalIntegrationSecretValidReplyTo(string $value): bool
+{
+    return $value !== '' && strlen($value) <= 254 && trim($value) === $value
+        && strpbrk($value, "\r\n") === false
+        && filter_var($value, FILTER_VALIDATE_EMAIL) !== false;
+}
+
 /**
  * #1933: values pasted from provider dashboards often carry a trailing space or
  * newline. Single-line credentials are trimmed before validation and encryption;
@@ -134,7 +152,8 @@ function brvtalIntegrationSecretValidReturnUrl(string $value): bool
  */
 function brvtalIntegrationSecretNormalize(string $name, string $value): string
 {
-    return in_array($name, ['BRVTAL_GA4_PRIVATE_KEY','BRVTAL_TICKET_MAIL_TEST_RECIPIENTS'], true)
+    return in_array($name, ['BRVTAL_GA4_PRIVATE_KEY','BRVTAL_TICKET_MAIL_TEST_RECIPIENTS',
+        'BRVTAL_TICKET_MAIL_FROM_NAME','BRVTAL_TICKET_MAIL_REPLY_TO'], true)
         ? $value : trim($value);
 }
 
@@ -150,6 +169,8 @@ function brvtalIntegrationSecretValidate(string $name, string $value): void
         'BRVTAL_TICKET_MAIL_API_KEY' => preg_match('/^re_[A-Za-z0-9_-]{8,}$/D', $value) === 1,
         'BRVTAL_TICKET_MAIL_WEBHOOK_SECRET' => brvtalIntegrationSecretValidWebhook($value),
         'BRVTAL_TICKET_MAIL_TEST_RECIPIENTS' => brvtalIntegrationSecretValidTestRecipients($value),
+        'BRVTAL_TICKET_MAIL_FROM_NAME' => brvtalIntegrationSecretValidFromName($value),
+        'BRVTAL_TICKET_MAIL_REPLY_TO' => brvtalIntegrationSecretValidReplyTo($value),
         'BRVTAL_TICKET_WOMPI_PUBLIC_KEY' => preg_match('/^pub_test_[A-Za-z0-9_-]{8,}$/D', $value) === 1,
         'BRVTAL_TICKET_WOMPI_PRIVATE_KEY' => preg_match('/^prv_test_[A-Za-z0-9_-]{8,}$/D', $value) === 1,
         'BRVTAL_TICKET_WOMPI_INTEGRITY_SECRET' => preg_match('/^test_integrity_[A-Za-z0-9_-]{8,}$/D', $value) === 1,
