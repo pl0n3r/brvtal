@@ -14,7 +14,7 @@ function t12_reject(callable $fn, string $code): void {
 }
 putenv('BRVTAL_TICKET_MAIL_TESTING=1');
 $catalog = require __DIR__.'/../templates/ticketing/transactional.php';
-t12_check(count($catalog)===7, 'seven Spanish templates');
+t12_check(count($catalog)===10, 'ten allowlisted Spanish ticketing templates');
 $link = 'https://brvtal.invalid/buyer/login.php';
 foreach ($catalog as $key=>$copy) {
     $rendered = brvtal_ticket_mail_render($key, ['event'=>'Festival <script>alert(1)</script>',

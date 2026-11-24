@@ -276,7 +276,7 @@ try {
       (703,6,3,'pending','COP',50000,'2000-01-01 00:00:00',NULL),
       (704,6,3,'pending','COP',50000,NULL,NULL),
       (705,6,3,'pending','COP',50000,NULL,NULL),
-      (706,6,3,'pending','COP',50000,'2000-01-01 00:00:00',NULL)");
+      (706,6,3,'pending','COP',50000,NULL,NULL)");
     $reference='BW7-701-CARD-'.str_repeat('b',24);
     $db->prepare("INSERT INTO ticket_payment_attempts
       VALUES (1,701,'wompi',?,NULL,50000,'created',NULL)")->execute([$reference]);
@@ -349,6 +349,7 @@ try {
     $db->exec("INSERT INTO ticket_inventory_holds
         (order_id,status,expires_at_utc)
         VALUES (706,'active','2000-01-01 00:00:00')");
+    $db->exec("UPDATE ticket_orders SET expires_at_utc='2000-01-01 00:00:00' WHERE id=706");
     brvtal_ticket_inventory_reconcile($db);
     mail_delivery_assert($db->query('SELECT status FROM ticket_orders WHERE id=706')
         ->fetchColumn()==='expired' && $countMail('order_expired')===1,
