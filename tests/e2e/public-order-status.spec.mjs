@@ -99,6 +99,8 @@ for (const [label, size] of [['390', { width: 390, height: 844 }], ['1440', { wi
     expect(accountBounds.width).toBeGreaterThan(size.width === 390 ? 310 : 620);
     expect(await browserPage.evaluate(() => document.documentElement.scrollWidth))
       .toBeLessThanOrEqual(size.width);
+    await expect(browserPage.getByRole('link', { name: 'Devoluciones' })).toHaveCount(0);
+    await expect(browserPage.getByText('Consulta las compras pagadas en este navegador.')).toBeVisible();
     await expect(browserPage.getByRole('link', { name: 'Iniciar sesión para otras compras' })).toBeVisible();
     await capture(browserPage, testInfo, `cuenta-compra-limitada-${label}`);
   });

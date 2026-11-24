@@ -131,6 +131,10 @@
     content.style.maxWidth = '50rem';
     content.style.margin = '0 auto';
     $('refund-list').hidden = true;
+    // Guest access cannot request account-wide refunds: remove the dead nav target.
+    document.querySelector('.account-nav a[href="#refund-list"]')?.remove();
+    const description = document.querySelector('.account-hero > p');
+    if (description) description.textContent = 'Consulta las compras pagadas en este navegador.';
     qr.hidden = true;
     more.hidden = true;
     $('logout').hidden = true;
