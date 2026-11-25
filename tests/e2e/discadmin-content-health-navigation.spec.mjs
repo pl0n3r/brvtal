@@ -118,3 +118,39 @@ test('Memories smoke uses real Media subview while hidden sentinel remains inacc
     'Memories navigation did not commit the canonical Media subview.'
   );
 });
+
+test('Pages smoke commits canonical sidebar state and fails closed on backend 503', async ({ page }) => {
+  const smokeSource = readFileSync(join(process.cwd(), 'tests/e2e/production-authenticated-smoke.mjs'), 'utf8');
+  const start = smokeSource.indexOf('// BEGIN_ADMIN_NAVIGATION_CONTRACT');
+  const end = smokeSource.indexOf('// END_ADMIN_NAVIGATION_CONTRACT');
+  expect(start).toBeGreaterThan(-1);
+  expect(end).toBeGreaterThan(start);
+  const navigate = new Function('runOperation', 'operationTimeoutMs',
+    smokeSource.slice(start, end) + '\nreturn navigate;')(
+      async (_name, operation) => operation(), 1200
+    );
+  const fixtureUrl = 'http://127.0.0.1:4173/pages-smoke-navigation-e2e.html';
+  await page.route(fixtureUrl, route => route.fulfill({
+    contentType: 'text/html; charset=utf-8',
+    body: "<!doctype html><html><body><div class='side'><div class='nav'><button type='button' data-admin-nav='pages' onclick=\"window.go('pages')\">PÁGINAS</button></div></div><div class='main'><div id='rows'></div></div><script>var state={authed:true,section:'hero-slider'};window.go=async function(section){const response=await fetch('/api/index.php/'+section);if(!response.ok)return false;state.section=section;document.querySelector('#rows').textContent='PAGES';return true;};</script></body></html>"
+  }));
+  let status = 200;
+  const requests = [];
+  await page.route('**/api/index.php/pages', route => {
+    requests.push(route.request().method());
+    return route.fulfill({
+      status, contentType: 'application/json; charset=utf-8',
+      body: JSON.stringify(status === 200 ? {ok:true,data:[]} :
+        {ok:false,error:'AUTH_REVALIDATION_UNAVAILABLE',code:'DB_CONNECT_UNAVAILABLE'})
+    });
+  });
+  await page.goto(fixtureUrl);
+  await navigate(page, 'pages');
+  await expect(page.locator('#rows')).toHaveText('PAGES');
+  expect(await page.evaluate(() => state.section)).toBe('pages');
+  status = 503;
+  await page.evaluate(() => {state.section = 'hero-slider';});
+  await expect(navigate(page, 'pages')).rejects.toThrow(/Timeout/);
+  expect(await page.evaluate(() => state.section)).toBe('hero-slider');
+  expect(requests).toEqual(['GET', 'GET']);
+});

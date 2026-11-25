@@ -317,6 +317,7 @@ async function getAdminCollection(context, resource) {
 
 // #1892: en el menú V3 Configuración abre su pestaña General y los destinos hijos
 // viven en desplegables; se abre el grupo que contiene el destino antes de pulsarlo.
+// BEGIN_ADMIN_NAVIGATION_CONTRACT
 const NAV_KEY_ALIASES = {settings:'settings:general'};
 async function revealNavEntry(page, key) {
   await page.evaluate(navKey => {
@@ -345,6 +346,7 @@ async function navigate(page, section) {
   );
 }
 
+// END_ADMIN_NAVIGATION_CONTRACT
 
 // The full production audit exercises real authenticated UI and only safe reads.
 // It never infers availability from the existence of a source file.
