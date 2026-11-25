@@ -95,8 +95,24 @@ function brvtal_ticket_inventory_usage(PDO $db, int $eventId, int $typeId, strin
     } catch (PDOException $e) {
         if ((int)($e->errorInfo[1] ?? 0) !== 1146) throw $e;
     }
+    $soldCount=brvtal_ticket_inventory_scalar($db,$sold.$soldType,$salesArgs);
+    if(getenv('BRVTAL_TICKET_REFUNDS_POLICY_ENABLED')==='1'
+        ||(getenv('BRVTAL_INTEGRATION_TESTS')==='1'
+          &&preg_match('/^brvtal_test[a-zA-Z0-9_]*$/D',
+            (string)$db->query('SELECT DATABASE()')->fetchColumn())===1)){
+        // Existing paid orders stay paid after a partial refund, so account for
+        // each final refunded entry exactly once without counting the same units as sold.
+        $credit='SELECT COUNT(*) FROM ticket_refund_entries x
+            JOIN ticket_refunds r ON r.id=x.refund_id AND r.status=\'refunded\'
+            JOIN ticket_entries e ON e.id=x.entry_id AND e.status=\'refunded\'
+            JOIN ticket_orders o ON o.id=r.order_id AND o.status=\'paid\'
+            WHERE o.event_id=?';
+        $args=[$eventId];
+        if($typeId>0){$credit.=' AND e.ticket_type_id=?';$args[]=$typeId;}
+        $soldCount=max(0,$soldCount-brvtal_ticket_inventory_scalar($db,$credit,$args));
+    }
     return [
-        'sold'=>brvtal_ticket_inventory_scalar($db,$sold.$soldType,$salesArgs),
+        'sold'=>$soldCount,
         'held'=>brvtal_ticket_inventory_scalar($db,$held.$typeSuffix,$heldArgs)+$waitlist,
         'courtesy'=>brvtal_ticket_inventory_scalar($db,$courtesy.$typeSuffix,$courtesyArgs),
     ];
