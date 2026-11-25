@@ -24,6 +24,22 @@ function brvtalRefundIncident(PDO $db,int $eventId):string {
     $q->execute([$eventId]);$cause=(string)($q->fetchColumn()?:'');
     return in_array($cause,['cancelled','postponed'],true)?$cause:'';
 }
+/** Finalized refund entries release exactly one sold unit per ticket type.
+ * A read-only count; inventory owns capacity, and this service owns entry state.
+ */
+function brvtalRefundCreditedInventory(PDO $db,int $eventId,int $typeId):int {
+    brvtalRefundGuard($db);
+    if($eventId<1||$typeId<0)throw new InvalidArgumentException('REFUND_INVALID');
+    $sql="SELECT COUNT(*) FROM ticket_refund_entries x
+        JOIN ticket_refunds r ON r.id=x.refund_id AND r.status='refunded'
+        JOIN ticket_entries e ON e.id=x.entry_id AND e.status='refunded'
+        JOIN ticket_orders o ON o.id=r.order_id AND o.status='paid'
+        WHERE r.event_id=?";
+    $args=[$eventId];
+    if($typeId>0){$sql.=' AND e.ticket_type_id=?';$args[]=$typeId;}
+    $q=$db->prepare($sql);$q->execute($args);
+    return max(0,(int)$q->fetchColumn());
+}
 /** A confirmed owner-declared event incident cannot be silently reclassified. */
 function brvtalRefundDeclareIncident(PDO $db,int $actor,string $role,int $eventId,string $cause):array {
     brvtalRefundGuard($db);
