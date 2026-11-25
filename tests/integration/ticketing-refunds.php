@@ -32,7 +32,8 @@ t21(str_contains($refundCode,"function brvtalRefundBuyerList(PDO \$db,int \$buye
     'buyer refund GET remains sandbox-only');
 t21(str_contains($adminCode,'$db=db(); brvtalRefundGuard($db);'),
     'staff refund GET remains sandbox-only');
-t21(strpos($refundCode,'brvtalRefundIncident($db,$eventId)') > strpos($refundCode,'if ($existing) {'),
+t21(strpos($refundCode,"if (\$order['status']!=='paid'||brvtalRefundIncident(\$db,\$eventId)==='')")
+    > strpos($refundCode,'if ($existing) {'),
     'idempotent replay precedes incident gate');
 t21(str_contains($refundCode,'function brvtalRefundSandboxGuard(PDO $db):void'),
     'Wompi transport remains test-only');
@@ -200,6 +201,7 @@ try {
         "INSERT INTO ticket_payment_webhook_events VALUES
           (601,'trx_test_91','APPROVED'),(602,'trx_test_92','APPROVED')"
     ] as $sql) $pdo->exec($sql);
+    $pdo->exec('ALTER TABLE ticket_entries ADD ticket_type_id INT UNSIGNED NOT NULL DEFAULT 10');
     brvtalRefundGuard($pdo);
     $request=['order_id'=>str_repeat('a',32),'entry_ids'=>[str_repeat('b',32)],
         'reason'=>'Motivo de devolución sintética','idempotency_key'=>'t21-idempotent-key-001'];
@@ -244,6 +246,9 @@ try {
         'QR credential revoked');
     t21($pdo->query('SELECT status FROM ticket_orders WHERE id=91')->fetchColumn()==='paid',
         'remaining entries preserve paid order');
+    t21(brvtalRefundCreditedInventory($pdo,1,0)===1,
+        'fully refunded ticket reduces sold inventory by one unit');
+
     $other=brvtalRefundRequest($pdo,3,array_merge($request,[
         'entry_ids'=>[str_repeat('c',32)],'idempotency_key'=>'t21-second-entry-key-01'
     ]));$id2=(int)$other['id'];
