@@ -86,7 +86,11 @@ export function mount(target) {
   manualConfirmInput.required=true;
   const manualConfirm=field(manualForm,'Confirmo que ya verifiqué el pago recibido',
     'manual_confirm',manualConfirmInput);
-  const manualSubmit=el('button','Crear pedido manual','tk-button is-primary');
+  const manualPreview=el('div',undefined,'ticketing-empty');
+  manualPreview.dataset.posManualPreview='1';
+  manualPreview.setAttribute('aria-live','polite');
+  manualForm.append(manualPreview);
+  const manualSubmit=el('button','Revisar pedido manual','tk-button is-primary');
   manualSubmit.type='submit';manualForm.append(manualSubmit);
   const manualReceipt=el('output');manualReceipt.dataset.posManualReceipt='1';
   manual.append(manualHeading,manualInfo,manualForm,manualStatus,manualReceipt);
@@ -111,32 +115,66 @@ export function mount(target) {
   };
   manualEvent.addEventListener('change',fillManualTypes);
   let manualKey=crypto.randomUUID().replaceAll('-','');
-  let manualSubmitted=false;
-  manualForm.addEventListener('input',()=>{
-    if(!manualSubmitted)return;
-    manualKey=crypto.randomUUID().replaceAll('-','');
-    manualSubmitted=false;manualSubmit.disabled=false;
-    manualReceipt.replaceChildren();
-    manualStatus.textContent='Los datos cambiaron. Confirma de nuevo antes de crear otro pedido.';
-  });
-  manualForm.addEventListener('change',()=>{
+  let manualSubmitted=false,manualReviewed=false,reviewSnapshot=null,manualPending=false;
+  const resetManualReview=()=>{
+    if(manualPending)return;
+    manualReviewed=false;reviewSnapshot=null;
+    manualPreview.replaceChildren();
+    manualSubmit.textContent='Revisar pedido manual';
     if(manualSubmitted){
       manualKey=crypto.randomUUID().replaceAll('-','');
-      manualSubmitted=false;manualSubmit.disabled=false;
+      manualSubmitted=false;
+      manualSubmit.disabled=false;
       manualReceipt.replaceChildren();
     }
-  });
+  };
+  manualForm.addEventListener('input',resetManualReview);
+  manualForm.addEventListener('change',resetManualReview);
+  manualRef.addEventListener('input',()=>manualRef.setCustomValidity(''));
   manualForm.addEventListener('submit',async e=>{
     e.preventDefault();
-    if(!active()||manualSubmitted||busy||!manualForm.reportValidity())return;
+    if(!active()||manualSubmitted||manualPending||busy||!manualForm.reportValidity())return;
+    const reference=manualRef.value.trim();
+    if(manualMethod.value!=='cash' && (reference.length<4
+        || !/^[A-Za-z0-9][A-Za-z0-9 ._/-]*$/.test(reference))){
+      manualStatus.textContent='La referencia debe tener entre 4 y 80 caracteres válidos.';
+      manualRef.setCustomValidity('Ingresa la referencia completa del pago verificado.');
+      manualRef.reportValidity();return;
+    }
+    manualRef.setCustomValidity('');
     const raw={
       action:'manual_order',event_id:manualEvent.value,
       ticket_type_id:manualType.value,quantity:manualQty.value,
       buyer_name:manualName.value.trim(),buyer_email:manualEmail.value.trim(),
-      method:manualMethod.value,payment_reference:manualRef.value.trim(),
+      method:manualMethod.value,payment_reference:reference,
       idempotency_key:manualKey,confirm:manualConfirm.checked
     };
+    // Changes to a field, even if scripted without an input event, must
+    // force a fresh operator review before any paid-order request.
+    const snapshot=JSON.stringify(raw);
+    if(!manualReviewed||reviewSnapshot!==snapshot){
+      const eventLabel=manualEvent.selectedOptions[0]?.textContent||'Evento';
+      const ticketLabel=manualType.selectedOptions[0]?.textContent||'Boleta';
+      const methodLabel=manualMethod.selectedOptions[0]?.textContent||raw.method;
+      manualPreview.replaceChildren(
+        el('strong','Resumen antes de crear el pedido pagado'),
+        el('p',eventLabel+' · '+ticketLabel+' · '+raw.quantity+' boleta(s)'),
+        el('p','Comprador y destinatario: '+raw.buyer_name+' · '+raw.buyer_email),
+        el('p','Medio: '+methodLabel+' · referencia: '+(reference||'no aplica')),
+        el('p','El servidor validará el precio y el cupo; confirmar registra el pago offline como recibido.')
+      );
+      reviewSnapshot=snapshot;manualReviewed=true;
+      manualSubmit.textContent='Confirmar y crear pedido';
+      manualStatus.textContent='Revisa cantidad, correo y referencia. Confirma solo si el pago ya está acreditado.';
+      return;
+    }
+    manualPending=true;
     manualSubmit.disabled=true;
+    // Prevent editing while a request is in flight; after a timeout the
+    // original idempotency key is retained for safe retry.
+    const fields=Array.from(manualForm.querySelectorAll('input,select'));
+    const disabledBefore=fields.map(control=>control.disabled);
+    fields.forEach(control=>{control.disabled=true;});
     manualStatus.textContent='Comprobando pago, aforo y pedido en el servidor…';
     try{
       const data=await transaction(raw);
@@ -158,13 +196,15 @@ export function mount(target) {
         FORBIDDEN:'Solo el propietario puede crear pedidos manuales.',
         INVENTORY_SOLD_OUT:'No hay cupo suficiente. No se creó ningún pedido.',
         INVENTORY_NOT_SALEABLE:'El evento o la boleta ya no están disponibles.',
-        POS_IDEMPOTENCY_CONFLICT:'La solicitud cambió. Revisa los datos antes de iniciar otra.',
+        POS_IDEMPOTENCY_CONFLICT:'La misma solicitud ya se usó con datos diferentes.',
         POS_TYPE_UNAVAILABLE:'No se encontró la boleta seleccionada.',
-        POS_INVALID_MANUAL_ORDER:'Revisa los datos y la referencia del pago.'
+        POS_INVALID_MANUAL_ORDER:'El servidor rechazó los datos. Revisa la referencia, el nombre y el medio de pago.'
       };
       manualStatus.textContent=reasons[error.message]
-        || 'No se pudo registrar. Reintenta con los mismos datos para evitar pedidos duplicados.';
+        || 'No se pudo verificar el resultado. Reintenta con los mismos datos para evitar pedidos duplicados.';
     }finally{
+      fields.forEach((control,index)=>{control.disabled=disabledBefore[index];});
+      manualPending=false;
       if(active()&&!manualSubmitted)manualSubmit.disabled=false;
     }
   });

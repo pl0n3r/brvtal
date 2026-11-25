@@ -199,9 +199,13 @@ for (const width of [390,1440]) {
     await form.locator('[name="manual_method"]').selectOption('nequi');
     await form.locator('[name="manual_payment_reference"]').fill('REF-2026-001');
     await form.locator('[name="manual_confirm"]').check();
-    await expect(form.getByRole('button',{name:'Crear pedido manual'})).toBeEnabled();
+    await expect(form.getByRole('button',{name:'Revisar pedido manual'})).toBeEnabled();
     expect(calls).toHaveLength(0);
-    await form.getByRole('button',{name:'Crear pedido manual'}).click();
+    await form.getByRole('button',{name:'Revisar pedido manual'}).click();
+    await expect(form.locator('[data-pos-manual-preview]')).toContainText('Comprador Ejemplo');
+    await expect(form.locator('[data-pos-manual-preview]')).toContainText('REF-2026-001');
+    expect(calls).toHaveLength(0);
+    await form.getByRole('button',{name:'Confirmar y crear pedido'}).click();
     await expect(manual).toContainText('Pedido #123 creado');
     await expect(manual).toContainText('emisión de QR en cola');
     expect(calls).toHaveLength(1);
@@ -212,7 +216,7 @@ for (const width of [390,1440]) {
     });
     expect(calls[0].body.idempotency_key).toMatch(/^[a-f0-9]{32}$/);
     expect(calls[0].headers['x-csrf-token']).toBe('a'.repeat(64));
-    await expect(form.getByRole('button',{name:'Crear pedido manual'})).toBeDisabled();
+    await expect(form.getByRole('button',{name:'Confirmar y crear pedido'})).toBeDisabled();
     expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
     await testInfo.attach('manual-created-'+width+'.png',
       {body:await page.screenshot({fullPage:true}),contentType:'image/png'});
@@ -234,13 +238,16 @@ test('AC-02 pago no efectivo exige referencia, error de aforo no inventa pedido'
   await form.locator('[name="manual_method"]').selectOption('transfer');
   await form.locator('[name="manual_confirm"]').check();
   await expect(form.locator('[name="manual_payment_reference"]')).toHaveAttribute('required','');
-  await form.getByRole('button',{name:'Crear pedido manual'}).click();
+  await form.getByRole('button',{name:'Revisar pedido manual'}).click();
   expect(calls).toHaveLength(0);
   await form.locator('[name="manual_payment_reference"]').fill('BANCO-00012');
-  await form.getByRole('button',{name:'Crear pedido manual'}).click();
+  await form.getByRole('button',{name:'Revisar pedido manual'}).click();
+  await expect(form.locator('[data-pos-manual-preview]')).toContainText('BANCO-00012');
+  expect(calls).toHaveLength(0);
+  await form.getByRole('button',{name:'Confirmar y crear pedido'}).click();
   await expect(page.locator('[data-pos-manual]')).toContainText('No hay cupo suficiente');
   expect(calls).toHaveLength(1);
-  await expect(form.getByRole('button',{name:'Crear pedido manual'})).toBeEnabled();
+  await expect(form.getByRole('button',{name:'Confirmar y crear pedido'})).toBeEnabled();
   await expect(page.locator('[data-pos-manual-receipt]')).toBeEmpty();
 });
 
@@ -255,7 +262,40 @@ test('AC-02 servidor rechaza admin sin revelar QR o pedido',async({page})=>{
   await form.locator('[name="manual_method"]').selectOption('cash');
   await expect(form.locator('[name="manual_payment_reference"]')).toBeDisabled();
   await form.locator('[name="manual_confirm"]').check();
-  await form.getByRole('button',{name:'Crear pedido manual'}).click();
+  await form.getByRole('button',{name:'Revisar pedido manual'}).click();
+  await expect(page.locator('[data-pos-manual-preview]')).toContainText('no aplica');
+  await form.getByRole('button',{name:'Confirmar y crear pedido'}).click();
   await expect(page.locator('[data-pos-manual]')).toContainText('Solo el propietario');
   await expect(page.locator('[data-pos-manual-receipt]')).toBeEmpty();
+});
+
+test('AC-02 edición posterior al resumen exige una revisión nueva',async({page})=>{
+  const calls=[];
+  await setup(page,route=>{
+    calls.push(route.request().postDataJSON());
+    route.fulfill({contentType:'application/json',body:JSON.stringify({
+      ok:true,data:{order_id:124,status:'paid',amount_cop:75000,method:'nequi',
+        issuance_queued:true,replayed:false}
+    })});
+  });
+  const form=page.locator('[data-pos-manual-form]');
+  await form.locator('[name="manual_event_id"]').selectOption('6');
+  await form.locator('[name="manual_ticket_type_id"]').selectOption('10');
+  await form.locator('[name="manual_buyer_name"]').fill('Comprador Ejemplo');
+  await form.locator('[name="manual_buyer_email"]').fill('manual@example.test');
+  await form.locator('[name="manual_method"]').selectOption('nequi');
+  await form.locator('[name="manual_payment_reference"]').fill('REF-2026-001');
+  await form.locator('[name="manual_confirm"]').check();
+  await form.getByRole('button',{name:'Revisar pedido manual'}).click();
+  await expect(form.locator('[data-pos-manual-preview]')).toContainText('1 boleta(s)');
+  await form.locator('[name="manual_quantity"]').fill('3');
+  await expect(form.locator('[data-pos-manual-preview]')).toBeEmpty();
+  await expect(form.getByRole('button',{name:'Revisar pedido manual'})).toBeVisible();
+  expect(calls).toHaveLength(0);
+  await form.getByRole('button',{name:'Revisar pedido manual'}).click();
+  await expect(form.locator('[data-pos-manual-preview]')).toContainText('3 boleta(s)');
+  await form.getByRole('button',{name:'Confirmar y crear pedido'}).click();
+  await expect(page.locator('[data-pos-manual]')).toContainText('Pedido #124 creado');
+  expect(calls).toHaveLength(1);
+  expect(calls[0].quantity).toBe('3');
 });
