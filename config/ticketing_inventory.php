@@ -97,16 +97,10 @@ function brvtal_ticket_inventory_usage(PDO $db, int $eventId, int $typeId, strin
     }
     $soldCount=brvtal_ticket_inventory_scalar($db,$sold.$soldType,$salesArgs);
     if(getenv('BRVTAL_TICKET_REFUNDS_POLICY_ENABLED')==='1'){
-        // Existing paid orders stay paid after a partial refund, so account for
-        // each final refunded entry exactly once without counting the same units as sold.
-        $credit='SELECT COUNT(*) FROM ticket_refund_entries x
-            JOIN ticket_refunds r ON r.id=x.refund_id AND r.status=\'refunded\'
-            JOIN ticket_entries e ON e.id=x.entry_id AND e.status=\'refunded\'
-            JOIN ticket_orders o ON o.id=r.order_id AND o.status=\'paid\'
-            WHERE o.event_id=?';
-        $args=[$eventId];
-        if($typeId>0){$credit.=' AND e.ticket_type_id=?';$args[]=$typeId;}
-        $soldCount=max(0,$soldCount-brvtal_ticket_inventory_scalar($db,$credit,$args));
+        // T05 inventory never loads ticket credentials or issues tickets.
+        // A separate trusted refund service supplies finalized credits by type.
+        require_once __DIR__.'/ticketing_refunds.php';
+        $soldCount=max(0,$soldCount-brvtalRefundCreditedInventory($db,$eventId,$typeId));
     }
     return [
         'sold'=>$soldCount,
