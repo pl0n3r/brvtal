@@ -247,7 +247,7 @@ Producto: `pl0n3r/brvtal`
 ## ticket_order_payment
 
 - Categoría: `financial`
-- Campos de software: `buyer_id`, `event_id`, `public_id`, `checkout_key_hash`, `status`, `total_cop`, `ticket_type_id`, `ticket_name_snapshot`, `quantity`, `unit_price_cop`, `subtotal_cop`, `provider`, `provider_reference`, `provider_transaction_id`, `gross_amount_cop`, `fee_amount_cop`, `fee_vat_cop`, `withheld_amount_cop`, `net_amount_cop`, `created_at_utc`, `updated_at_utc`
+- Campos de software: `buyer_id`, `event_id`, `public_id`, `checkout_key_hash`, `status`, `total_cop`, `ticket_type_id`, `ticket_name_snapshot`, `quantity`, `unit_price_cop`, `subtotal_cop`, `provider`, `provider_reference`, `provider_transaction_id`, `gross_amount_cop`, `fee_amount_cop`, `fee_vat_cop`, `withheld_amount_cop`, `net_amount_cop`, `created_at_utc`, `updated_at_utc`, `payment_reference`, `note_text`
 - Finalidad: `ticket_order_payment_reconciliation`
 - Base documentada: `review_required` (revisión jurídica requerida)
 - Consentimiento: `review_required`

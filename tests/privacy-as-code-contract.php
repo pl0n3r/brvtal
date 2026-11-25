@@ -187,7 +187,7 @@ privacy_expect(
             'ticket_type_id','ticket_name_snapshot','quantity','unit_price_cop','subtotal_cop',
             'provider','provider_reference','provider_transaction_id','gross_amount_cop',
             'fee_amount_cop','fee_vat_cop','withheld_amount_cop','net_amount_cop',
-            'created_at_utc','updated_at_utc',
+            'created_at_utc','updated_at_utc','payment_reference','note_text',
         ]
         && $orderPayment['providers'] === []
         && $orderPayment['retention'] === 'review_required',
