@@ -92,6 +92,7 @@ $ddl=[
   "CREATE TABLE ticket_orders (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
       public_id BINARY(16),buyer_id BIGINT UNSIGNED,event_id INT UNSIGNED,
       checkout_key_hash CHAR(64) UNIQUE,status VARCHAR(24),currency CHAR(3),total_cop BIGINT UNSIGNED,
+      updated_at_utc DATETIME(6) DEFAULT (UTC_TIMESTAMP(6)),
       UNIQUE KEY uq_ticket_orders_id_event(id,event_id)) ENGINE=InnoDB",
   "CREATE TABLE ticket_order_items (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
       order_id BIGINT UNSIGNED,event_id INT UNSIGNED,ticket_type_id INT UNSIGNED,

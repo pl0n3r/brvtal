@@ -417,7 +417,9 @@
         "withheld_amount_cop",
         "net_amount_cop",
         "created_at_utc",
-        "updated_at_utc"
+        "updated_at_utc",
+        "payment_reference",
+        "note_text"
       ],
       "purpose": "ticket_order_payment_reconciliation",
       "basis": "review_required",
