@@ -16,6 +16,7 @@ require_once __DIR__ . '/config/public_home.php';
 require_once __DIR__ . '/config/public_contact_page.php';
 require_once __DIR__ . '/config/public_releases_listing.php';
 require_once __DIR__ . '/config/public_privacy_rights.php';
+require_once __DIR__ . '/config/public_terms.php';
 
 // Apply the same visible rights destination to every public HTML response,
 // including pages that exit early for contact, missing entities or errors.
@@ -113,6 +114,33 @@ if ($pageRoute === 'privacy') {
     header('Cache-Control: public, max-age=60, stale-while-revalidate=300');
     header('X-Robots-Tag: noindex, follow');
     echo $privacyHtml;
+    exit;
+}
+
+if ($pageRoute === 'terms') {
+    // #1991: owner-validated terms of sale; Spanish-only canonical page.
+    $termsUrl = $baseUrl . '/terms';
+    $termsSeo = [
+        'title' => 'Términos de venta',
+        'description' => 'Condiciones de compra, ingreso, cancelación y devoluciones de las boletas de BRVTAL.',
+        'canonical' => $termsUrl,
+        'image' => $baseUrl . '/assets/brvtal-logo.jpeg',
+        'schema' => ['@context' => 'https://schema.org', '@type' => 'WebPage',
+            'name' => 'Términos de venta', 'url' => $termsUrl],
+    ];
+    $gtmId = '';
+    try {
+        $gtmId = brvtal_public_gtm_id(db());
+    } catch (Throwable) {
+    }
+    $termsHtml = brvtalPublicTermsDocument(
+        brvtal_public_seo_tags($termsSeo),
+        brvtal_public_analytics_markup($gtmId, brvtalDeploymentCacheKey())
+    );
+    $termsHtml = brvtal_public_version_assets($termsHtml, brvtalDeploymentCacheKey());
+    header('Content-Type: text/html; charset=utf-8');
+    header('Cache-Control: public, max-age=60, stale-while-revalidate=300');
+    echo $termsHtml;
     exit;
 }
 

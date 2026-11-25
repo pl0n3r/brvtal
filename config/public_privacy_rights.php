@@ -207,7 +207,9 @@ function brvtalPublicPrivacyRightsFooterLink(string $html): string
         return $html;
     }
 
-    $link = '<a href="/privacy" data-privacy-rights-link="1">PRIVACIDAD Y MIS DERECHOS</a>';
+    // #1991: terms of sale travel with the privacy link on every public footer.
+    $link = '<a href="/privacy" data-privacy-rights-link="1">PRIVACIDAD Y MIS DERECHOS</a>'
+        . '<a href="/terms" data-terms-link="1">TÉRMINOS DE VENTA</a>';
     $withLegacyReplacement = preg_replace(
         '~<a\b[^>]*\bdata-footer-privacy\b[^>]*>.*?</a>~is',
         $link,
