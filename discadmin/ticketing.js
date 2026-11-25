@@ -121,7 +121,7 @@ window.BRVTALTicketing = (() => {
         await mod.mount(panel);
         if (!panel.isConnected || panel.getAttribute('aria-labelledby') !== active.id) return;
         // T21 shares the single finance workspace. The API still enforces staff capability.
-        if (['superadmin','root','owner','platform_owner'].includes(root.dataset.ticketingRole)) {
+        if (['superadmin','root','owner','platform_owner','admin'].includes(root.dataset.ticketingRole)) {
           const openRefunds = element('button', 'Devoluciones', 'tk-button');
           openRefunds.type = 'button';
           openRefunds.dataset.financeOpenRefunds = '';

@@ -191,7 +191,8 @@
   }
   function refundForm(order){
     const eligible=(order.items||[]).filter(item=>item.status==='issued'&&item.ticket_id);
-    if(order.status!=='paid'||!eligible.length||!/^[a-f0-9]{32}$/.test(order.public_id||''))return null;
+    if(order.status!=='paid'||!['cancelled','postponed'].includes(order.refund_cause)
+      ||!eligible.length||!/^[a-f0-9]{32}$/.test(order.public_id||''))return null;
     const form=el('form');form.className='account-refund-form';form.setAttribute('aria-label','Solicitar devolución');
     const caption=el('h3','Solicitar devolución');form.append(caption);
     eligible.forEach((item,i)=>{
@@ -203,6 +204,7 @@
     const reason=el('textarea');reason.name='reason';reason.required=true;reason.minLength=4;reason.maxLength=220;
     reasonLabel.append(reason);form.append(reasonLabel);
     const button=el('button','Enviar solicitud');button.type='submit';
+    button.style.minHeight='44px';
     const status=el('p');status.setAttribute('role','status');form.append(button,status);
     form.addEventListener('input',()=>delete form.dataset.idempotencyKey);
     form.addEventListener('submit',async event=>{
@@ -236,6 +238,11 @@
       if(order.status==='paid'&&item.status==='issued'&&item.credential_active!==false&&item.qr_requires_original_token&&item.ticket_id){
         const button=el('button','Ver QR');button.type='button';button.addEventListener('click',()=>showQr(item.ticket_id,item.qr_stored===true));line.append(button);
       }box.append(line);
+    }
+    if(order.status==='paid'){
+      const rule=el('p','Las boletas no tienen devolución, salvo cancelación o aplazamiento del evento. ');
+      const terms=el('a','Ver términos y condiciones');terms.href='/terms';
+      rule.append(terms);box.append(rule);
     }
     const refund=refundForm(order);if(refund)box.append(refund);
     return box;

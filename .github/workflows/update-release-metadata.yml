@@ -484,6 +484,9 @@ jobs:
       - name: Verify T15 atomic entry scan, replay and audit in disposable MariaDB
         run: php tests/integration/ticketing-checkin.php
 
+      - name: Verify T21 owner-only Wompi-panel refund evidence in disposable MariaDB
+        run: php tests/integration/ticketing-refunds.php
+
 
       - name: Verify Set duration migration on disposable MariaDB
         run: python3 -m unittest discover -s tests -p test_set_duration_contract.py

@@ -81,8 +81,14 @@ function brvtalBuyerAccountOrders(PDO $db, int $buyerId, array $f): array
     if ($f['event_id'] !== null) { $where[] = 'o.event_id=?'; $args[] = $f['event_id']; }
     if ($f['from']) { $where[] = 'o.created_at_utc>=?'; $args[] = $f['from']->format('Y-m-d 00:00:00'); }
     if ($f['to']) { $where[] = 'o.created_at_utc<?'; $args[] = $f['to']->modify('+1 day')->format('Y-m-d 00:00:00'); }
+    // Only expose a server-owned incident, never trust client cancellation flags.
+    // No dependency on unapplied migration on ordinary production installations.
+    $causeColumn=(getenv('BRVTAL_TICKET_REFUNDS_POLICY_ENABLED')==='1')
+        ? '(SELECT d.cause FROM ticket_refund_event_decisions d WHERE d.event_id=o.event_id) AS refund_cause,'
+        : 'NULL AS refund_cause,';
     $sql = 'SELECT o.id,LOWER(HEX(o.public_id)) AS public_id,o.event_id,e.title AS event_title,
-            o.status,o.total_cop,o.currency,o.created_at_utc,
+            o.status,o.total_cop,o.currency,o.created_at_utc,'
+            .$causeColumn.'
             (SELECT a.status FROM ticket_payment_attempts a WHERE a.order_id=o.id ORDER BY a.id DESC LIMIT 1) AS payment_status
             FROM ticket_orders o JOIN events e ON e.id=o.event_id WHERE '.implode(' AND ', $where).
             ' ORDER BY o.id DESC LIMIT 11 OFFSET ?';

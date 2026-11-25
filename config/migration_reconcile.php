@@ -269,6 +269,11 @@ function brvtalMigrationProofSpecifications(): array
             ['uq_ticket_mail_message_key', 'idx_ticket_mail_ready', 'idx_ticket_mail_relation'],
             true
         ),
+        'migration_ticketing_refund_events_01.sql' => brvtalMigrationObjectRequirements(
+            'ticket_refund_event_decisions',
+            ['event_id','cause','owner_admin_id','declared_at_utc'],
+            ['PRIMARY','idx_ticket_refund_incident_owner'], true
+        ),
         'migration_ticketing_refunds_01.sql' => array_merge(
             brvtalMigrationObjectRequirements('ticket_refunds',
                 ['order_id','buyer_id','event_id','request_hash','selection_hash',
