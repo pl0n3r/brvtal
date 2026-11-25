@@ -138,6 +138,13 @@ function brvtal_ticket_inventory_hold(
     $eventQuery->execute([$eventId]);
     $event = $eventQuery->fetch(PDO::FETCH_ASSOC);
     if (!$event) throw new DomainException('INVENTORY_NOT_SALEABLE');
+    if(getenv('BRVTAL_TICKET_REFUNDS_POLICY_ENABLED')==='1'){
+        // An owner-declared cancelled/postponed event cannot sell another ticket.
+        // The Event mutex serializes this with the owner's declaration.
+        $incident=$db->prepare('SELECT 1 FROM ticket_refund_event_decisions WHERE event_id=? LIMIT 1');
+        $incident->execute([$eventId]);
+        if($incident->fetchColumn())throw new DomainException('INVENTORY_NOT_SALEABLE');
+    }
     $orderQuery = $db->prepare('SELECT o.id,o.event_id,o.status,i.quantity AS item_quantity
         FROM ticket_orders o JOIN ticket_order_items i ON i.order_id=o.id
         WHERE o.id=? AND i.ticket_type_id=? FOR UPDATE');
