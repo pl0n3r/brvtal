@@ -83,8 +83,7 @@ function brvtalBuyerAccountOrders(PDO $db, int $buyerId, array $f): array
     if ($f['to']) { $where[] = 'o.created_at_utc<?'; $args[] = $f['to']->modify('+1 day')->format('Y-m-d 00:00:00'); }
     // Only expose a server-owned incident, never trust client cancellation flags.
     // No dependency on unapplied migration on ordinary production installations.
-    $causeColumn=(getenv('BRVTAL_TICKET_REFUNDS_POLICY_ENABLED')==='1'
-        ||getenv('BRVTAL_INTEGRATION_TESTS')==='1')
+    $causeColumn=(getenv('BRVTAL_TICKET_REFUNDS_POLICY_ENABLED')==='1')
         ? '(SELECT d.cause FROM ticket_refund_event_decisions d WHERE d.event_id=o.event_id) AS refund_cause,'
         : 'NULL AS refund_cause,';
     $sql = 'SELECT o.id,LOWER(HEX(o.public_id)) AS public_id,o.event_id,e.title AS event_title,
