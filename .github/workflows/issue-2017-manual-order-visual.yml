@@ -1,0 +1,99 @@
+name: Issue 2017 manual-order visual evidence
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/issue-2017-manual-order-visual.yml
+      - tests/e2e/discadmin-ticketing-pos.spec.mjs
+      - discadmin/ticketing-pos.js
+      - discadmin/ticketing-finance.js
+      - discadmin/ticketing.css
+
+permissions:
+  contents: read
+
+jobs:
+  manual-visual-evidence:
+    name: issue-2017-manual-visual
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ runner.temp }}/issue-2017-playwright-report.json
+      ISSUE_2017_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      ISSUE_2017_RUN_ID: ${{ github.run_id }}
+    steps:
+      - name: Checkout exact PR code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pinned project test dependencies
+        run: npm install --prefer-offline --no-audit --no-fund
+      - name: Install Chromium and runtime dependencies
+        run: npx playwright install --with-deps chromium
+      - name: Run actual synthetic browser captures at 390 and 1440 px
+        run: npx playwright test tests/e2e/discadmin-ticketing-pos.spec.mjs --project=chromium --reporter=list,json
+      - name: Verify and materialize four actual PNG attachments
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'JS'
+          import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';
+          import {createHash} from 'node:crypto';
+          import {join} from 'node:path';
+          const report=JSON.parse(readFileSync(process.env.PLAYWRIGHT_JSON_OUTPUT_FILE,'utf8'));
+          const byName=new Map();
+          function visit(node){
+            if(Array.isArray(node)){for(const item of node)visit(item);return;}
+            if(!node||typeof node!=='object')return;
+            if(Array.isArray(node.attachments)){
+              for(const item of node.attachments){
+                if(item && typeof item.name==='string' && !byName.has(item.name)){
+                  byName.set(item.name,item);
+                }
+              }
+            }
+            for(const [key,value] of Object.entries(node)){
+              if(key!=='attachments')visit(value);
+            }
+          }
+          visit(report);
+          const required=[
+            ['manual-baseline-390.png',390],
+            ['manual-created-390.png',390],
+            ['manual-baseline-1440.png',1440],
+            ['manual-created-1440.png',1440],
+          ];
+          const out='artifacts/issue-2017';
+          mkdirSync(out,{recursive:true});
+          const captures=[];
+          for(const [name,expectedWidth] of required){
+            const item=byName.get(name);
+            if(!item)throw Error('Missing required Playwright screenshot attachment: '+name);
+            const bytes=typeof item.path==='string'?readFileSync(item.path):
+              typeof item.body==='string'?Buffer.from(item.body,'base64'):null;
+            if(!bytes||bytes.length<24||!bytes.subarray(0,8).equals(
+              Buffer.from([137,80,78,71,13,10,26,10]))) {
+              throw Error('Not a real PNG screenshot: '+name);
+            }
+            const width=bytes.readUInt32BE(16);
+            const height=bytes.readUInt32BE(20);
+            if(width!==expectedWidth||height<400)throw Error('Invalid screenshot dimensions: '+name);
+            writeFileSync(join(out,name),bytes);
+            captures.push({name,width,height,size_bytes:bytes.length,
+              sha256:createHash('sha256').update(bytes).digest('hex')});
+          }
+          writeFileSync(join(out,'manifest.json'),JSON.stringify({
+            issue:2017,pr:2019,source:'Playwright testInfo.attach; synthetic fixtures',
+            head_sha:process.env.ISSUE_2017_PR_HEAD_SHA,
+            workflow_run_id:process.env.ISSUE_2017_RUN_ID,captures
+          },null,2)+'\n');
+          console.log('Four real Playwright screenshots verified for exact HEAD.');
+          JS
+      - name: Upload visual evidence for PR 2019
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: issue-2017-manual-order-ui-${{ github.event.pull_request.head.sha }}-${{ github.run_id }}
+          path: artifacts/issue-2017/
+          if-no-files-found: error
+          retention-days: 14
