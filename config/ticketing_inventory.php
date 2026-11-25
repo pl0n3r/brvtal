@@ -96,10 +96,7 @@ function brvtal_ticket_inventory_usage(PDO $db, int $eventId, int $typeId, strin
         if ((int)($e->errorInfo[1] ?? 0) !== 1146) throw $e;
     }
     $soldCount=brvtal_ticket_inventory_scalar($db,$sold.$soldType,$salesArgs);
-    if(getenv('BRVTAL_TICKET_REFUNDS_POLICY_ENABLED')==='1'
-        ||(getenv('BRVTAL_INTEGRATION_TESTS')==='1'
-          &&preg_match('/^brvtal_test[a-zA-Z0-9_]*$/D',
-            (string)$db->query('SELECT DATABASE()')->fetchColumn())===1)){
+    if(getenv('BRVTAL_TICKET_REFUNDS_POLICY_ENABLED')==='1'){
         // Existing paid orders stay paid after a partial refund, so account for
         // each final refunded entry exactly once without counting the same units as sold.
         $credit='SELECT COUNT(*) FROM ticket_refund_entries x
