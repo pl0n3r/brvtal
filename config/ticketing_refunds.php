@@ -223,8 +223,10 @@ function brvtalRefundStaff(PDO $db,int $actor,string $role,int $id,string $actio
         }
         if(($action==='manual_confirm'&&(!in_array($before,['approved','manual_pending'],true)
             ||!preg_match('/^[A-Za-z0-9._:-]{6,120}$/D',$manualReference)
-            ||(getenv('BRVTAL_INTEGRATION_TESTS')!=='1'
-              &&getenv('BRVTAL_TICKET_REFUNDS_MANUAL_ENABLED')!=='1')))
+            ||(getenv('BRVTAL_TICKET_REFUNDS_MANUAL_ENABLED')!=='1'
+              &&!(getenv('BRVTAL_INTEGRATION_TESTS')==='1'
+                &&preg_match('/^brvtal_test[a-zA-Z0-9_]*$/D',
+                  (string)$db->query('SELECT DATABASE()')->fetchColumn())===1))))
             ||($action!=='manual_confirm'&&$before!=='requested'))
             throw new DomainException('REFUND_INVALID_STATE');
         if($action==='manual_confirm'){
