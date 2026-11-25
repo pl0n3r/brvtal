@@ -92,9 +92,13 @@ function brvtal_ticket_pos_verified(PDO $db, int $orderId): bool
         $requestHash=(string)$hashQ->fetchColumn();
         // A transfer/Nequi/Daviplata is NOT a Wompi payment. It requires
         // a prior audited owner note tied to the exact POS request digest.
+        // Filter by the immutable sale digest at the database, not by a
+        // fixed window of recent notes: operational notes may accumulate
+        // before the worker or a later check-in retries verification.
         $audit=$db->prepare('SELECT note_text FROM ticket_order_notes
-            WHERE order_id=? AND actor_admin_id=? ORDER BY id DESC LIMIT 10');
-        $audit->execute([$orderId,(int)$sale['operator_admin_id']]);
+            WHERE order_id=? AND actor_admin_id=? AND note_text LIKE ?
+            ORDER BY id DESC LIMIT 1');
+        $audit->execute([$orderId,(int)$sale['operator_admin_id'],'%|'.$requestHash]);
         foreach($audit->fetchAll(PDO::FETCH_COLUMN) as $note) {
             $parts=explode('|',(string)$note,4);
             if (count($parts)===4 && $parts[0]==='manual-payment'

@@ -305,8 +305,9 @@ function brvtalPosManualOrder(PDO $db,int $actor,array $i): array {
     if ($prior) {
         $q=$db->prepare('SELECT s.id,s.amount_cop,n.note_text FROM ticket_pos_sales s
             JOIN ticket_order_notes n ON n.order_id=s.order_id AND n.actor_admin_id=s.operator_admin_id
-            WHERE s.order_id=? AND s.operator_admin_id=? LIMIT 1 FOR UPDATE');
-        $q->execute([(int)$prior['id'],$actor]);
+            WHERE s.order_id=? AND s.operator_admin_id=?
+              AND n.note_text LIKE ? LIMIT 1 FOR UPDATE');
+        $q->execute([(int)$prior['id'],$actor,'%|'.$digest]);
         $receipt=$q->fetch(PDO::FETCH_ASSOC);
         if (!$receipt || !str_ends_with((string)$receipt['note_text'],'|'.$digest)) {
             throw new DomainException('POS_IDEMPOTENCY_CONFLICT');

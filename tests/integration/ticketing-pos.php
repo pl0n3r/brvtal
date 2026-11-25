@@ -214,6 +214,15 @@ try {
     $audit->execute([$created['order_id']]);
     posAssert(str_starts_with((string)$audit->fetchColumn(),'manual-payment|nequi|REF-2026-001|'),
         'owner reference and original method audited');
+    // Real audit history can grow before issuance/retry. Never rely on the
+    // latest ten notes to find the immutable owner payment proof.
+    $newNote=$db->prepare('INSERT INTO ticket_order_notes(order_id,actor_admin_id,note_text)
+        VALUES (?,?,?)');
+    for($i=0;$i<14;$i++) {
+        $newNote->execute([$created['order_id'],1,'operational-note-'.$i]);
+    }
+    posAssert(brvtal_ticket_pos_verified($db,(int)$created['order_id']),
+        'verified offline payment survives more than ten newer audit notes');
     $replay=brvtalPosRun($db,1,'superadmin',$manual);
     posAssert($replay['replayed'] && $replay['order_id']===$created['order_id'],
         'owner same idempotency key returns one order');
