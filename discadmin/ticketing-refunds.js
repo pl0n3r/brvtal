@@ -76,6 +76,13 @@ export async function mount(panel, csrf = '') {
       rejected:'Rechazada',failed:'Revisión necesaria',processing:'En proceso'};
     item.append(el('h4',name),el('p',money(refund.amount_cop)+' · '
       +(stateNames[state]||'En revisión')));
+    // Human-readable original Wompi reference lets the owner locate the
+    // exact original charge before making any external dashboard refund.
+    const payment=typeof refund.wompi_payment_ref==='string'
+      &&/^[A-Za-z0-9._:-]{1,190}$/.test(refund.wompi_payment_ref)
+      ?refund.wompi_payment_ref:null;
+    item.append(el('p',payment?'Pago en Wompi: '+payment:
+      'Sin pago de Wompi verificable: no confirmar devolución.'));
     if(!canDecide)return item;
     if(state!=='requested'&&state!=='approved'&&state!=='manual_pending')return item;
     const message=el('p');message.setAttribute('role','status');
