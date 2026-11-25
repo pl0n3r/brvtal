@@ -169,3 +169,93 @@ test('AC-01: rol admin con finanzas pero sin settings conserva selectores POS',a
   expect(php).toContain("WHERE status='published'");
   expect(php).toContain('data-finance-catalog');
 });
+
+for (const width of [390,1440]) {
+  test('AC-02 pedido offline owner, capturas antes/después '+width+' px',async({page},testInfo)=>{
+    await page.setViewportSize({width,height:900});
+    const calls=[];
+    await setup(page,route=>{
+      const request=route.request();
+      calls.push({body:request.postDataJSON(),headers:request.headers()});
+      route.fulfill({contentType:'application/json',body:JSON.stringify({
+        ok:true,data:{order_id:123,sale_id:44,status:'paid',
+          amount_cop:50000,method:'nequi',issuance_queued:true,replayed:false}
+      })});
+    });
+    const manual=page.locator('[data-pos-manual]');
+    await expect(manual).toBeVisible();
+    // Baseline is the same mounted Caja with the new module hidden, not
+    // a fake external website or an invented production screenshot.
+    await manual.evaluate(el=>{el.style.display='none';});
+    await testInfo.attach('manual-baseline-'+width+'.png',
+      {body:await page.screenshot({fullPage:true}),contentType:'image/png'});
+    await manual.evaluate(el=>{el.style.display='';});
+    const form=manual.locator('[data-pos-manual-form]');
+    await form.locator('[name="manual_event_id"]').selectOption('6');
+    await form.locator('[name="manual_ticket_type_id"]').selectOption('10');
+    await form.locator('[name="manual_quantity"]').fill('2');
+    await form.locator('[name="manual_buyer_name"]').fill('Comprador Ejemplo');
+    await form.locator('[name="manual_buyer_email"]').fill('manual@example.test');
+    await form.locator('[name="manual_method"]').selectOption('nequi');
+    await form.locator('[name="manual_payment_reference"]').fill('REF-2026-001');
+    await form.locator('[name="manual_confirm"]').check();
+    await expect(form.getByRole('button',{name:'Crear pedido manual'})).toBeEnabled();
+    expect(calls).toHaveLength(0);
+    await form.getByRole('button',{name:'Crear pedido manual'}).click();
+    await expect(manual).toContainText('Pedido #123 creado');
+    await expect(manual).toContainText('emisión de QR en cola');
+    expect(calls).toHaveLength(1);
+    expect(calls[0].body).toMatchObject({
+      action:'manual_order',event_id:'6',ticket_type_id:'10',quantity:'2',
+      buyer_name:'Comprador Ejemplo',buyer_email:'manual@example.test',
+      method:'nequi',payment_reference:'REF-2026-001',confirm:true
+    });
+    expect(calls[0].body.idempotency_key).toMatch(/^[a-f0-9]{32}$/);
+    expect(calls[0].headers['x-csrf-token']).toBe('a'.repeat(64));
+    await expect(form.getByRole('button',{name:'Crear pedido manual'})).toBeDisabled();
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    await testInfo.attach('manual-created-'+width+'.png',
+      {body:await page.screenshot({fullPage:true}),contentType:'image/png'});
+  });
+}
+
+test('AC-02 pago no efectivo exige referencia, error de aforo no inventa pedido',async({page})=>{
+  const calls=[];
+  await setup(page,route=>{
+    calls.push(route.request().postDataJSON());
+    route.fulfill({status:409,contentType:'application/json',
+      body:'{"ok":false,"error":"INVENTORY_SOLD_OUT"}'});
+  });
+  const form=page.locator('[data-pos-manual-form]');
+  await form.locator('[name="manual_event_id"]').selectOption('6');
+  await form.locator('[name="manual_ticket_type_id"]').selectOption('10');
+  await form.locator('[name="manual_buyer_name"]').fill('Comprador Ejemplo');
+  await form.locator('[name="manual_buyer_email"]').fill('manual@example.test');
+  await form.locator('[name="manual_method"]').selectOption('transfer');
+  await form.locator('[name="manual_confirm"]').check();
+  await expect(form.locator('[name="manual_payment_reference"]')).toHaveAttribute('required','');
+  await form.getByRole('button',{name:'Crear pedido manual'}).click();
+  expect(calls).toHaveLength(0);
+  await form.locator('[name="manual_payment_reference"]').fill('BANCO-00012');
+  await form.getByRole('button',{name:'Crear pedido manual'}).click();
+  await expect(page.locator('[data-pos-manual]')).toContainText('No hay cupo suficiente');
+  expect(calls).toHaveLength(1);
+  await expect(form.getByRole('button',{name:'Crear pedido manual'})).toBeEnabled();
+  await expect(page.locator('[data-pos-manual-receipt]')).toBeEmpty();
+});
+
+test('AC-02 servidor rechaza admin sin revelar QR o pedido',async({page})=>{
+  await setup(page,route=>route.fulfill({status:403,contentType:'application/json',
+    body:'{"ok":false,"error":"FORBIDDEN"}'}));
+  const form=page.locator('[data-pos-manual-form]');
+  await form.locator('[name="manual_event_id"]').selectOption('6');
+  await form.locator('[name="manual_ticket_type_id"]').selectOption('10');
+  await form.locator('[name="manual_buyer_name"]').fill('Comprador Ejemplo');
+  await form.locator('[name="manual_buyer_email"]').fill('manual@example.test');
+  await form.locator('[name="manual_method"]').selectOption('cash');
+  await expect(form.locator('[name="manual_payment_reference"]')).toBeDisabled();
+  await form.locator('[name="manual_confirm"]').check();
+  await form.getByRole('button',{name:'Crear pedido manual'}).click();
+  await expect(page.locator('[data-pos-manual]')).toContainText('Solo el propietario');
+  await expect(page.locator('[data-pos-manual-receipt]')).toBeEmpty();
+});
