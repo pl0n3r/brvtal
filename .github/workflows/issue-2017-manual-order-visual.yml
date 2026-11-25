@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     env:
-      PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ runner.temp }}/issue-2017-playwright-report.json
+      PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ github.workspace }}/issue-2017-playwright-report.json
       ISSUE_2017_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       ISSUE_2017_RUN_ID: ${{ github.run_id }}
     steps:
