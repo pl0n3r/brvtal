@@ -699,6 +699,8 @@ try {
   // Events uses the canonical native grid plus a hidden Content Core host for
   // the guided editor. Wait for the asynchronous host/simplifier to settle:
   // two temporarily visible search inputs are not a completed workspace.
+  // #2127: DISCADMIN titles the workspace in Spanish (EVENTOS); EVENTS stays accepted.
+  const EVENTS_HEADINGS = new Set(['EVENTOS', 'EVENTS']);
   markStage('events-workspace');
   await navigate(page, 'events');
   await page.locator('[data-admin-nav="events"].active').waitFor({ state: 'visible', timeout: 15_000 });
@@ -722,10 +724,10 @@ try {
     visibleSearch: true,
     visibleSearchCount,
     nativeEditVisible: true,
-    pass: eventsHeading === 'EVENTS'
+    pass: EVENTS_HEADINGS.has(eventsHeading)
   };
   writeEvidence();
-  if (eventsHeading !== 'EVENTS') {
+  if (!EVENTS_HEADINGS.has(eventsHeading)) {
     throw new Error('Canonical Events workspace is inconsistent.');
   }
 
