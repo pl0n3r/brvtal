@@ -144,8 +144,12 @@ function brvtalPosOpen(PDO $db,int $actor,array $i): array {
     $q=$db->prepare("SELECT id FROM ticket_pos_shifts WHERE operator_admin_id=? AND status='open' LIMIT 1");
     $q->execute([$actor]);
     if ($q->fetchColumn()!==false) throw new DomainException('POS_SHIFT_ALREADY_OPEN');
-    $event=$db->prepare('SELECT id FROM events WHERE id=? AND status IN (\'active\',\'published\')');
-    $event->execute([$i['event_id']]);
+    // #2022: 'active' is not an event state; accept every canonical selling state.
+    require_once __DIR__.'/public_visibility.php';
+    $active=brvtal_public_event_statuses()['active'];
+    $event=$db->prepare('SELECT id FROM events WHERE id=? AND status IN ('
+        .implode(',',array_fill(0,count($active),'?')).')');
+    $event->execute(array_merge([$i['event_id']],$active));
     if ($event->fetchColumn()===false) throw new DomainException('POS_EVENT_UNAVAILABLE');
     $insert=$db->prepare('INSERT INTO ticket_pos_shifts(event_id,operator_admin_id,opening_cash_cop) VALUES (?,?,?)');
     $insert->execute([$i['event_id'],$actor,$i['opening_cash_cop']]);

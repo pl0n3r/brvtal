@@ -166,7 +166,9 @@ test('AC-01: rol admin con finanzas pero sin settings conserva selectores POS',a
   expect(requests[0].action).toBe('open');
   const php=readFileSync('discadmin/ticketing-finance.php','utf8');
   expect(php).toContain("brvtalTicketingCan((string)($q->fetchColumn() ?: ''),'finance')");
-  expect(php).toContain("WHERE status='published'");
+  // #2022: every canonical selling state, not only 'published'.
+  expect(php).toContain("brvtal_public_event_statuses()['active']");
+  expect(php).not.toContain("status='published'");
   expect(php).toContain('data-finance-catalog');
 });
 
