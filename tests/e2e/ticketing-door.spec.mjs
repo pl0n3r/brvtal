@@ -91,7 +91,9 @@ test('T16 cámara simulada: un QR leído inicia una única validación server-si
 test('T16 rutas PHP exigen staff door y no exponen finanzas ni compradores', async () => {
   expect(php).toContain('brvtal_admin_require();');
   expect(php).toContain("brvtalTicketingCan((string)($role->fetchColumn()?:''), 'door')");
-  expect(php).toContain("WHERE status='published'");
+  // #2022: the door opens for every canonical selling state, not only 'published'.
+  expect(php).toContain("brvtal_public_event_statuses()['active']");
+  expect(php).not.toContain("status='published'");
   expect(php).not.toMatch(/SELECT.+email/i);
   expect(php).toContain("Cache-Control: no-store, private");
   expect(shell).toContain('Abrir lector móvil de puerta');

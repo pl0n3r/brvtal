@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require_once __DIR__.'/../config/admin_auth.php';
 require_once __DIR__.'/../config/ticketing_staff_permissions.php';
+require_once __DIR__.'/../config/public_visibility.php';
 header('Cache-Control: no-store, private');
 header('X-Content-Type-Options: nosniff');
 header('X-Robots-Tag: noindex, nofollow');
@@ -22,8 +23,11 @@ try {
             http_response_code(422);
             exit('{"ok":false}');
         }
-        $event=$pdo->prepare("SELECT id FROM events WHERE id=? AND status='published' LIMIT 1");
-        $event->execute([$id]);
+        // #2022: the door must open for every selling state, not only 'published'.
+        $active=brvtal_public_event_statuses()['active'];
+        $event=$pdo->prepare('SELECT id FROM events WHERE id=? AND status IN ('
+            .implode(',',array_fill(0,count($active),'?')).') LIMIT 1');
+        $event->execute(array_merge([$id],$active));
         if (!$event->fetchColumn()) {
             http_response_code(404);
             exit('{"ok":false}');
@@ -53,8 +57,11 @@ try {
         http_response_code(404);
         exit;
     }
-    $events=$pdo->query("SELECT id, title FROM events WHERE status='published'
-        ORDER BY event_date DESC, id DESC LIMIT 100")->fetchAll(PDO::FETCH_ASSOC);
+    $active=brvtal_public_event_statuses()['active'];
+    $eventsQ=$pdo->prepare('SELECT id, title FROM events WHERE status IN ('
+        .implode(',',array_fill(0,count($active),'?')).') ORDER BY event_date DESC, id DESC LIMIT 100');
+    $eventsQ->execute($active);
+    $events=$eventsQ->fetchAll(PDO::FETCH_ASSOC);
 } catch (Throwable) {
     http_response_code(503);
     header('Content-Type: text/plain; charset=utf-8');

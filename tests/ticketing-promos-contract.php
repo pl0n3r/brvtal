@@ -12,7 +12,8 @@ $permission = strpos($api, "brvtalTicketingCan((string)(\$q->fetchColumn()?:''),
 $catalog = strpos($api, "(\$_GET['catalog']??'')==='1'");
 promosContract($auth !== false && $permission !== false && $catalog !== false, 'auth, permission and catalog present');
 promosContract($auth < $permission && $permission < $catalog, 'catalog is served only after authentication and permission');
-promosContract(str_contains($api, "WHERE status='published'"), 'only published events are listed');
+promosContract(str_contains($api, "brvtal_public_event_statuses()['active']") && !str_contains($api, "status='published'"),
+    'only canonical selling events are listed (#2022)');
 promosContract(!preg_match('/code_digest|buyer|email/i', substr($api, $catalog, 1400)), 'catalog exposes no coupon digests or buyer data');
 $ui = (string)file_get_contents(__DIR__ . '/../discadmin/ticketing-promos.js');
 promosContract(!str_contains($ui, 'Evento ID') && !str_contains($ui, 'Inicio UTC') && !str_contains($ui, 'fixed, percent'),

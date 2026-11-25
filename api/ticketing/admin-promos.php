@@ -3,6 +3,7 @@ declare(strict_types=1);
 require_once __DIR__.'/../../config/admin_auth.php';
 require_once __DIR__.'/../../config/ticketing_staff_permissions.php';
 require_once __DIR__.'/../../config/ticketing_promos.php';
+require_once __DIR__.'/../../config/public_visibility.php';
 header('Cache-Control: no-store, private');
 header('X-Content-Type-Options: nosniff');
 brvtal_admin_require();
@@ -20,8 +21,13 @@ try {
     }
     if ($method==='GET' && ($_GET['catalog']??'')==='1') {
         // #1964: pickers instead of typed IDs. Only published events and their ticket names.
-        $events=$db->query("SELECT id,title,event_date FROM events WHERE status='published'
-            ORDER BY event_date IS NULL, event_date DESC, id DESC LIMIT 60")->fetchAll(PDO::FETCH_ASSOC);
+        // #2022: every selling state (tickets_available, last_tickets…), not only 'published'.
+        $active=brvtal_public_event_statuses()['active'];
+        $eventsQ=$db->prepare('SELECT id,title,event_date FROM events WHERE status IN ('
+            .implode(',',array_fill(0,count($active),'?')).')
+            ORDER BY event_date IS NULL, event_date DESC, id DESC LIMIT 60');
+        $eventsQ->execute($active);
+        $events=$eventsQ->fetchAll(PDO::FETCH_ASSOC);
         $types=[];
         if ($events) {
             $ids=array_map(static fn(array $row): int => (int)$row['id'], $events);
