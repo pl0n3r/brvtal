@@ -567,6 +567,8 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
                 . '<label class="event-cart-consent"><input type="checkbox" name="buyer_consent" required>'
                 . '<span>Acepto el tratamiento de mis datos para esta compra según la '
                 . '<a href="/privacy">política de privacidad</a>.</span></label>'
+                // #1991: the purchase accepts the owner-validated terms of sale.
+                . '<p class="event-cart-terms">Al pagar aceptas los <a href="/terms">términos de venta</a>.</p>'
                 . '<div class="event-cart-trap" aria-hidden="true"><label>No llenar '
                 . '<input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>'
                 . '</fieldset>'
