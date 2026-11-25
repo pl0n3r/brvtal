@@ -3,12 +3,46 @@ declare(strict_types=1);
 require_once __DIR__ . '/ticketing_staff_permissions.php';
 require_once __DIR__ . '/ticketing_wompi_client.php';
 
-/** T21 is deliberately disabled outside disposable synthetic databases. */
+/** Opt-in for the manual dashboard policy; default is no production refunds. */
 function brvtalRefundGuard(PDO $db): void {
-    if (getenv('BRVTAL_INTEGRATION_TESTS') !== '1'
-        || !preg_match('/^brvtal_test[a-zA-Z0-9_]*$/D',(string)$db->query('SELECT DATABASE()')->fetchColumn())) {
+    $name=(string)$db->query('SELECT DATABASE()')->fetchColumn();
+    $synthetic=getenv('BRVTAL_INTEGRATION_TESTS')==='1'
+        && preg_match('/^brvtal_test[a-zA-Z0-9_]*$/D',$name)===1;
+    if (!$synthetic && getenv('BRVTAL_TICKET_REFUNDS_POLICY_ENABLED')!=='1')
         throw new DomainException('REFUND_SANDBOX_ONLY');
-    }
+}
+/** The old Wompi transport stays test-only; a feature flag cannot enable it. */
+function brvtalRefundSandboxGuard(PDO $db):void {
+    if (getenv('BRVTAL_INTEGRATION_TESTS')!=='1'
+        || preg_match('/^brvtal_test[a-zA-Z0-9_]*$/D',
+            (string)$db->query('SELECT DATABASE()')->fetchColumn())!==1)
+        throw new DomainException('REFUND_SANDBOX_ONLY');
+}
+/** Authoritative incident is persisted by the owner, never asserted by the buyer. */
+function brvtalRefundIncident(PDO $db,int $eventId):string {
+    $q=$db->prepare('SELECT cause FROM ticket_refund_event_decisions WHERE event_id=? LIMIT 1');
+    $q->execute([$eventId]);$cause=(string)($q->fetchColumn()?:'');
+    return in_array($cause,['cancelled','postponed'],true)?$cause:'';
+}
+/** A confirmed owner-declared event incident cannot be silently reclassified. */
+function brvtalRefundDeclareIncident(PDO $db,int $actor,string $role,int $eventId,string $cause):array {
+    brvtalRefundGuard($db);
+    if($actor<1||!brvtalTicketingCan($role,'refund'))throw new DomainException('FORBIDDEN');
+    if($eventId<1||!in_array($cause,['cancelled','postponed'],true))
+        throw new InvalidArgumentException('REFUND_INVALID');
+    if($db->inTransaction())throw new DomainException('REFUND_BUSY');
+    $db->beginTransaction();
+    try {
+        $q=$db->prepare('SELECT id FROM events WHERE id=? FOR UPDATE');
+        $q->execute([$eventId]);if(!$q->fetchColumn())throw new DomainException('EVENT_NOT_FOUND');
+        $previous=brvtalRefundIncident($db,$eventId);
+        if($previous!==''&&$previous!==$cause)throw new DomainException('REFUND_INCIDENT_CONFLICT');
+        if($previous==='') {
+            $q=$db->prepare('INSERT INTO ticket_refund_event_decisions(event_id,cause,owner_admin_id) VALUES(?,?,?)');
+            $q->execute([$eventId,$cause,$actor]);
+        }
+        $db->commit();return ['event_id'=>$eventId,'cause'=>$cause,'replayed'=>$previous!==''];
+    }catch(Throwable $e){if($db->inTransaction())$db->rollBack();throw $e;}
 }
 function brvtalRefundAudit(PDO $db,int $id,string $kind,?int $actor,?string $before,string $after):void {
     $db->prepare('INSERT INTO ticket_refund_audit(refund_id,actor_kind,actor_id,prior_status,next_status)
@@ -51,9 +85,16 @@ function brvtalRefundRequest(PDO $db,int $buyer,array $input):array {
     if ($db->inTransaction()) throw new DomainException('REFUND_BUSY');
     $db->beginTransaction();
     try {
+        // Global mutex order matches checkout: Event, then Order, then Refund and Entries.
+        $pre=$db->prepare('SELECT event_id FROM ticket_orders WHERE public_id=UNHEX(?) AND buyer_id=?');
+        $pre->execute([$ref,$buyer]);$eventId=(int)$pre->fetchColumn();
+        if($eventId<1)throw new DomainException('ORDER_NOT_REFUNDABLE');
+        $lock=$db->prepare('SELECT id FROM events WHERE id=? FOR UPDATE');
+        $lock->execute([$eventId]);if(!$lock->fetchColumn())throw new DomainException('ORDER_NOT_REFUNDABLE');
         $q=$db->prepare("SELECT id,event_id,total_cop,status,currency FROM ticket_orders
             WHERE public_id=UNHEX(?) AND buyer_id=? FOR UPDATE");
         $q->execute([$ref,$buyer]); $order=$q->fetch(PDO::FETCH_ASSOC);
+        if($order&&(int)$order['event_id']!==$eventId)throw new DomainException('ORDER_NOT_REFUNDABLE');
         if (!$order||$order['currency']!=='COP') {
             throw new DomainException('ORDER_NOT_REFUNDABLE');
         }
@@ -64,7 +105,7 @@ function brvtalRefundRequest(PDO $db,int $buyer,array $input):array {
             $db->commit(); return ['id'=>(int)$existing['id'],'status'=>$existing['status'],'replayed'=>true];
         }
         // A replay after the full refund must remain idempotent, but a new request is forbidden.
-        if ($order['status']!=='paid') throw new DomainException('ORDER_NOT_REFUNDABLE');
+        if ($order['status']!=='paid'||brvtalRefundIncident($db,$eventId)==='') throw new DomainException('ORDER_NOT_REFUNDABLE');
         $q=$db->prepare('SELECT e.id,LOWER(HEX(e.public_id)) AS ref,e.status,i.unit_price_cop
             FROM ticket_entries e JOIN ticket_order_items i ON i.id=e.order_item_id
             WHERE i.order_id=? ORDER BY e.id FOR UPDATE');
@@ -121,6 +162,21 @@ function brvtalRefundFinalize(PDO $db,int $id,int $orderId,int $eventId,int $amo
             WHERE id=? AND status='paid'")->execute([$orderId]);
     }
 }
+/** One private notification per refund; outbox persists atomically, never sends here. */
+function brvtalRefundQueueMail(PDO $db,int $id,int $orderId):void {
+    require_once __DIR__.'/ticketing_mail_templates.php';
+    $q=$db->prepare('SELECT b.email,e.title FROM ticket_orders o
+        JOIN ticket_buyers b ON b.id=o.buyer_id JOIN events e ON e.id=o.event_id
+        WHERE o.id=?');
+    $q->execute([$orderId]);$row=$q->fetch(PDO::FETCH_NUM);
+    if(!is_array($row)||!filter_var($row[0],FILTER_VALIDATE_EMAIL))
+        throw new DomainException('REFUND_MAIL_UNAVAILABLE');
+    $mail=brvtal_ticket_mail_render('refund',[
+        'event'=>(string)$row[1],'link'=>'https://www.brvtal.com.co/mi-cuenta']);
+    brvtal_ticket_mail_enqueue($db,"order:{$orderId}:refund:{$id}",
+        "order:{$orderId}",(string)$row[0],$mail['subject'],$mail['text'],
+        $mail['html'],'refund');
+}
 function brvtalRefundStaff(PDO $db,int $actor,string $role,int $id,string $action,string $note='',string $receipt=''):array {
     brvtalRefundGuard($db);
     if ($actor<1||$id<1||!brvtalTicketingCan($role,'refund')) throw new DomainException('FORBIDDEN');
@@ -142,17 +198,30 @@ function brvtalRefundStaff(PDO $db,int $actor,string $role,int $id,string $actio
         $before=$r['status']; $after=match($action) {
             'approve'=>'approved','reject'=>'rejected','manual_confirm'=>'refunded',
         };
-        if ($before===$after) { $db->commit();return ['id'=>$id,'status'=>$after,'replayed'=>true]; }
-        if (($action==='manual_confirm'&&(!in_array($before,['approved','manual_pending'],true)
-              ||(int)$r['approver_admin_id']===$actor
-              ||!preg_match('/^[a-f0-9]{64}$/D',$receipt)))
-            ||($action!=='manual_confirm'&&$before!=='requested')) throw new DomainException('REFUND_INVALID_STATE');
-        if ($action==='manual_confirm') {
+        $manualReference=trim($receipt);
+        if($before===$after){
+            if($action==='manual_confirm' && !hash_equals(
+                (string)$r['provider_refund_id'],'manual:'.$manualReference))
+                throw new DomainException('REFUND_RECEIPT_CONFLICT');
+            $db->commit();return ['id'=>$id,'status'=>$after,'replayed'=>true];
+        }
+        if(($action==='manual_confirm'&&(!in_array($before,['approved','manual_pending'],true)
+            ||!preg_match('/^[A-Za-z0-9._:-]{6,120}$/D',$manualReference)
+            ||(getenv('BRVTAL_INTEGRATION_TESTS')!=='1'
+              &&getenv('BRVTAL_TICKET_REFUNDS_MANUAL_ENABLED')!=='1')))
+            ||($action!=='manual_confirm'&&$before!=='requested'))
+            throw new DomainException('REFUND_INVALID_STATE');
+        if($action==='manual_confirm'){
+            // Owner attests to an already completed Wompi-panel refund.
+            // No provider API call or bank transfer is initiated here.
             brvtalRefundFinalize($db,$id,(int)$r['order_id'],(int)$r['event_id'],(int)$r['amount_cop']);
+            brvtalRefundQueueMail($db,$id,(int)$r['order_id']);
         }
         $db->prepare('UPDATE ticket_refunds SET status=?,approver_admin_id=COALESCE(approver_admin_id,?),
-            reviewer_note=?,manual_receipt_sha256=?,updated_at_utc=UTC_TIMESTAMP(6) WHERE id=?')
-            ->execute([$after,$actor,$note,$action==='manual_confirm'?$receipt:null,$id]);
+            reviewer_note=?,provider_refund_id=?,manual_receipt_sha256=?,updated_at_utc=UTC_TIMESTAMP(6) WHERE id=?')
+            ->execute([$after,$actor,$note,
+                $action==='manual_confirm'?'manual:'.$manualReference:$r['provider_refund_id'],
+                $action==='manual_confirm'?hash('sha256',$manualReference):$r['manual_receipt_sha256'],$id]);
         brvtalRefundAudit($db,$id,'staff',$actor,$before,$after);
         $db->commit();return ['id'=>$id,'status'=>$after,'replayed'=>false];
     } catch(Throwable $e){if($db->inTransaction())$db->rollBack();throw $e;}
@@ -250,7 +319,7 @@ function brvtalRefundProviderNextStatus(string $current,string $providerState):s
  * The buyer/staff HTTP endpoint never accepts arbitrary confirmation JSON.
  */
 function brvtalRefundSandboxApply(PDO $db,int $id,int $httpStatus,string $response):array {
-    brvtalRefundGuard($db);
+    brvtalRefundSandboxGuard($db);
     if ($id<1||$db->inTransaction()) throw new DomainException('REFUND_INVALID_STATE');
     $linkStmt=$db->prepare('SELECT order_id,event_id FROM ticket_refunds WHERE id=?');
     $linkStmt->execute([$id]);$link=$linkStmt->fetch(PDO::FETCH_ASSOC);
@@ -351,7 +420,7 @@ function brvtalRefundSandboxExchange(
 function brvtalRefundSandboxDispatch(
     PDO $db,int $actor,string $role,int $id,array $config,?callable $transport=null
 ):array {
-    brvtalRefundGuard($db);
+    brvtalRefundSandboxGuard($db);
     if ($actor<1||$id<1||!brvtalTicketingCan($role,'refund')) throw new DomainException('FORBIDDEN');
     if (getenv('BRVTAL_TICKET_WOMPI_SANDBOX_ENABLED')!=='1'
         ||getenv('BRVTAL_TICKET_WOMPI_MODE')!=='sandbox') {
