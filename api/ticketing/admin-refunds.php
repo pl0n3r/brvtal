@@ -14,7 +14,13 @@ try {
         json_response(['ok'=>false,'error'=>'FORBIDDEN'],403);
     if(($_SERVER['REQUEST_METHOD']??'GET')==='GET') {
         $q=$db->query('SELECT r.id,r.amount_cop,r.status,r.created_at_utc,
-            e.title AS event_title,d.cause AS event_cause
+            e.title AS event_title,d.cause AS event_cause,
+            (SELECT a.provider_transaction_id FROM ticket_payment_attempts a
+             JOIN ticket_payment_webhook_events w ON w.attempt_id=a.id
+               AND w.provider_transaction_id=a.provider_transaction_id
+             WHERE a.order_id=r.order_id AND a.provider=\'wompi\'
+               AND w.signed_status=\'APPROVED\'
+             ORDER BY a.id DESC LIMIT 1) AS wompi_payment_ref
             FROM ticket_refunds r JOIN events e ON e.id=r.event_id
             LEFT JOIN ticket_refund_event_decisions d ON d.event_id=r.event_id
             ORDER BY r.id DESC LIMIT 100');
