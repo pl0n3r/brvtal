@@ -32,8 +32,11 @@ t21(str_contains($refundCode,"function brvtalRefundBuyerList(PDO \$db,int \$buye
     'buyer refund GET remains sandbox-only');
 t21(str_contains($adminCode,'$db=db(); brvtalRefundGuard($db);'),
     'staff refund GET remains sandbox-only');
-t21(strpos($refundCode,"if (\$order['status']!=='paid') throw new DomainException('ORDER_NOT_REFUNDABLE');")
-    > strpos($refundCode,'if ($existing) {'),'idempotent replay precedes paid-status gate');
+t21(strpos($refundCode,'brvtalRefundIncident($db,$eventId)') > strpos($refundCode,'if ($existing) {'),
+    'idempotent replay precedes incident gate');
+t21(str_contains($refundCode,'function brvtalRefundSandboxGuard(PDO $db):void'),
+    'Wompi transport remains test-only');
+t21(!str_contains($adminCode,'sandbox_dispatch'), 'admin API never dispatches Wompi refund');
 
 $testWompi = ['mode'=>'sandbox','private'=>'prv_test_synthetic_only'];
 $testTx = 'trx_synthetic_01';
@@ -124,8 +127,9 @@ $root->exec("CREATE DATABASE $dbName CHARACTER SET utf8mb4");
 try {
     $pdo=new PDO("mysql:host=$host;port=$port;dbname=$dbName;charset=utf8mb4",$user,$pass,$opts);
     $statements=[
-        'CREATE TABLE events (id INT UNSIGNED PRIMARY KEY) ENGINE=InnoDB',
-        'CREATE TABLE ticket_buyers (id BIGINT UNSIGNED PRIMARY KEY) ENGINE=InnoDB',
+        'CREATE TABLE events (id INT UNSIGNED PRIMARY KEY,title VARCHAR(180) NOT NULL) ENGINE=InnoDB',
+        'CREATE TABLE admins (id INT UNSIGNED PRIMARY KEY) ENGINE=InnoDB',
+        'CREATE TABLE ticket_buyers (id BIGINT UNSIGNED PRIMARY KEY,email VARCHAR(190)) ENGINE=InnoDB',
         "CREATE TABLE ticket_orders (
             id BIGINT UNSIGNED PRIMARY KEY, public_id BINARY(16) NOT NULL,
             buyer_id BIGINT UNSIGNED NOT NULL,event_id INT UNSIGNED NOT NULL,
@@ -156,6 +160,14 @@ try {
         "CREATE TABLE ticket_payment_webhook_events (
             attempt_id BIGINT UNSIGNED NOT NULL,provider_transaction_id VARCHAR(190) NOT NULL,
             signed_status ENUM('APPROVED') NOT NULL
+          ) ENGINE=InnoDB",
+        "CREATE TABLE ticket_mail_outbox (
+            id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            message_key VARCHAR(128) NOT NULL UNIQUE,payload_hash CHAR(64) NOT NULL,
+            related_ref VARCHAR(128) NOT NULL,recipient_email VARCHAR(254) NOT NULL,
+            subject VARCHAR(255) NOT NULL,body_text TEXT NOT NULL,
+            next_attempt_at DATETIME NOT NULL,created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL
           ) ENGINE=InnoDB"
     ];
     foreach ($statements as $sql) $pdo->exec($sql);
@@ -163,9 +175,15 @@ try {
     foreach (explode(';',$ddl) as $sql) {
         if (trim($sql)!=='') $pdo->exec($sql);
     }
+    $incidentMigration=(string)file_get_contents(__DIR__.'/../../database/migration_ticketing_refund_events_01.sql');
+    foreach(explode(';',$incidentMigration) as $sql) {
+        if(trim($sql)!=='')$pdo->exec($sql);
+    }
+    putenv('BRVTAL_TICKET_MAIL_TESTING=1');
     foreach ([
-        "INSERT INTO events VALUES (1)",
-        "INSERT INTO ticket_buyers VALUES (3),(4)",
+        "INSERT INTO events VALUES (1,'Evento sintético cancelado')",
+        "INSERT INTO admins VALUES (7),(8)",
+        "INSERT INTO ticket_buyers VALUES (3,'comprador@brvtal.invalid'),(4,'otro@brvtal.invalid')",
         "INSERT INTO ticket_orders VALUES
           (91,UNHEX('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'),3,1,12000,'paid','COP',UTC_TIMESTAMP(6)),
           (92,UNHEX('ffffffffffffffffffffffffffffffff'),3,1,7000,'paid','COP',UTC_TIMESTAMP(6))",
@@ -185,6 +203,15 @@ try {
     brvtalRefundGuard($pdo);
     $request=['order_id'=>str_repeat('a',32),'entry_ids'=>[str_repeat('b',32)],
         'reason'=>'Motivo de devolución sintética','idempotency_key'=>'t21-idempotent-key-001'];
+    t21Reject(static fn()=>brvtalRefundRequest($pdo,3,$request),'ORDER_NOT_REFUNDABLE');
+    t21Reject(static fn()=>brvtalRefundDeclareIncident($pdo,8,'admin',1,'cancelled'),'FORBIDDEN');
+    t21Reject(static fn()=>brvtalRefundDeclareIncident($pdo,7,'superadmin',1,'invalid'),'REFUND_INVALID');
+    t21(brvtalRefundDeclareIncident($pdo,7,'superadmin',1,'cancelled')['cause']==='cancelled',
+        'owner declares incident');
+    t21(brvtalRefundDeclareIncident($pdo,7,'superadmin',1,'cancelled')['replayed'],
+        'incident declaration idempotent');
+    t21Reject(static fn()=>brvtalRefundDeclareIncident($pdo,7,'superadmin',1,'postponed'),
+        'REFUND_INCIDENT_CONFLICT');
     $one=brvtalRefundRequest($pdo,3,$request);$id=(int)$one['id'];
     t21($one['amount_cop']===5000 && $one['status']==='requested','partial COP request');
     $replay=brvtalRefundRequest($pdo,3,$request);
@@ -233,14 +260,25 @@ try {
         'reason'=>'Operación sintética manual','idempotency_key'=>'t21-manual-approval-01'
     ]);
     $id3=(int)$manual['id'];brvtalRefundStaff($pdo,7,'superadmin',$id3,'approve');
-    t21Reject(static fn()=>brvtalRefundStaff($pdo,7,'superadmin',$id3,'manual_confirm','',str_repeat('f',64)),
+    t21Reject(static fn()=>brvtalRefundStaff($pdo,8,'admin',$id3,'manual_confirm','','WOMPI-TEST-02'),
+        'FORBIDDEN');
+    t21Reject(static fn()=>brvtalRefundStaff($pdo,7,'superadmin',$id3,'manual_confirm','','x'),
         'REFUND_INVALID_STATE');
-    $confirmed=brvtalRefundStaff($pdo,8,'superadmin',$id3,'manual_confirm','',str_repeat('f',64));
-    t21($confirmed['status']==='refunded','second staff witness required');
+    $confirmed=brvtalRefundStaff($pdo,7,'superadmin',$id3,'manual_confirm','','WOMPI-TEST-02');
+    t21($confirmed['status']==='refunded','owner registers external Wompi panel refund');
+    t21(brvtalRefundStaff($pdo,7,'superadmin',$id3,'manual_confirm','','WOMPI-TEST-02')['replayed'],
+        'Wompi reference replay idempotent');
+    t21Reject(static fn()=>brvtalRefundStaff($pdo,7,'superadmin',$id3,'manual_confirm','','WOMPI-OTHER-02'),
+        'REFUND_RECEIPT_CONFLICT');
+    t21((int)$pdo->query("SELECT COUNT(*) FROM ticket_mail_outbox WHERE message_key LIKE 'order:%:refund:%'")->fetchColumn()===1,
+        'one refund email enqueued for confirmed manual claim');
+    t21($pdo->query('SELECT provider_refund_id FROM ticket_refunds WHERE id='.$id3)->fetchColumn()
+        ==='manual:WOMPI-TEST-02','reference stored with audited refund');
     t21($pdo->query('SELECT status FROM ticket_orders WHERE id=92')->fetchColumn()==='refunded',
         'full refund closes order');
     t21($pdo->query('SELECT status FROM ticket_entry_credentials WHERE entry_id=204')->fetchColumn()==='revoked',
         'manual witness revokes QR only after confirmation');
+    putenv('BRVTAL_TICKET_MAIL_TESTING=0');
     putenv('BRVTAL_INTEGRATION_TESTS=0');
     try { t21Reject(static fn()=>brvtalRefundGuard($pdo),'REFUND_SANDBOX_ONLY'); }
     finally { putenv('BRVTAL_INTEGRATION_TESTS=1'); }
