@@ -317,6 +317,7 @@ async function getAdminCollection(context, resource) {
 
 // #1892: en el menú V3 Configuración abre su pestaña General y los destinos hijos
 // viven en desplegables; se abre el grupo que contiene el destino antes de pulsarlo.
+// BEGIN_ADMIN_NAVIGATION_CONTRACT
 const NAV_KEY_ALIASES = {settings:'settings:general'};
 async function revealNavEntry(page, key) {
   await page.evaluate(navKey => {
@@ -345,6 +346,7 @@ async function navigate(page, section) {
   );
 }
 
+// END_ADMIN_NAVIGATION_CONTRACT
 
 // The full production audit exercises real authenticated UI and only safe reads.
 // It never infers availability from the existence of a source file.
@@ -384,6 +386,29 @@ async function coverageWorkspace(page, key, section, selector, readySelector = n
   });
 }
 
+// BEGIN_MEMORIES_NAVIGATION_CONTRACT
+// Exercise the real DISCADMIN Memories subview. The [data-memories-nav] sentinel
+// is deliberately hidden by the information architecture, not a clickable link.
+async function openMemoriesWorkspace(page) {
+  const actual = await page.evaluate(async () => {
+    if (typeof window.go !== 'function') return {section:null,contextual:false};
+    await window.go('memories');
+    return {
+      section: typeof state === 'undefined' ? null : state.section,
+      contextual: new URLSearchParams(location.search).get('view') === 'memories'
+    };
+  });
+  if (actual.section !== 'media' || !actual.contextual) {
+    throw new Error('Memories navigation did not commit the canonical Media subview.');
+  }
+  // Empty grids may have no geometry; require visible owner plus attached grid.
+  await page.locator('#admin-module-host [data-admin-module="memories"]')
+    .waitFor({state:'visible',timeout:14_000});
+  await page.locator('#admin-module-host [data-admin-module="memories"] [data-memories-grid]')
+    .waitFor({state:'attached',timeout:14_000});
+}
+// END_MEMORIES_NAVIGATION_CONTRACT
+
 async function auditRemainingDiscAdmin(page, context) {
   await coverageWorkspace(page,'pages','pages','#rows');
   markStage('coverage:bulk');
@@ -410,17 +435,7 @@ async function auditRemainingDiscAdmin(page, context) {
 
   // Memories is intentionally a subview of Media, not an independent module.
   markStage('coverage:memories');
-  await runOperation('memories:open', async () => {
-    const toggle = page.locator('[data-ia-toggle="media"]');
-    if (await toggle.count() && await toggle.getAttribute('aria-expanded') !== 'true') {
-      await toggle.click();
-    }
-    const link = page.locator('[data-memories-nav]');
-    await link.waitFor({state:'visible',timeout:8_000});
-    await link.click();
-    await page.locator('#admin-module-host [data-admin-module="memories"] [data-memories-grid]')
-      .waitFor({state:'visible',timeout:14_000});
-  }, 18_000);
+  await runOperation('memories:open', () => openMemoriesWorkspace(page), 18_000);
   const memory = await runOperation('memories:observe', () => page.evaluate(() => ({
     contextual:new URLSearchParams(location.search).get('view')==='memories',
     error:document.querySelector('[data-memories-status]')?.dataset.kind==='error',

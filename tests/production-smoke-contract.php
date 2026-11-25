@@ -112,6 +112,10 @@ $assert(str_contains($probe, 'await auditRemainingDiscAdmin(page, context);'), '
 $assert(str_contains($probe, '[data-testid="settings-v2-root"]'), 'Settings must use unique workspace test id, not shared CSS attribute');
 $assert(!str_contains($probe, "coverageWorkspace(page,'settings','settings','[data-settings-v2]')"), 'Settings selector must not match the stylesheet link');
 
+$assert(str_contains($probe, "window.go('memories')"), 'Memories must use the existing canonical subview navigation instead of hidden menu controls');
+$assert(str_contains($probe, "actual.section !== 'media' || !actual.contextual"), 'Memories navigation must fail if the real Media subview did not commit');
+$assert(str_contains($probe, "[data-admin-module=\"memories\"] [data-memories-grid]"), 'Memories must still require the real mounted workspace');
+$assert(!str_contains($probe, "page.locator('[data-memories-nav]')"), 'hidden Memories sentinel must never be clicked');
 $assert(str_contains($probe, 'if (evidence.authentication.http401.length)'), 'HTTP 401 must fail the full admin audit');
 $assert(str_contains($probe, "key + ':render-ready'"), 'async workspaces must await real editor hydration');
 $assert(str_contains($probe, "await runOperation(key + ':render-ready'"), 'Theme Studio render-readiness wait must be awaited');
