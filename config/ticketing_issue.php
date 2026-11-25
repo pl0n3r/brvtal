@@ -67,7 +67,7 @@ function brvtal_ticket_pos_verified(PDO $db, int $orderId): bool
 {
     if ($orderId<1) return false;
     try {
-        $q=$db->prepare("SELECT s.method,s.operator_admin_id,s.request_hash
+        $q=$db->prepare("SELECT s.method,s.operator_admin_id
             FROM ticket_pos_sales s
             JOIN ticket_pos_shifts sh ON sh.id=s.shift_id
                 AND sh.event_id=s.event_id AND sh.operator_admin_id=s.operator_admin_id
@@ -85,6 +85,11 @@ function brvtal_ticket_pos_verified(PDO $db, int $orderId): bool
         $sale=$q->fetch(PDO::FETCH_ASSOC);
         if (!is_array($sale)) return false;
         if ($sale['method']!=='transfer') return true;
+        // Legacy POS fixtures need not have a request_hash column. Only
+        // transfer verification reads the exact digest, when it exists.
+        $hashQ=$db->prepare('SELECT request_hash FROM ticket_pos_sales WHERE order_id=? LIMIT 1');
+        $hashQ->execute([$orderId]);
+        $requestHash=(string)$hashQ->fetchColumn();
         // A transfer/Nequi/Daviplata is NOT a Wompi payment. It requires
         // a prior audited owner note tied to the exact POS request digest.
         $audit=$db->prepare('SELECT note_text FROM ticket_order_notes
@@ -96,13 +101,13 @@ function brvtal_ticket_pos_verified(PDO $db, int $orderId): bool
                 && in_array($parts[1],['transfer','nequi','daviplata'],true)
                 && strlen($parts[2])>=4
                 && preg_match('/^[A-Za-z0-9][A-Za-z0-9 ._\/-]*$/D',$parts[2])
-                && hash_equals((string)$sale['request_hash'],$parts[3])) {
+                && hash_equals($requestHash,$parts[3])) {
                 return true;
             }
         }
         return false;
     } catch (PDOException $e) {
-        if ($e->getCode()==='42S02') return false;
+        if (in_array($e->getCode(),['42S02','42S22'],true)) return false;
         throw $e;
     }
 }

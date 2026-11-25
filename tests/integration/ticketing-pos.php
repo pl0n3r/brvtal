@@ -238,6 +238,6 @@ try {
         'issuance idempotency does not duplicate QR');
 } finally {putenv('BRVTAL_INTEGRATION_TESTS=1');}
 putenv('BRVTAL_INTEGRATION_TESTS=0');
-try {posDenies(static fn()=>brvtalPosRun($db,1,'admin',$open),'POS_SYNTHETIC_ONLY');
+try {posDenies(static fn()=>brvtalPosRun($db,1,'admin',$open),'POS_SYNTHETIC_ONLY');}
 finally {putenv('BRVTAL_INTEGRATION_TESTS=1');}
 echo "T24 disposable POS cash, inventory, QR/check-in, audit, cancellation, RBAC OK.\n";
