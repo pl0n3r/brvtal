@@ -212,6 +212,17 @@ function brvtalRefundStaff(PDO $db,int $actor,string $role,int $id,string $actio
             ||($action!=='manual_confirm'&&$before!=='requested'))
             throw new DomainException('REFUND_INVALID_STATE');
         if($action==='manual_confirm'){
+            // Never certify a payment that was not originally approved by a signed
+            // Wompi webhook: POS and synthetic/unverified sales are not Wompi refunds.
+            $payment=$db->prepare("SELECT 1 FROM ticket_payment_attempts a
+                JOIN ticket_payment_webhook_events w ON w.attempt_id=a.id
+                  AND w.provider_transaction_id=a.provider_transaction_id
+                WHERE a.order_id=? AND a.provider='wompi'
+                  AND a.status IN ('approved','refunded')
+                  AND a.provider_transaction_id IS NOT NULL
+                  AND w.signed_status='APPROVED' LIMIT 1");
+            $payment->execute([(int)$r['order_id']]);
+            if(!$payment->fetchColumn())throw new DomainException('REFUND_PAYMENT_UNVERIFIED');
             // Owner attests to an already completed Wompi-panel refund.
             // No provider API call or bank transfer is initiated here.
             brvtalRefundFinalize($db,$id,(int)$r['order_id'],(int)$r['event_id'],(int)$r['amount_cop']);
