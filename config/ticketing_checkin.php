@@ -141,7 +141,7 @@ function brvtalTicketCheckinConsume(PDO $pdo,int $eventId,int $operator,string $
                                         AND ps.status='paid' AND ps.method='cash'
                                         AND ps.operator_admin_id>0)"
                                 : '0';
-                            $paid=$pdo->prepare("SELECT o.status,o.event_id,
+                            $paid=$pdo->prepare("SELECT o.id,o.status,o.event_id,
                                 (EXISTS(SELECT 1 FROM ticket_issue_outbox b
                                   WHERE b.order_id=o.id AND b.state='done') OR $posSql) AS issued,
                                 (EXISTS(SELECT 1 FROM ticket_payment_attempts a
@@ -154,9 +154,19 @@ function brvtalTicketCheckinConsume(PDO $pdo,int $eventId,int $operator,string $
                                 WHERE i.id=? AND i.event_id=? AND i.ticket_type_id=?");
                             $paid->execute([(int)$entry['order_item_id'],$eventId,(int)$entry['ticket_type_id']]);
                             $order=$paid->fetch(PDO::FETCH_ASSOC);
+                            // A trusted owner-recorded offline transfer is verified by the
+                            // same POS evidence predicate as the issuance worker.
+                            // No unverified order or Wompi provider result is inferred.
+                            $manualVerified=false;
+                            if (is_array($order) && $order['status']==='paid'
+                                && (int)$order['issued']===1 && (int)$order['verified']!==1) {
+                                require_once __DIR__.'/ticketing_issue.php';
+                                $manualVerified=brvtal_ticket_pos_verified($pdo,(int)$order['id']);
+                            }
                             $paidValid=is_array($order)&&$order['status']==='paid'
                                 &&(int)$order['event_id']===$eventId
-                                &&(int)$order['issued']===1&&(int)$order['verified']===1;
+                                &&(int)$order['issued']===1
+                                &&((int)$order['verified']===1 || $manualVerified);
                             $courtesyValid=false;
                             // T25 is disabled by default. Existing paid QR scans never
                             // depend on a pending courtesy migration or a fabricated payment.
