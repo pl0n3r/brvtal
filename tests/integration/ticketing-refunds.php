@@ -264,6 +264,13 @@ try {
         'FORBIDDEN');
     t21Reject(static fn()=>brvtalRefundStaff($pdo,7,'superadmin',$id3,'manual_confirm','','x'),
         'REFUND_INVALID_STATE');
+    // An owner reference cannot certify a transaction not proven by a signed Wompi webhook.
+    $pdo->exec('DELETE FROM ticket_payment_webhook_events WHERE attempt_id=602');
+    t21Reject(static fn()=>brvtalRefundStaff($pdo,7,'superadmin',$id3,'manual_confirm','','WOMPI-TEST-02'),
+        'REFUND_PAYMENT_UNVERIFIED');
+    t21($pdo->query('SELECT status FROM ticket_entries WHERE id=204')->fetchColumn()==='issued',
+        'no premature QR revocation on unverified provider payment');
+    $pdo->exec("INSERT INTO ticket_payment_webhook_events VALUES (602,'trx_test_92','APPROVED')");
     $confirmed=brvtalRefundStaff($pdo,7,'superadmin',$id3,'manual_confirm','','WOMPI-TEST-02');
     t21($confirmed['status']==='refunded','owner registers external Wompi panel refund');
     t21(brvtalRefundStaff($pdo,7,'superadmin',$id3,'manual_confirm','','WOMPI-TEST-02')['replayed'],
