@@ -10,6 +10,12 @@ function t21Reject(callable $f,string $expected):void {
     }
     throw new RuntimeException('T21: expected rejection '.$expected);
 }
+function t21Invalid(callable $f):void {
+    try { $f(); } catch(InvalidArgumentException $e) {
+        t21($e->getMessage()==='REFUND_INVALID','invalid input remains 422');return;
+    }
+    throw new RuntimeException('T21: expected invalid input');
+}
 $reflect=new ReflectionFunction('brvtalRefundGuard');
 t21($reflect->getNumberOfParameters()===1,'guard requires DB');
 t21(brvtalTicketingCan('superadmin','refund'),'superadmin refund');
@@ -207,7 +213,7 @@ try {
         'reason'=>'Motivo de devolución sintética','idempotency_key'=>'t21-idempotent-key-001'];
     t21Reject(static fn()=>brvtalRefundRequest($pdo,3,$request),'ORDER_NOT_REFUNDABLE');
     t21Reject(static fn()=>brvtalRefundDeclareIncident($pdo,8,'admin',1,'cancelled'),'FORBIDDEN');
-    t21Reject(static fn()=>brvtalRefundDeclareIncident($pdo,7,'superadmin',1,'invalid'),'REFUND_INVALID');
+    t21Invalid(static fn()=>brvtalRefundDeclareIncident($pdo,7,'superadmin',1,'invalid'));
     t21(brvtalRefundDeclareIncident($pdo,7,'superadmin',1,'cancelled')['cause']==='cancelled',
         'owner declares incident');
     t21(brvtalRefundDeclareIncident($pdo,7,'superadmin',1,'cancelled')['replayed'],
