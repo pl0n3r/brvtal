@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/ticketing_staff_permissions.php';
 require_once __DIR__ . '/ticketing_admin_actions.php';
 require_once __DIR__ . '/ticketing_inventory.php';
+require_once __DIR__ . '/ticketing_issue.php';
 
 /** T24: only authorized financial staff in a disposable integration database. */
 function brvtalPosCan(string $role): bool {
@@ -21,6 +22,8 @@ function brvtalPosInt(mixed $value, int $min = 1, int $max = 1000000000): int {
 function brvtalPosInput(array $raw): array {
     $shape = [
         'open'=>['action','event_id','opening_cash_cop'],
+        'manual_order'=>['action','event_id','ticket_type_id','quantity','buyer_name',
+            'buyer_email','method','payment_reference','idempotency_key','confirm'],
         'prepare'=>['action','shift_id','ticket_type_id','quantity','method','idempotency_key'],
         'confirm'=>['action','sale_id','confirmation_token','confirm'],
         'cancel'=>['action','sale_id','confirmation_token'],
@@ -49,6 +52,31 @@ function brvtalPosInput(array $raw): array {
         $result['method']=$raw['method'];
         $result['idempotency_key']=$raw['idempotency_key'];
     }
+    if ($action==='manual_order') {
+        $name=trim((string)($raw['buyer_name']??''));
+        $email=trim((string)($raw['buyer_email']??''));
+        $method=$raw['method']??null;
+        $reference=trim((string)($raw['payment_reference']??''));
+        $key=$raw['idempotency_key']??null;
+        if (!is_string($raw['buyer_name']) || strlen($name)<3 || strlen($name)>120
+            || preg_match('/[\x00-\x1f\x7f]/', $name)
+            || !is_string($raw['buyer_email']) || strlen($email)>190
+            || filter_var($email,FILTER_VALIDATE_EMAIL)===false
+            || !is_string($method)
+            || !in_array($method,['cash','transfer','nequi','daviplata','terminal'],true)
+            || !is_string($raw['payment_reference'])
+            || strlen($reference)>80
+            || ($method!=='cash' && (strlen($reference)<4
+                || !preg_match('/^[A-Za-z0-9][A-Za-z0-9 ._\/-]*$/D',$reference)))
+            || ($method==='cash' && $reference!=='')
+            || !is_string($key) || !preg_match('/^[A-Za-z0-9_-]{20,64}$/D',$key)
+            || ($raw['confirm']??false)!==true) {
+            throw new InvalidArgumentException('POS_INVALID_MANUAL_ORDER');
+        }
+        $result+=['buyer_name'=>$name,'buyer_email'=>strtolower($email),
+            'method'=>$method,'payment_reference'=>$reference,
+            'idempotency_key'=>$key,'confirm'=>true];
+    }
     if ($action==='confirm' || $action==='cancel') {
         if (!is_string($raw['confirmation_token'])
             || !preg_match('/^[a-f0-9]{48}$/D',$raw['confirmation_token'])) {
@@ -72,13 +100,23 @@ function brvtalPosInput(array $raw): array {
 }
 function brvtalPosRun(PDO $db, int $actor, string $role, array $raw): array {
     $input=brvtalPosInput($raw);
-    if ($actor<1 || !brvtalPosCan($role)) throw new DomainException('FORBIDDEN');
-    if (!brvtalTicketAdminSyntheticMode($db)) throw new DomainException('POS_SYNTHETIC_ONLY');
+    $manual=$input['action']==='manual_order';
+    $isOwner=in_array(strtolower(trim($role)),
+        ['superadmin','root','owner','platform_owner'],true);
+    if ($actor<1 || ($manual ? !$isOwner : !brvtalPosCan($role))) {
+        throw new DomainException('FORBIDDEN');
+    }
+    // Legacy drawer remains synthetic-only. Only the tightly validated owner
+    // manual-order action is production-capable; it never calls Wompi.
+    if (!$manual && !brvtalTicketAdminSyntheticMode($db)) {
+        throw new DomainException('POS_SYNTHETIC_ONLY');
+    }
     if ($db->inTransaction()) throw new LogicException('POS_TRANSACTION_REQUIRED');
     $db->beginTransaction();
     try {
         $result=match($input['action']) {
             'open'=>brvtalPosOpen($db,$actor,$input),
+            'manual_order'=>brvtalPosManualOrder($db,$actor,$input),
             'prepare'=>brvtalPosPrepare($db,$actor,$input),
             'confirm'=>brvtalPosConfirm($db,$actor,$input),
             'cancel'=>brvtalPosCancel($db,$actor,$input),
@@ -242,4 +280,106 @@ function brvtalPosClose(PDO $db,int $actor,array $i): array {
         'cash_sales_cop'=>$sold,'expected_cash_cop'=>$expected,
         'closing_cash_cop'=>$i['closing_cash_cop'],'cash_difference_cop'=>$difference,
         'wompi_settlement_included'=>false];
+}
+
+/**
+ * Owner-confirmed offline payment. One transaction covers the buyer, order,
+ * inventory, POS audit and issuance outbox. The worker alone generates QR
+ * credentials and queues the transactional buyer email after commit.
+ * Never fabricate a Wompi attempt or call an external payment provider.
+ */
+function brvtalPosManualOrder(PDO $db,int $actor,array $i): array {
+    // Serialize requests from the same owner, including concurrent retries.
+    $lock=$db->prepare('SELECT id FROM admins WHERE id=? AND is_active=1 FOR UPDATE');
+    $lock->execute([$actor]);
+    if ($lock->fetchColumn()===false) throw new DomainException('FORBIDDEN');
+
+    $key=hash('sha256','manual-order:'.$actor.':'.$i['idempotency_key']);
+    $digest=hash('sha256',json_encode([
+        $i['event_id'],$i['ticket_type_id'],$i['quantity'],$i['buyer_name'],
+        $i['buyer_email'],$i['method'],$i['payment_reference']
+    ],JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE));
+    $old=$db->prepare('SELECT id,status FROM ticket_orders WHERE checkout_key_hash=? FOR UPDATE');
+    $old->execute([$key]);
+    $prior=$old->fetch(PDO::FETCH_ASSOC);
+    if ($prior) {
+        $q=$db->prepare('SELECT s.id,s.amount_cop,n.note_text FROM ticket_pos_sales s
+            JOIN ticket_order_notes n ON n.order_id=s.order_id AND n.actor_admin_id=s.operator_admin_id
+            WHERE s.order_id=? AND s.operator_admin_id=?
+              AND n.note_text LIKE ? LIMIT 1 FOR UPDATE');
+        $q->execute([(int)$prior['id'],$actor,'%|'.$digest]);
+        $receipt=$q->fetch(PDO::FETCH_ASSOC);
+        if (!$receipt || !str_ends_with((string)$receipt['note_text'],'|'.$digest)) {
+            throw new DomainException('POS_IDEMPOTENCY_CONFLICT');
+        }
+        return ['order_id'=>(int)$prior['id'],'status'=>$prior['status'],
+            'amount_cop'=>(int)$receipt['amount_cop'],'issuance_queued'=>true,
+            'replayed'=>true];
+    }
+
+    $type=$db->prepare('SELECT id,event_id,name,price,currency,status
+        FROM event_ticket_types WHERE id=? AND event_id=?');
+    $type->execute([$i['ticket_type_id'],$i['event_id']]);
+    $ticket=$type->fetch(PDO::FETCH_ASSOC);
+    if (!$ticket || $ticket['status']!=='active' || $ticket['currency']!=='COP'
+        || !is_string($ticket['price'])
+        || !preg_match('/^[0-9]{1,9}\.00$/D',$ticket['price'])) {
+        throw new DomainException('POS_TYPE_UNAVAILABLE');
+    }
+    $unit=(int)$ticket['price'];
+    $amount=$unit*$i['quantity'];
+    if ($unit<1 || $amount>1000000000) throw new DomainException('POS_AMOUNT_INVALID');
+
+    // Never infer marketing consent from an offline ticket sale.
+    $buyer=$db->prepare('INSERT INTO ticket_buyers(public_id,email,full_name,status)
+        VALUES (?,?,?,\'guest\')
+        ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)');
+    $buyer->execute([random_bytes(16),$i['buyer_email'],$i['buyer_name']]);
+    $buyerId=(int)$db->lastInsertId();
+    $db->prepare("INSERT INTO ticket_orders
+        (public_id,buyer_id,event_id,checkout_key_hash,status,currency,total_cop)
+        VALUES (?,?,?,?,'draft','COP',?)")
+        ->execute([random_bytes(16),$buyerId,$i['event_id'],$key,$amount]);
+    $orderId=(int)$db->lastInsertId();
+    $db->prepare("INSERT INTO ticket_order_items
+        (order_id,event_id,ticket_type_id,ticket_name_snapshot,quantity,unit_price_cop,subtotal_cop,currency)
+        VALUES (?,?,?,?,?,?,?,'COP')")
+        ->execute([$orderId,$i['event_id'],$i['ticket_type_id'],$ticket['name'],
+            $i['quantity'],$unit,$amount]);
+
+    // Inventory holds lock the Event row and revalidate saleability/aforo.
+    brvtal_ticket_inventory_hold($db,$orderId,$i['ticket_type_id'],$i['quantity'],'paid');
+    $db->prepare("UPDATE ticket_orders SET status='paid',updated_at_utc=UTC_TIMESTAMP(6)
+        WHERE id=? AND status='draft'")->execute([$orderId]);
+    if (!brvtal_ticket_inventory_transition($db,$orderId,$i['ticket_type_id'],'consumed')) {
+        throw new DomainException('POS_INVENTORY_UNAVAILABLE');
+    }
+
+    // Closed zero-cash shift is an audit parent, NOT a live drawer.
+    $db->prepare("INSERT INTO ticket_pos_shifts
+        (event_id,operator_admin_id,status,opening_cash_cop,expected_cash_cop,
+            closing_cash_cop,cash_difference_cop,closed_at_utc)
+        VALUES (?,?,'closed',0,0,0,0,UTC_TIMESTAMP(6))")
+        ->execute([$i['event_id'],$actor]);
+    $shiftId=(int)$db->lastInsertId();
+    $posMethod=in_array($i['method'],['nequi','daviplata'],true) ? 'transfer' : $i['method'];
+    $db->prepare("INSERT INTO ticket_pos_sales
+        (shift_id,event_id,operator_admin_id,ticket_type_id,order_id,
+         quantity,unit_price_cop,amount_cop,method,status,request_key_hash,
+         request_hash,confirmation_hash,expires_at_utc,completed_at_utc)
+        VALUES (?,?,?,?,?,?,?,?,?,'paid',?,?,?,DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 120 SECOND),UTC_TIMESTAMP(6))")
+        ->execute([$shiftId,$i['event_id'],$actor,$i['ticket_type_id'],$orderId,
+            $i['quantity'],$unit,$amount,$posMethod,hash('sha256','pos:'.$key),
+            $digest,hash('sha256',random_bytes(24))]);
+    $saleId=(int)$db->lastInsertId();
+    // Exact method, bank reference and request digest are durable auditable
+    // owner evidence, separate from Wompi and without QR secrets.
+    $db->prepare('INSERT INTO ticket_order_notes(order_id,actor_admin_id,note_text)
+        VALUES (?,?,?)')->execute([$orderId,$actor,
+            'manual-payment|'.$i['method'].'|'.$i['payment_reference'].'|'.$digest]);
+
+    brvtal_ticket_pos_enqueue($db,$orderId);
+    return ['order_id'=>$orderId,'sale_id'=>$saleId,'status'=>'paid',
+        'amount_cop'=>$amount,'method'=>$i['method'],
+        'issuance_queued'=>true,'replayed'=>false];
 }

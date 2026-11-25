@@ -67,7 +67,8 @@ function brvtal_ticket_pos_verified(PDO $db, int $orderId): bool
 {
     if ($orderId<1) return false;
     try {
-        $q=$db->prepare("SELECT 1 FROM ticket_pos_sales s
+        $q=$db->prepare("SELECT s.method,s.operator_admin_id
+            FROM ticket_pos_sales s
             JOIN ticket_pos_shifts sh ON sh.id=s.shift_id
                 AND sh.event_id=s.event_id AND sh.operator_admin_id=s.operator_admin_id
             JOIN ticket_orders o ON o.id=s.order_id AND o.event_id=s.event_id
@@ -75,15 +76,42 @@ function brvtal_ticket_pos_verified(PDO $db, int $orderId): bool
             JOIN ticket_order_items i ON i.order_id=o.id AND i.event_id=s.event_id
                 AND i.ticket_type_id=s.ticket_type_id AND i.quantity=s.quantity
                 AND i.unit_price_cop=s.unit_price_cop AND i.subtotal_cop=s.amount_cop
-            WHERE s.order_id=? AND s.status='paid' AND s.method IN ('cash','terminal')
+            WHERE s.order_id=? AND s.status='paid' AND s.method IN ('cash','terminal','transfer')
                 AND s.completed_at_utc IS NOT NULL
                 AND (SELECT COUNT(*) FROM ticket_order_items x WHERE x.order_id=o.id)=1
                 AND NOT EXISTS(SELECT 1 FROM ticket_payment_attempts a WHERE a.order_id=o.id)
             LIMIT 1");
         $q->execute([$orderId]);
-        return $q->fetchColumn()!==false;
+        $sale=$q->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($sale)) return false;
+        if ($sale['method']!=='transfer') return true;
+        // Legacy POS fixtures need not have a request_hash column. Only
+        // transfer verification reads the exact digest, when it exists.
+        $hashQ=$db->prepare('SELECT request_hash FROM ticket_pos_sales WHERE order_id=? LIMIT 1');
+        $hashQ->execute([$orderId]);
+        $requestHash=(string)$hashQ->fetchColumn();
+        // A transfer/Nequi/Daviplata is NOT a Wompi payment. It requires
+        // a prior audited owner note tied to the exact POS request digest.
+        // Filter by the immutable sale digest at the database, not by a
+        // fixed window of recent notes: operational notes may accumulate
+        // before the worker or a later check-in retries verification.
+        $audit=$db->prepare('SELECT note_text FROM ticket_order_notes
+            WHERE order_id=? AND actor_admin_id=? AND note_text LIKE ?
+            ORDER BY id DESC LIMIT 1');
+        $audit->execute([$orderId,(int)$sale['operator_admin_id'],'%|'.$requestHash]);
+        foreach($audit->fetchAll(PDO::FETCH_COLUMN) as $note) {
+            $parts=explode('|',(string)$note,4);
+            if (count($parts)===4 && $parts[0]==='manual-payment'
+                && in_array($parts[1],['transfer','nequi','daviplata'],true)
+                && strlen($parts[2])>=4
+                && preg_match('/^[A-Za-z0-9][A-Za-z0-9 ._\/-]*$/D',$parts[2])
+                && hash_equals($requestHash,$parts[3])) {
+                return true;
+            }
+        }
+        return false;
     } catch (PDOException $e) {
-        if ($e->getCode()==='42S02') return false;
+        if (in_array($e->getCode(),['42S02','42S22'],true)) return false;
         throw $e;
     }
 }

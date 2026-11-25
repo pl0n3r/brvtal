@@ -20,6 +20,20 @@ $typedEmail=brvtalPosInput(['action'=>'confirm','sale_id'=>'1',
 posAssert($typedEmail['buyer_email']==='puerta@example.test',
     'optional buyer email canonicalized for transactional delivery');
 posAssert(brvtalPosCan('superadmin')&&brvtalPosCan('admin'),'seller roles');
+$manual=['action'=>'manual_order','event_id'=>'6','ticket_type_id'=>'10','quantity'=>'2',
+    'buyer_name'=>'Comprador Ejemplo','buyer_email'=>'manual@example.test',
+    'method'=>'nequi','payment_reference'=>'REF-2026-001',
+    'idempotency_key'=>str_repeat('m',32),'confirm'=>true];
+posAssert(brvtalPosInput($manual)['method']==='nequi','manual wallet accepted in validated input');
+posDenies(static fn()=>brvtalPosInput(array_replace($manual,
+    ['payment_reference'=>''])),'POS_INVALID_MANUAL_ORDER');
+posDenies(static fn()=>brvtalPosInput(array_replace($manual,
+    ['payment_reference'=>"REF\r\nInjected"])),'POS_INVALID_MANUAL_ORDER');
+posDenies(static fn()=>brvtalPosInput(array_replace($manual,
+    ['confirm'=>false])),'POS_INVALID_MANUAL_ORDER');
+posDenies(static fn()=>brvtalPosInput(array_replace($manual,
+    ['method'=>'wompi_qr'])),'POS_INVALID_MANUAL_ORDER');
+posDenies(static fn()=>brvtalPosInput($manual+['total_cop'=>'1']),'POS_INVALID_FIELDS');
 posAssert(!brvtalPosCan('door')&&!brvtalPosCan('viewer'),'door cannot sell');
 foreach ([
   [$prepare+['payment_approved'=>true],'POS_INVALID_FIELDS'],
@@ -39,8 +53,12 @@ posAssert(!str_contains((string)file_get_contents(__DIR__.'/../../config/ticketi
 $api=(string)file_get_contents(__DIR__.'/../../api/ticketing/admin-pos.php');
 posAssert(str_contains($api,'brvtal_admin_require_csrf()'),'HTTP CSRF enforced');
 $gate=(string)file_get_contents(__DIR__.'/../../config/ticketing_checkin.php');
-posAssert(str_contains($gate,"ps.status='paid'")&&str_contains($gate,"ps.method='cash'"),
-    'door only trusts completed cash evidence');
+posAssert(str_contains($gate,"ps.status='paid'")&&str_contains($gate,"ps.method='cash'")
+    && str_contains($gate,'brvtal_ticket_pos_verified'), 'door verifies POS evidence');
+$delivery=(string)file_get_contents(__DIR__.'/../../config/ticketing_issue_delivery.php');
+posAssert(str_contains($delivery,'brvtal_ticket_issue_mail_deliverer')
+    && str_contains($delivery,'brvtal_ticket_mail_queue_order'),
+    'worker uses sealed QR delivery and mail outbox');
 if (getenv('BRVTAL_INTEGRATION_TESTS')!=='1') {
     echo "T24 POS validation/RBAC/CSRF/cash check-in contract OK; disposable MariaDB not configured.\n";
     exit(0);
@@ -69,10 +87,12 @@ $ddl=[
       status VARCHAR(24),currency CHAR(3),available_from DATETIME NULL,available_until DATETIME NULL,
       UNIQUE KEY uq_t03_ticket_type_event(id,event_id)) ENGINE=InnoDB",
   "CREATE TABLE ticket_buyers (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-      public_id BINARY(16),email VARCHAR(190) NULL UNIQUE,status VARCHAR(24)) ENGINE=InnoDB",
+      public_id BINARY(16),email VARCHAR(190) NULL UNIQUE,full_name VARCHAR(120),
+      status VARCHAR(24)) ENGINE=InnoDB",
   "CREATE TABLE ticket_orders (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
       public_id BINARY(16),buyer_id BIGINT UNSIGNED,event_id INT UNSIGNED,
       checkout_key_hash CHAR(64) UNIQUE,status VARCHAR(24),currency CHAR(3),total_cop BIGINT UNSIGNED,
+      updated_at_utc DATETIME(6) DEFAULT (UTC_TIMESTAMP(6)),
       UNIQUE KEY uq_ticket_orders_id_event(id,event_id)) ENGINE=InnoDB",
   "CREATE TABLE ticket_order_items (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
       order_id BIGINT UNSIGNED,event_id INT UNSIGNED,ticket_type_id INT UNSIGNED,
@@ -94,7 +114,12 @@ $ddl=[
   "CREATE TABLE ticket_payment_webhook_events (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
       attempt_id BIGINT UNSIGNED,provider_transaction_id VARCHAR(120),signed_status VARCHAR(24)) ENGINE=InnoDB",
   "CREATE TABLE ticket_issue_outbox (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-      order_id BIGINT UNSIGNED,state VARCHAR(24)) ENGINE=InnoDB",
+      order_id BIGINT UNSIGNED UNIQUE,payment_attempt_id BIGINT UNSIGNED NULL,
+      state VARCHAR(24) NOT NULL DEFAULT 'pending',attempts INT NOT NULL DEFAULT 0,
+      updated_at_utc DATETIME(6) NOT NULL DEFAULT (UTC_TIMESTAMP(6))) ENGINE=InnoDB",
+  "CREATE TABLE ticket_order_notes (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      order_id BIGINT UNSIGNED,actor_admin_id INT UNSIGNED,note_text VARCHAR(280),
+      created_at_utc DATETIME(6) DEFAULT (UTC_TIMESTAMP(6))) ENGINE=InnoDB",
   "CREATE TABLE ticket_checkins (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
       request_id BINARY(16),event_id INT UNSIGNED,entry_id BIGINT UNSIGNED NULL,
       credential_version INT UNSIGNED NULL,operator_admin_id INT UNSIGNED,
@@ -172,6 +197,56 @@ $close=brvtalPosRun($db,1,'admin',[
 posAssert($close['expected_cash_cop']===75000&&$close['cash_difference_cop']===-5000,
     'cash variance excludes Wompi and cancelled sale');
 posDenies(static fn()=>brvtalPosRun($db,1,'admin',$req),'POS_SHIFT_UNAVAILABLE');
+// Real-owner lane is allowed without synthetic-mode flag but only on the
+// disposable database fixture; no Wompi charge or network request is made.
+putenv('BRVTAL_INTEGRATION_TESTS=0');
+try {
+    posDenies(static fn()=>brvtalPosRun($db,1,'admin',$manual),'FORBIDDEN');
+    posDenies(static fn()=>brvtalPosRun($db,1,'door',$manual),'FORBIDDEN');
+    $created=brvtalPosRun($db,1,'superadmin',$manual);
+    posAssert($created['status']==='paid' && $created['issuance_queued'] && !$created['replayed'],
+        'owner records paid wallet order and queues QR issuance');
+    posAssert((int)$db->query("SELECT COUNT(*) FROM ticket_payment_attempts")->fetchColumn()===0,
+        'offline wallet never forges Wompi approval');
+    posAssert((int)$db->query("SELECT COUNT(*) FROM ticket_entries")->fetchColumn()===1,
+        'owner commit does not issue QR in HTTP transaction');
+    $audit=$db->prepare('SELECT note_text FROM ticket_order_notes WHERE order_id=?');
+    $audit->execute([$created['order_id']]);
+    posAssert(str_starts_with((string)$audit->fetchColumn(),'manual-payment|nequi|REF-2026-001|'),
+        'owner reference and original method audited');
+    // Real audit history can grow before issuance/retry. Never rely on the
+    // latest ten notes to find the immutable owner payment proof.
+    $newNote=$db->prepare('INSERT INTO ticket_order_notes(order_id,actor_admin_id,note_text)
+        VALUES (?,?,?)');
+    for($i=0;$i<14;$i++) {
+        $newNote->execute([$created['order_id'],1,'operational-note-'.$i]);
+    }
+    posAssert(brvtal_ticket_pos_verified($db,(int)$created['order_id']),
+        'verified offline payment survives more than ten newer audit notes');
+    $replay=brvtalPosRun($db,1,'superadmin',$manual);
+    posAssert($replay['replayed'] && $replay['order_id']===$created['order_id'],
+        'owner same idempotency key returns one order');
+    posDenies(static fn()=>brvtalPosRun($db,1,'superadmin',
+        array_replace($manual,['quantity'=>'1'])),'POS_IDEMPOTENCY_CONFLICT');
+    posDenies(static fn()=>brvtalPosRun($db,1,'superadmin',
+        array_replace($manual,['idempotency_key'=>str_repeat('n',32),'quantity'=>'1'])),
+        'INVENTORY_SOLD_OUT');
+    $outbox=$db->prepare('SELECT id,payment_attempt_id,state FROM ticket_issue_outbox WHERE order_id=?');
+    $outbox->execute([$created['order_id']]);
+    $job=$outbox->fetch(PDO::FETCH_ASSOC);
+    posAssert(is_array($job) && $job['state']==='pending' && $job['payment_attempt_id']===null,
+        'offline order durable issue job without Wompi attempt');
+    $issued=brvtal_ticket_issue_consume($db,(int)$job['id']);
+    posAssert($issued['state']==='issued' && count($issued['tickets'])===2,
+        'trusted issuance worker creates exactly two QR credentials');
+    $first=$issued['tickets'][0];
+    $qr='BRVTAL:T1:'.$first['public_id'].':'.$first['token'];
+    $scanned=brvtalTicketCheckinConsume($db,6,2,'offline-reader',$qr);
+    posAssert($scanned['ok'] && $scanned['reason']==='accepted',
+        'verified wallet order QR accepted at door');
+    posAssert(brvtal_ticket_issue_consume($db,(int)$job['id'])['state']==='duplicate',
+        'issuance idempotency does not duplicate QR');
+} finally {putenv('BRVTAL_INTEGRATION_TESTS=1');}
 putenv('BRVTAL_INTEGRATION_TESTS=0');
 try {posDenies(static fn()=>brvtalPosRun($db,1,'admin',$open),'POS_SYNTHETIC_ONLY');}
 finally {putenv('BRVTAL_INTEGRATION_TESTS=1');}

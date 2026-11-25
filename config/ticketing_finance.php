@@ -31,7 +31,7 @@ function brvtalFinanceSummarize(array $orders, array $items, array $attempts, ar
     $posByOrder=[];
     foreach ($posSales as $sale) {
         if (($sale['status']??'')==='paid'
-            && in_array($sale['method']??'', ['cash','terminal'],true)
+            && in_array($sale['method']??'', ['cash','terminal','transfer'],true)
             && (int)($sale['order_id']??0)>0 && (int)($sale['id']??0)>0) {
             $posByOrder[(int)$sale['order_id']]=$sale;
         }
