@@ -75,8 +75,8 @@ test('T24 móvil: caja requiere dos confirmaciones sin cobro del proveedor',asyn
   });
   const section=page.locator('[data-pos-module]');
   await expect(section).toContainText('Transferencias y QR requieren verificación independiente');
-  await expect(section.locator('option[value="transfer"]')).toHaveAttribute('disabled','');
-  await expect(section.locator('option[value="wompi_qr"]')).toHaveAttribute('disabled','');
+  await expect(section.locator('[data-pos-sale] option[value="transfer"]')).toHaveAttribute('disabled','');
+  await expect(section.locator('[data-pos-sale] option[value="wompi_qr"]')).toHaveAttribute('disabled','');
   expect(calls).toHaveLength(0);
   await section.locator('[name="event_id"]').selectOption('6');
   await section.getByRole('button',{name:'Abrir caja',exact:true}).click();
