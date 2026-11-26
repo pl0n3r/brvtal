@@ -502,7 +502,9 @@ function brvtal_event_workflow_apply(PDO $pdo, array $request, ?callable $audit 
         }
         $afterEvent = brvtal_event_workflow_fetch_event($pdo, (int)$eventId, false);
         if ($afterEvent === null) throw new RuntimeException('EVENT_WORKFLOW_EVENT_MISSING');
-        if (array_key_exists('visibility', $eventPatch) && ($afterEvent['visibility'] ?? null) !== $eventPatch['visibility']) {
+        if (array_key_exists('visibility', $eventPatch)
+            && ($afterEvent['visibility'] ?? null) !== $eventPatch['visibility']
+        ) {
             throw new RuntimeException('EVENT_VISIBILITY_NOT_PERSISTED');
         }
         if ($audit !== null) {
