@@ -1,5 +1,7 @@
 import {test, expect} from '@playwright/test';
 import {readFileSync} from 'node:fs';
+import {execFileSync} from 'node:child_process';
+if (process.env.BRVTAL_DOOR_REAL_URL) test.use({trace:'off',screenshot:'off'});
 const script = readFileSync('discadmin/ticketing-door.js','utf8');
 const css = readFileSync('discadmin/ticketing-door.css','utf8');
 const php = readFileSync('discadmin/ticketing-door.php','utf8');
@@ -15,9 +17,9 @@ const fixture = '<!doctype html><html lang="es"><meta name="viewport" content="w
   + '<p data-door-summary></p><div data-door-audit></div></main>'
   + '<script type="module">import {mount} from "/discadmin/ticketing-door.js";'
   + 'mount(document.querySelector("[data-door]"));</script></html>';
-async function setup(page, scan) {
+async function setup(page, scan, source=script) {
   await page.route('**/discadmin/t16-fixture.html', route => route.fulfill({contentType:'text/html',body:fixture}));
-  await page.route('**/discadmin/ticketing-door.js', route => route.fulfill({contentType:'text/javascript',body:script}));
+  await page.route('**/discadmin/ticketing-door.js', route => route.fulfill({contentType:'text/javascript',body:source}));
   await page.route('**/discadmin/ticketing-door.php?*', route => route.fulfill({contentType:'application/json',
     body:JSON.stringify({ok:true,summary:{accepted:4,rejected:2},
       recent:[{at:'2026-11-21 UTC',operator:3,device:'abc12345',outcome:'rejected',reason:'already_used'}]})}));
@@ -202,11 +204,22 @@ test('T16 lector funciona dentro del único workspace DISCADMIN, sin segunda pá
   await expect(page.locator('html')).toHaveCount(1);
 });
 
+function baselineDoorSource() {
+  const sha='a0d17e831a3fd301d075665da7867a02e02c737a', file=sha+':discadmin/ticketing-door.js';
+  try {execFileSync('git',['cat-file','-e',file]);} catch {execFileSync('git',['fetch','--no-tags','--depth=1','origin',sha],{timeout:20000});}
+  return execFileSync('git',['show',file],{encoding:'utf8'});
+}
 for (const width of [390,1440]) {
   test('T16 recuperación explícita sin verde histórico a '+width+'px', async ({page},testInfo) => {
     await page.setViewportSize({width,height:900});
     let scan, lookups=0;
     const result=page.locator('[data-door-result]');
+    await setup(page,route=>route.abort('failed'),baselineDoorSource());
+    await page.locator('#door-qr').fill('synthetic-before');
+    await page.getByRole('button',{name:'Validar entrada'}).click();
+    await expect(result).toContainText('Estado desconocido');
+    await testInfo.attach('door-before-'+width,{body:await page.screenshot(),contentType:'image/png'});
+    await page.unrouteAll({behavior:'wait'});
     await setup(page,async route=>{
       const body=route.request().postDataJSON();
       if (body.action!=='receipt') {
@@ -247,8 +260,6 @@ for (const width of [390,1440]) {
   });
 }
 
-test.describe('T16 real HTTP',()=>{
-  test.use({trace:'off',screenshot:'off'});
   test('T16 real HTTP pérdida después del commit y antes del envío',async ({page})=>{
     const origin=process.env.BRVTAL_DOOR_REAL_URL;
     test.skip(!origin,'disposable T15 real-stack only');
@@ -295,4 +306,3 @@ test.describe('T16 real HTTP',()=>{
     await expect(page.locator('#door-qr')).toBeDisabled();
     await expect(result).not.toHaveAttribute('data-state','allow');
   });
-});

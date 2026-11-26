@@ -19,7 +19,7 @@ export function mount(root) {
   receiptButton.dataset.doorReceipt = '';
   receiptButton.textContent = 'Consultar intento anterior';
   receiptButton.hidden = true;
-  cameraButton.insertAdjacentElement('afterend', receiptButton);
+  cameraButton.after(receiptButton);
   let attempt = null, storageFault = false;
   let device = '';
   try {
@@ -64,7 +64,7 @@ export function mount(root) {
       const stored = sessionStorage.getItem(attemptKey);
       if (stored !== null) {
         const saved = JSON.parse(stored);
-        if (!saved || Object.keys(saved).sort().join(',') !== 'device_id,event_id,request_id'
+        if (!saved || Object.keys(saved).sort((a,b) => a.localeCompare(b)).join(',') !== 'device_id,event_id,request_id'
             || !Number.isSafeInteger(saved.event_id) || saved.event_id < 1
             || !/^door-[a-f0-9-]{36}$/.test(saved.device_id)
             || !/^[a-f0-9]{32}$/.test(saved.request_id) || /^0{32}$/.test(saved.request_id)) {
@@ -159,6 +159,15 @@ export function mount(root) {
       if (!closed && request === generation) summary.textContent = 'Asistencia no disponible. No asumir conteos actuales.';
     }
   }
+  function confirmedScan(status, data) {
+    return (status === 200 && data?.ok === true && data.reason === 'accepted')
+      || (status === 409 && data?.ok === false && Object.hasOwn(messages, data.reason));
+  }
+  function confirmedReceipt(status, data) {
+    const h = data?.receipt;
+    return status === 200 && data?.ok === false && h
+      && ((h.outcome === 'accepted' && h.reason === 'accepted') || (h.outcome === 'rejected' && Object.hasOwn(messages, h.reason)));
+  }
   async function submit(token) {
     if (pending || closed || attempt || storageFault) return;
     if (!Number.isSafeInteger(Number(event.value)) || Number(event.value) < 1 || !token || token.length > 256) {
@@ -176,9 +185,7 @@ export function mount(root) {
       feedback('pending', 'Validando con el servidor. Aún no se permite el acceso.');
       const {status, data} = await post({...current, qr: token});
       if (closed) return;
-      const accepted = status === 200 && data?.ok === true && data.reason === 'accepted';
-      const rejected = status === 409 && data?.ok === false && Object.hasOwn(messages, data.reason);
-      if (!accepted && !rejected) {
+      if (!confirmedScan(status, data)) {
         unknown(status === 403 ? 'Sin permiso para confirmar el intento. NO permitir acceso.'
           : 'Estado desconocido: NO permitir acceso.');
         return;
@@ -187,7 +194,7 @@ export function mount(root) {
       if (eventRevision !== selectedRevision || event.value !== selectedEvent) {
         feedback('deny', 'Respuesta de un intento anterior (evento ' + current.event_id
           + '). NO permitir acceso.');
-      } else if (accepted) {
+      } else if (data.ok) {
         feedback('allow', 'ENTRADA VÁLIDA · Acceso confirmado por el servidor.');
       } else {
         feedback('deny', messages[data.reason]);
@@ -209,17 +216,15 @@ export function mount(root) {
       const {status, data} = await post({...current, action: 'receipt'});
       if (closed) return;
       const history = data?.receipt;
-      if (status === 200 && data?.ok === false && history
-          && ((history.outcome === 'accepted' && history.reason === 'accepted')
-            || (history.outcome === 'rejected' && Object.hasOwn(messages, history.reason)))) {
+      if (confirmedReceipt(status, data)) {
         clearAttempt(current);
         feedback('deny', 'Recibo histórico · Evento ' + current.event_id + ': '
           + (history.outcome === 'accepted' ? 'ingreso registrado anteriormente. NO permitir un nuevo acceso.'
             : messages[history.reason]));
       } else {
-        unknown(status === 403 ? 'Sin permiso para consultar el recibo. NO permitir acceso.'
-          : status === 404 ? 'No se encontró un recibo confirmado. Estado desconocido: NO permitir acceso.'
-          : 'No se pudo confirmar el recibo. Estado desconocido: NO permitir acceso.');
+        const errors = {403: 'Sin permiso para consultar el recibo. NO permitir acceso.',
+          404: 'No se encontró un recibo confirmado. Estado desconocido: NO permitir acceso.'};
+        unknown(errors[status] || 'No se pudo confirmar el recibo. Estado desconocido: NO permitir acceso.');
       }
     } catch {
       if (!closed) unknown();

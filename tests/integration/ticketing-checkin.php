@@ -23,8 +23,7 @@ function t15Entry(PDO $pdo,int $id,int $unit,int $event=1,int $item=1,int $type=
 
 // Isolated CI real-stack only: never copy live configuration or credentials.
 function t15DoorHttp(string $db,string $qr):void {
-    $source=dirname(__DIR__,2);
-    $directory=sys_get_temp_dir().'/brvtal-t15-http-'.bin2hex(random_bytes(8));
+    $source=dirname(__DIR__,2); $directory=sys_get_temp_dir().'/brvtal-t15-http-'.bin2hex(random_bytes(8));
     t15(mkdir($directory,0700),'isolated fixture directory');
     $server=null;
     try {
@@ -43,45 +42,40 @@ function t15DoorHttp(string $db,string $qr):void {
             'name'=>$db,'user'=>getenv('BRVTAL_TEST_DB_USER'),'pass'=>getenv('BRVTAL_TEST_DB_PASS')]];
         t15(file_put_contents($directory.'/config/config.php','<?php return '.var_export($config,true).';')!==false,
             'private fixture config');
-        chmod($directory.'/config/config.php',0600);
-        mkdir($directory.'/sessions',0700);
-        $router=<<<'PHP'
-<?php
-// Loopback synthetic sessions model HTTPS termination; never trust a client header.
-$_SERVER['HTTPS']='on';
-$path=parse_url($_SERVER['REQUEST_URI'],PHP_URL_PATH);
-if ($path==='/fixture') {
-    require __DIR__.'/config/admin_auth.php';
-    if (!brvtal_admin_is_authenticated()) brvtal_admin_login_session(7);
-    $_SERVER['HTTP_X_BRVTAL_ADMIN_FRAGMENT']='1';
-    ob_start();
-    echo '<!doctype html><html lang="es"><meta name="viewport" content="width=device-width,initial-scale=1">';
-    echo '<link rel="stylesheet" href="/discadmin/ticketing-door.css">';
-    require __DIR__.'/discadmin/ticketing-door.php';
-    echo '<script type="module">import {mount} from "/discadmin/ticketing-door.js";mount(document.querySelector("[data-door]"));</script>';
-    ob_end_flush();
-    exit;
-}
-if (in_array($path,['/api/ticketing/checkin.php','/discadmin/ticketing-door.php'],true)) {
-    require __DIR__.$path;
-    exit;
-}
-if (in_array($path,['/discadmin/ticketing-door.js','/discadmin/ticketing-door.css'],true)) return false;
-http_response_code(404);
-PHP;
+        chmod($directory.'/config/config.php',0600); mkdir($directory.'/sessions',0700);
+        $router=<<<'PHP_WRAP'
+        <?php
+        // Loopback synthetic sessions model HTTPS termination; never trust a client header.
+        $_SERVER['HTTPS']='on';
+        $path=parse_url($_SERVER['REQUEST_URI'],PHP_URL_PATH);
+        if ($path==='/fixture') {
+            require __DIR__.'/config/admin_auth.php';
+            if (!brvtal_admin_is_authenticated()) brvtal_admin_login_session(7);
+            $_SERVER['HTTP_X_BRVTAL_ADMIN_FRAGMENT']='1';
+            ob_start();
+            echo '<!doctype html><html lang="es"><meta name="viewport" content="width=device-width,initial-scale=1">';
+            echo '<link rel="stylesheet" href="/discadmin/ticketing-door.css">';
+            require __DIR__.'/discadmin/ticketing-door.php';
+            echo '<script type="module">import {mount} from "/discadmin/ticketing-door.js";mount(document.querySelector("[data-door]"));</script>';
+            ob_end_flush(); exit;
+        }
+        if (in_array($path,['/api/ticketing/checkin.php','/discadmin/ticketing-door.php'],true)) {
+            require __DIR__.$path;
+            exit;
+        }
+        if (in_array($path,['/discadmin/ticketing-door.js','/discadmin/ticketing-door.css'],true)) return false;
+        http_response_code(404);
+        PHP_WRAP;
         t15(file_put_contents($directory.'/router.php',$router)!==false,'fixture router');
         $socket=stream_socket_server('tcp://127.0.0.1:0',$errno,$error);
-        t15(is_resource($socket),'fixture loopback socket');
-        $address=stream_socket_get_name($socket,false); fclose($socket);
+        t15(is_resource($socket),'fixture loopback socket'); $address=stream_socket_get_name($socket,false); fclose($socket);
         $server=proc_open([PHP_BINARY,'-d','session.save_path='.$directory.'/sessions',
             '-d','allow_url_fopen=0',
             '-d','disable_functions=curl_init,curl_exec,curl_multi_init,curl_multi_exec,fsockopen,pfsockopen,stream_socket_client',
             '-S',$address,'-t',$directory,$directory.'/router.php'],
             [0=>['pipe','r'],1=>['file','/dev/null','a'],2=>['file','/dev/null','a']],$pipes,$directory);
-        t15(is_resource($server),'fixture HTTP server');
-        fclose($pipes[0]);
-        $ready=false;
-        for ($i=0;$i<40;$i++) {
+        t15(is_resource($server),'fixture HTTP server'); fclose($pipes[0]);
+        $ready=false; for ($i=0;$i<40;$i++) {
             $connection=@stream_socket_client('tcp://'.$address,$errno,$error,0.2);
             if (is_resource($connection)) {fclose($connection);$ready=true;break;}
             usleep(100000);
@@ -89,11 +83,11 @@ PHP;
         t15($ready,'fixture listening');
         $env=array_merge(getenv(),['BRVTAL_DOOR_REAL_URL'=>'http://'.$address,'BRVTAL_DOOR_TEST_QR'=>$qr]);
         $browser=proc_open(['node','node_modules/@playwright/test/cli.js','test','tests/e2e/ticketing-door.spec.mjs',
-            '--project=chromium','--grep','T16 real HTTP','--reporter=list'],
-            [0=>['pipe','r'],1=>['file','/dev/null','a'],2=>['file','/dev/null','a']],$pipes,$source,$env);
-        t15(is_resource($browser),'fixture browser');
-        fclose($pipes[0]);
-        t15(proc_close($browser)===0,'real HTTP browser recovery');
+            '--project=chromium','--grep','T16 real HTTP','--reporter=json'],
+            [0=>['pipe','r'],1=>['file',$directory.'/browser.json','w'],2=>['file','/dev/null','a']],$pipes,$source,$env);
+        t15(is_resource($browser),'fixture browser'); fclose($pipes[0]);
+        $exit=proc_close($browser); if ($exit!==0 && preg_match_all('/ticketing-door\.spec\.mjs:\d+:\d+/',(string)file_get_contents($directory.'/browser.json'),$locations)) echo implode(' ',array_unique($locations[0])).PHP_EOL;
+        t15($exit===0,'real HTTP browser recovery');
     } finally {
         if (is_resource($server)) {proc_terminate($server);proc_close($server);}
         $entries=new RecursiveIteratorIterator(new RecursiveDirectoryIterator($directory,FilesystemIterator::SKIP_DOTS),
