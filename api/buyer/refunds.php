@@ -13,6 +13,8 @@ try {
     $db=db();
     if (!brvtalBuyerAccountAuthorized($db,$buyer)) json_response(['ok'=>false,'error'=>'AUTH_REQUIRED'],401);
     $method=$_SERVER['REQUEST_METHOD']??'GET';
+    // GET and POST both re-evaluate the authenticated checkout-order scope
+    // in the refund service; no buyer-supplied order grant is accepted.
     if($method==='GET') json_response(['ok'=>true,'data'=>brvtalRefundBuyerList($db,$buyer)]);
     if($method!=='POST') json_response(['ok'=>false,'error'=>'METHOD_NOT_ALLOWED'],405,['Allow'=>'GET, POST']);
     if(!brvtalBuyerCsrfValid($_SERVER['HTTP_X_CSRF_TOKEN']??null)) json_response(['ok'=>false,'error'=>'CSRF_INVALID'],403);

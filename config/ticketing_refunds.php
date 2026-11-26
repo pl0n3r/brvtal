@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require_once __DIR__ . '/ticketing_staff_permissions.php';
 require_once __DIR__ . '/ticketing_wompi_client.php';
+require_once __DIR__ . '/buyer_account.php';
 
 /** Opt-in for the manual dashboard policy; default is no production refunds. */
 function brvtalRefundGuard(PDO $db): void {
@@ -79,6 +80,37 @@ function brvtalRefundProrate(int $total, int $selected, int $gross): int {
     if ($quotient<1||$quotient>$total) throw new DomainException('AMOUNT_UNVERIFIED');
     return $quotient;
 }
+/**
+ * Guest refund scope under the current buyer row lock.
+ * The Event and Order are already locked by the caller; this is a current
+ * locking read rather than the REPEATABLE READ snapshot established by
+ * the preliminary order lookup. A newly blocked/downgraded buyer must fail
+ * closed even when that snapshot still contains the old status.
+ *
+ * The server-only guest grant is compared to the locked, owned order ID.
+ * No new order grant is minted here; unpaid orders cannot create new refunds
+ * (the caller's existing paid-status guard still enforces that).
+ */
+function brvtalRefundRequestScope(PDO $db, int $buyerId, int $orderId): ?int
+{
+    if (!$db->inTransaction() || $buyerId < 1 || $orderId < 1) {
+        throw new DomainException('TICKET_UNAVAILABLE');
+    }
+    $stmt = $db->prepare('SELECT status,email_verified_at FROM ticket_buyers WHERE id=? FOR UPDATE');
+    $stmt->execute([$buyerId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($row)) throw new DomainException('TICKET_UNAVAILABLE');
+    if ($row['status'] === 'active' && $row['email_verified_at'] !== null) return null;
+    if ($row['status'] !== 'guest' || $row['email_verified_at'] !== null
+        || (int)($_SESSION['buyer_id'] ?? 0) !== $buyerId) {
+        throw new DomainException('TICKET_UNAVAILABLE');
+    }
+    $grant = (int)($_SESSION['buyer_checkout_new_order'] ?? 0);
+    if ($grant < 1) throw new DomainException('TICKET_UNAVAILABLE');
+    if ($grant !== $orderId) throw new DomainException('ORDER_NOT_REFUNDABLE');
+    return $grant;
+}
+
 /** Buyer identity is always session-derived; input supplies only opaque IDs. */
 function brvtalRefundRequest(PDO $db,int $buyer,array $input):array {
     brvtalRefundGuard($db);
@@ -112,6 +144,12 @@ function brvtalRefundRequest(PDO $db,int $buyer,array $input):array {
         $q->execute([$ref,$buyer]); $order=$q->fetch(PDO::FETCH_ASSOC);
         if($order&&(int)$order['event_id']!==$eventId)throw new DomainException('ORDER_NOT_REFUNDABLE');
         if (!$order||$order['currency']!=='COP') {
+            throw new DomainException('ORDER_NOT_REFUNDABLE');
+        }
+        // Recheck the server-issued grant and current buyer status under
+        // a locking read, after Event and Order locks, before replay/audit.
+        $scope=brvtalRefundRequestScope($db,$buyer,(int)$order['id']);
+        if ($scope!==null && $scope!==(int)$order['id']) {
             throw new DomainException('ORDER_NOT_REFUNDABLE');
         }
         $prior=$db->prepare('SELECT id,status,selection_hash FROM ticket_refunds WHERE order_id=? AND request_hash=?');
@@ -258,10 +296,14 @@ function brvtalRefundStaff(PDO $db,int $actor,string $role,int $id,string $actio
 function brvtalRefundBuyerList(PDO $db,int $buyer):array {
     brvtalRefundGuard($db);
     if ($buyer<1) throw new DomainException('AUTH_REQUIRED');
-    $q=$db->prepare('SELECT r.id,LOWER(HEX(o.public_id)) AS order_id,r.status,r.amount_cop,r.created_at_utc
-        FROM ticket_refunds r JOIN ticket_orders o ON o.id=r.order_id WHERE r.buyer_id=?
-        ORDER BY r.id DESC LIMIT 100');
-    $q->execute([$buyer]); return $q->fetchAll(PDO::FETCH_ASSOC);
+    $scope=brvtalBuyerAccountCheckoutScope($db,$buyer);
+    $sql='SELECT r.id,LOWER(HEX(o.public_id)) AS order_id,r.status,r.amount_cop,r.created_at_utc
+        FROM ticket_refunds r JOIN ticket_orders o ON o.id=r.order_id
+        WHERE r.buyer_id=? AND o.buyer_id=?';
+    $args=[$buyer,$buyer];
+    if ($scope!==null) { $sql.=' AND o.id=?'; $args[]=$scope; }
+    $q=$db->prepare($sql.' ORDER BY r.id DESC LIMIT 100');
+    $q->execute($args); return $q->fetchAll(PDO::FETCH_ASSOC);
 }
 
 
