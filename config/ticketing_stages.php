@@ -96,10 +96,16 @@ function brvtalTicketStageQuote(array $stages, int $used, int $quantity,
  * The active stage still governs availability when a separate door price is set.
  * No channel may bypass the existing sale window or cumulative allocation.
  */
-function brvtalTicketChannelQuote(string $channel, array $stages, ?int $basePriceCop,
-    ?int $doorPriceCop, int $used, int $quantity, int $inventoryFree,
-    ?DateTimeImmutable $clock = null): array
-{
+function brvtalTicketChannelQuote(
+    string $channel,
+    array $stages,
+    ?int $basePriceCop,
+    ?int $doorPriceCop,
+    int $used,
+    int $quantity,
+    int $inventoryFree,
+    ?DateTimeImmutable $clock = null
+): array {
     if (!in_array($channel, ['web', 'door', 'manual'], true) || $used < 0
         || $quantity < 1 || $quantity > 20 || $inventoryFree < 0) {
         throw new InvalidArgumentException('INVALID_CHANNEL_QUOTE');
@@ -113,10 +119,14 @@ function brvtalTicketChannelQuote(string $channel, array $stages, ?int $basePric
     $free = $inventoryFree;
     if ($stages !== []) {
         $stage = brvtalTicketStageCurrent($stages, $used, $clock);
-        if ($stage === null) throw new DomainException('STAGE_NOT_SALEABLE');
+        if ($stage === null) {
+            throw new DomainException('STAGE_NOT_SALEABLE');
+        }
         $free = min($free, $stage['cumulative_capacity'] - $used);
     }
-    if ($free < $quantity) throw new DomainException('STAGE_SOLD_OUT');
+    if ($free < $quantity) {
+        throw new DomainException('STAGE_SOLD_OUT');
+    }
     $price = $door ? $doorPriceCop : $basePriceCop;
     if ($price === null || $price < 1 || $price > intdiv(10000000, $quantity)) {
         throw new DomainException('STAGE_PRICE_LIMIT');
