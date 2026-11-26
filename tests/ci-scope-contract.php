@@ -157,6 +157,30 @@ foreach (['pull_request', 'push'] as $event) {
         'run_realstack' => 'true',
     ], "persistent editor plus README {$event}");
 }
+// Wompi HTTPS fixture is executed by the existing mandatory real-stack step.
+$providerFixturePaths = [
+    'tests/e2e/wompi-provider-fixture.mjs',
+    'tests/e2e/run-ticketing-provider-fixture.sh',
+];
+foreach (['pull_request', 'push'] as $event) {
+    foreach ($providerFixturePaths as $path) {
+        ci_scope_expect_flags(ci_scope_run([$path], $event), [
+            'run_realstack' => 'true', 'run_browser' => 'false',
+            'deploy_bound' => 'false',
+        ], "Wompi fixture {$path} {$event}");
+    }
+    ci_scope_expect_flags(ci_scope_run([...$providerFixturePaths, 'docs/ticketing/T31-provider-fixture.md'], $event), [
+        'run_realstack' => 'true', 'run_browser' => 'false', 'deploy_bound' => 'false',
+    ], "Wompi fixture union {$event}");
+    $browser = 'tests/e2e/public-concept05-media-placeholders.spec.mjs';
+    ci_scope_expect_flags(ci_scope_run([$browser], $event), [
+        'run_realstack' => 'false', 'run_browser' => 'true', 'deploy_bound' => 'false',
+    ], "unrelated browser {$event}");
+    ci_scope_expect_flags(ci_scope_run([$providerFixturePaths[0], $browser], $event), [
+        'run_realstack' => 'true', 'run_browser' => 'true', 'deploy_bound' => 'false',
+    ], "Wompi and browser union {$event}");
+}
+
 ci_scope_expect_flags(ci_scope_run(['discadmin/global-search.js'], 'workflow_dispatch'), [
     'full' => 'true', 'run_db' => 'true', 'run_browser' => 'true',
     'run_realstack' => 'true', 'run_webkit' => 'true',
