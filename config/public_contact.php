@@ -245,8 +245,8 @@ function brvtal_contact_validate_payload(array $input, array $config, ?int $now 
 
 function brvtal_contact_recipient(array $config): string
 {
-    $candidate = trim((string)($config['contact']['to'] ?? getenv('BRVTAL_CONTACT_TO') ?: 'contact@brvtal.com.co'));
-    return filter_var($candidate, FILTER_VALIDATE_EMAIL) ? $candidate : 'contact@brvtal.com.co';
+    $candidate = trim((string)($config['contact']['to'] ?? getenv('BRVTAL_CONTACT_TO') ?: 'contacto@brvtal.com.co'));
+    return filter_var($candidate, FILTER_VALIDATE_EMAIL) ? $candidate : 'contacto@brvtal.com.co';
 }
 
 function brvtal_contact_build_mail(array $data, array $config): array
