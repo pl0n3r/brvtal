@@ -22,6 +22,7 @@ function brvtalPosInt(mixed $value, int $min = 1, int $max = 1000000000): int {
 function brvtalPosInput(array $raw): array {
     $shape = [
         'open'=>['action','event_id','opening_cash_cop'],
+        'shift_status'=>['action','event_id'],
         'manual_intent'=>['action','idempotency_key'],
         'manual_order'=>['action','event_id','ticket_type_id','quantity','buyer_name',
             'buyer_email','method','payment_reference','idempotency_key','confirm'],
@@ -43,6 +44,9 @@ function brvtalPosInput(array $raw): array {
     }
     foreach (['opening_cash_cop','closing_cash_cop'] as $name) {
         if (isset($raw[$name])) $result[$name]=brvtalPosInt($raw[$name],0,1000000000);
+    }
+    if ($action==='shift_status') {
+        $result['event_id']=brvtalPosInt($raw['event_id']);
     }
     if ($action==='prepare') {
         if (!is_string($raw['method']) || !in_array($raw['method'],['cash','transfer','wompi_qr'],true)
@@ -122,6 +126,9 @@ function brvtalPosRun(PDO $db, int $actor, string $role, array $raw): array {
     if (!$manual && !brvtalTicketAdminSyntheticMode($db)) {
         throw new DomainException('POS_SYNTHETIC_ONLY');
     }
+    if ($input['action']==='shift_status') {
+        return brvtalPosShiftStatus($db, $actor, $input['event_id']);
+    }
     if ($db->inTransaction()) throw new LogicException('POS_TRANSACTION_REQUIRED');
     $db->beginTransaction();
     try {
@@ -139,6 +146,60 @@ function brvtalPosRun(PDO $db, int $actor, string $role, array $raw): array {
         if ($db->inTransaction()) $db->rollBack();
         throw $e;
     }
+}
+/**
+ * Read-only, synthetic drawer snapshot. The actor comes from the authenticated
+ * endpoint. A closed shift is physical only with positive legacy-sale evidence;
+ * manual audit parents and empty historical drawers cannot prove that identity.
+ */
+function brvtalPosShiftStatus(PDO $db, int $actor, int $event): array
+{
+    $q=$db->prepare("SELECT sh.id,sh.status,
+        EXISTS(SELECT 1 FROM ticket_pos_sales p
+            LEFT JOIN ticket_orders o ON o.id=p.order_id AND o.event_id=p.event_id
+            WHERE p.shift_id=sh.id AND p.operator_admin_id=sh.operator_admin_id
+              AND p.event_id=sh.event_id
+              AND (p.status IN ('prepared','cancelled') OR
+                   (p.status='paid' AND o.checkout_key_hash=SHA2(CONCAT('pos:',p.id),256)))) AS physical,
+        EXISTS(SELECT 1 FROM ticket_pos_sales p
+            LEFT JOIN ticket_orders o ON o.id=p.order_id AND o.event_id=p.event_id
+            WHERE p.shift_id=sh.id AND
+              (p.operator_admin_id<>sh.operator_admin_id OR p.event_id<>sh.event_id
+               OR (p.status='paid' AND (o.id IS NULL OR
+                    o.checkout_key_hash<>SHA2(CONCAT('pos:',p.id),256))))) AS ambiguous,
+        (SELECT COUNT(*) FROM ticket_pos_shifts h
+            WHERE h.operator_admin_id=sh.operator_admin_id AND h.status='open') AS open_count,
+        s.id AS sale_id,s.ticket_type_id,s.quantity,s.amount_cop,
+        s.expires_at_utc>UTC_TIMESTAMP(6) AS pending
+        FROM (SELECT h.id,h.status,h.operator_admin_id,h.event_id
+              FROM ticket_pos_shifts h JOIN admins a ON a.id=h.operator_admin_id AND a.is_active=1
+              WHERE h.operator_admin_id=? AND h.event_id=?
+              ORDER BY (h.status='open') DESC,h.id DESC LIMIT 1) sh
+        LEFT JOIN ticket_pos_sales s ON sh.status='open' AND s.shift_id=sh.id
+          AND s.event_id=sh.event_id AND s.operator_admin_id=sh.operator_admin_id
+          AND s.status='prepared'
+        ORDER BY s.id LIMIT 101");
+    $q->execute([$actor,$event]);
+    $rows=$q->fetchAll(PDO::FETCH_ASSOC);
+    if (!$rows) {
+        return ['state'=>'not_found'];
+    }
+    $shift=$rows[0];
+    if (count($rows)>100 || (bool)$shift['ambiguous'] || (int)$shift['open_count']>1
+        || ($shift['status']==='closed' && !(bool)$shift['physical'])) {
+        return ['state'=>'unverifiable'];
+    }
+    $preparations=[];
+    foreach ($rows as $row) {
+        if ($row['sale_id']===null) {
+            continue;
+        }
+        $preparations[]=['sale_id'=>(int)$row['sale_id'],
+            'ticket_type_id'=>(int)$row['ticket_type_id'],'quantity'=>(int)$row['quantity'],
+            'amount_cop'=>(int)$row['amount_cop'],'state'=>(bool)$row['pending']?'pending':'expired'];
+    }
+    return ['state'=>$shift['status'],'shift_id'=>(int)$shift['id'],
+        'event_id'=>$event,'preparations'=>$preparations];
 }
 function brvtalPosShift(PDO $db,int $actor,int $id,bool $open=true): array {
     $q=$db->prepare('SELECT * FROM ticket_pos_shifts WHERE id=? AND operator_admin_id=? FOR UPDATE');

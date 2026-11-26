@@ -14,7 +14,7 @@ function brvtal_public_select_next_experience(array $events, ?DateTimeImmutable 
     foreach ($events as $event) {
         if (!is_array($event)) continue;
         $status = strtolower(trim((string)($event['status'] ?? '')));
-        if (!isset($activeStatuses[$status])) continue;
+        if (!isset($activeStatuses[$status]) || !brvtal_public_event_is_listed($event, $now)) continue;
 
         $eventDate = null;
         $rawDate = trim((string)($event['event_date'] ?? ''));
@@ -152,8 +152,10 @@ function brvtal_public_next_experience(PDO $pdo, ?DateTimeImmutable $now = null)
 {
     $statuses = brvtal_public_event_statuses()['active'];
     $placeholders = brvtal_public_sql_placeholders($statuses);
+    $visibilitySelect = brvtal_public_event_visibility_select($pdo);
     $statement = $pdo->prepare(
-        "SELECT id,title,slug,event_date,venue,city,description,cover_image,ticket_url,featured,status,sort_order
+        "SELECT id,title,slug,event_date,venue,city,description,cover_image,ticket_url,"
+        . "featured,status,sort_order,{$visibilitySelect}
          FROM events
          WHERE status IN ({$placeholders})"
     );

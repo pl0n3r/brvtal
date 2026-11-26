@@ -96,9 +96,9 @@ function brvtalBuyerAuthRegister(PDO $pdo, array $input): array
         || preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/D', $version) !== 1) {
         throw new InvalidArgumentException('BUYER_PROFILE_INVALID');
     }
-    $hash = brvtalBuyerAuthPassword($input['password'] ?? null);
+    // Legacy signup passwords are ignored; only verified activation sets a credential.
     return brvtalBuyerAuthTransaction($pdo, static function (PDO $pdo) use
-        ($name, $email, $hash, $version): array {
+        ($name, $email, $version): array {
         $query = $pdo->prepare('SELECT id FROM ticket_buyers WHERE email=? FOR UPDATE');
         $query->execute([$email]);
         if ($query->fetchColumn() !== false) {
@@ -107,8 +107,8 @@ function brvtalBuyerAuthRegister(PDO $pdo, array $input): array
         try {
             $insert = $pdo->prepare("INSERT INTO ticket_buyers
                 (public_id,email,full_name,password_hash,consent_version,consent_recorded_at,status)
-                VALUES (?,?,?,?,?,UTC_TIMESTAMP(6),'active')");
-            $insert->execute([random_bytes(16), $email, $name, $hash, $version]);
+                VALUES (?,?,?,NULL,?,UTC_TIMESTAMP(6),'active')");
+            $insert->execute([random_bytes(16), $email, $name, $version]);
         } catch (PDOException $error) {
             if ((string)$error->getCode() === '23000' && (int)($error->errorInfo[1] ?? 0) === 1062) {
                 return ['ok' => true]; // Race: unique email wins; same neutral response.
@@ -123,7 +123,7 @@ function brvtalBuyerAuthRegister(PDO $pdo, array $input): array
 }
 
 function brvtalBuyerAuthConsume(PDO $pdo, string $token, string $purpose,
-    ?string $newPassword = null): void
+    mixed $newPassword = null): void
 {
     if (preg_match('/^[A-Za-z0-9_-]{43}$/D', $token) !== 1) {
         throw new DomainException('BUYER_TOKEN_INVALID');
@@ -147,8 +147,20 @@ function brvtalBuyerAuthConsume(PDO $pdo, string $token, string $purpose,
         }
         $buyerId = (int)$row['buyer_id'];
         if ($purpose === 'verify_email') {
-            $pdo->prepare('UPDATE ticket_buyers SET email_verified_at=UTC_TIMESTAMP(6)
-                WHERE id=? AND email_verified_at IS NULL')->execute([$buyerId]);
+            if ($row['email_verified_at'] !== null) {
+                throw new DomainException('BUYER_TOKEN_INVALID');
+            }
+            // Only the mailbox holder chooses the first usable credential.
+            // Pending registrations keep their existing token and consent; the
+            // unverified signup hash never becomes a usable login credential.
+            $hash = brvtalBuyerAuthPassword($newPassword, (string)$row['password_hash']);
+            $save = $pdo->prepare("UPDATE ticket_buyers SET password_hash=?,
+                email_verified_at=UTC_TIMESTAMP(6),security_epoch=security_epoch+1
+                WHERE id=? AND status='active' AND email_verified_at IS NULL");
+            $save->execute([$hash,$buyerId]);
+            if ($save->rowCount() !== 1) throw new DomainException('BUYER_TOKEN_INVALID');
+            $pdo->prepare('UPDATE ticket_buyer_sessions SET revoked_at_utc=UTC_TIMESTAMP(6)
+                WHERE buyer_id=? AND revoked_at_utc IS NULL')->execute([$buyerId]);
         } elseif ($purpose === 'reset_password'
             && ($row['email_verified_at'] !== null || $newGuest)) {
             if ($newGuest) {
