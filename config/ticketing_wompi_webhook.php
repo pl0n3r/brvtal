@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/ticketing_wompi_client.php';
+require_once __DIR__ . '/ticketing_inventory.php';
 
 /** T08: the events secret is NOT the checkout integrity secret, and belongs to the active environment. */
 function brvtal_wompi_hook_config(?array $env = null): array
@@ -165,6 +166,23 @@ function brvtal_wompi_hook_reserved(PDO $db, int $orderId, int $eventId, array $
     ksort($actual);
     ksort($expected);
     if ($actual !== $expected) return false;
+    // Reservations authorize this charge, not newly available stock or a
+    // changed tariff. Still refuse an inconsistent oversubscribed inventory.
+    $cap = $db->prepare('SELECT capacity FROM ticket_inventory_events WHERE event_id=? FOR UPDATE');
+    $cap->execute([$eventId]);
+    $eventCap = $cap->fetchColumn();
+    if ($eventCap === false || (int)$eventCap < 1) return false;
+    $usage = brvtal_ticket_inventory_usage($db,$eventId,0,$now);
+    if (array_sum($usage) > (int)$eventCap) return false;
+    $typeCap = $db->prepare('SELECT capacity FROM ticket_inventory_types
+        WHERE event_id=? AND ticket_type_id=? FOR UPDATE');
+    foreach (array_keys($expected) as $typeId) {
+        $typeCap->execute([$eventId,$typeId]);
+        $capacity = $typeCap->fetchColumn();
+        if ($capacity === false || (int)$capacity < 1) return false;
+        $use = brvtal_ticket_inventory_usage($db,$eventId,$typeId,$now);
+        if (array_sum($use) > (int)$capacity) return false;
+    }
     // Same transaction as paid + issuance outbox: no free interval in which a
     // second checkout can claim these holds, even across multiple ticket types.
     $consume = $db->prepare("UPDATE ticket_inventory_holds SET status='consumed'
@@ -247,9 +265,13 @@ function brvtal_wompi_hook_apply(PDO $db, array $signed, array $provider): strin
         'VOIDED'=>'declined','ERROR'=>'error'][$provider['status']];
     if (in_array($attempt['status'], ['approved','refunded'], true)) {
         if ($attempt['status'] === 'approved' && $row['status'] === 'paid') {
-            // Legacy paid rows without proven admission must NOT gain a new
-            // issuance request merely because a callback repeats.
-            brvtal_wompi_hook_notice($db, $orderId);
+            // Legacy paid rows without proven admission must NOT gain new
+            // issuance or administrative-sale notices on callback replays.
+            $outbox = $db->prepare('SELECT 1 FROM ticket_issue_outbox WHERE order_id=? LIMIT 1');
+            $outbox->execute([$orderId]);
+            if ($outbox->fetchColumn() !== false) {
+                brvtal_wompi_hook_notice($db, $orderId);
+            }
             return 'duplicate';
         }
         return $attempt['status'] === 'approved' ? 'approved_unfulfilled' : 'duplicate';

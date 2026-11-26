@@ -1,6 +1,32 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/../../config/ticketing_wompi_webhook.php';
+// Two independent DB connections race on the same Event mutex, not an in-memory simulation.
+if (($argv[1] ?? '') === '--admit-race') {
+    $dbname=(string)($argv[2] ?? '');
+    if (!preg_match('/^brvtal_test[A-Za-z0-9_]*$/D',$dbname)) exit(2);
+    $payload=json_decode((string)base64_decode((string)($argv[3] ?? ''),true),true);
+    if (!is_array($payload) || count($payload)!==2) exit(3);
+    $barrier=(float)($argv[4] ?? 0);
+    $host=(string)(getenv('BRVTAL_TEST_DB_HOST')?:'127.0.0.1');
+    $port=(int)(getenv('BRVTAL_TEST_DB_PORT')?:3306);
+    $user=(string)(getenv('BRVTAL_TEST_DB_USER')?:'root');
+    $pass=(string)(getenv('BRVTAL_TEST_DB_PASS')?:'');
+    $db=new PDO("mysql:host={$host};port={$port};dbname={$dbname};charset=utf8mb4",$user,$pass,[
+        PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES=>false,
+    ]);
+    while(microtime(true)<$barrier) usleep(10000);
+    $db->beginTransaction();
+    try {
+        $result=brvtal_wompi_hook_apply($db,$payload[0],$payload[1]);
+        $db->commit();echo $result;exit(0);
+    } catch(Throwable $error) {
+        if($db->inTransaction()) $db->rollBack();
+        fwrite(STDERR,get_class($error).':'.$error->getMessage());exit(4);
+    }
+}
 function t08(bool $ok,string $label): void { if (!$ok) throw new RuntimeException('T08: '.$label); }
 function t08Reject(callable $fn,string $error): void {
     try { $fn(); } catch(DomainException $e) {
@@ -89,7 +115,11 @@ $holdsSql=(string)file_get_contents(__DIR__.'/../../database/migration_ticketing
 foreach(explode(';',(string)preg_replace('/^\\h*--[^\\r\\n]*$/m','',$holdsSql)) as $ddl)
     if(trim($ddl)!=='') $db->exec($ddl);
 $db->exec("INSERT INTO events VALUES (1,'published')");
-$db->exec("INSERT INTO event_ticket_types VALUES (10,1),(11,1)");
+$db->exec("INSERT INTO event_ticket_types VALUES (10,1),(11,1),(12,2)");
+$db->exec("INSERT INTO events VALUES (2,'published')");
+$db->exec("INSERT INTO ticket_inventory_events VALUES (1,100),(2,1)");
+$db->exec("INSERT INTO ticket_inventory_types(ticket_type_id,event_id,capacity,courtesy_capacity)
+ VALUES(10,1,100,0),(11,1,100,0),(12,2,1,0)");
 $db->exec("CREATE TABLE ticket_payment_attempts(id BIGINT UNSIGNED PRIMARY KEY,order_id INT NOT NULL,
  provider VARCHAR(24) NOT NULL,provider_reference VARCHAR(190) NOT NULL,
  provider_transaction_id VARCHAR(190) NULL,gross_amount_cop BIGINT NOT NULL,
@@ -210,4 +240,48 @@ t08($db->query("SELECT signed_status FROM ticket_payment_webhook_events WHERE at
     ->fetchColumn()==='PENDING','original signature never upgraded');
 t08((int)$db->query('SELECT COUNT(*) FROM ticket_issue_outbox WHERE order_id=48')->fetchColumn()===1,
     'provider authenticated approval enqueues once');
-echo "BRVTAL T08 authentic money and atomic reservation admission cases passed.\n";
+// Two processes race for an Event with exactly one legitimate held unit.
+// The other confirmed charge is financially recorded without issuance.
+$pack = static function(int $id,bool $hold) use($db,$sign,$settings,$now):array {
+    $ref='BW7-'.$id.'-CARD-'.str_repeat(dechex($id%16),24);
+    $db->prepare("INSERT INTO ticket_orders(id,event_id,status,currency,total_cop)
+        VALUES(?,2,'pending','COP',50000)")->execute([$id]);
+    $db->prepare("INSERT INTO ticket_order_items(order_id,event_id,ticket_type_id,quantity,currency)
+        VALUES(?,2,12,1,'COP')")->execute([$id]);
+    $db->prepare("INSERT INTO ticket_payment_attempts(id,order_id,provider,provider_reference,
+        gross_amount_cop,status) VALUES(?,?,'wompi',?,50000,'created')")->execute([$id,$id,$ref]);
+    if($hold) $db->prepare("INSERT INTO ticket_inventory_holds
+        (order_id,event_id,ticket_type_id,quantity,kind,status,expires_at_utc)
+        VALUES(?,2,12,1,'paid','active',UTC_TIMESTAMP(6)+INTERVAL 15 MINUTE)")->execute([$id]);
+    $provider=['id'=>'race-'.$id,'reference'=>$ref,'status'=>'APPROVED',
+        'amount_in_cents'=>5000000,'currency'=>'COP'];
+    [$raw,$hash]=$sign($provider,$now);
+    return [brvtal_wompi_hook_verify($raw,$hash,$settings,$now),$provider];
+};
+$racePayloads=[$pack(49,true),$pack(50,false)];
+$barrier=microtime(true)+0.8;
+$workers=[];
+foreach($racePayloads as $payload) {
+    $processRace=proc_open([PHP_BINARY,__FILE__,'--admit-race',$dbname,
+        base64_encode(json_encode($payload,JSON_THROW_ON_ERROR)),(string)$barrier],
+        [0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes,__DIR__);
+    t08(is_resource($processRace),'race worker started');
+    fclose($pipes[0]);$workers[]=[$processRace,$pipes];
+}
+$results=[];
+foreach($workers as [$proc,$pipes]) {
+    $out=trim((string)stream_get_contents($pipes[1]));
+    $err=trim((string)stream_get_contents($pipes[2]));
+    fclose($pipes[1]);fclose($pipes[2]);
+    t08(proc_close($proc)===0 && $err==='','race worker completed: '.$err);
+    $results[]=$out;
+}
+sort($results);
+t08($results===['approved','approved_unfulfilled'],'last seat has only one admitted order');
+t08((int)$db->query("SELECT COUNT(*) FROM ticket_orders
+    WHERE event_id=2 AND status='paid'")->fetchColumn()===1,'exactly one paid order');
+t08((int)$db->query("SELECT COUNT(*) FROM ticket_issue_outbox
+    WHERE order_id IN (49,50)")->fetchColumn()===1,'exactly one issuance outbox');
+t08((int)$db->query("SELECT COUNT(*) FROM ticket_payment_webhook_events
+    WHERE attempt_id IN (49,50)")->fetchColumn()===2,'both authenticated charges journaled');
+echo "BRVTAL T08 authentic money and two-connection atomic last-seat admission passed.\n";
