@@ -124,6 +124,61 @@ function brvtalTicketCheckinEventEligible(array $event, ?DateTimeImmutable $now 
 }
 
 /**
+ * A POS payment must pass the issuance predicate, never the Wompi shortcut.
+ * Legacy direct cash receipts use the exact checkout digest written by
+ * brvtalPosConfirm; manual owner orders require a completed offline outbox.
+ */
+function brvtalTicketCheckinPosIssued(PDO $pdo,int $orderId,int $entryId): bool
+{
+    require_once __DIR__.'/ticketing_issue.php';
+    if (!brvtal_ticket_pos_verified($pdo,$orderId)) return false;
+    $proof=$pdo->prepare("SELECT
+        EXISTS(SELECT 1 FROM ticket_issue_outbox b WHERE b.order_id=o.id
+            AND b.state='done' AND b.payment_attempt_id IS NULL) AS manual_issued,
+        (ps.status='paid' AND ps.method='cash'
+            AND o.checkout_key_hash=SHA2(CONCAT('pos:',ps.id),256)
+            AND NOT EXISTS(SELECT 1 FROM ticket_issue_outbox b WHERE b.order_id=o.id)) AS direct_issued
+        FROM ticket_orders o
+        JOIN ticket_pos_sales ps ON ps.order_id=o.id
+        JOIN ticket_order_items i ON i.order_id=o.id
+        JOIN ticket_entries e ON e.order_item_id=i.id
+        WHERE o.id=? AND e.id=? AND e.unit_number BETWEEN 1 AND i.quantity
+          AND ps.operator_admin_id>0");
+    $proof->execute([$orderId,$entryId]);
+    $row=$proof->fetch(PDO::FETCH_ASSOC);
+    return is_array($row) && ((int)$row['manual_issued']===1 || (int)$row['direct_issued']===1);
+}
+
+function brvtalTicketCheckinPaid(PDO $pdo,array $entry,int $eventId): bool
+{
+    // Pre-POS deployments and T15/T25 fixtures must not reference absent tables.
+    $posTable=$pdo->query("SELECT COUNT(*) FROM information_schema.TABLES
+        WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='ticket_pos_sales'");
+    $posSql=(int)$posTable->fetchColumn()===1
+        ? "EXISTS(SELECT 1 FROM ticket_pos_sales ps WHERE ps.order_id=o.id)" : '0';
+    $paid=$pdo->prepare("SELECT o.id,o.status,o.event_id,$posSql AS pos_sale,
+        EXISTS(SELECT 1 FROM ticket_issue_outbox b
+            WHERE b.order_id=o.id AND b.state='done') AS issued,
+        EXISTS(SELECT 1 FROM ticket_payment_attempts a
+            WHERE a.order_id=o.id AND a.provider='wompi'
+              AND a.status='approved' AND a.provider_transaction_id IS NOT NULL
+              AND EXISTS(SELECT 1 FROM ticket_payment_webhook_events w
+                WHERE w.attempt_id=a.id AND w.provider_transaction_id=a.provider_transaction_id
+                  AND w.signed_status='APPROVED')) AS verified
+        FROM ticket_order_items i JOIN ticket_orders o ON o.id=i.order_id
+        WHERE i.id=? AND i.event_id=? AND i.ticket_type_id=?");
+    $paid->execute([(int)$entry['order_item_id'],$eventId,(int)$entry['ticket_type_id']]);
+    $order=$paid->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($order) || $order['status']!=='paid' || (int)$order['event_id']!==$eventId) {
+        return false;
+    }
+    if ((int)$order['pos_sale']===1) {
+        return brvtalTicketCheckinPosIssued($pdo,(int)$order['id'],(int)$entry['id']);
+    }
+    return (int)$order['issued']===1 && (int)$order['verified']===1;
+}
+
+/**
  * Each valid event's request is audited (including rejected/replayed/malformed).
  * One InnoDB row lock, conditional update and audit row share a transaction.
  * @return array{ok:bool,reason:string}
@@ -177,44 +232,7 @@ function brvtalTicketCheckinConsume(
                             || !hash_equals($credential['token_hash'],$token['hash'])) {
                             $reason='credential_revoked';
                         } else {
-                            // T24 synthetic cash receipts are NOT Wompi webhooks. If the
-                            // additive POS migration is absent, preserve original T15
-                            // Wompi verification without referencing a missing table.
-                            $posTable=$pdo->query("SELECT COUNT(*) FROM information_schema.TABLES
-                                WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='ticket_pos_sales'");
-                            $posSql=(int)$posTable->fetchColumn()===1
-                                ? "EXISTS(SELECT 1 FROM ticket_pos_sales ps
-                                      WHERE ps.order_id=o.id AND ps.event_id=o.event_id
-                                        AND ps.ticket_type_id=i.ticket_type_id
-                                        AND ps.status='paid' AND ps.method='cash'
-                                        AND ps.operator_admin_id>0)"
-                                : '0';
-                            $paid=$pdo->prepare("SELECT o.id,o.status,o.event_id,
-                                (EXISTS(SELECT 1 FROM ticket_issue_outbox b
-                                  WHERE b.order_id=o.id AND b.state='done') OR $posSql) AS issued,
-                                (EXISTS(SELECT 1 FROM ticket_payment_attempts a
-                                    WHERE a.order_id=o.id AND a.provider='wompi'
-                                      AND a.status='approved' AND a.provider_transaction_id IS NOT NULL
-                                      AND EXISTS(SELECT 1 FROM ticket_payment_webhook_events w
-                                        WHERE w.attempt_id=a.id AND w.provider_transaction_id=a.provider_transaction_id
-                                          AND w.signed_status='APPROVED')) OR $posSql) AS verified
-                                FROM ticket_order_items i JOIN ticket_orders o ON o.id=i.order_id
-                                WHERE i.id=? AND i.event_id=? AND i.ticket_type_id=?");
-                            $paid->execute([(int)$entry['order_item_id'],$eventId,(int)$entry['ticket_type_id']]);
-                            $order=$paid->fetch(PDO::FETCH_ASSOC);
-                            // A trusted owner-recorded offline transfer is verified by the
-                            // same POS evidence predicate as the issuance worker.
-                            // No unverified order or Wompi provider result is inferred.
-                            $manualVerified=false;
-                            if (is_array($order) && $order['status']==='paid'
-                                && (int)$order['issued']===1 && (int)$order['verified']!==1) {
-                                require_once __DIR__.'/ticketing_issue.php';
-                                $manualVerified=brvtal_ticket_pos_verified($pdo,(int)$order['id']);
-                            }
-                            $paidValid=is_array($order)&&$order['status']==='paid'
-                                &&(int)$order['event_id']===$eventId
-                                &&(int)$order['issued']===1
-                                &&((int)$order['verified']===1 || $manualVerified);
+                            $paidValid=brvtalTicketCheckinPaid($pdo,$entry,$eventId);
                             $courtesyValid=false;
                             // T25 is disabled by default. Existing paid QR scans never
                             // depend on a pending courtesy migration or a fabricated payment.
