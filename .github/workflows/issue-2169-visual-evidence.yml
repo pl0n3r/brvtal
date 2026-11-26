@@ -1,0 +1,148 @@
+name: BRVTAL 2169 event visibility visual evidence
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [main]
+    paths:
+      - '.github/workflows/issue-2169-visual-evidence.yml'
+      - 'tests/e2e/discadmin-event-visibility.spec.mjs'
+      - 'discadmin/content-core.php'
+      - 'discadmin/content-core.js'
+      - 'discadmin/content-core.css'
+      - 'discadmin/event-workflow.js'
+
+permissions:
+  contents: read
+
+jobs:
+  event-visibility-visual:
+    if: >-
+      github.repository == 'pl0n3r/brvtal' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (github.head_ref == 'work/issue-2243' || github.head_ref == 'work/issue-2169')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      BASE_SHA: ${{ github.head_ref == 'work/issue-2243' && '943b26e7a9b34b45c8db434a348e8ff4fc2091f6' || github.event.pull_request.base.sha }}
+      CANDIDATE_SHA: ${{ github.head_ref == 'work/issue-2243' && '5842aeb6178bc3e685eea79dc50feb1a1a3434f3' || github.event.pull_request.head.sha }}
+      WIRING_HEAD: ${{ github.event.pull_request.head.sha }}
+      TRIGGER_PR: ${{ github.event.pull_request.number }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.BASE_SHA }}
+          path: base-source
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.CANDIDATE_SHA }}
+          path: candidate-source
+          persist-credentials: false
+      - name: Verify immutable source identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ && "$CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ && "$WIRING_HEAD" =~ ^[0-9a-f]{40}$ ]]
+          test "$BASE_SHA" != "$CANDIDATE_SHA"
+          test "$(git -C base-source rev-parse HEAD)" = "$BASE_SHA"
+          test "$(git -C candidate-source rev-parse HEAD)" = "$CANDIDATE_SHA"
+          python3 candidate-source/scripts/ci_self_audit.py
+      - name: Install pinned Chromium test runner
+        working-directory: candidate-source
+        run: |
+          npm install --ignore-scripts --no-save --package-lock=false --no-audit --no-fund @playwright/test@1.63.0
+          npx --no-install playwright install --with-deps chromium
+      - name: Run existing synthetic exact-source capture tests
+        working-directory: candidate-source
+        shell: bash
+        run: |
+          set -euo pipefail
+          export BRVTAL_VISUAL_BASE_DIR="$GITHUB_WORKSPACE/base-source"
+          export BRVTAL_VISUAL_OUTPUT_DIR="$GITHUB_WORKSPACE/event-visibility-evidence"
+          mkdir "$BRVTAL_VISUAL_OUTPUT_DIR"
+          npx --no-install playwright test tests/e2e/discadmin-event-visibility.spec.mjs --project=chromium --grep 'exact-source before/after evidence' --workers=1 --reporter=list
+      - name: Verify target PR still matches exact evidence identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 2 --max-time 30 \
+            https://api.github.com/repos/pl0n3r/brvtal/pulls/2240 \
+            -o "$RUNNER_TEMP/target-pr.json"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          pr = json.loads((Path(os.environ["RUNNER_TEMP"]) / "target-pr.json").read_text())
+          if not (pr["number"] == 2240 and pr["state"] == "open"
+                  and pr["base"]["ref"] == "main"
+                  and pr["head"]["ref"] == "work/issue-2169"
+                  and pr["head"]["repo"]["full_name"] == "pl0n3r/brvtal"
+                  and pr["base"]["repo"]["full_name"] == "pl0n3r/brvtal"
+                  and pr["base"]["sha"] == os.environ["BASE_SHA"]
+                  and pr["head"]["sha"] == os.environ["CANDIDATE_SHA"]):
+              raise SystemExit("Target PR identity changed; do not publish stale evidence")
+          PY
+      - name: Verify four PNGs and write manifest and receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, os, struct, zlib
+          from pathlib import Path
+
+          out = Path("event-visibility-evidence")
+          required = {f"{stage}-{width}.png": (stage, width)
+                      for stage in ("before", "after") for width in (390, 1440)}
+          if {p.name for p in out.iterdir()} != set(required):
+              raise SystemExit("Expected exactly four capture PNGs")
+          captures = []
+          for name, (stage, expected_width) in sorted(required.items()):
+              data = (out / name).read_bytes()
+              if data[:8] != b"\x89PNG\r\n\x1a\n":
+                  raise SystemExit(f"Invalid PNG signature: {name}")
+              offset, dimensions, has_data, ended = 8, None, False, False
+              while offset + 12 <= len(data):
+                  size, kind = struct.unpack_from(">I4s", data, offset)
+                  end = offset + 12 + size
+                  if end > len(data):
+                      raise SystemExit(f"Truncated PNG: {name}")
+                  payload = data[offset + 8:end - 4]
+                  crc, = struct.unpack_from(">I", data, end - 4)
+                  if zlib.crc32(kind + payload) != crc:
+                      raise SystemExit(f"Invalid PNG checksum: {name}")
+                  if offset == 8:
+                      if kind != b"IHDR" or size != 13:
+                          raise SystemExit(f"Missing PNG header: {name}")
+                      dimensions = struct.unpack_from(">II", payload)
+                  has_data |= kind == b"IDAT" and size > 0
+                  offset = end
+                  if kind == b"IEND":
+                      ended = size == 0
+                      break
+              if dimensions != (expected_width, 900) or not has_data or not ended or offset != len(data):
+                  raise SystemExit(f"Invalid PNG dimensions or structure: {name}")
+              captures.append({"name": name, "stage": stage, "width": expected_width,
+                               "height": 900, "size_bytes": len(data),
+                               "source_sha": os.environ["BASE_SHA" if stage == "before" else "CANDIDATE_SHA"],
+                               "sha256": hashlib.sha256(data).hexdigest()})
+          manifest = {"issue": 2169, "target_pr": 2240, "wiring_issue": 2243,
+                      "trigger_pr": int(os.environ["TRIGGER_PR"]),
+                      "workflow_head_sha": os.environ["WIRING_HEAD"],
+                      "base_sha": os.environ["BASE_SHA"], "head_sha": os.environ["CANDIDATE_SHA"],
+                      "run_id": os.environ["GITHUB_RUN_ID"], "run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+                      "source": "existing Chromium spec; synthetic fixtures; separate exact checkouts",
+                      "captures": captures}
+          path = out / "manifest.json"
+          path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+          receipt = {"status": "CAPTURES_VERIFIED", "manifest_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                     "visual_review": "NOT_PERFORMED", "production_validation": "NOT_PERFORMED"}
+          (out / "receipt.json").write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
+          print("Four exact-source PNGs verified; human/agent visual review remains separate.")
+          PY
+      - name: Publish verified synthetic captures for PR 2240
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: brvtal-2169-visual-${{ env.CANDIDATE_SHA }}-${{ github.run_id }}
+          path: event-visibility-evidence/
+          if-no-files-found: error
+          retention-days: 14
