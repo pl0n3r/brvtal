@@ -132,7 +132,21 @@ function brvtal_ticket_pos_enqueue(PDO $db, int $orderId): void
     }
 }
 
-function brvtal_ticket_issue_consume(PDO $db, int $outboxId, ?callable $deliver = null): array
+/**
+ * The worker supplies its selected generation and a failure recorder. The latter
+ * runs only after rolling back issuance to a savepoint, while the order and
+ * outbox locks still belong to this attempt. Direct callers retain exceptions.
+ *
+ * @param array<string,mixed>|null $expected
+ * @param (callable(PDO,int,int,Throwable):array{state:string,code:string})|null $onFailure
+ */
+function brvtal_ticket_issue_consume(
+    PDO $db,
+    int $outboxId,
+    ?callable $deliver = null,
+    ?array $expected = null,
+    ?callable $onFailure = null
+): array
 {
     if ($outboxId < 1 || $db->inTransaction()) {
         throw new DomainException('ISSUE_INVALID_REQUEST');
@@ -145,13 +159,16 @@ function brvtal_ticket_issue_consume(PDO $db, int $outboxId, ?callable $deliver 
             throw new DomainException('ISSUE_UNAVAILABLE');
         }
         $db->beginTransaction();
+        $attemptStarted = false;
+        $attempts = 0;
         try {
             // Match T08 lock order: order BEFORE the outbox or payment attempt.
             $orderStmt = $db->prepare('SELECT id,event_id,buyer_id,status
                 FROM ticket_orders WHERE id=? FOR UPDATE');
             $orderStmt->execute([(int)$orderId]);
             $order = $orderStmt->fetch(PDO::FETCH_ASSOC);
-            $jobStmt = $db->prepare('SELECT order_id,payment_attempt_id,state
+            $jobStmt = $db->prepare('SELECT order_id,payment_attempt_id,state,attempts,
+                next_attempt_at_utc,updated_at_utc
                 FROM ticket_issue_outbox WHERE id=? FOR UPDATE');
             $jobStmt->execute([$outboxId]);
             $job = $jobStmt->fetch(PDO::FETCH_ASSOC);
@@ -164,7 +181,35 @@ function brvtal_ticket_issue_consume(PDO $db, int $outboxId, ?callable $deliver 
                 return ['state'=>'duplicate', 'tickets'=>[]];
             }
             if (!in_array($job['state'], ['pending','failed'], true)) {
+                if ($expected !== null) {
+                    $db->commit();
+                    return ['state'=>'idle', 'tickets'=>[]];
+                }
                 throw new DomainException('ISSUE_BUSY');
+            }
+            // Re-read the clock after both locks. A waiting worker must not
+            // consume a newer generation or a job whose retry is still future.
+            if ($expected !== null) {
+                foreach (['state','attempts','next_attempt_at_utc','updated_at_utc'] as $key) {
+                    if (!array_key_exists($key, $expected) || $expected[$key] !== $job[$key]) {
+                        $db->commit();
+                        return ['state'=>'idle', 'tickets'=>[]];
+                    }
+                }
+                $clock = $db->query('SELECT UTC_TIMESTAMP(6)');
+                if ($clock === false) {
+                    throw new RuntimeException('ISSUE_STORAGE_UNAVAILABLE');
+                }
+                if ($job['next_attempt_at_utc'] !== null
+                    && (string)$job['next_attempt_at_utc'] > (string)$clock->fetchColumn()) {
+                    $db->commit();
+                    return ['state'=>'idle', 'tickets'=>[]];
+                }
+            }
+            $attempts = (int)$job['attempts'];
+            if ($onFailure !== null) {
+                $db->exec('SAVEPOINT ticket_issue_attempt');
+                $attemptStarted = true;
             }
             // Fail closed on unpaid, refunded, forged, or orphaned outbox rows.
             if ($order['status'] !== 'paid') {
@@ -255,6 +300,23 @@ function brvtal_ticket_issue_consume(PDO $db, int $outboxId, ?callable $deliver 
             $db->commit();
             return ['state'=>'issued', 'tickets'=>$tickets];
         } catch (Throwable $e) {
+            if ($attemptStarted && $onFailure !== null && $db->inTransaction()) {
+                try {
+                    // Do not release the locks between rollback and backoff.
+                    // A successful rollback to this savepoint proves that
+                    // issuance did not commit. A lost/committed transaction
+                    // or deadlock invalidates it: fail closed before writing.
+                    $db->exec('ROLLBACK TO SAVEPOINT ticket_issue_attempt');
+                    $failure = $onFailure($db, $outboxId, $attempts, $e);
+                    $db->commit();
+                    return ['state'=>$failure['state'], 'code'=>$failure['code'], 'tickets'=>[]];
+                } catch (Throwable $recordError) {
+                    if ($db->inTransaction()) {
+                        $db->rollBack();
+                    }
+                    throw $recordError;
+                }
+            }
             if ($db->inTransaction()) {
                 $db->rollBack();
             }

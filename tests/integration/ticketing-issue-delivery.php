@@ -435,6 +435,67 @@ deliveryAssert($count("SELECT COUNT(*) FROM ticket_issue_outbox
     WHERE order_id IN (120,122) AND state='done' AND attempts=2")===2, 'retry attempts preserved');
 deliveryAssert(brvtal_ticket_issue_process_next($db,$origin)==='idle', 'repeat does not issue duplicate entries');
 
+// #2115: two independent workers may observe the same generation, but only
+// the lock holder can record its failure. Use a controlled due date, not sleeps.
+$db->exec("UPDATE ticket_issue_outbox SET next_attempt_at_utc='2000-01-01 00:00:00'
+    WHERE order_id=125");
+$other = new PDO("mysql:host=$host;port=$port;dbname=$name;charset=utf8mb4", $user, $pass, $opt);
+$other->exec('SET SESSION innodb_lock_wait_timeout=1');
+$generation = $db->query("SELECT id,state,attempts,next_attempt_at_utc,updated_at_utc
+    FROM ticket_issue_outbox WHERE order_id=125")->fetch();
+$job125 = (int)$generation['id'];
+$stale = $other->query("SELECT id,state,attempts,next_attempt_at_utc,updated_at_utc
+    FROM ticket_issue_outbox WHERE order_id=125")->fetch();
+deliveryAssert($stale === $generation, 'workers observe identical generation');
+$reject = static function (): void {
+    throw new DomainException('SYNTHETIC_DELIVERY_DOWN');
+};
+$db->beginTransaction();
+$db->query('SELECT id FROM ticket_orders WHERE id=125 FOR UPDATE')->fetchColumn();
+try {
+    brvtal_ticket_issue_consume($other, $job125, $reject, $stale, brvtal_ticket_issue_record_failure(...));
+    deliveryAssert(false, 'second worker cannot issue while order lock held');
+} catch (RuntimeException $error) {
+    deliveryAssert($error->getMessage()==='ISSUE_STORAGE_UNAVAILABLE', 'lock wait fails closed');
+} finally {
+    $db->rollBack();
+}
+deliveryAssert(!$other->inTransaction(), 'failed lock wait leaves no open transaction');
+deliveryAssert($db->query("SELECT id,state,attempts,next_attempt_at_utc,updated_at_utc
+    FROM ticket_issue_outbox WHERE order_id=125")->fetch()===$generation,
+    'unclaimed lock wait does not write a failure');
+
+$failure = brvtal_ticket_issue_consume($db, $job125, $reject, $generation, brvtal_ticket_issue_record_failure(...));
+deliveryAssert($failure['state']==='failed' && $failure['code']==='SYNTHETIC_DELIVERY_DOWN',
+    'failed delivery rolls back issuance and records one attempt');
+$afterFailure = $db->query("SELECT id,state,attempts,next_attempt_at_utc,updated_at_utc
+    FROM ticket_issue_outbox WHERE order_id=125")->fetch();
+deliveryAssert((int)$afterFailure['attempts']===2 && $afterFailure['state']==='failed',
+    'only the owned generation increments attempts');
+deliveryAssert($count("SELECT COUNT(*) FROM ticket_entries t JOIN ticket_order_items i
+    ON i.id=t.order_item_id WHERE i.order_id=125")===0, 'savepoint removes minted tickets');
+deliveryAssert($count("SELECT COUNT(*) FROM ticket_mail_outbox
+    WHERE message_key='order:125:payment_approved'")===0, 'failed attempt queues no mail');
+deliveryAssert(brvtal_ticket_issue_consume($other, $job125, $reject, $stale,
+    brvtal_ticket_issue_record_failure(...))['state']==='idle', 'stale worker skips newer backoff');
+deliveryAssert(brvtal_ticket_issue_consume($other, $job125, $reject, $afterFailure,
+    brvtal_ticket_issue_record_failure(...))['state']==='idle', 'fresh snapshot still respects future retry');
+deliveryAssert($db->query("SELECT id,state,attempts,next_attempt_at_utc,updated_at_utc
+    FROM ticket_issue_outbox WHERE order_id=125")->fetch()===$afterFailure, 'backoff and generation untouched');
+deliveryAssert(brvtal_ticket_issue_retry_now($db,125), 'operator can make a paid order eligible again');
+deliveryAssert(brvtal_ticket_issue_consume($other, $job125, $reject, $afterFailure,
+    brvtal_ticket_issue_record_failure(...))['state']==='idle', 'admin reschedule invalidates old generation');
+deliveryAssert(brvtal_ticket_issue_process_next($db,$origin)==='issued', 'fresh worker repairs the order');
+deliveryAssert(brvtal_ticket_issue_consume($other, $job125, $reject, $stale,
+    brvtal_ticket_issue_record_failure(...))['state']==='duplicate', 'terminal replay is harmless');
+deliveryAssert($count("SELECT COUNT(*) FROM ticket_entries t JOIN ticket_order_items i
+    ON i.id=t.order_item_id WHERE i.order_id=125")===1, 'exactly one ticket after recovery');
+deliveryAssert($count("SELECT COUNT(*) FROM ticket_mail_outbox
+    WHERE message_key='order:125:payment_approved'")===1, 'exactly one sealed email after recovery');
+deliveryAssert($count("SELECT COUNT(*) FROM ticket_issue_outbox
+    WHERE order_id=125 AND state='done' AND attempts=3")===1, 'no extra attempt spent');
+echo "T09_ISSUE_GENERATION_LOCK_PASS\n";
+
 // Public origins only.
 try {
     brvtal_ticket_issue_process_next($db, 'https://evil.example');
