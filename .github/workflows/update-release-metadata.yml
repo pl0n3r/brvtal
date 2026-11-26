@@ -682,6 +682,15 @@ jobs:
       - name: Run authenticated PHP/MariaDB browser smoke
         run: bash tests/e2e/run-content-core-real-stack.sh
 
+      - name: Run isolated Wompi T31 provider fixture (mandatory)
+        shell: bash
+        run: |
+          set -euo pipefail
+          receipt="$(mktemp)"
+          trap 'rm -f "$receipt"' EXIT
+          bash tests/e2e/run-ticketing-provider-fixture.sh | tee "$receipt"
+          grep -q '^T31_PROVIDER_FIXTURE_PASS:' "$receipt"
+
       - name: Verify T15 scanner concurrency against isolated real-stack MariaDB
         env:
           BRVTAL_INTEGRATION_TESTS: '1'
