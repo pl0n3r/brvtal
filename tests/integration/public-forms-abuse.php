@@ -107,7 +107,7 @@ $statusConfig = $config + ['ticketing' => ['status_rate_limit' => [
 ]]];
 $statusPath = $newDir() . '/status.json';
 $budget = static fn(string $scope, int $clock = 1800000000): array =>
-    brvtal_ticket_status_budget($statusConfig, $scope, $statusPath, $clock);
+    brvtalTicketStatusBudget($statusConfig, $scope, $statusPath, $clock);
 for ($i = 0; $i < 3; ++$i) abuseAssert($budget('order')['allowed'], 'status per-origin allowance');
 $limited = $budget('order');
 abuseAssert($limited['status'] === 429 && $limited['retry_after'] === 60, 'status origin Retry-After');
@@ -129,17 +129,17 @@ try {
     flock($held, LOCK_UN);
     fclose($held);
 }
-abuseAssert(brvtal_ticket_status_budget($statusConfig, 'order', $invalidRoot.'/status.json', $now)['status'] === 503,
+abuseAssert(brvtalTicketStatusBudget($statusConfig, 'order', $invalidRoot.'/status.json', $now)['status'] === 503,
     'unavailable store fails closed');
 file_put_contents($statusPath, '{broken');
 abuseAssert($budget('order')['status'] === 503, 'corrupt store fails closed');
 $_SERVER['REMOTE_ADDR'] = '203.0.113.77';
 $missingKeyPath = $newDir() . '/no-key.json';
-abuseAssert(brvtal_ticket_status_budget([], 'order', $missingKeyPath, $now)['status'] === 503
+abuseAssert(brvtalTicketStatusBudget([], 'order', $missingKeyPath, $now)['status'] === 503
     && !is_file($missingKeyPath), 'missing HMAC configuration fails closed without storing data');
 $pollPath = $newDir() . '/poll.json';
 for ($i = 0; $i < 45; ++$i) {
-    abuseAssert(brvtal_ticket_status_budget($config, 'order', $pollPath, $now + $i * 4)['allowed'],
+    abuseAssert(brvtalTicketStatusBudget($config, 'order', $pollPath, $now + $i * 4)['allowed'],
         'legitimate four-second polling remains available');
 }
 
@@ -151,7 +151,7 @@ $_SERVER['REMOTE_ADDR'] = '203.0.113.77';
 $config = ['security' => ['csrf_key' => str_repeat('test-antibot-hmac-key!', 3)],
     'ticketing' => ['status_rate_limit' => ['window_seconds' => 60, 'origin_limit' => 3, 'global_limit' => 5]]];
 for ($i = 0; $i < 12; ++$i) {
-    echo brvtal_ticket_status_budget($config, 'order', $argv[2], 1800000000)['status'], "\n";
+    echo brvtalTicketStatusBudget($config, 'order', $argv[2], 1800000000)['status'], "\n";
     usleep(1000);
 }
 PHP;
@@ -189,10 +189,10 @@ $parallel = json_decode((string)file_get_contents($parallelPath), true, 512, JSO
 abuseAssert($admitted > 0 && $admitted <= 3 && $parallel['total'] === $admitted
     && array_sum($parallel['buckets']) === $admitted, 'concurrent budget has no lost updates or overshoot');
 for ($i = $admitted; $i < 3; ++$i) {
-    abuseAssert(brvtal_ticket_status_budget($statusConfig, 'order', $parallelPath, $now)['allowed'],
+    abuseAssert(brvtalTicketStatusBudget($statusConfig, 'order', $parallelPath, $now)['allowed'],
         'unused concurrent budget remains available');
 }
-abuseAssert(brvtal_ticket_status_budget($statusConfig, 'order', $parallelPath, $now)['status'] === 429,
+abuseAssert(brvtalTicketStatusBudget($statusConfig, 'order', $parallelPath, $now)['status'] === 429,
     'parallel budget exhausts exactly at origin ceiling');
 
 /** Inventory every syntactically public API POST entrypoint from source. */

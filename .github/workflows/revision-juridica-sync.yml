@@ -39,10 +39,9 @@ jobs:
           persist-credentials: false
       - name: Verificar archivos sin escribir
         id: check
-        continue-on-error: true
         run: python3 scripts/generar_revision_juridica.py --check
       - name: Abrir Issue si no existe otro desfase
-        if: steps.check.outcome == 'failure'
+        if: failure() && steps.check.outcome == 'failure'
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -73,5 +72,5 @@ jobs:
             gh issue create --title "fix(legal): regenerar carpeta de abogado (v${legal_version})" --body "$body" --label revision-juridica-desfase --label 'status: available' --label 'priority: medium' --label 'type: documentation' --label 'role: legal-privacy'
           fi
       - name: Falla cerrada si existe desfase
-        if: steps.check.outcome == 'failure'
+        if: failure() && steps.check.outcome == 'failure'
         run: exit 1

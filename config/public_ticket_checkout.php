@@ -9,7 +9,7 @@ require_once __DIR__ . '/ticketing_promos.php';
 require_once __DIR__ . '/public_contact.php';
 
 /** Shared fixed-window status budget; never keyed by token or buyer identity. */
-function brvtal_ticket_status_budget(array $config, string $scope, ?string $path = null, ?int $now = null): array
+function brvtalTicketStatusBudget(array $config, string $scope, ?string $path = null, ?int $now = null): array
 {
     $unavailable = ['allowed' => false, 'status' => 503, 'retry_after' => 60];
     $policy = $config['ticketing']['status_rate_limit'] ?? [];
@@ -94,10 +94,10 @@ function brvtal_ticket_status_budget(array $config, string $scope, ?string $path
 }
 
 /** Reject before order lookup or reconciliation, independent of login/CAPTCHA. */
-function brvtal_ticket_status_require_budget(string $scope): void
+function brvtalTicketStatusRequireBudget(string $scope): void
 {
     global $config;
-    $limit = brvtal_ticket_status_budget($config, $scope);
+    $limit = brvtalTicketStatusBudget($config, $scope);
     if (!$limit['allowed']) {
         json_response(
             ['ok' => false, 'error' => $limit['status'] === 429 ? 'RATE_LIMITED' : 'ORDER_UNAVAILABLE'],
@@ -750,7 +750,7 @@ function brvtal_public_ticket_checkout_http(PDO $db, int $eventId): void
         json_response(['ok'=>false,'error'=>'HTTPS_REQUIRED'],403);
     }
     if ($action === 'status' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'GET') {
-        brvtal_ticket_status_require_budget('checkout');
+        brvtalTicketStatusRequireBudget('checkout');
     }
     require_once __DIR__ . '/buyer_auth.php';
     try {
