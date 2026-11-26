@@ -64,7 +64,7 @@ function brvtalBuyerMailContent(string $kind, string $token): array
     $copy = $catalog[$kind];
     $action = $kind === 'verify_account' ? 'verify' : 'confirm-reset';
     $url = 'https://www.brvtal.com.co/mi-cuenta/restablecer?accion=' . $action
-        . '&token=' . rawurlencode($token);
+        . ($kind === 'verify_account' ? '#token=' : '&token=') . rawurlencode($token);
     $text = $copy['title'] . "\n\n" . $copy['message'] . "\n\n"
         . $copy['cta'] . ': ' . $url
         . "\n\nBRVTAL · Correo transaccional, no publicitario.";
@@ -78,7 +78,8 @@ function brvtalBuyerMailExtractLink(string $plaintext, string $kind): ?string
     $action = ['verify_account'=>'verify','reset_password'=>'confirm-reset'][$kind] ?? null;
     if ($action === null) return null;
     $pattern='~https://www\.brvtal\.com\.co/mi-cuenta/restablecer\?accion='
-        .preg_quote($action,'~').'&token=[A-Za-z0-9_-]{43}(?![A-Za-z0-9_-])~D';
+        .preg_quote($action,'~').($kind === 'verify_account' ? '[&#]' : '&')
+        .'token=[A-Za-z0-9_-]{43}(?![A-Za-z0-9_-])~D';
     if (preg_match($pattern, $plaintext, $match) !== 1) return null;
     return $match[0];
 }

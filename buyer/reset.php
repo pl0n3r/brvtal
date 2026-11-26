@@ -25,12 +25,8 @@
         <form id="reset-form">
           <div class="access-field"><label for="reset-new-password">Nueva contraseña</label><div class="access-password"><input id="reset-new-password" name="password" type="password" autocomplete="new-password" minlength="12" maxlength="4096" aria-describedby="reset-password-help" required><button type="button" class="access-toggle" id="reset-toggle" aria-label="Mostrar contraseña" aria-pressed="false">Mostrar</button></div><p id="reset-password-help" class="access-hint">Mínimo 12 caracteres. Evita contraseñas comunes.</p></div>
           <div class="access-field"><label for="reset-confirm-password">Confirmar contraseña</label><input id="reset-confirm-password" name="confirmation" type="password" autocomplete="new-password" minlength="12" maxlength="4096" required></div>
-          <button class="access-submit" type="submit">Guardar contraseña <span aria-hidden="true">↗</span></button>
+          <button class="access-submit" type="submit" disabled>Guardar contraseña <span aria-hidden="true">↗</span></button>
         </form>
-      </section>
-      <section id="reset-verify" aria-labelledby="verify-heading" hidden>
-        <h1 id="verify-heading">Confirma tu <em>correo.</em></h1>
-        <p class="access-lead">Estamos verificando tu enlace de confirmación.</p>
       </section>
       <p id="access-message" class="access-message" role="status" aria-live="polite" aria-atomic="true"></p>
       <p class="access-footnote"><a href="/mi-cuenta/acceso">Entrar a mi cuenta</a> · <a href="/mi-cuenta/acceso?vista=recuperar">Solicitar otro enlace</a></p>
@@ -44,18 +40,25 @@
   'use strict';
   const api = '/api/buyer/auth.php';
   const params = new URLSearchParams(location.search);
-  const token = params.get('token') || '';
+  const fragment = new URLSearchParams(location.hash.slice(1));
+  const token = fragment.get('token') || params.get('token') || '';
   const verifying = ['verificar', 'verify'].includes(params.get('accion')) ||
     ['verificar', 'verify'].includes(params.get('action')) ||
     params.get('vista') === 'verificar' || params.has('verify');
   const feedback = document.getElementById('access-message');
   const form = document.getElementById('reset-form');
   const primary = document.getElementById('reset-password');
-  const verification = document.getElementById('reset-verify');
+  const submit = form.querySelector('[type="submit"]');
   // Copy changes only. Server trust comes from the one-use token, never from
   // the untrusted 'origen' parameter in the purchase email.
   const fromPurchase = params.get('origen') === 'compra' && !verifying;
-  if (fromPurchase) {
+  if (verifying) {
+    document.getElementById('reset-heading').firstChild.textContent = 'Confirma tu ';
+    document.getElementById('reset-heading').querySelector('em').textContent = 'correo.';
+    primary.querySelector('.access-lead').textContent =
+      'Elige tu propia contraseña para activar tu cuenta de BRVTAL.';
+    submit.firstChild.textContent = 'Activar cuenta ';
+  } else if (fromPurchase) {
     document.getElementById('reset-heading').firstChild.textContent = 'Crea tu ';
     primary.querySelector('.access-lead').textContent =
       'Crea una contraseña para acceder a tus pedidos y boletas en Mi cuenta.';
@@ -74,6 +77,7 @@
     RATE_LIMITED: 'Demasiados intentos. Espera un momento antes de continuar.',
     PASSWORD_TOO_SHORT: 'Usa una contraseña de al menos 12 caracteres.',
     PASSWORD_COMMON: 'Elige una contraseña menos común.',
+    PASSWORD_INVALID: 'Elige una contraseña válida de al menos 12 caracteres.',
     CSRF_INVALID: 'La sesión ha caducado. Recarga la página e inténtalo de nuevo.'
   };
   const unavailable = 'El servicio no está disponible en este momento. Inténtalo más tarde.';
@@ -81,6 +85,7 @@
     const url = new URL(location.href);
     url.searchParams.delete('token');
     url.searchParams.delete('verify');
+    if (fragment.has('token')) url.hash = '';
     history.replaceState(null, '', url.pathname + url.search + url.hash);
   };
   async function send(action, values) {
@@ -107,29 +112,20 @@
     controls.forEach(control => { control.disabled = true; });
   }
   async function initialize() {
-    primary.hidden = verifying;
-    verification.hidden = !verifying;
     if (!token || token.length > 512) {
-      if (verifying) verification.querySelector('.access-lead').textContent = 'El enlace de verificación no es válido.';
-      else form.hidden = true;
+      form.hidden = true;
       announce('El enlace no es válido o ha caducado. Solicita uno nuevo.', 'error');
       return;
     }
+    announce('Preparando acceso seguro…');
     try {
       const response = await fetch(api, { credentials: 'same-origin', cache: 'no-store' });
       const body = await response.json();
       if (!response.ok || body.ok === false || typeof body.csrf !== 'string' || !body.csrf) throw Error('UNAVAILABLE');
       csrf = body.csrf;
     } catch (_) { announce(unavailable, 'error'); return; }
-    if (verifying) {
-      announce('Verificando el correo…');
-      const result = await send('verify', { token });
-      if (result.ok) {
-        verification.querySelector('.access-lead').textContent = 'Tu correo está confirmado. Ya puedes entrar a tu cuenta.';
-        announce('Correo confirmado correctamente.', 'success');
-        clearTokenFromAddress();
-      } else explain(result);
-    }
+    announce('');
+    submit.disabled = false;
   }
   document.getElementById('reset-toggle').addEventListener('click', event => {
     const button = event.currentTarget, input = document.getElementById('reset-new-password');
@@ -142,7 +138,7 @@
   });
   form.addEventListener('submit', async event => {
     event.preventDefault();
-    if (busy || !form.reportValidity()) return;
+    if (busy || !csrf || !form.reportValidity()) return;
     const password = form.elements.namedItem('password').value;
     const confirmation = form.elements.namedItem('confirmation').value;
     if (password !== confirmation) {
@@ -153,12 +149,13 @@
     busy = true;
     const button = form.querySelector('[type="submit"]');
     button.disabled = true;
-    announce('Guardando contraseña…');
+    announce(verifying ? 'Activando cuenta…' : 'Guardando contraseña…');
     try {
-      const result = await send('confirm-reset', { token, password });
-      if (result.ok) success(fromPurchase
-        ? 'Contraseña creada. Entra a Mi cuenta para ver tus pedidos.'
-        : 'Contraseña actualizada. Ya puedes entrar a tu cuenta.');
+      const result = await send(verifying ? 'verify' : 'confirm-reset', { token, password });
+      if (result.ok) success(verifying
+        ? 'Correo confirmado y cuenta activada. Ya puedes entrar a tu cuenta.'
+        : fromPurchase ? 'Contraseña creada. Entra a Mi cuenta para ver tus pedidos.'
+          : 'Contraseña actualizada. Ya puedes entrar a tu cuenta.');
       else explain(result);
     } finally { busy = false; if (!form.hidden && !button.closest('form').querySelector('[disabled][name="password"]')) button.disabled = false; }
   });

@@ -25,7 +25,7 @@ function buyerAuthAssert(bool $ok, string $reason): void
  */
 function buyerAuthMissingMailKeyHttpCheck(
     PDO $db, string $dbName, string $host, int $port, string $dbUser, string $dbPass,
-    array $input, ?array $resetScenario = null
+    array $input, ?array $resetScenario = null, ?array $activation = null
 ): void {
     buyerAuthAssert(function_exists('proc_open') && function_exists('stream_socket_server'),
         'HTTP integration requires a local PHP server');
@@ -157,6 +157,36 @@ function buyerAuthMissingMailKeyHttpCheck(
             }
         }
         buyerAuthAssert(is_string($cookie), 'buyer cookie retained');
+
+        if ($activation !== null) {
+            $headers = ['Cookie: '.$cookie,'X-CSRF-Token: '.$csrf];
+            $urlPath = '/api/buyer/auth.php';
+            $payload = ['action'=>'verify','token'=>$activation['token']];
+            $missing = $send($urlPath, 'POST', $payload, $headers);
+            buyerAuthAssert($missing['status'] === 422, 'link alone cannot activate');
+            $malformed = $send($urlPath, 'POST', $payload + ['password'=>[]], $headers);
+            buyerAuthAssert($malformed['status'] === 422, 'malformed password fails closed');
+            $denied = $send($urlPath, 'POST', $payload + ['password'=>$activation['password']],
+                ['Cookie: '.$cookie]);
+            buyerAuthAssert($denied['status'] === 403, 'activation requires CSRF');
+            $pending = $db->query('SELECT email_verified_at FROM ticket_buyers')->fetchColumn();
+            buyerAuthAssert($pending === null, 'rejected attempts never verify email');
+            $ok = $send($urlPath, 'POST', $payload + ['password'=>$activation['password']], $headers);
+            buyerAuthAssert($ok['status'] === 200 && ($ok['json']['ok'] ?? false),
+                'real HTTP activation with mailbox-chosen password');
+            $replay = $send($urlPath, 'POST', $payload + ['password'=>$activation['password']], $headers);
+            buyerAuthAssert($replay['status'] === 422, 'activation replay rejected');
+            $old = $send($urlPath, 'POST',
+                ['action'=>'login','email'=>$input['email'],'password'=>$input['password']], $headers);
+            buyerAuthAssert($old['status'] === 401, 'registrant credential rejected by HTTP login');
+            $new = $send($urlPath, 'POST',
+                ['action'=>'login','email'=>$input['email'],'password'=>$activation['password']], $headers);
+            buyerAuthAssert($new['status'] === 200, 'mailbox owner can log in');
+            $logs = (string)@file_get_contents($loggerPath) . (string)@file_get_contents($serverLog);
+            buyerAuthAssert(!str_contains($logs, $activation['token'])
+                && !str_contains($logs, $activation['password']), 'no raw activation secrets in logs');
+            return;
+        }
 
         if ($resetScenario !== null) {
             $cookieFrom = static function (array $response): string {
@@ -354,6 +384,8 @@ buyerAuthAssert(str_starts_with($sealed, BRVTAL_BUYER_MAIL_SEAL_PREFIX)
 $mail = brvtalBuyerMailUnseal($sealed);
 preg_match('/token=([A-Za-z0-9_-]{43})/', (string)$mail, $matches);
 $verifyToken = $matches[1] ?? '';
+buyerAuthAssert(str_contains((string)$mail, '?accion=verify#token='),
+    'new verification links keep bearer outside HTTP URL');
 buyerAuthAssert($verifyToken !== '' && !str_contains($sealed, $verifyToken), 'secure 43-char token in memory');
 // The worker unwraps only at the delivery boundary; ciphertext stays in DB.
 putenv('BRVTAL_TICKET_MAIL_MODE=mock');
@@ -382,7 +414,7 @@ buyerAuthAssert((string)$db->query('SELECT token_hash FROM ticket_buyer_tokens L
 $db->prepare('UPDATE ticket_buyer_tokens SET expires_at_utc=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND)
     WHERE token_hash=?')->execute([hash('sha256',$verifyToken)]);
 try {
-    brvtalBuyerAuthConsume($db, $verifyToken, 'verify_email');
+    brvtalBuyerAuthConsume($db, $verifyToken, 'verify_email', 'Synthetic-expired-2105-pass');
     buyerAuthAssert(false, 'expired verification rejected');
 } catch (DomainException) {}
 buyerAuthAssert(brvtalBuyerAuthRequest($db, 'buyer@example.test', 'verify_email', $rateDirectory) === ['ok'=>true],
@@ -391,9 +423,30 @@ $next = (string)$db->query('SELECT body_text FROM ticket_mail_outbox ORDER BY id
 preg_match('/token=([A-Za-z0-9_-]{43})/', (string)brvtalBuyerMailUnseal($next), $vm);
 $valid = $vm[1] ?? '';
 buyerAuthAssert($valid !== '' && $valid !== $verifyToken, 'reissued token differs');
-brvtalBuyerAuthConsume($db, $valid, 'verify_email');
+$mailboxPassword = 'Synthetic-mailbox-2105-owner';
+$db->prepare('INSERT INTO ticket_buyer_sessions
+    (buyer_id,session_hash,issued_epoch,expires_at_utc)
+    VALUES (?,?,?,DATE_ADD(UTC_TIMESTAMP(6), INTERVAL 1 HOUR))')
+    ->execute([(int)$row['id'],hash('sha256','synthetic-pending-session'),(int)$row['security_epoch']]);
+buyerAuthMissingMailKeyHttpCheck($db, $dbName, $host, $port, $user, $pass, $input,
+    null, ['token'=>$valid,'password'=>$mailboxPassword]);
+$activated = $db->query('SELECT password_hash,security_epoch FROM ticket_buyers')->fetch();
+buyerAuthAssert(password_verify($mailboxPassword, $activated['password_hash'])
+    && !password_verify($input['password'], $activated['password_hash'])
+    && (int)$activated['security_epoch'] === (int)$row['security_epoch']+1,
+    'activation replaces untrusted credential and advances epoch');
+buyerAuthAssert((int)$db->query("SELECT COUNT(*) FROM ticket_buyer_sessions
+    WHERE issued_epoch=".(int)$row['security_epoch']." AND revoked_at_utc IS NULL")->fetchColumn() === 0,
+    'activation revokes earlier sessions');
+$activeToken = brvtalBuyerAuthToken($db, (int)$row['id'], 'verify_email');
 try {
-    brvtalBuyerAuthConsume($db, $valid, 'verify_email');
+    brvtalBuyerAuthConsume($db, $activeToken['raw'], 'verify_email', 'Synthetic-active-2105-reject');
+    buyerAuthAssert(false, 'already active account cannot be reactivated');
+} catch (DomainException) {}
+$input['password'] = $mailboxPassword;
+$row['security_epoch'] = $activated['security_epoch'];
+try {
+    brvtalBuyerAuthConsume($db, $valid, 'verify_email', $mailboxPassword);
     buyerAuthAssert(false, 'verification replay rejected');
 } catch (DomainException) {}
 buyerAuthAssert($db->query('SELECT email_verified_at FROM ticket_buyers')->fetchColumn() !== null,
