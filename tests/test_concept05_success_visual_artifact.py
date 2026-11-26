@@ -496,7 +496,9 @@ class Concept05SuccessVisualArtifactTests(unittest.TestCase):
         self.assertIn('name: concept05-pr-visual-', text)
         self.assertIn('if: failure()', text)
         self.assertIn('PENDING_HUMAN_AB_COMPARISON', Path(__file__).read_text())
-        self.assertEqual(3, text.count('uses: actions/upload-artifact@'))
+        # #2033 supplies one additional, branch-gated synthetic A/B artifact.
+        self.assertEqual(4, text.count('uses: actions/upload-artifact@'))
+        self.assertIn("name: finance-2033-ab-", text)
         self.assertIn('cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2', text)
         self.assertIn('retention-days: 14', text)
 
