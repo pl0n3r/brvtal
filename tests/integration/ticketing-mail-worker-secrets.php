@@ -102,8 +102,8 @@ foreach (['BRVTAL_TICKET_MAIL_API_KEY','BRVTAL_TICKET_MAIL_DOMAIN',
 }
 [$exit, $out, $err] = worker_secret_run($sandbox . '/ops/ticketing-mail-worker.php', $environment);
 // #1945: no ticketing tables here, so issuance reports unavailable and mail still flows.
-worker_secret_assert($exit === 0 && trim($out) === '{"reconcile":"unavailable","issue":"unavailable","state":"accepted"}' && $err === '',
-    'CLI processes synthetic queued mail with encrypted-only credentials');
+worker_secret_assert($exit === 1 && trim($out) === '{"reconcile":"unavailable","issue":"unavailable","state":"accepted"}' && $err === '',
+    'CLI reports reconcile/issue unavailable as nonzero but still delivers synthetic encrypted-only mail');
 worker_secret_assert((string)$pdo->query('SELECT state FROM ticket_mail_outbox')->fetchColumn()
     === 'accepted', 'outbox transitions to accepted');
 foreach ([$apiKey,$recipient,'noreply@brvtal.invalid','Contenido sintético'] as $private) {
@@ -112,8 +112,8 @@ foreach ([$apiKey,$recipient,'noreply@brvtal.invalid','Contenido sintético'] as
 unset($config['security']['integration_secret_master_key']);
 worker_secret_config($sandbox . '/config/config.php', $config);
 [$exit, $out, $err] = worker_secret_run($sandbox . '/ops/ticketing-mail-worker.php', $environment);
-worker_secret_assert($exit !== 0 && $out === '' && trim($err) === 'ticket_mail_secret_unavailable',
-    'missing master must fail closed without a trace');
+worker_secret_assert($exit === 2 && trim($out) === '{"reconcile":"not_run","issue":"not_run","state":"not_run"}' && trim($err) === 'ticket_mail_worker_preflight_unavailable',
+    'missing master aborts all stages, reports sanitized JSON and no trace');
 worker_secret_assert(!str_contains($err, 'Stack trace')
     && !str_contains($err, $apiKey) && !str_contains($err, $recipient), 'generic CLI error only');
 echo "BRVTAL encrypted-secret CLI mail worker regression passed.\n";
