@@ -420,7 +420,7 @@ foreach ([120,121,123,122,124] as $expectedOrder) {
     $issuedOrders = $db->query("SELECT i.order_id FROM ticket_entries t
         JOIN ticket_order_items i ON i.id=t.order_item_id
         WHERE i.order_id BETWEEN 120 AND 126 ORDER BY t.id")->fetchAll(PDO::FETCH_COLUMN);
-    deliveryAssert(array_map('intval',$issuedOrders)===$expectedIssued,
+    deliveryAssert(array_map(intval(...),$issuedOrders)===$expectedIssued,
         'effective date order, stable id tie and retry progress');
 }
 deliveryAssert(brvtal_ticket_issue_process_next($db,$origin)==='idle', 'future and terminal jobs excluded');
