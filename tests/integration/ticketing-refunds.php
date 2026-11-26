@@ -389,7 +389,10 @@ try {
         t21($httpPort>0,'HTTP port valid');
         $env=(array)getenv();
         $env['BRVTAL_INTEGRATION_TESTS']='1';
-        $serverProcess=proc_open([PHP_BINARY,'-d','auto_prepend_file='.$prepend,
+        $serverProcess=proc_open([PHP_BINARY,
+            '-d','auto_prepend_file='.$prepend,
+            '-d','session.save_path='.$temporary,
+            '-d','session.serialize_handler=php',
             '-S','127.0.0.1:'.$httpPort,'-t',dirname(__DIR__,2)],
             [0=>['pipe','r'],1=>['file',$temporary.'/server.log','a'],
                 2=>['file',$temporary.'/server.log','a']],
@@ -423,16 +426,21 @@ try {
             usleep(100000);
         }
         t21($started,'authentic refund route ready on disposable local server');
-        $newSession=static function(int $buyer,?int $grant,bool $expired=false)use($pdo):array{
-            if(session_status()===PHP_SESSION_ACTIVE)session_write_close();
-            session_name('BRVTAL_BUYER');
-            session_id(bin2hex(random_bytes(16)));
-            t21(session_start(),'create isolated buyer session');
-            $csrf='t31-'.bin2hex(random_bytes(20));$sid=session_id();
-            $_SESSION=['buyer_id'=>$buyer,'buyer_csrf'=>$csrf,
+        $newSession=static function(int $buyer,?int $grant,bool $expired=false)use($pdo,$temporary):array{
+            // This suite is also included after another CLI test has printed.
+            // Native session_start() would fail with headers already sent.
+            // Write only synthetic PHP session-encoded scalars in a private dir;
+            // the real HTTP endpoint still parses/validates the cookie and DB row.
+            $sid=bin2hex(random_bytes(16));
+            $csrf='t31-'.bin2hex(random_bytes(20));
+            $session=['buyer_id'=>$buyer,'buyer_csrf'=>$csrf,
                 'buyer_issued_at'=>time(),'buyer_last_at'=>time()];
-            if($grant!==null)$_SESSION['buyer_checkout_new_order']=$grant;
-            session_write_close();
+            if($grant!==null)$session['buyer_checkout_new_order']=$grant;
+            $serialized='';
+            foreach($session as $key=>$value)$serialized.=$key.'|'.serialize($value);
+            $sessionFile=$temporary.'/sess_'.$sid;
+            t21(file_put_contents($sessionFile,$serialized)!==false,'write private synthetic session');
+            chmod($sessionFile,0600);
             $pdo->prepare('INSERT INTO ticket_buyer_sessions
                 (buyer_id,session_hash,issued_epoch,expires_at_utc)
                 VALUES (?,?,1,?)')->execute([$buyer,hash('sha256',$sid),
