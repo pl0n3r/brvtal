@@ -7,6 +7,7 @@ on:
       - config/buyer_*.php
       - config/admin_auth.php
       - config/bootstrap.php
+      - config/db_connect_recovery.php
       - config/mail_template*.php
       - config/secrets.php
       - config/integration_secrets_store.php
