@@ -229,6 +229,20 @@ foreach ([[43,'pending','missing',false,false],
         "no issue request $id");
     if($incident) $db->exec('DELETE FROM ticket_refund_event_decisions');
 }
+// Missing owner-decision migration is UNKNOWN and must never admit a late charge.
+// Wompi's authenticated money still stays in the journal; no ticket is emitted.
+[$missingPolicySigned,$missingPolicyProvider]=$case(54,'pending','valid');
+$db->exec('DROP TABLE ticket_refund_event_decisions');
+t08($process($missingPolicySigned,$missingPolicyProvider)==='approved_unfulfilled',
+    'owner-decision schema failure denies admission without denying authentic charge');
+t08($db->query("SELECT status FROM ticket_payment_attempts WHERE id=54")->fetchColumn()==='approved',
+    'missing policy schema still preserves verified money');
+t08((int)$db->query('SELECT COUNT(*) FROM ticket_payment_webhook_events WHERE attempt_id=54')
+    ->fetchColumn()===1, 'missing policy schema preserves signed journal exactly once');
+t08((int)$db->query('SELECT COUNT(*) FROM ticket_issue_outbox WHERE order_id=54')
+    ->fetchColumn()===0, 'missing policy schema cannot emit tickets');
+$db->exec("CREATE TABLE ticket_refund_event_decisions
+    (event_id INT UNSIGNED PRIMARY KEY,cause VARCHAR(20) NOT NULL) ENGINE=InnoDB");
 // A signed PENDING event with independently authenticated APPROVED status must
 // keep its original signed provenance and still admit the valid reservation.
 [$s,$p]=$case(48,'pending','valid');

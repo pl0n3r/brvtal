@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require_once __DIR__ . '/ticketing_wompi_client.php';
 require_once __DIR__ . '/ticketing_inventory.php';
+require_once __DIR__ . '/ticketing_event_incident_policy.php';
 
 /** T08: the events secret is NOT the checkout integrity secret, and belongs to the active environment. */
 function brvtal_wompi_hook_config(?array $env = null): array
@@ -124,15 +125,9 @@ function brvtal_wompi_hook_reserved(PDO $db, int $orderId, int $eventId, array $
     if ($state === '' || in_array(strtolower($state), ['cancelled','canceled','postponed'], true)) {
         return false;
     }
-    // Owner incident decisions are authoritative even with an editorially
-    // published event; do NOT depend on the refunds feature flag.
-    try {
-        $decision = $db->prepare('SELECT 1 FROM ticket_refund_event_decisions WHERE event_id=? LIMIT 1');
-        $decision->execute([$eventId]);
-        if ($decision->fetchColumn() !== false) return false;
-    } catch (PDOException $error) {
-        // An unapplied additive migration is UNKNOWN, never "no incident".
-        if ((int)($error->errorInfo[1] ?? 0) !== 1146) throw $error;
+    // The common owner decision is authoritative, independent of the
+    // editorial Event state and the refunds feature flag. UNKNOWN fails closed.
+    if (brvtal_ticket_event_incident_policy($db, $eventId)['state'] !== 'allowed') {
         return false;
     }
     $now = (string)$db->query('SELECT UTC_TIMESTAMP(6)')->fetchColumn();
