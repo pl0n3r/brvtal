@@ -44,6 +44,7 @@ try {
         'CREATE TABLE events(id INT UNSIGNED PRIMARY KEY,status VARCHAR(20),
             event_date DATETIME NULL,published_at DATETIME NULL) ENGINE=InnoDB',
         'CREATE TABLE admins(id INT UNSIGNED PRIMARY KEY,staff_role VARCHAR(32),is_active TINYINT) ENGINE=InnoDB',
+        'CREATE TABLE ticket_refund_event_decisions(event_id INT UNSIGNED PRIMARY KEY,cause VARCHAR(20) NOT NULL) ENGINE=InnoDB',
         'CREATE TABLE event_ticket_types(id INT UNSIGNED PRIMARY KEY,event_id INT UNSIGNED,
             status VARCHAR(20),UNIQUE KEY uq_t03_ticket_type_event(id,event_id)) ENGINE=InnoDB',
         'CREATE TABLE ticket_inventory_events(event_id INT UNSIGNED PRIMARY KEY,capacity INT UNSIGNED) ENGINE=InnoDB',
@@ -76,6 +77,7 @@ try {
     }
     $now=new DateTimeImmutable('now',new DateTimeZone('America/Bogota'));
     $future=$now->modify('+2 days')->format('Y-m-d H:i:s');
+    $doorClock=new DateTimeImmutable($future,new DateTimeZone('America/Bogota'));
     $published=$now->modify('-1 day')->format('Y-m-d H:i:s');
     $addEvent=$db->prepare('INSERT INTO events VALUES (?,?,?,?)');
     $addEvent->execute([1,'published',$future,$published]);
@@ -140,9 +142,9 @@ try {
         'never paid or Wompi revenue');
     t25((int)$db->query('SELECT COUNT(*) FROM ticket_payment_attempts')->fetchColumn()===0,
         'no payment attempts');
-    $received=brvtalTicketCheckinConsume($db,1,7,'door-A',$firstQr);
+    $received=brvtalTicketCheckinConsume($db,1,7,'door-A',$firstQr,$doorClock);
     t25($received['ok']===true,'same T15 scanner accepts courtesy proof');
-    t25(brvtalTicketCheckinConsume($db,1,7,'door-B',$firstQr)['reason']==='already_used',
+    t25(brvtalTicketCheckinConsume($db,1,7,'door-B',$firstQr,$doorClock)['reason']==='already_used',
         'replay denied');
     $secondOldQr=$getQr($db,$second['invite_id']);
     $resend=brvtalCourtesyAction($db,7,'superadmin','resend',$second['invite_id']);
@@ -150,12 +152,12 @@ try {
         'resend queues new mail without calling provider');
     $secondNewQr=$getQr($db,$second['invite_id']);
     t25($secondOldQr!==$secondNewQr,'resend rotates credential');
-    t25(brvtalTicketCheckinConsume($db,1,7,'door-B',$secondOldQr)['ok']===false,
+    t25(brvtalTicketCheckinConsume($db,1,7,'door-B',$secondOldQr,$doorClock)['ok']===false,
         'old resend credential revoked');
     t25((int)$db->query("SELECT COUNT(*) FROM ticket_inventory_holds WHERE kind='courtesy'
         AND status='consumed'")->fetchColumn()===2, 'resend does not consume a second seat');
     brvtalCourtesyAction($db,7,'superadmin','revoke',$second['invite_id']);
-    t25(brvtalTicketCheckinConsume($db,1,7,'door-B',$secondNewQr)['ok']===false,
+    t25(brvtalTicketCheckinConsume($db,1,7,'door-B',$secondNewQr,$doorClock)['ok']===false,
         'revoked new QR denied');
     t25((int)$db->query("SELECT COUNT(*) FROM ticket_inventory_holds
         WHERE kind='courtesy' AND status='released'")->fetchColumn()===1,

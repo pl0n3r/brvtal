@@ -99,18 +99,24 @@ function brvtalTicketCheckinQr(string $qr): ?array
 function brvtalTicketCheckinEventEligible(array $event, ?DateTimeImmutable $now = null): bool
 {
     $status = strtolower(trim((string)($event['status'] ?? '')));
-    if (!in_array($status, brvtal_public_event_statuses()['active'], true)) return false;
+    if (!in_array($status, brvtal_public_event_statuses()['active'], true)) {
+        return false;
+    }
 
     $tz = new DateTimeZone('America/Bogota');
     $clock = ($now ?? new DateTimeImmutable('now', new DateTimeZone('UTC')))->setTimezone($tz);
     $rawStart = trim((string)($event['event_date'] ?? ''));
     $start = DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', $rawStart, $tz);
-    if (!$start || $start->format('Y-m-d H:i:s') !== $rawStart) return false;
+    if (!$start || $start->format('Y-m-d H:i:s') !== $rawStart) {
+        return false;
+    }
 
     $rawPublication = trim((string)($event['published_at'] ?? ''));
     if ($rawPublication !== '') {
         $publication = DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', $rawPublication, $tz);
-        if (!$publication || $publication->format('Y-m-d H:i:s') !== $rawPublication) return false;
+        if (!$publication || $publication->format('Y-m-d H:i:s') !== $rawPublication) {
+            return false;
+        }
         $event['published_at'] = $publication->format(DATE_ATOM);
     }
     return brvtal_public_event_is_visible($event, $clock)
@@ -122,8 +128,14 @@ function brvtalTicketCheckinEventEligible(array $event, ?DateTimeImmutable $now 
  * One InnoDB row lock, conditional update and audit row share a transaction.
  * @return array{ok:bool,reason:string}
  */
-function brvtalTicketCheckinConsume(PDO $pdo,int $eventId,int $operator,string $device,string $qr,
-    ?DateTimeImmutable $now = null): array
+function brvtalTicketCheckinConsume(
+    PDO $pdo,
+    int $eventId,
+    int $operator,
+    string $device,
+    string $qr,
+    ?DateTimeImmutable $now = null
+): array
 {
     if ($eventId<1||$operator<1||preg_match('/^[A-Za-z0-9._:-]{1,96}$/D',$device)!==1) {
         throw new InvalidArgumentException('CHECKIN_INVALID_INPUT');
@@ -136,14 +148,17 @@ function brvtalTicketCheckinConsume(PDO $pdo,int $eventId,int $operator,string $
             $event=$pdo->prepare('SELECT status,event_date,published_at FROM events WHERE id=? FOR UPDATE');
             $event->execute([$eventId]);
             $eventRow=$event->fetch(PDO::FETCH_ASSOC);
-            if (!is_array($eventRow)) throw new DomainException('CHECKIN_EVENT_NOT_FOUND');
+            if (!is_array($eventRow)) {
+                throw new DomainException('CHECKIN_EVENT_NOT_FOUND');
+            }
             // Event mutex precedes incident decision and every entry/order lock.
             $eligible=brvtalTicketCheckinEventEligible($eventRow, $now);
             $incident=$eligible
                 ? brvtal_ticket_event_incident_policy($pdo, $eventId) : ['state'=>'blocked'];
             $reason=(!$eligible || $incident['state']!=='allowed')
                 ?'event_closed':($token===null?'malformed_qr':'unknown_credential');
-            $entryId=null; $version=null;
+            $entryId=null;
+            $version=null;
             if ($token!==null&&$reason==='unknown_credential') {
                 $stmt=$pdo->prepare('SELECT id,event_id,status,order_item_id,ticket_type_id FROM ticket_entries
                     WHERE public_id=UNHEX(?) FOR UPDATE');

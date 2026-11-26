@@ -80,6 +80,8 @@ register_shutdown_function(static function() use($server,$name):void {
 $db=new PDO("mysql:host=$host;port=$port;dbname=$name;charset=utf8mb4",$user,$pass,$opts);
 $ddl=[
   "CREATE TABLE admins (id INT UNSIGNED PRIMARY KEY,is_active TINYINT NOT NULL DEFAULT 1) ENGINE=InnoDB",
+  "CREATE TABLE ticket_refund_event_decisions (event_id INT UNSIGNED PRIMARY KEY,
+      cause VARCHAR(20) NOT NULL) ENGINE=InnoDB",
   "CREATE TABLE events (id INT UNSIGNED PRIMARY KEY,status VARCHAR(24),event_date DATETIME,
       published_at DATETIME NULL) ENGINE=InnoDB",
   "CREATE TABLE event_ticket_types (
@@ -134,6 +136,7 @@ foreach(['migration_ticketing_reservations_01.sql','migration_ticketing_pos_01.s
 }
 $when=(new DateTimeImmutable('now',new DateTimeZone('America/Bogota')));
 $date=$when->modify('+8 days')->format('Y-m-d H:i:s');
+$doorClock=new DateTimeImmutable($date,new DateTimeZone('America/Bogota'));
 $published=$when->modify('-1 day')->format('Y-m-d H:i:s');
 $db->exec("INSERT INTO admins VALUES (1,1),(2,1)");
 $event=$db->prepare("INSERT INTO events VALUES (6,'published',?,?)");
@@ -180,9 +183,13 @@ posAssert($db->query("SELECT email FROM ticket_buyers WHERE email='puerta@exampl
 posAssert((int)$db->query('SELECT COUNT(*) FROM ticket_payment_attempts')->fetchColumn()===0,
     'no forged Wompi approved attempt');
 posDenies(static fn()=>brvtalPosRun($db,1,'admin',$confirm),'POS_SALE_UNAVAILABLE');
-$checkin=brvtalTicketCheckinConsume($db,6,2,'synthetic-reader',$paid['tickets'][0]);
+$early=brvtalTicketCheckinConsume($db,6,2,'synthetic-reader',$paid['tickets'][0],
+    $doorClock->modify('-1 second'));
+posAssert(!$early['ok']&&$early['reason']==='event_closed',
+    'POS ticket does not grant early admission');
+$checkin=brvtalTicketCheckinConsume($db,6,2,'synthetic-reader',$paid['tickets'][0],$doorClock);
 posAssert($checkin['ok']===true&&$checkin['reason']==='accepted','door accepts recorded cash sale');
-$again=brvtalTicketCheckinConsume($db,6,2,'synthetic-reader',$paid['tickets'][0]);
+$again=brvtalTicketCheckinConsume($db,6,2,'synthetic-reader',$paid['tickets'][0],$doorClock);
 posAssert(!$again['ok']&&$again['reason']==='already_used','door never double enters');
 $second=brvtalPosRun($db,1,'admin',array_replace($req,
     ['idempotency_key'=>str_repeat('b',32)]));
@@ -241,7 +248,7 @@ try {
         'trusted issuance worker creates exactly two QR credentials');
     $first=$issued['tickets'][0];
     $qr='BRVTAL:T1:'.$first['public_id'].':'.$first['token'];
-    $scanned=brvtalTicketCheckinConsume($db,6,2,'offline-reader',$qr);
+    $scanned=brvtalTicketCheckinConsume($db,6,2,'offline-reader',$qr,$doorClock);
     posAssert($scanned['ok'] && $scanned['reason']==='accepted',
         'verified wallet order QR accepted at door');
     posAssert(brvtal_ticket_issue_consume($db,(int)$job['id'])['state']==='duplicate',
