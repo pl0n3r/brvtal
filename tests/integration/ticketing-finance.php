@@ -189,6 +189,40 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
             && $posCut['net_after_refunds_cop']===20000,'POS stays separate without Wompi refund');
         t20(brvtalFinanceReport($db,1,'2026-04-01','2026-04-30','wompi')===[],
             'refund in different month does not rewrite sale date');
+        // #2044: exact same creation-date cohort as T18, independent refund cut.
+        $db->exec("INSERT INTO ticket_orders VALUES
+            (43,3,'paid',10000,'COP','2026-11-19 04:59:59.999999'),
+            (44,3,'paid',20000,'COP','2026-11-19 05:00:00.000000'),
+            (45,3,'paid',30000,'COP','2026-11-20 04:59:59.999999'),
+            (46,3,'paid',40000,'COP','2026-11-20 05:00:00.000000')");
+        $db->exec('INSERT INTO ticket_order_items VALUES (43,7,1,10000),(44,7,1,20000),(45,7,1,30000),(46,7,1,40000)');
+        $db->exec("INSERT INTO ticket_payment_attempts VALUES
+            (53,43,'wompi','WOMPI-43','approved',10000,0,0,0,10000),
+            (54,44,'wompi','WOMPI-44','approved',20000,0,0,0,20000),
+            (55,45,'wompi','WOMPI-45','approved',30000,0,0,0,30000),
+            (56,46,'wompi','WOMPI-46','approved',40000,0,0,0,40000)");
+        $db->exec("INSERT INTO ticket_refunds VALUES
+            (74,44,3,'refunded'),(75,44,3,'refunded'),(76,44,3,'refunded'),(77,44,3,'refunded')");
+        $db->exec("INSERT INTO ticket_refund_adjustments VALUES
+            (74,44,3,1000,'2026-11-19 04:59:59.999999'),
+            (75,44,3,2000,'2026-11-19 05:00:00.000000'),
+            (76,44,3,3000,'2026-11-20 04:59:59.999999'),
+            (77,44,3,4000,'2026-11-20 05:00:00.000000')");
+        $cut=brvtalFinanceReport($db,3,'2026-11-19','2026-11-19','wompi')[0];
+        t20($cut['paid_orders']===2 && $cut['gross_cop']===50000
+            && $cut['approved_cop']===50000 && $cut['refund_cop']===6000
+            && $cut['refund_in_period_cop']===5000 && $cut['net_after_refunds_cop']===44000,
+            'Bogota creation cohort matches T18; pre-period adjustment and exclusive end separate');
+        $range=brvtalFinanceReport($db,3,'2026-11-19','2026-11-20','wompi')[0];
+        t20($range['paid_orders']===3 && $range['approved_cop']===90000
+            && $range['refund_cop']===10000 && $range['refund_in_period_cop']===9000,
+            'inclusive two-day range with next-day adjustment');
+        foreach ([['2026-02-30','2026-03-01'],['2026-11-20','2026-11-19']] as [$from,$to]) {
+            try {
+                brvtalFinanceReport($db,3,$from,$to,'wompi');
+                throw new RuntimeException('T20: accepted invalid calendar range');
+            } catch (InvalidArgumentException) { /* expected */ }
+        }
     } finally {
         $server->exec('DROP DATABASE IF EXISTS '.$name);
     }
