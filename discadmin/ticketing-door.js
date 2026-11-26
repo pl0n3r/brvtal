@@ -12,6 +12,15 @@ export function mount(root) {
   const cameraStatus = root.querySelector('[data-door-camera-status]');
   const video = root.querySelector('[data-door-video]');
   const deviceKey = 'brvtal-door-device';
+  const attemptKey = 'brvtal-door-attempt';
+  const submitButton = root.querySelector('[data-door-submit]');
+  const receiptButton = document.createElement('button');
+  receiptButton.type = 'button';
+  receiptButton.dataset.doorReceipt = '';
+  receiptButton.textContent = 'Consultar intento anterior';
+  receiptButton.hidden = true;
+  cameraButton.insertAdjacentElement('afterend', receiptButton);
+  let attempt = null, storageFault = false;
   let device = '';
   try {
     device = sessionStorage.getItem(deviceKey) || '';
@@ -19,7 +28,7 @@ export function mount(root) {
       device = 'door-' + crypto.randomUUID();
       sessionStorage.setItem(deviceKey, device);
     }
-  } catch { device = 'door-' + crypto.randomUUID(); }
+  } catch { storageFault = true; }
   let stream = null, frameId = 0, pending = false, generation = 0;
   let eventRevision = 0, cameraRevision = 0, cameraStarting = false, closed = false;
   const messages = {
@@ -35,6 +44,78 @@ export function mount(root) {
   function feedback(state, text) {
     result.dataset.state = state;
     result.textContent = text;
+  }
+  function syncControls() {
+    const blocked = pending || attempt !== null || storageFault;
+    qr.disabled = blocked;
+    submitButton.disabled = blocked;
+    cameraButton.disabled = blocked;
+    submitButton.hidden = attempt !== null;
+    cameraButton.hidden = attempt !== null || stream !== null || cameraStarting;
+    receiptButton.hidden = attempt === null;
+    receiptButton.disabled = pending || storageFault;
+  }
+  function unknown(message = 'Estado desconocido: NO permitir acceso.') {
+    feedback('deny', message + (attempt ? ' Evento del intento: ' + attempt.event_id
+      + '. Consulta el recibo; si no se resuelve, informa al responsable de puerta.' : ''));
+  }
+  function restoreAttempt() {
+    try {
+      const stored = sessionStorage.getItem(attemptKey);
+      if (stored !== null) {
+        const saved = JSON.parse(stored);
+        if (!saved || Object.keys(saved).sort().join(',') !== 'device_id,event_id,request_id'
+            || !Number.isSafeInteger(saved.event_id) || saved.event_id < 1
+            || !/^door-[a-f0-9-]{36}$/.test(saved.device_id)
+            || !/^[a-f0-9]{32}$/.test(saved.request_id) || /^0{32}$/.test(saved.request_id)) {
+          throw new Error('invalid attempt');
+        }
+        attempt = saved;
+        if ([...event.options].some(option => option.value === String(saved.event_id))) {
+          event.value = String(saved.event_id);
+        }
+        unknown();
+      }
+    } catch { storageFault = true; }
+    if (storageFault) unknown('No se puede recuperar el estado local. NO permitir acceso. Informa al responsable de puerta.');
+    syncControls();
+  }
+  function saveAttempt(eventId) {
+    const requestId = Array.from(crypto.getRandomValues(new Uint8Array(16)),
+      byte => byte.toString(16).padStart(2, '0')).join('');
+    if (/^0{32}$/.test(requestId) || sessionStorage.getItem(attemptKey) !== null) throw new Error('attempt');
+    const current = {event_id: Number(eventId), device_id: device, request_id: requestId};
+    sessionStorage.setItem(attemptKey, JSON.stringify(current));
+    attempt = current;
+    return current;
+  }
+  function clearAttempt(current) {
+    // A stale response from an unmounted scanner must never clear a newer intent.
+    const stored = JSON.parse(sessionStorage.getItem(attemptKey));
+    if (!stored || stored.request_id !== current.request_id || stored.device_id !== current.device_id
+        || stored.event_id !== current.event_id) throw new Error('attempt changed');
+    sessionStorage.removeItem(attemptKey);
+    attempt = null;
+  }
+  async function post(body) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    try {
+      const response = await fetch('/api/ticketing/checkin.php', {
+        method: 'POST', credentials: 'same-origin', cache: 'no-store', signal: controller.signal,
+        headers: {'Content-Type': 'application/json', 'X-CSRF-Token': root.dataset.csrf},
+        body: JSON.stringify(body)
+      });
+      return {status: response.status, data: await response.json()};
+    } finally { clearTimeout(timer); }
+  }
+  function finishRequest() {
+    pending = false;
+    if (closed) return;
+    syncControls();
+    void refresh();
+    if (attempt && !receiptButton.disabled) receiptButton.focus();
+    else if (!qr.disabled) (event.value ? qr : event).focus();
   }
   function stopCamera() {
     cameraRevision++;
@@ -79,8 +160,8 @@ export function mount(root) {
     }
   }
   async function submit(token) {
-    if (pending || closed) return;
-    if (!event.value || !token || token.length > 256) {
+    if (pending || closed || attempt || storageFault) return;
+    if (!Number.isSafeInteger(Number(event.value)) || Number(event.value) < 1 || !token || token.length > 256) {
       feedback('deny', 'Selecciona un evento y un código QR válido.');
       return;
     }
@@ -88,45 +169,78 @@ export function mount(root) {
     const selectedEvent = event.value;
     const selectedRevision = eventRevision;
     stopCamera();
-    feedback('pending', 'Validando con el servidor. Aún no se permite el acceso.');
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 8000);
+    qr.value = '';
     try {
-      const response = await fetch('/api/ticketing/checkin.php', {
-        method: 'POST', credentials: 'same-origin', cache: 'no-store', signal: controller.signal,
-        headers: {'Content-Type': 'application/json', 'X-CSRF-Token': root.dataset.csrf},
-        body: JSON.stringify({event_id: Number(selectedEvent), device_id: device, qr: token})
-      });
-      const data = await response.json();
-      if (closed || eventRevision !== selectedRevision || event.value !== selectedEvent) {
-        feedback('deny', 'Se cambió el evento durante la validación. NO permitir acceso.');
-      } else if (response.status === 200 && data.ok === true && data.reason === 'accepted') {
+      const current = saveAttempt(selectedEvent);
+      syncControls();
+      feedback('pending', 'Validando con el servidor. Aún no se permite el acceso.');
+      const {status, data} = await post({...current, qr: token});
+      if (closed) return;
+      const accepted = status === 200 && data?.ok === true && data.reason === 'accepted';
+      const rejected = status === 409 && data?.ok === false && Object.hasOwn(messages, data.reason);
+      if (!accepted && !rejected) {
+        unknown(status === 403 ? 'Sin permiso para confirmar el intento. NO permitir acceso.'
+          : 'Estado desconocido: NO permitir acceso.');
+        return;
+      }
+      clearAttempt(current);
+      if (eventRevision !== selectedRevision || event.value !== selectedEvent) {
+        feedback('deny', 'Respuesta de un intento anterior (evento ' + current.event_id
+          + '). NO permitir acceso.');
+      } else if (accepted) {
         feedback('allow', 'ENTRADA VÁLIDA · Acceso confirmado por el servidor.');
       } else {
-        feedback('deny', messages[data.reason] || 'Acceso no autorizado. Verifica la entrada.');
+        feedback('deny', messages[data.reason]);
       }
     } catch {
-      feedback('deny', 'Error de red o servidor. Estado desconocido: NO permitir acceso.');
-    } finally {
-      clearTimeout(timer);
-      qr.value = '';
-      pending = false;
-      await refresh();
-      qr.focus();
-    }
+      if (!closed) {
+        if (!attempt) storageFault = true;
+        unknown('Error de red, servidor o almacenamiento. Estado desconocido: NO permitir acceso.');
+      }
+    } finally { finishRequest(); }
   }
+  async function lookupReceipt() {
+    if (pending || closed || storageFault || !attempt) return;
+    pending = true;
+    const current = attempt;
+    syncControls();
+    feedback('pending', 'Consultando recibo histórico. NO permitir acceso.');
+    try {
+      const {status, data} = await post({...current, action: 'receipt'});
+      if (closed) return;
+      const history = data?.receipt;
+      if (status === 200 && data?.ok === false && history
+          && ((history.outcome === 'accepted' && history.reason === 'accepted')
+            || (history.outcome === 'rejected' && Object.hasOwn(messages, history.reason)))) {
+        clearAttempt(current);
+        feedback('deny', 'Recibo histórico · Evento ' + current.event_id + ': '
+          + (history.outcome === 'accepted' ? 'ingreso registrado anteriormente. NO permitir un nuevo acceso.'
+            : messages[history.reason]));
+      } else {
+        unknown(status === 403 ? 'Sin permiso para consultar el recibo. NO permitir acceso.'
+          : status === 404 ? 'No se encontró un recibo confirmado. Estado desconocido: NO permitir acceso.'
+          : 'No se pudo confirmar el recibo. Estado desconocido: NO permitir acceso.');
+      }
+    } catch {
+      if (!closed) unknown();
+    } finally { finishRequest(); }
+  }
+  receiptButton.addEventListener('click', () => { void lookupReceipt(); });
   form.addEventListener('submit', e => {
     e.preventDefault();
     void submit(qr.value.trim());
   });
   event.addEventListener('change', () => {
+    if (closed) return;
     eventRevision++;
     stopCamera();
-    feedback('idle', 'Esperando confirmación del servidor.');
+    if (attempt || storageFault) unknown();
+    else feedback('idle', 'Esperando confirmación del servidor.');
+    syncControls();
     void refresh();
   });
   cameraButton.addEventListener('click', async () => {
-    if (closed || cameraStarting || stream || pending) return;
+    if (closed || cameraStarting || stream || pending || attempt || storageFault) return;
     if (!event.value) { feedback('deny', 'Selecciona primero un evento.'); return; }
     if (!navigator.mediaDevices?.getUserMedia || !window.BarcodeDetector) {
       cameraStatus.textContent = 'Cámara no compatible. Usa la entrada manual.';
@@ -180,14 +294,24 @@ export function mount(root) {
     }
   });
   stopButton.addEventListener('click', stopCamera);
-  window.addEventListener('pagehide', stopCamera);
+  function onPageHide() {
+    eventRevision++;
+    stopCamera();
+    if (attempt) unknown();
+    else feedback('idle', 'Esperando confirmación del servidor.');
+    syncControls();
+  }
+  window.addEventListener('pagehide', onPageHide);
+  restoreAttempt();
+  if (attempt) void refresh();
   return () => {
     if (closed) return;
     closed = true;
     eventRevision++;
     generation++;
     stopCamera();
-    window.removeEventListener('pagehide', stopCamera);
+    window.removeEventListener('pagehide', onPageHide);
+    receiptButton.remove();
     delete root.dataset.doorMounted;
   };
 }
