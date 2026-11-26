@@ -75,7 +75,7 @@ function brvtalTicketAdminEntryMutation(PDO $pdo,int $entryId,int $operator,stri
                 throw new DomainException('ISSUE_ENCRYPTION_UNAVAILABLE');
             }
             $secret=random_bytes(32);
-            $sealed=brvtal_ticket_issue_seal_token($secret,$entryPublicId);
+            $sealed=brvtal_ticket_issue_seal_token($secret, $entryPublicId);
         }
         $pdo->prepare("UPDATE ticket_entry_credentials SET status='revoked',
           revoked_at_utc=UTC_TIMESTAMP(6) WHERE entry_id=? AND status='active'")->execute([$entryId]);
@@ -85,7 +85,7 @@ function brvtalTicketAdminEntryMutation(PDO $pdo,int $entryId,int $operator,stri
             $pdo->prepare('INSERT INTO ticket_entry_credentials
                 (entry_id,version,token_hash,token_encrypted,created_at_utc)
                 VALUES (?,?,?,?,UTC_TIMESTAMP(6))')
-                ->execute([$entryId,$newVersion,hash('sha256',$secret,true),$sealed]);
+                ->execute([$entryId, $newVersion, hash('sha256', $secret, true), $sealed]);
             $qr='BRVTAL:T1:'.$row['public_id'].':'.rtrim(strtr(base64_encode($secret),'+/','-_'),'=');
             // Queue only a generic alert; QR plaintext is never persisted in the mail outbox.
             $keyMail='ticket:reissue:'.$entryId.':'.$newVersion;
