@@ -26,6 +26,9 @@ unlisted_expect(brvtal_public_event_is_visible($unlisted, $now), 'direct URL lif
 unlisted_expect(!brvtal_public_event_is_visible($draft, $now), 'unlisted does not publish drafts');
 unlisted_expect(!brvtal_public_event_is_listed($unlisted, $now), 'unlisted cannot enter discovery');
 unlisted_expect(brvtal_public_event_is_listed($public, $now), 'public event remains listed');
+$legacyPublic = $public;
+unset($legacyPublic['visibility']);
+unlisted_expect(brvtal_public_event_is_listed($legacyPublic, $now), 'legacy public event remains listed');
 unlisted_expect(!brvtal_public_event_is_listed(array_replace($public, ['visibility'=>null]), $now), 'invalid visibility fails closed');
 unlisted_expect(brvtal_public_select_next_experience([$unlisted, $public], $now) === $public, 'home skips featured unlisted');
 unlisted_expect(brvtal_public_select_next_experience([$unlisted], $now) === null, 'home hides all-unlisted pool');
@@ -55,11 +58,17 @@ class UnlistedEventStatement extends PDOStatement
 }
 class UnlistedEventPDO extends PDO
 {
-    public function __construct(private readonly array $events) {}
+    public function __construct(
+        private readonly array $events,
+        private readonly ?bool $visibilityColumn = true
+    ) {}
     public function query(string $query, ?int $fetchMode = null, mixed ...$fetchModeArgs): PDOStatement|false
     {
         unlisted_expect(str_contains($query, 'SHOW COLUMNS FROM events'), 'only visibility schema probe expected');
-        return new UnlistedEventStatement([['visibility'=>'visibility']]);
+        if ($this->visibilityColumn === null) {
+            return false;
+        }
+        return new UnlistedEventStatement($this->visibilityColumn ? [['visibility'=>'visibility']] : []);
     }
     public function prepare(string $query, array $options = []): PDOStatement|false
     {
@@ -71,6 +80,19 @@ class UnlistedEventPDO extends PDO
     }
 }
 $pdo = new UnlistedEventPDO([$public, $unlisted, array_replace($draft, ['slug'=>'draft-night'])]);
+// The additive rollout must distinguish a legacy schema from an unavailable probe.
+$legacyPdo = new UnlistedEventPDO([], false);
+unlisted_expect(brvtal_public_event_visibility_select($legacyPdo) === "'public' AS visibility", 'legacy schema projection');
+unlisted_expect(brvtal_public_event_visibility_select($legacyPdo, true) === "'public' AS visibility", 'legacy join projection');
+unlisted_expect(brvtal_public_event_visibility_select($pdo) === 'visibility', 'current schema projection');
+unlisted_expect(brvtal_public_event_visibility_select($pdo, true) === 'e.visibility', 'current join projection');
+$failedProbe = false;
+try {
+    brvtal_public_event_visibility_select(new UnlistedEventPDO([], null));
+} catch (RuntimeException $exception) {
+    $failedProbe = $exception->getMessage() === 'EVENT_VISIBILITY_SCHEMA_PROBE_FAILED';
+}
+unlisted_expect($failedProbe, 'failed schema probe cannot fall back to public');
 $direct = brvtal_public_seo_entity($pdo, 'events', 'unlisted-night');
 unlisted_expect($direct !== null && $direct['slug'] === 'unlisted-night', 'canonical direct slug resolves');
 unlisted_expect(brvtal_public_seo_entity($pdo, 'events', 'draft-night') === null, 'draft slug remains inaccessible');
