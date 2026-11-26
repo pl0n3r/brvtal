@@ -12,14 +12,94 @@ function t15Conn(string $db):PDO {
         (string)getenv('BRVTAL_TEST_DB_PASS'),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,PDO::ATTR_EMULATE_PREPARES=>false]);
 }
-function t15Entry(PDO $pdo,int $id,int $unit):array {
+function t15Entry(PDO $pdo,int $id,int $unit,int $event=1,int $item=1,int $type=11):array {
     $opaque=random_bytes(16); $secret=random_bytes(32);
     $pdo->prepare('INSERT INTO ticket_entries (id,public_id,order_item_id,event_id,ticket_type_id,unit_number,issued_at_utc)
-        VALUES (?,?,1,1,11,?,UTC_TIMESTAMP(6))')->execute([$id,$opaque,$unit]);
+        VALUES (?,?,?,?,?,?,UTC_TIMESTAMP(6))')->execute([$id,$opaque,$item,$event,$type,$unit]);
     $pdo->prepare('INSERT INTO ticket_entry_credentials (entry_id,version,token_hash,created_at_utc)
         VALUES (?,1,?,UTC_TIMESTAMP(6))')->execute([$id,hash('sha256',$secret,true)]);
     return [bin2hex($opaque),t15Qr(bin2hex($opaque),$secret)];
 }
+
+// Isolated CI real-stack only: never copy live configuration or credentials.
+function t15DoorHttp(string $db,string $qr):void {
+    $source=dirname(__DIR__,2); $directory=sys_get_temp_dir().'/brvtal-t15-http-'.bin2hex(random_bytes(8));
+    t15(mkdir($directory,0700),'isolated fixture directory');
+    $server=null;
+    try {
+        exec('git -C '.escapeshellarg($source).' ls-files -- config',$paths,$exit);
+        t15($exit===0,'tracked fixture sources');
+        foreach (array_merge($paths,['api/ticketing/checkin.php','discadmin/ticketing-door.php',
+            'discadmin/ticketing-door.js','discadmin/ticketing-door.css']) as $path) {
+            if ($path==='config/config.php') continue;
+            $input=$source.'/'.$path; $target=$directory.'/'.$path;
+            t15(is_file($input)&&!is_link($input),'fixture regular source');
+            if (!is_dir(dirname($target))) t15(mkdir(dirname($target),0700,true),'fixture subtree');
+            t15(copy($input,$target),'fixture source copy');
+        }
+        $config=['app'=>['timezone'=>'America/Bogota','debug'=>false],'db'=>[
+            'host'=>getenv('BRVTAL_TEST_DB_HOST'),'port'=>(int)(getenv('BRVTAL_TEST_DB_PORT')?:3306),
+            'name'=>$db,'user'=>getenv('BRVTAL_TEST_DB_USER'),'pass'=>getenv('BRVTAL_TEST_DB_PASS')]];
+        t15(file_put_contents($directory.'/config/config.php','<?php return '.var_export($config,true).';')!==false,
+            'private fixture config');
+        chmod($directory.'/config/config.php',0600); mkdir($directory.'/sessions',0700);
+        $router=<<<'PHP_WRAP'
+        <?php
+        // Loopback synthetic sessions model HTTPS termination; never trust a client header.
+        $_SERVER['HTTPS']='on';
+        $path=parse_url($_SERVER['REQUEST_URI'],PHP_URL_PATH);
+        if ($path==='/fixture') {
+            require __DIR__.'/config/admin_auth.php';
+            if (!brvtal_admin_is_authenticated()) brvtal_admin_login_session(7);
+            $_SERVER['HTTP_X_BRVTAL_ADMIN_FRAGMENT']='1';
+            ob_start();
+            echo '<!doctype html><html lang="es"><meta name="viewport" content="width=device-width,initial-scale=1">';
+            echo '<link rel="stylesheet" href="/discadmin/ticketing-door.css">';
+            require __DIR__.'/discadmin/ticketing-door.php';
+            echo '<script type="module">import {mount} from "/discadmin/ticketing-door.js";mount(document.querySelector("[data-door]"));</script>';
+            ob_end_flush(); exit;
+        }
+        if (in_array($path,['/api/ticketing/checkin.php','/discadmin/ticketing-door.php'],true)) {
+            require __DIR__.$path;
+            exit;
+        }
+        if (in_array($path,['/discadmin/ticketing-door.js','/discadmin/ticketing-door.css'],true)) return false;
+        http_response_code(404);
+        PHP_WRAP;
+        t15(file_put_contents($directory.'/router.php',$router)!==false,'fixture router');
+        $socket=stream_socket_server('tcp://127.0.0.1:0',$errno,$error);
+        t15(is_resource($socket),'fixture loopback socket'); $address=stream_socket_get_name($socket,false); fclose($socket);
+        $server=proc_open([PHP_BINARY,'-d','session.save_path='.$directory.'/sessions',
+            '-d','allow_url_fopen=0',
+            '-d','disable_functions=curl_init,curl_exec,curl_multi_init,curl_multi_exec,fsockopen,pfsockopen,stream_socket_client',
+            '-S',$address,'-t',$directory,$directory.'/router.php'],
+            [0=>['pipe','r'],1=>['file','/dev/null','a'],2=>['file','/dev/null','a']],$pipes,$directory);
+        t15(is_resource($server),'fixture HTTP server'); fclose($pipes[0]);
+        $ready=false; for ($i=0;$i<40;$i++) {
+            $connection=@stream_socket_client('tcp://'.$address,$errno,$error,0.2);
+            if (is_resource($connection)) {fclose($connection);$ready=true;break;}
+            usleep(100000);
+        }
+        t15($ready,'fixture listening');
+        $env=array_merge(getenv(),['BRVTAL_DOOR_REAL_URL'=>'http://'.$address,'BRVTAL_DOOR_TEST_QR'=>$qr]);
+        $browser=proc_open(['node','node_modules/@playwright/test/cli.js','test','tests/e2e/ticketing-door.spec.mjs',
+            '--project=chromium','--grep','T16 real HTTP','--reporter=json'],
+            [0=>['pipe','r'],1=>['file',$directory.'/browser.json','w'],2=>['file','/dev/null','a']],$pipes,$source,$env);
+        t15(is_resource($browser),'fixture browser'); fclose($pipes[0]);
+        $exit=proc_close($browser); if ($exit!==0 && preg_match_all('/ticketing-door\.spec\.mjs:\d+:\d+/',(string)file_get_contents($directory.'/browser.json'),$locations)) echo implode(' ',array_unique($locations[0])).PHP_EOL;
+        t15($exit===0,'real HTTP browser recovery');
+    } finally {
+        if (is_resource($server)) {proc_terminate($server);proc_close($server);}
+        $entries=new RecursiveIteratorIterator(new RecursiveDirectoryIterator($directory,FilesystemIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::CHILD_FIRST);
+        foreach ($entries as $entry) {
+            if ($entry->isDir()&&!$entry->isLink()) rmdir($entry->getPathname());
+            else unlink($entry->getPathname());
+        }
+        rmdir($directory);
+    }
+}
+
 // In fast CI: parser, role, CSRF usage, canonical encoding and rate budget.
 t15(brvtalTicketingCan('door','door')&&!brvtalTicketingCan('door','orders')
     &&!brvtalTicketingCan('unknown','door'),'door least privilege');
@@ -34,6 +114,24 @@ foreach ([['event_id'=>0,'device_id'=>'d','qr'=>'x'],['event_id'=>1,'device_id'=
     try {brvtalTicketCheckinInput($bad);throw new RuntimeException('invalid accepted');}
     catch (InvalidArgumentException) {}
 }
+// Explicit receipt request has no QR; existing scanner bodies remain valid.
+$attempt15=bin2hex(random_bytes(16));
+$receipt15=['action'=>'receipt','event_id'=>1,'device_id'=>'door-1','request_id'=>$attempt15];
+t15(brvtalTicketCheckinInput($receipt15)===$receipt15,'receipt parser');
+t15(brvtalTicketCheckinInput(['event_id'=>1,'device_id'=>'door-1','qr'=>'bad',
+    'request_id'=>$attempt15])['request_id']===$attempt15,'correlated scan parser');
+foreach ([$receipt15+['qr'=>'x'],array_replace($receipt15,['request_id'=>null]),
+    array_replace($receipt15,['request_id'=>str_repeat('A',32)]),
+    array_replace($receipt15,['request_id'=>str_repeat('0',32)]),
+    array_replace($receipt15,['action'=>'scan'])] as $invalidReceipt) {
+    try {brvtalTicketCheckinInput($invalidReceipt);throw new RuntimeException('invalid receipt accepted');}
+    catch (InvalidArgumentException) {}
+}
+t15(strpos($api,'brvtalTicketingCan')<strpos($api,'brvtalTicketCheckinReceipt')
+    && strpos($api,'brvtalTicketCheckinRate')<strpos($api,'brvtalTicketCheckinReceipt')
+    && strpos($api,'brvtal_admin_require_csrf()')<strpos($api,'brvtalTicketCheckinReceipt')
+    && strpos($api,'HTTPS_REQUIRED')<strpos($api,'brvtalTicketCheckinReceipt')
+    && str_contains($api,'RECEIPT_NOT_FOUND'),'receipt uses live HTTP authorization and neutral absence');
 // Fast-CI contract: canonical states and Bogota admission boundaries.
 $tz15=new DateTimeZone('America/Bogota');
 $start15=new DateTimeImmutable('2026-11-28 21:00:00', $tz15);
@@ -251,6 +349,93 @@ try {
     }
     $pdo->prepare("UPDATE events SET status='published',event_date=?,published_at=? WHERE id=1")
         ->execute([$openAt15,$publicAt15]);
+    // #2121: separate event/order/credential and staff identities.
+    foreach (["INSERT INTO admins VALUES (8)",
+        'INSERT INTO event_ticket_types VALUES (12,2)',"INSERT INTO ticket_orders VALUES (101,2,'paid')",
+        'INSERT INTO ticket_order_items VALUES (2,101,2,12)',
+        "INSERT INTO ticket_issue_outbox VALUES (2,101,'done')",
+        "INSERT INTO ticket_payment_attempts VALUES (2,101,'wompi','approved','txn-synth-2')",
+        "INSERT INTO ticket_payment_webhook_events VALUES (2,2,'txn-synth-2','APPROVED')"] as $sql) $pdo->exec($sql);
+    [, $qr30]=t15Entry($pdo,30,30);
+    [, $qr31]=t15Entry($pdo,31,31);
+    $id30=bin2hex(random_bytes(16));
+    // Discard the response after commit, then recover the historical result.
+    brvtalTicketCheckinConsume($pdo,1,7,'scanner-A',$qr30,null,$id30);
+    $history=brvtalTicketCheckinReceipt($pdo,1,7,'scanner-A',$id30);
+    t15($history===['ok'=>false,'receipt'=>['outcome'=>'accepted','reason'=>'accepted']],
+        'lost response recovered without authorizing entry');
+    foreach ([[2,7,'scanner-A',$id30],[1,8,'scanner-A',$id30],
+        [1,7,'scanner-B',$id30],[1,7,'scanner-A',bin2hex(random_bytes(16))]] as $scope) {
+        t15(brvtalTicketCheckinReceipt($pdo,...$scope)===null,'foreign/missing receipt is indistinguishable');
+    }
+    t15(brvtalTicketCheckinConsume($pdo,1,7,'scanner-A',$qr31,null,$id30)
+        ===['ok'=>false,'reason'=>'attempt_conflict'],'same ID different QR conflicts');
+    t15($pdo->query("SELECT status FROM ticket_entries WHERE id=31")->fetchColumn()==='issued',
+        'duplicate ID does not consume a second ticket');
+    $otherId=bin2hex(random_bytes(16));
+    t15(brvtalTicketCheckinConsume($pdo,1,7,'scanner-A',$qr30,null,$otherId)['reason']==='already_used',
+        'same QR new ID remains denied');
+    t15(brvtalTicketCheckinReceipt($pdo,1,7,'scanner-A',$otherId)
+        ===['ok'=>false,'receipt'=>['outcome'=>'rejected','reason'=>'already_used']],'historical denial');
+    t15((int)$pdo->query("SELECT COUNT(*) FROM ticket_checkins WHERE request_id=UNHEX('$id30')")->fetchColumn()===1,
+        'one durable audit per attempt');
+    [, $qr32]=t15Entry($pdo,32,1,2,2,12);
+    $collision=bin2hex(random_bytes(16)); $workers2121=[];
+    try {
+        foreach ([[1,7,$qr31],[2,8,$qr32]] as [$ev,$staff,$code]) {
+            // Both workers stop immediately before the actual UNIQUE insert,
+            // after their independent event/entry mutations, while locks are held.
+            $program='require '.var_export(__DIR__.'/../../config/ticketing_checkin.php',true).';'
+                .'class T15CollisionStmt extends PDOStatement {protected function __construct(){}'
+                .'public function execute(?array $params=null):bool {'
+                .'if(str_contains($this->queryString,"INSERT INTO ticket_checkins")){'
+                .'echo "READY".PHP_EOL;flush();if(trim((string)fgets(STDIN))!=="GO")throw new RuntimeException("barrier");}'
+                .'return parent::execute($params);}}'
+                .'$db=new PDO(getenv("T15_DSN"),getenv("BRVTAL_TEST_DB_USER"),getenv("BRVTAL_TEST_DB_PASS"),'
+                .'[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_EMULATE_PREPARES=>false]);'
+                .'$db->setAttribute(PDO::ATTR_STATEMENT_CLASS,[T15CollisionStmt::class,[]]);'
+                .'echo json_encode(brvtalTicketCheckinConsume($db,(int)getenv("T15_EVENT"),'
+                .'(int)getenv("T15_STAFF"),"scanner-race",getenv("T15_QR"),null,getenv("T15_ATTEMPT")));';
+            $env=['T15_DSN'=>'mysql:host='.getenv('BRVTAL_TEST_DB_HOST').';port='.(getenv('BRVTAL_TEST_DB_PORT')?:3306).';dbname='.$db,
+                'T15_EVENT'=>(string)$ev,'T15_STAFF'=>(string)$staff,'T15_QR'=>$code,'T15_ATTEMPT'=>$collision,
+                'BRVTAL_TEST_DB_USER'=>(string)getenv('BRVTAL_TEST_DB_USER'),'BRVTAL_TEST_DB_PASS'=>(string)getenv('BRVTAL_TEST_DB_PASS')];
+            $proc=proc_open([PHP_BINARY,'-r',$program],[0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes,null,$env);
+            t15(is_resource($proc),'collision worker launched');$workers2121[]=[$proc,$pipes];
+        }
+        $ready2121=[];$deadline2121=microtime(true)+10;
+        foreach ($workers2121 as [$proc,$pipes]) stream_set_blocking($pipes[1],false);
+        while (count($ready2121)<2 && microtime(true)<$deadline2121) {
+            $read=[];
+            foreach ($workers2121 as [$proc,$pipes]) {
+                if (!isset($ready2121[(int)$pipes[1]])) $read[]=$pipes[1];
+            }
+            $write=[];$except=[];
+            t15(stream_select($read,$write,$except,0,100000)!==false,'collision ready select');
+            foreach ($read as $stream) {
+                if (trim((string)fgets($stream))==='READY') $ready2121[(int)$stream]=true;
+            }
+        }
+        t15(count($ready2121)===2,'both workers reached audit insert');
+        foreach ($workers2121 as [$proc,$pipes]) {fwrite($pipes[0],"GO\n");fflush($pipes[0]);}
+        $results2121=[];
+        foreach ($workers2121 as [$proc,$pipes]) {
+            stream_set_blocking($pipes[1],true);
+            $results2121[]=json_decode((string)stream_get_contents($pipes[1]),true,512,JSON_THROW_ON_ERROR)['reason'];
+        }
+        sort($results2121);
+        t15($results2121===['accepted','attempt_conflict'],'one cross-event UNIQUE winner');
+        t15((int)$pdo->query("SELECT COUNT(*) FROM ticket_entries WHERE id IN (31,32) AND status='used'")->fetchColumn()===1,
+            'collision rolls back losing entry mutation');
+        t15((int)$pdo->query("SELECT COUNT(*) FROM ticket_checkins WHERE request_id=UNHEX('$collision')")->fetchColumn()===1,
+            'only winning audit committed');
+    } finally {
+        foreach ($workers2121 as [$proc,$pipes]) {
+            if (is_resource($proc) && proc_get_status($proc)['running']) proc_terminate($proc);
+            foreach ($pipes as $pipe) if (is_resource($pipe)) fclose($pipe);
+            if (is_resource($proc)) proc_close($proc);
+        }
+    }
+    echo "T15 #2121 durable receipt and cross-event rollback passed.\n";
     // #2098: disposable POS evidence rows; T24 also exercises the actual
     // brvtalPosConfirm/manual-order issuance paths against MariaDB.
     foreach ([
@@ -333,6 +518,17 @@ try {
     t15(brvtalTicketCheckinConsume($pdo,1,7,'pos-reader',$qr)['reason']==='payment_unverified',
         'direct receipt provenance required');
     echo "T15 #2098 POS direct/manual financial proof and negative cases passed.\n";
+    if (getenv('BRVTAL_REAL_STACK_FORCE')==='1') {
+        $pdo->exec("ALTER TABLE admins ADD is_active TINYINT NOT NULL DEFAULT 1,
+            ADD credential_epoch INT NOT NULL DEFAULT 1, ADD staff_role VARCHAR(20) NOT NULL DEFAULT 'door'");
+        $pdo->exec("ALTER TABLE events ADD title VARCHAR(100) NOT NULL DEFAULT 'Evento sintético'");
+        t15DoorHttp($db,$posFixture(226,'cash',true));
+        t15($pdo->query("SELECT status FROM ticket_entries WHERE id=226")->fetchColumn()==='used',
+            'real HTTP lost response committed');
+        t15((int)$pdo->query("SELECT COUNT(*) FROM ticket_checkins WHERE entry_id=226 AND outcome='accepted'")
+            ->fetchColumn()===1,'real HTTP one accepted consumption');
+        echo "T15 #2110 real HTTP scanner recovery passed.\n";
+    }
     $pdo->exec('DROP TABLE ticket_payment_webhook_events');
     try {brvtalTicketCheckinConsume($pdo,1,7,'scanner-A',$qr4);throw new RuntimeException('DB outage accepted');}
     catch (RuntimeException $e) {t15($e->getMessage()==='CHECKIN_STORAGE_UNAVAILABLE','DB failure fail-closed');}
