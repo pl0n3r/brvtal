@@ -81,14 +81,12 @@ foreach ($gateCases as $case) {
 }
 
 /** Test callbacks record stage execution in synthetic MariaDB, never transport. */
-$record = static function (string $stage, string $answer) use ($pdo): callable {
-    return static function (PDO $db) use ($pdo, $stage, $answer): string {
-        worker_test_assert($db === $pdo, 'one trusted disposable PDO passed to each stage');
-        $insert = $db->prepare('INSERT INTO worker_stage_log(stage) VALUES (?)');
-        $insert->execute([$stage]);
-        return $answer;
-    };
-};
+$record = (static fn(string $stage, string $answer): callable => static function (PDO $db) use ($pdo, $stage, $answer): string {
+    worker_test_assert($db === $pdo, 'one trusted disposable PDO passed to each stage');
+    $insert = $db->prepare('INSERT INTO worker_stage_log(stage) VALUES (?)');
+    $insert->execute([$stage]);
+    return $answer;
+});
 $readLog = static fn(): array => $pdo->query('SELECT stage FROM worker_stage_log ORDER BY id')
     ->fetchAll(PDO::FETCH_COLUMN);
 $run = static function (string $name, array $gate, array $answers,
