@@ -117,3 +117,10 @@ ordersCheck((int)$upgrade->query('SELECT COUNT(*) FROM ticket_payment_attempts')
 ordersCheck((int)$upgrade->query('SELECT COUNT(*) FROM ticket_order_items')->fetchColumn() === 1, 'failed writes did not alter legacy order lines');
 ordersCheck((int)$upgrade->query("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME LIKE 'ticket_%' AND COLUMN_NAME REGEXP '(^|_)(pan|cvv|cvc|card_number)($|_)'")->fetchColumn() === 0, 'no PAN/CVV storage columns');
 echo "BRVTAL T03 orders MariaDB integration passed.\n";
+
+// #2116: run the standalone delivery fixture in the canonical database suite.
+// A separate PHP process isolates globals, environment and disposable DB cleanup.
+$deliveryProcess = proc_open([PHP_BINARY, __DIR__ . '/ticketing-issue-delivery.php'],
+    [0=>STDIN, 1=>STDOUT, 2=>STDERR], $deliveryPipes);
+ordersCheck(is_resource($deliveryProcess), 'delivery fixture process started');
+ordersCheck(proc_close($deliveryProcess) === 0, 'delivery fixture passed');

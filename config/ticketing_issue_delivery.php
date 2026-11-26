@@ -119,7 +119,7 @@ function brvtal_ticket_issue_process_next(PDO $db, string $origin = 'https://www
     $next = $db->prepare("SELECT id FROM ticket_issue_outbox
         WHERE state IN ('pending','failed')
           AND (next_attempt_at_utc IS NULL OR next_attempt_at_utc <= UTC_TIMESTAMP(6))
-        ORDER BY next_attempt_at_utc IS NOT NULL, next_attempt_at_utc, id LIMIT 1");
+        ORDER BY COALESCE(next_attempt_at_utc, created_at_utc), id LIMIT 1");
     $next->execute();
     $jobId = $next->fetchColumn();
     if ($jobId === false) return 'idle';
