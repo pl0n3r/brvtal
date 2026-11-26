@@ -42,6 +42,28 @@ t20(count($s['transactions'])===1 && $s['transactions'][0]['transaction_id']==='
 t20($s['capacity']===null && $s['checkins']===null,'optional operational fields unknown without database');
 t20($s['expenses_cop']===null && $s['profit_cop']===null
     && $s['settlement_status']==='unverified','no invented profitability or reconciliation');
+$refundRows=[1=>[
+    ['refund_id'=>71,'order_id'=>1,'event_id'=>9,'amount_cop'=>35000,'in_period'=>true],
+    ['refund_id'=>71,'order_id'=>1,'event_id'=>9,'amount_cop'=>35000,'in_period'=>true],
+]];
+$partial=brvtalFinanceSummarize([$orders[0]],[$items[0]],[$payments[0]],[], $refundRows)[0];
+t20($partial['gross_cop']===100000 && $partial['approved_cop']===90000
+    && $partial['refund_cop']===35000 && $partial['refund_in_period_cop']===35000
+    && $partial['net_after_refunds_cop']===55000,'partial confirmed refund counted once, never alters historical gross');
+$refundRows[1][]=['refund_id'=>72,'order_id'=>1,'event_id'=>9,
+    'amount_cop'=>55000,'in_period'=>false];
+$fullyRefunded=$orders[0];$fullyRefunded['status']='refunded';
+$full=brvtalFinanceSummarize([$fullyRefunded],[$items[0]],[$payments[0]],[], $refundRows)[0];
+t20($full['refunded_orders']===1 && $full['gross_cop']===100000
+    && $full['refund_cop']===90000 && $full['net_after_refunds_cop']===0
+    && $full['refund_in_period_cop']===35000,'full refund retains gross sale and separate posting cut');
+$invalidRefund=brvtalFinanceSummarize([$orders[0]],[$items[0]],[$payments[0]],[],
+    [1=>[['refund_id'=>73,'order_id'=>1,'event_id'=>9,'amount_cop'=>90001]]])[0];
+t20($invalidRefund['refund_cop']===null && $invalidRefund['net_after_refunds_cop']===null,
+    'over-refund cannot be projected as confirmed net');
+$noLedger=brvtalFinanceSummarize([$orders[0]],[$items[0]],[$payments[0]],[],[],false)[0];
+t20($noLedger['refund_cop']===null && $noLedger['net_after_refunds_cop']===null,
+    'unavailable refund ledger stays UNKNOWN');
 $payments[0]['fee_vat_cop']=null;
 $missing=brvtalFinanceSummarize($orders,$items,$payments)[0];
 t20($missing['fee_vat_cop']===null && $missing['difference_cop']===null,
@@ -126,6 +148,38 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
             'POS channel excludes Wompi-only event without generating IN ()');
         t20(brvtalFinanceReport($db,2,null,null,'wompi')===[],
             'Wompi channel excludes POS-only event without generating IN ()');
+        $beforeLedger=brvtalFinanceReport($db,1,null,null,'wompi')[0];
+        t20($beforeLedger['refund_cop']===null && $beforeLedger['net_after_refunds_cop']===null,
+            'missing adjustment table cannot masquerade as zero');
+        $db->exec("CREATE TABLE ticket_refunds (
+            id INT PRIMARY KEY,order_id INT NOT NULL,event_id INT NOT NULL,
+            status VARCHAR(24) NOT NULL) ENGINE=InnoDB");
+        $db->exec("CREATE TABLE ticket_refund_adjustments (
+            refund_id INT PRIMARY KEY,order_id INT NOT NULL,event_id INT NOT NULL,
+            amount_cop BIGINT NOT NULL,recorded_at_utc DATETIME(6) NOT NULL
+            ) ENGINE=InnoDB");
+        $db->exec("UPDATE ticket_orders SET created_at_utc='2026-03-10 10:00:00',
+            status='refunded' WHERE id=41");
+        $db->exec("INSERT INTO ticket_refunds VALUES
+            (71,41,1,'refunded'),(72,41,1,'refunded'),(73,41,1,'approved')");
+        $db->exec("INSERT INTO ticket_refund_adjustments VALUES
+            (71,41,1,4000,'2026-03-12 10:00:00'),
+            (72,41,1,6000,'2026-04-02 10:00:00'),
+            (73,41,1,123,'2026-03-15 10:00:00')");
+        $march=brvtalFinanceReport($db,1,'2026-03-01','2026-03-31','wompi')[0];
+        t20($march['gross_cop']===10000 && $march['approved_cop']===10000
+            && $march['refund_cop']===4000 && $march['refund_in_period_cop']===4000
+            && $march['net_after_refunds_cop']===6000 && $march['refunded_orders']===1,
+            'March cohort excludes April refund and unconfirmed adjustment');
+        $aprilCut=brvtalFinanceReport($db,1,'2026-03-01','2026-04-30','wompi')[0];
+        t20($aprilCut['gross_cop']===10000 && $aprilCut['refund_cop']===10000
+            && $aprilCut['net_after_refunds_cop']===0
+            && $aprilCut['refund_in_period_cop']===10000,'later full refund changes only adjustment date');
+        $posCut=brvtalFinanceReport($db,2,null,null,'pos')[0];
+        t20($posCut['pos_cop']===20000 && $posCut['refund_cop']===0
+            && $posCut['net_after_refunds_cop']===20000,'POS stays separate without Wompi refund');
+        t20(brvtalFinanceReport($db,1,'2026-04-01','2026-04-30','wompi')===[],
+            'refund in different month does not rewrite sale date');
     } finally {
         $server->exec('DROP DATABASE IF EXISTS '.$name);
     }

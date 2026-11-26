@@ -47,7 +47,7 @@ export async function mount(panel) {
       if (!rows.length) { results.append(make('p','No hay movimientos para los filtros seleccionados.')); return; }
       const table=make('table');table.className='tk-table';
       const header=table.createTHead().insertRow();
-      for (const name of ['Evento','Aprobado','Pagos','Neto informado','Detalle']) {
+      for (const name of ['Evento','Aprobado','Pagos','Devuelto','Neto tras devolución','Abono informado','Detalle']) {
         const th=make('th',name);th.scope='col';header.append(th);
       }
       const body=table.createTBody();
@@ -57,7 +57,9 @@ export async function mount(panel) {
           ['Evento',eventLabel(row.event_id)],
           ['Aprobado',cash(row.approved_cop)],
           ['Pagos',quantity(row.paid_orders)],
-          ['Neto informado',cash(row.payout_cop)],
+          ['Devuelto',cash(row.refund_cop)],
+          ['Neto tras devolución',cash(row.net_after_refunds_cop)],
+          ['Abono informado',cash(row.payout_cop)],
         ];
         for (const [label,value] of fields) {
           const td=make('td',value);td.dataset.label=label;tr.append(td);
@@ -66,7 +68,8 @@ export async function mount(panel) {
         const details=make('details'),summary=make('summary','Ver desglose');
         const list=make('ul');
         for (const [label,value] of [
-          ['Bruto',cash(row.gross_cop)],['Descuentos',cash(row.discount_cop)],
+          ['Bruto histórico',cash(row.gross_cop)],['Descuentos',cash(row.discount_cop)],
+          ['Devoluciones confirmadas del corte',cash(row.refund_in_period_cop)],
           ['Pendientes',quantity(row.pending_orders)],['Rechazados',quantity(row.declined_orders)],
           ['Reembolsados',quantity(row.refunded_orders)],['Boletas',quantity(row.tickets)],
           ['Cupos',quantity(row.capacity)],['Ingresos a puerta',quantity(row.checkins)],
@@ -99,7 +102,7 @@ export async function mount(panel) {
         if (!data.ok || !Array.isArray(data.rows)) throw new Error('Consulta no disponible');
         reportEvents=[...new Set(data.rows.map(row=>row.event_id).filter(id=>Number(id)>0))];
         fillEventOptions();
-        status.textContent='Cifras provisionales. El reporte no acredita abonos ni gastos.';
+        status.textContent='Corte por fecha de venta; devoluciones confirmadas hasta «Hasta» y dentro del corte se distinguen. Los abonos y gastos siguen sin conciliación.';
         renderRows(data.rows);
       } catch (error) {
         if (live()&&revision===lastRequest) status.textContent=error.message==='Sin permiso'
