@@ -12,10 +12,10 @@ function t15Conn(string $db):PDO {
         (string)getenv('BRVTAL_TEST_DB_PASS'),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,PDO::ATTR_EMULATE_PREPARES=>false]);
 }
-function t15Entry(PDO $pdo,int $id,int $unit):array {
+function t15Entry(PDO $pdo,int $id,int $unit,int $event=1,int $item=1,int $type=11):array {
     $opaque=random_bytes(16); $secret=random_bytes(32);
     $pdo->prepare('INSERT INTO ticket_entries (id,public_id,order_item_id,event_id,ticket_type_id,unit_number,issued_at_utc)
-        VALUES (?,?,1,1,11,?,UTC_TIMESTAMP(6))')->execute([$id,$opaque,$unit]);
+        VALUES (?,?,?,?,?,?,UTC_TIMESTAMP(6))')->execute([$id,$opaque,$item,$event,$type,$unit]);
     $pdo->prepare('INSERT INTO ticket_entry_credentials (entry_id,version,token_hash,created_at_utc)
         VALUES (?,1,?,UTC_TIMESTAMP(6))')->execute([$id,hash('sha256',$secret,true)]);
     return [bin2hex($opaque),t15Qr(bin2hex($opaque),$secret)];
@@ -34,6 +34,24 @@ foreach ([['event_id'=>0,'device_id'=>'d','qr'=>'x'],['event_id'=>1,'device_id'=
     try {brvtalTicketCheckinInput($bad);throw new RuntimeException('invalid accepted');}
     catch (InvalidArgumentException) {}
 }
+// Explicit receipt request has no QR; existing scanner bodies remain valid.
+$attempt15=bin2hex(random_bytes(16));
+$receipt15=['action'=>'receipt','event_id'=>1,'device_id'=>'door-1','request_id'=>$attempt15];
+t15(brvtalTicketCheckinInput($receipt15)===$receipt15,'receipt parser');
+t15(brvtalTicketCheckinInput(['event_id'=>1,'device_id'=>'door-1','qr'=>'bad',
+    'request_id'=>$attempt15])['request_id']===$attempt15,'correlated scan parser');
+foreach ([$receipt15+['qr'=>'x'],array_replace($receipt15,['request_id'=>null]),
+    array_replace($receipt15,['request_id'=>str_repeat('A',32)]),
+    array_replace($receipt15,['request_id'=>str_repeat('0',32)]),
+    array_replace($receipt15,['action'=>'scan'])] as $invalidReceipt) {
+    try {brvtalTicketCheckinInput($invalidReceipt);throw new RuntimeException('invalid receipt accepted');}
+    catch (InvalidArgumentException) {}
+}
+t15(strpos($api,'brvtalTicketingCan')<strpos($api,'brvtalTicketCheckinReceipt')
+    && strpos($api,'brvtalTicketCheckinRate')<strpos($api,'brvtalTicketCheckinReceipt')
+    && strpos($api,'brvtal_admin_require_csrf()')<strpos($api,'brvtalTicketCheckinReceipt')
+    && strpos($api,'HTTPS_REQUIRED')<strpos($api,'brvtalTicketCheckinReceipt')
+    && str_contains($api,'RECEIPT_NOT_FOUND'),'receipt uses live HTTP authorization and neutral absence');
 // Fast-CI contract: canonical states and Bogota admission boundaries.
 $tz15=new DateTimeZone('America/Bogota');
 $start15=new DateTimeImmutable('2026-11-28 21:00:00', $tz15);
@@ -251,6 +269,93 @@ try {
     }
     $pdo->prepare("UPDATE events SET status='published',event_date=?,published_at=? WHERE id=1")
         ->execute([$openAt15,$publicAt15]);
+    // #2121: separate event/order/credential and staff identities.
+    foreach (["INSERT INTO admins VALUES (8)",
+        'INSERT INTO event_ticket_types VALUES (12,2)',"INSERT INTO ticket_orders VALUES (101,2,'paid')",
+        'INSERT INTO ticket_order_items VALUES (2,101,2,12)',
+        "INSERT INTO ticket_issue_outbox VALUES (2,101,'done')",
+        "INSERT INTO ticket_payment_attempts VALUES (2,101,'wompi','approved','txn-synth-2')",
+        "INSERT INTO ticket_payment_webhook_events VALUES (2,2,'txn-synth-2','APPROVED')"] as $sql) $pdo->exec($sql);
+    [, $qr30]=t15Entry($pdo,30,30);
+    [, $qr31]=t15Entry($pdo,31,31);
+    $id30=bin2hex(random_bytes(16));
+    // Discard the response after commit, then recover the historical result.
+    brvtalTicketCheckinConsume($pdo,1,7,'scanner-A',$qr30,null,$id30);
+    $history=brvtalTicketCheckinReceipt($pdo,1,7,'scanner-A',$id30);
+    t15($history===['ok'=>false,'receipt'=>['outcome'=>'accepted','reason'=>'accepted']],
+        'lost response recovered without authorizing entry');
+    foreach ([[2,7,'scanner-A',$id30],[1,8,'scanner-A',$id30],
+        [1,7,'scanner-B',$id30],[1,7,'scanner-A',bin2hex(random_bytes(16))]] as $scope) {
+        t15(brvtalTicketCheckinReceipt($pdo,...$scope)===null,'foreign/missing receipt is indistinguishable');
+    }
+    t15(brvtalTicketCheckinConsume($pdo,1,7,'scanner-A',$qr31,null,$id30)
+        ===['ok'=>false,'reason'=>'attempt_conflict'],'same ID different QR conflicts');
+    t15($pdo->query("SELECT status FROM ticket_entries WHERE id=31")->fetchColumn()==='issued',
+        'duplicate ID does not consume a second ticket');
+    $otherId=bin2hex(random_bytes(16));
+    t15(brvtalTicketCheckinConsume($pdo,1,7,'scanner-A',$qr30,null,$otherId)['reason']==='already_used',
+        'same QR new ID remains denied');
+    t15(brvtalTicketCheckinReceipt($pdo,1,7,'scanner-A',$otherId)
+        ===['ok'=>false,'receipt'=>['outcome'=>'rejected','reason'=>'already_used']],'historical denial');
+    t15((int)$pdo->query("SELECT COUNT(*) FROM ticket_checkins WHERE request_id=UNHEX('$id30')")->fetchColumn()===1,
+        'one durable audit per attempt');
+    [, $qr32]=t15Entry($pdo,32,1,2,2,12);
+    $collision=bin2hex(random_bytes(16)); $workers2121=[];
+    try {
+        foreach ([[1,7,$qr31],[2,8,$qr32]] as [$ev,$staff,$code]) {
+            // Both workers stop immediately before the actual UNIQUE insert,
+            // after their independent event/entry mutations, while locks are held.
+            $program='require '.var_export(__DIR__.'/../../config/ticketing_checkin.php',true).';'
+                .'class T15CollisionStmt extends PDOStatement {protected function __construct(){}'
+                .'public function execute(?array $params=null):bool {'
+                .'if(str_contains($this->queryString,"INSERT INTO ticket_checkins")){'
+                .'echo "READY".PHP_EOL;flush();if(trim((string)fgets(STDIN))!=="GO")throw new RuntimeException("barrier");}'
+                .'return parent::execute($params);}}'
+                .'$db=new PDO(getenv("T15_DSN"),getenv("BRVTAL_TEST_DB_USER"),getenv("BRVTAL_TEST_DB_PASS"),'
+                .'[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_EMULATE_PREPARES=>false]);'
+                .'$db->setAttribute(PDO::ATTR_STATEMENT_CLASS,[T15CollisionStmt::class,[]]);'
+                .'echo json_encode(brvtalTicketCheckinConsume($db,(int)getenv("T15_EVENT"),'
+                .'(int)getenv("T15_STAFF"),"scanner-race",getenv("T15_QR"),null,getenv("T15_ATTEMPT")));';
+            $env=['T15_DSN'=>'mysql:host='.getenv('BRVTAL_TEST_DB_HOST').';port='.(getenv('BRVTAL_TEST_DB_PORT')?:3306).';dbname='.$db,
+                'T15_EVENT'=>(string)$ev,'T15_STAFF'=>(string)$staff,'T15_QR'=>$code,'T15_ATTEMPT'=>$collision,
+                'BRVTAL_TEST_DB_USER'=>(string)getenv('BRVTAL_TEST_DB_USER'),'BRVTAL_TEST_DB_PASS'=>(string)getenv('BRVTAL_TEST_DB_PASS')];
+            $proc=proc_open([PHP_BINARY,'-r',$program],[0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes,null,$env);
+            t15(is_resource($proc),'collision worker launched');$workers2121[]=[$proc,$pipes];
+        }
+        $ready2121=[];$deadline2121=microtime(true)+10;
+        foreach ($workers2121 as [$proc,$pipes]) stream_set_blocking($pipes[1],false);
+        while (count($ready2121)<2 && microtime(true)<$deadline2121) {
+            $read=[];
+            foreach ($workers2121 as [$proc,$pipes]) {
+                if (!isset($ready2121[(int)$pipes[1]])) $read[]=$pipes[1];
+            }
+            $write=[];$except=[];
+            t15(stream_select($read,$write,$except,0,100000)!==false,'collision ready select');
+            foreach ($read as $stream) {
+                if (trim((string)fgets($stream))==='READY') $ready2121[(int)$stream]=true;
+            }
+        }
+        t15(count($ready2121)===2,'both workers reached audit insert');
+        foreach ($workers2121 as [$proc,$pipes]) {fwrite($pipes[0],"GO\n");fflush($pipes[0]);}
+        $results2121=[];
+        foreach ($workers2121 as [$proc,$pipes]) {
+            stream_set_blocking($pipes[1],true);
+            $results2121[]=json_decode((string)stream_get_contents($pipes[1]),true,512,JSON_THROW_ON_ERROR)['reason'];
+        }
+        sort($results2121);
+        t15($results2121===['accepted','attempt_conflict'],'one cross-event UNIQUE winner');
+        t15((int)$pdo->query("SELECT COUNT(*) FROM ticket_entries WHERE id IN (31,32) AND status='used'")->fetchColumn()===1,
+            'collision rolls back losing entry mutation');
+        t15((int)$pdo->query("SELECT COUNT(*) FROM ticket_checkins WHERE request_id=UNHEX('$collision')")->fetchColumn()===1,
+            'only winning audit committed');
+    } finally {
+        foreach ($workers2121 as [$proc,$pipes]) {
+            if (is_resource($proc) && proc_get_status($proc)['running']) proc_terminate($proc);
+            foreach ($pipes as $pipe) if (is_resource($pipe)) fclose($pipe);
+            if (is_resource($proc)) proc_close($proc);
+        }
+    }
+    echo "T15 #2121 durable receipt and cross-event rollback passed.\n";
     // #2098: disposable POS evidence rows; T24 also exercises the actual
     // brvtalPosConfirm/manual-order issuance paths against MariaDB.
     foreach ([
