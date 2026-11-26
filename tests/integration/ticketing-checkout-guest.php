@@ -363,13 +363,21 @@ try {
         if ($cookie !== null) $headers[] = 'Cookie: BRVTAL_BUYER=' . $cookie;
         $context = stream_context_create(['http'=>['method'=>'GET','ignore_errors'=>true,
             'timeout'=>5,'header'=>implode("\r\n", $headers)]]);
-        $http_response_header = [];
-        $body = file_get_contents($url . '/?' . http_build_query($query), false, $context);
-        $received = $http_response_header;
+        $response = fopen($url . '/?' . http_build_query($query), 'rb', false, $context);
+        guestAssert(is_resource($response), 'HTTP response stream');
+        try {
+            $received = stream_get_meta_data($response)['wrapper_data'] ?? [];
+            $body = stream_get_contents($response);
+        } finally {
+            fclose($response);
+        }
+        guestAssert(is_array($received), 'HTTP response headers');
         preg_match('~^HTTP/\S+ ([0-9]{3})~', (string)($received[0] ?? ''), $status);
         $normalized = array_map(strtolower(...), $received);
-        guestAssert(in_array('cache-control: private, no-store', $normalized, true)
-            && in_array('referrer-policy: no-referrer', $normalized, true), 'HTTP privacy headers');
+        guestAssert(in_array('cache-control: private, no-store', $normalized, true),
+            'HTTP private no-store header');
+        guestAssert(in_array('referrer-policy: no-referrer', $normalized, true),
+            'HTTP no-referrer header');
         guestAssert(is_string($body), 'HTTP JSON body');
         return [(int)($status[1] ?? 0), json_decode($body, true, 512, JSON_THROW_ON_ERROR),
             in_array('x-fixture-reconcile: yes', $normalized, true)];
