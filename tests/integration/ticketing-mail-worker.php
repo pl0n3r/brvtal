@@ -122,6 +122,10 @@ $run('mail intentionally disabled is not idle', $disabled,
 $run('reconciliation failure with idle mail', $ready,
     ['unavailable','idle','idle'], ['reconcile'=>'unavailable','issue'=>'idle','state'=>'idle'],
     1, ['reconcile','issue','state']);
+$run('stale reconciliation alerts without interrupting issue or mail', $ready,
+    ['stale_pending','issued','accepted'],
+    ['reconcile'=>'stale_pending','issue'=>'issued','state'=>'accepted'],
+    1, ['reconcile','issue','state']);
 $run('all genuine idle is success', $ready,
     ['idle','idle','idle'], ['reconcile'=>'idle','issue'=>'idle','state'=>'idle'],
     0, ['reconcile','issue','state']);
