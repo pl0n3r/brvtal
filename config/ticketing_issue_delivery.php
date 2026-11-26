@@ -149,7 +149,9 @@ function brvtal_ticket_issue_process_next(PDO $db, string $origin = 'https://www
         ORDER BY COALESCE(next_attempt_at_utc, created_at_utc), id LIMIT 1");
     $next->execute();
     $job = $next->fetch(PDO::FETCH_ASSOC);
-    if (!is_array($job)) return 'idle';
+    if (!is_array($job)) {
+        return 'idle';
+    }
     try {
         $result = brvtal_ticket_issue_consume(
             $db,

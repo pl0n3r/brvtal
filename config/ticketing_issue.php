@@ -297,15 +297,15 @@ function brvtal_ticket_issue_consume(
             if ($deliver !== null) {
                 $deliver($db, (int)$orderId, $tickets);
             }
-            // An ambiguous commit must not be followed by a failure update.
-            $attemptStarted = false;
             $db->commit();
             return ['state'=>'issued', 'tickets'=>$tickets];
         } catch (Throwable $e) {
             if ($attemptStarted && $onFailure !== null && $db->inTransaction()) {
                 try {
                     // Do not release the locks between rollback and backoff.
-                    // If a deadlock invalidated the savepoint, fail closed.
+                    // A successful rollback to this savepoint proves that
+                    // issuance did not commit. A lost/committed transaction
+                    // or deadlock invalidates it: fail closed before writing.
                     $db->exec('ROLLBACK TO SAVEPOINT ticket_issue_attempt');
                     $failure = $onFailure($db, $outboxId, $attempts, $e);
                     $db->commit();
