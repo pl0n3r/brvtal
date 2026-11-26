@@ -255,6 +255,29 @@ $db->exec("UPDATE ticket_orders SET expires_at_utc=UTC_TIMESTAMP(6)-INTERVAL 1 S
  WHERE id=52");
 t08($process($expirySigned,$expiryProvider)==='approved_unfulfilled',
     'expired order cannot be paid despite a still-active hold');
+// Optional administrative mail is NOT part of the paid/issued transaction.
+// An enabled mock mail path with no mail schema must fail inside the savepoint,
+// without rolling back the provider approval or the idempotent issue outbox.
+$originalConfig=$GLOBALS['config']??null;
+$GLOBALS['config']=['ticketing'=>['mail'=>[
+    'mode'=>'mock','testing'=>'1','admin_recipient'=>'admin@example.test',
+]]];
+try {
+    [$noticeSigned,$noticeProvider]=$case(53,'pending','valid');
+    t08($process($noticeSigned,$noticeProvider)==='approved',
+        'verified payment survives unavailable optional admin mail');
+    t08($process($noticeSigned,$noticeProvider)==='duplicate',
+        'replayed callback does not repeat admission on mail failure');
+    t08($db->query("SELECT status FROM ticket_payment_attempts WHERE id=53")
+        ->fetchColumn()==='approved','mail failure preserved authentic money');
+    t08($db->query("SELECT status FROM ticket_orders WHERE id=53")
+        ->fetchColumn()==='paid','mail failure preserved admitted order');
+    t08((int)$db->query("SELECT COUNT(*) FROM ticket_issue_outbox WHERE order_id=53")
+        ->fetchColumn()===1,'mail failure preserved one durable issue request');
+} finally {
+    if($originalConfig===null) unset($GLOBALS['config']);
+    else $GLOBALS['config']=$originalConfig;
+}
 // Two processes race for an Event with exactly one legitimate held unit.
 // The other confirmed charge is financially recorded without issuance.
 $pack = static function(int $id,bool $hold) use($db,$sign,$settings,$now):array {
