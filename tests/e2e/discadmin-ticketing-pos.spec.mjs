@@ -1,14 +1,28 @@
 import {test, expect} from '@playwright/test';
 import {readFileSync} from 'node:fs';
+import {execFileSync} from 'node:child_process';
 
 const finance=readFileSync('discadmin/ticketing-finance.js','utf8');
+// Exact pre-PR main is the real before image, not an invented mock-up.
+const baselineSha='22921a146ae404be05236026a8bd79acc503beb7';
+function baselineFinance() {
+  const ref=baselineSha+':discadmin/ticketing-finance.js';
+  try { return execFileSync('git',['show',ref],{encoding:'utf8',timeout:20000}); }
+  catch {
+    execFileSync('git',['fetch','--no-tags','--depth=1','origin',baselineSha],
+      {timeout:60000});
+    return execFileSync('git',['show',ref],{encoding:'utf8',timeout:20000});
+  }
+}
+const financeBefore2033=baselineFinance();
 const financePhp=readFileSync('discadmin/ticketing-finance.php','utf8');
 const fragment=financePhp.slice(financePhp.indexOf('<section data-finance-module'));
 const pos=readFileSync('discadmin/ticketing-pos.js','utf8');
 const css=readFileSync('discadmin/ticketing.css','utf8');
 const catalog={ok:true,events:[{id:6,title:'Genesis',ticket_types:[
   {id:10,name:'General'},{id:11,name:'VIP'}]}]};
-const row={event_id:6,gross_cop:50000,discount_cop:0,approved_cop:50000,paid_orders:2,
+const row={event_id:6,gross_cop:50000,discount_cop:0,approved_cop:50000,
+  refund_cop:5000,refund_in_period_cop:5000,net_after_refunds_cop:45000,paid_orders:2,
   pending_orders:1,declined_orders:0,refunded_orders:0,tickets:2,capacity:100,checkins:1,
   fee_cop:2300,fee_vat_cop:437,withheld_cop:0,payout_cop:47263,difference_cop:2737,
   types:[{ticket_type_id:10,quantity:2,gross_cop:50000}],
@@ -26,7 +40,8 @@ const beforeHtml = '<!doctype html><html lang="es"><meta name="viewport" content
   +Array(16).fill('<td style="padding:12px;border:1px solid #333">25.000 COP</td>').join('')
   +'</tr></tbody></table></body></html>';
 
-async function setup(page, handler, rows=[], openCash=true, catalogMode='api') {
+async function setup(page, handler, rows=[], openCash=true, catalogMode='api',
+    financeSource=finance) {
   await page.route('**/discadmin/pos-test.html',route=>route.fulfill({
     contentType:'text/html',body:'<!doctype html><html lang="es"><meta name="viewport" content="width=device-width,initial-scale=1">'
       +'<body style="margin:0;background:#050505;color:#f4f5f6;font-family:system-ui">'
@@ -34,7 +49,7 @@ async function setup(page, handler, rows=[], openCash=true, catalogMode='api') {
       +'<button data-ticketing-tab="finance" aria-selected="true">Finanzas</button>'
       +'<div id="panel" role="tabpanel"></div></section></body></html>'}));
   await page.route('**/discadmin/ticketing-finance.js',route=>route.fulfill({
-    contentType:'text/javascript',body:finance}));
+    contentType:'text/javascript',body:financeSource}));
   await page.route('**/discadmin/ticketing-pos.js',route=>route.fulfill({
     contentType:'text/javascript',body:pos}));
   await page.route('**/discadmin/ticketing-finance.php',route=>route.fulfill({
@@ -137,7 +152,7 @@ for (const width of [390,1440]) {
       body:'{"ok":false}'}),[row],false);
     const financeRoot=page.locator('[data-finance-module]');
     await expect(financeRoot.locator('.tk-form')).toBeVisible();
-    await expect(financeRoot.locator('table.tk-table thead th')).toHaveCount(5);
+    await expect(financeRoot.locator('table.tk-table thead th')).toHaveCount(7);
     await expect(financeRoot.locator('details')).toHaveCount(1);
     await expect(financeRoot.locator('[name="event_id"] option')).toHaveCount(2);
     await expect(financeRoot).not.toContainText(/sintético|pruebas|UTC/i);
@@ -301,3 +316,35 @@ test('AC-02 edición posterior al resumen exige una revisión nueva',async({page
   expect(calls).toHaveLength(1);
   expect(calls[0].quantity).toBe('3');
 });
+
+
+for (const width of [390,1440]) {
+  test('AC-03 #2033: capturas reales de fuente exact-main y HEAD '+width+' px',
+    async({page},testInfo)=>{
+      await page.setViewportSize({width,height:900});
+      for (const [phase,source] of [
+        ['before',financeBefore2033],['after',finance]
+      ]) {
+        await setup(page,route=>route.fulfill({status:403,contentType:'application/json',
+          body:'{"ok":false,"error":"FORBIDDEN"}'}),[row],false,'api',source);
+        const root=page.locator('[data-finance-module]');
+        await expect(root).toBeVisible();
+        await expect(root.locator('table.tk-table thead th'))
+          .toHaveCount(phase==='before'?5:7);
+        if(phase==='after'){
+          await expect(root).toContainText('Devuelto');
+          await expect(root).toContainText('Neto tras devolución');
+          await expect(root).toContainText('5.000');
+          await expect(root).toContainText('45.000');
+          await expect(root.getByText('Sin dato').first()).toBeVisible();
+        } else {
+          await expect(root).not.toContainText('Neto tras devolución');
+        }
+        expect(await page.evaluate(()=>document.documentElement.scrollWidth))
+          .toBeLessThanOrEqual(width);
+        await testInfo.attach('issue2033-'+phase+'-'+width+'.png',{
+          body:await page.screenshot({fullPage:true}),contentType:'image/png'
+        });
+      }
+  });
+}
