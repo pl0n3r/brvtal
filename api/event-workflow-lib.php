@@ -78,6 +78,12 @@ function brvtal_event_workflow_event(array $input): array
     }
     $payload = $temporal['payload'];
 
+    if (array_key_exists('visibility', $input)) {
+        if (!is_string($input['visibility']) || !in_array($input['visibility'], ['public', 'unlisted'], true)) {
+            throw new InvalidArgumentException('INVALID_VISIBILITY');
+        }
+        $payload['visibility'] = $input['visibility'];
+    }
     if (array_key_exists('status', $input)) {
         $status = strtolower(brvtal_event_workflow_text($input['status'], 30));
         if (!in_array($status, $allowedStatuses, true)) throw new InvalidArgumentException('INVALID_STATUS');
@@ -496,6 +502,9 @@ function brvtal_event_workflow_apply(PDO $pdo, array $request, ?callable $audit 
         }
         $afterEvent = brvtal_event_workflow_fetch_event($pdo, (int)$eventId, false);
         if ($afterEvent === null) throw new RuntimeException('EVENT_WORKFLOW_EVENT_MISSING');
+        if (array_key_exists('visibility', $eventPatch) && ($afterEvent['visibility'] ?? null) !== $eventPatch['visibility']) {
+            throw new RuntimeException('EVENT_VISIBILITY_NOT_PERSISTED');
+        }
         if ($audit !== null) {
             $audit($beforeEvent === null ? 'create' : 'update', 'events', (int)$eventId, $beforeEvent, $afterEvent, ['source'=>'event_workflow'], (string)$afterEvent['title']);
         }

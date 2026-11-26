@@ -358,7 +358,7 @@ async function openEventHistory(){
 }
 async function initAuth(){const j=window.BRVTALAdminAuthBoundary?.auth?await window.BRVTALAdminAuthBoundary.auth():await api('/auth');if(!j.authenticated){location.href='/discadmin/';return}csrf=j.csrf||'';if(!csrf)throw new Error('CSRF token unavailable')}
 async function loadEvents({required=false}={}){try{const j=await api('/events');events=j.data||j.events||[];renderEvents();return true}catch(e){msg('Could not load events: '+e.message,false);if(required)throw e;return false}}
-function renderEvents(){const q=($('#eventSearch').value||'').toLowerCase();const a=events.filter(x=>JSON.stringify(x).toLowerCase().includes(q));$('#eventsTable').innerHTML='<div class="th"><div>EVENT</div><div>DATE</div><div>STATUS</div><div></div></div>'+(a.length?a.map(x=>`<div class="tr"><div><div class="title">${esc(x.title||x.name)}</div><div class="meta">${esc(x.city||'')} ${x.venue?'· '+esc(x.venue):''}</div></div><div>${esc(x.event_date||'—')}</div><div><span class="pill">${esc(x.status||'draft')}</span></div><div class="actions"><button class="icon" onclick="BRVTALContentCore.openEvent(${Number(x.id)})">EDIT</button></div></div>`).join(''):'<div class="empty">No events found.</div>')}
+function renderEvents(){const q=($('#eventSearch').value||'').toLowerCase();const a=events.filter(x=>JSON.stringify(x).toLowerCase().includes(q));$('#eventsTable').innerHTML='<div class="th"><div>EVENT</div><div>DATE</div><div>STATUS</div><div></div></div>'+(a.length?a.map(x=>`<div class="tr"><div><div class="title">${esc(x.title||x.name)}</div><div class="meta">${esc(x.city||'')} ${x.venue?'· '+esc(x.venue):''}</div></div><div>${esc(x.event_date||'—')}</div><div><span class="pill">${esc(x.status||'draft')}</span>${x.visibility==='unlisted'?' <span class="pill">Privado</span>':''}</div><div class="actions"><button class="icon" onclick="BRVTALContentCore.openEvent(${Number(x.id)})">EDIT</button></div></div>`).join(''):'<div class="empty">No events found.</div>')}
 function fill(id,v){const el=$('#'+id);if(el)el.value=v??''}
 // Event publication DATETIMEs are in the server's America/Bogota timezone
 // (UTC-05 year-round), not in the browser's local timezone.
@@ -485,7 +485,21 @@ function eventShareRefresh(){
     el.setAttribute('aria-disabled',link?'false':'true');
   }
 }
-function eventEditorRefresh(){eventSalesRefresh();eventShareRefresh();}
+function eventVisibilityRefresh(){
+  const panel=$('#e_private_share'),url=$('#e_private_url'),button=$('#e_private_copy'),feedback=$('#e_private_feedback');
+  if(!panel||!url||!button||!feedback)return;
+  const privateSelected=$('#e_visibility')?.value==='unlisted';
+  panel.hidden=!privateSelected;
+  const slug=eventSlug();
+  const saved=privateSelected&&currentEvent?.visibility==='unlisted'&&slug&&slug===currentEvent.slug;
+  const next=saved?location.origin+'/events/'+encodeURIComponent(slug):'';
+  if(url.value!==next||!next){
+    url.value=next;
+    feedback.textContent=next?'Comparte este enlace cuando el evento esté publicado.':'Guarda el evento privado para obtener su enlace.';
+  }
+  button.disabled=!next;
+}
+function eventEditorRefresh(){eventSalesRefresh();eventShareRefresh();eventVisibilityRefresh();}
 function initEventSalesEditor(){
   const modal=$('#eventModal');if(!modal||modal.dataset.salesReady==='1')return;
   modal.dataset.salesReady='1';
@@ -498,10 +512,17 @@ function initEventSalesEditor(){
     if(event.target?.closest('#eventForm'))eventEditorRefresh();
   });
   modal.addEventListener('change',event=>{
+    if(event.target?.id==='e_visibility')event.target.dataset.changed='1';
     if(event.target?.id==='e_status'){
       event.target.dataset.changed='1';syncEventPublishScheduleControl();
     }
     if(event.target?.closest('#eventForm'))eventEditorRefresh();
+  });
+  $('#e_private_copy')?.addEventListener('click',async()=>{
+    const input=$('#e_private_url'),feedback=$('#e_private_feedback');
+    if(!input?.value||!feedback)return;
+    try{await navigator.clipboard.writeText(input.value);feedback.textContent='Enlace copiado';}
+    catch(_){input.focus();input.select();feedback.textContent='No se pudo copiar automáticamente. Copia el enlace seleccionado.';}
   });
   $('#e_share_copy')?.addEventListener('click',async()=>{
     const url=$('#e_share_preview_url')?.textContent||'';
@@ -527,7 +548,7 @@ function initEventSalesEditor(){
 function jumpStep(n){if(!Number.isInteger(Number(n))||Number(n)<1||Number(n)>eventWizardLastStep())return;currentStep=Number(n);setStep();}
 function syncEventMapPreview(){const address=$('#e_venue_address')?.value.trim()||'';const link=$('#e_venue_map_preview');if(!link)return;link.hidden=!address;if(address)link.href='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(address);else link.removeAttribute('href')}
 if(typeof document!=='undefined')document.addEventListener('input',event=>{if(event.target?.id==='e_venue_address')syncEventMapPreview()});
-function openEvent(id=null){currentEvent=events.find(x=>Number(x.id)===Number(id))||null;$('#eventHeading').textContent=currentEvent?'EDIT EVENT':'NEW EVENT';fill('e_title',currentEvent?.title);fill('e_slug',currentEvent?.slug);fill('e_description',currentEvent?.description);fill('e_cover_image',currentEvent?.cover_image);fill('e_share_image',currentEvent?.cover_image);fill('e_accent',currentEvent?.accent);window.BRVTALAdminColorField?.sync($('#e_accent'));fill('e_featured',currentEvent?.featured?'1':'0');fill('e_event_date',currentEvent?.event_date?String(currentEvent.event_date).replace(' ','T').slice(0,16):'');fill('e_city',currentEvent?.city);fill('e_venue',currentEvent?.venue);fill('e_venue_address',currentEvent?.venue_address);syncEventMapPreview();fill('e_archive_year',currentEvent?.archive_year);fill('e_status',eventEditorPublication(currentEvent));if($('#e_status')){$('#e_status').dataset.originalStatus=String(currentEvent?.status||'draft');delete $('#e_status').dataset.changed;}fill('e_publish_at',eventPublishScheduleInputValue(currentEvent));syncEventPublishScheduleControl();fill('e_ticket_instructions',currentEvent?.ticket_instructions);fill('e_ticket_qr',currentEvent?.ticket_qr);fill('e_ticket_url',currentEvent?.ticket_url);$('#tickets').innerHTML='';(currentEvent?.ticket_types||[]).forEach(addTicket);renderEventArtists();currentStep=1;setStep();syncEventHistoryControl();$('#eventModal').classList.add('open');initEventSalesEditor();eventEditorRefresh()}
+function openEvent(id=null){currentEvent=events.find(x=>Number(x.id)===Number(id))||null;$('#eventHeading').textContent=currentEvent?'EDIT EVENT':'NEW EVENT';fill('e_title',currentEvent?.title);fill('e_slug',currentEvent?.slug);fill('e_description',currentEvent?.description);fill('e_cover_image',currentEvent?.cover_image);fill('e_share_image',currentEvent?.cover_image);fill('e_accent',currentEvent?.accent);window.BRVTALAdminColorField?.sync($('#e_accent'));fill('e_featured',currentEvent?.featured?'1':'0');fill('e_event_date',currentEvent?.event_date?String(currentEvent.event_date).replace(' ','T').slice(0,16):'');fill('e_city',currentEvent?.city);fill('e_venue',currentEvent?.venue);fill('e_venue_address',currentEvent?.venue_address);syncEventMapPreview();fill('e_archive_year',currentEvent?.archive_year);fill('e_visibility',currentEvent?.visibility==='unlisted'?'unlisted':'public');if($('#e_visibility'))delete $('#e_visibility').dataset.changed;fill('e_status',eventEditorPublication(currentEvent));if($('#e_status')){$('#e_status').dataset.originalStatus=String(currentEvent?.status||'draft');delete $('#e_status').dataset.changed;}fill('e_publish_at',eventPublishScheduleInputValue(currentEvent));syncEventPublishScheduleControl();fill('e_ticket_instructions',currentEvent?.ticket_instructions);fill('e_ticket_qr',currentEvent?.ticket_qr);fill('e_ticket_url',currentEvent?.ticket_url);$('#tickets').innerHTML='';(currentEvent?.ticket_types||[]).forEach(addTicket);renderEventArtists();currentStep=1;setStep();syncEventHistoryControl();$('#eventModal').classList.add('open');initEventSalesEditor();eventEditorRefresh()}
 function closeEvent(force=false){
   const modal=$('#eventModal');
   const close=()=>modal.classList.remove('open');
