@@ -24,7 +24,7 @@ if (($argv[1] ?? '') === '--admit-race') {
         $db->commit();echo $result;exit(0);
     } catch(Throwable $error) {
         if($db->inTransaction()) $db->rollBack();
-        fwrite(STDERR,get_class($error).':'.$error->getMessage());exit(4);
+        fwrite(STDERR,$error::class.':'.$error->getMessage());exit(4);
     }
 }
 function t08(bool $ok,string $label): void { if (!$ok) throw new RuntimeException('T08: '.$label); }

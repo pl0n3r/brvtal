@@ -206,7 +206,7 @@ function brvtal_wompi_hook_notice(PDO $db, int $orderId): void
         // A later authenticated callback may retry the same idempotent mail.
         // Never log the buyer, recipient, Wompi ID or exception message.
         $db->exec('ROLLBACK TO SAVEPOINT wompi_notice');
-        error_log('BRVTAL_WOMPI_ADMIN_NOTICE_RETRY_REQUIRED:'.get_class($error));
+        error_log('BRVTAL_WOMPI_ADMIN_NOTICE_RETRY_REQUIRED:'.$error::class);
     } finally {
         $db->exec('RELEASE SAVEPOINT wompi_notice');
     }
