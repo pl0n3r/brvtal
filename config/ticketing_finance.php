@@ -182,16 +182,25 @@ function brvtalFinanceSummarize(array $orders, array $items, array $attempts,
     return array_values($events);
 }
 
+/** Calendar cut in Colombia; UTC SQL bounds remain half-open. */
+function brvtalFinanceCalendarBound(string $value, bool $exclusiveEnd): string
+{
+    $date = DateTimeImmutable::createFromFormat('!Y-m-d', $value, new DateTimeZone('America/Bogota'));
+    if (!$date || $date->format('Y-m-d') !== $value) throw new InvalidArgumentException('INVALID_DATE');
+    return ($exclusiveEnd ? $date->modify('+1 day') : $date)
+        ->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s');
+}
+
 function brvtalFinanceReport(PDO $db, ?int $eventId, ?string $from, ?string $to, string $channel): array
 {
+    $start=$from===null ? null : brvtalFinanceCalendarBound($from,false);
+    $end=$to===null ? null : brvtalFinanceCalendarBound($to,true);
+    if ($from!==null && $to!==null && $from>$to) throw new InvalidArgumentException('INVALID_RANGE');
     $where = ["o.currency='COP'"];
     $params = [];
     if ($eventId !== null) { $where[]='o.event_id=?'; $params[]=$eventId; }
-    if ($from !== null) { $where[]='o.created_at_utc>=?'; $params[]=$from.' 00:00:00'; }
-    if ($to !== null) {
-        $where[]='o.created_at_utc<?';
-        $params[]=new DateTimeImmutable($to, new DateTimeZone('UTC'))->modify('+1 day')->format('Y-m-d').' 00:00:00';
-    }
+    if ($start !== null) { $where[]='o.created_at_utc>=?'; $params[]=$start; }
+    if ($end !== null) { $where[]='o.created_at_utc<?'; $params[]=$end; }
     $sql = 'SELECT o.id,o.event_id,o.total_cop,o.currency,o.status FROM ticket_orders o WHERE ' .
         implode(' AND ', $where) . ' ORDER BY o.id DESC LIMIT 5001';
     $stmt=$db->prepare($sql); $stmt->execute($params);
@@ -233,10 +242,7 @@ function brvtalFinanceReport(PDO $db, ?int $eventId, ?string $from, ?string $to,
     // Never generate SQL metadata IN () from an empty report.
     if (!$orders) return [];
     $refundEvidence=true; $refundsByOrder=[];
-    // The date filters select sale cohorts. Refunds have a separate recorded date.
-    $start=$from===null ? null : $from.' 00:00:00';
-    $end=$to===null ? null : new DateTimeImmutable($to,new DateTimeZone('UTC'))
-        ->modify('+1 day')->format('Y-m-d').' 00:00:00';
+    // Reuse the same calendar cut for recorded refunds, without changing sale-cohort semantics.
     try {
         $adjust=$db->prepare("SELECT a.refund_id,a.order_id,a.event_id,a.amount_cop,a.recorded_at_utc
             FROM ticket_refund_adjustments a
