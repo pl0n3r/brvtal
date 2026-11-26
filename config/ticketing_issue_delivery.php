@@ -106,6 +106,33 @@ function brvtal_ticket_issue_mail_deliverer(string $origin): callable
 }
 
 /**
+ * Persist a failed attempt under the same order/outbox locks, after rollback of
+ * the issuance savepoint. A competing worker cannot spend the same generation.
+ *
+ * @return array{state:string,code:string}
+ */
+function brvtal_ticket_issue_record_failure(PDO $db, int $jobId, int $attempts, Throwable $error): array
+{
+    if (!$db->inTransaction()) {
+        throw new RuntimeException('ISSUE_FAILURE_TRANSACTION');
+    }
+    $code = $error instanceof PDOException
+        ? 'ISSUE_STORAGE_UNAVAILABLE' : brvtal_ticket_issue_failure_code($error->getMessage());
+    $wait = in_array($code, BRVTAL_TICKET_ISSUE_WAIT_CODES, true);
+    $delay = $wait ? 300 : min(3600, 60 * (2 ** min(6, $attempts)));
+    $update = $db->prepare("UPDATE ticket_issue_outbox
+        SET state=IF(?=1,state,'failed'),attempts=attempts+IF(?=1,0,1),
+            next_attempt_at_utc=DATE_ADD(UTC_TIMESTAMP(6),INTERVAL ? SECOND),
+            updated_at_utc=UTC_TIMESTAMP(6)
+        WHERE id=? AND attempts=? AND state IN ('pending','failed')");
+    $update->execute([$wait ? 1 : 0, $wait ? 1 : 0, $delay, $jobId, $attempts]);
+    if ($update->rowCount() !== 1) {
+        throw new RuntimeException('ISSUE_FAILURE_GENERATION');
+    }
+    return ['state'=>$wait ? 'waiting' : 'failed', 'code'=>$code];
+}
+
+/**
  * Processes at most one issuance job. Returns a state, never buyer data or tokens:
  * idle | issued | duplicate | waiting | failed:<CODE>.
  */
@@ -116,34 +143,39 @@ function brvtal_ticket_issue_process_next(PDO $db, string $origin = 'https://www
     }
     // #1954: no fixed attempt cap. A paid order must get its tickets once the
     // cause is fixed; the growing backoff keeps a broken job from starving others.
-    $next = $db->prepare("SELECT id FROM ticket_issue_outbox
+    $next = $db->prepare("SELECT id,state,attempts,next_attempt_at_utc,updated_at_utc FROM ticket_issue_outbox
         WHERE state IN ('pending','failed')
           AND (next_attempt_at_utc IS NULL OR next_attempt_at_utc <= UTC_TIMESTAMP(6))
         ORDER BY COALESCE(next_attempt_at_utc, created_at_utc), id LIMIT 1");
     $next->execute();
-    $jobId = $next->fetchColumn();
-    if ($jobId === false) return 'idle';
-    $jobId = (int)$jobId;
+    $job = $next->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($job)) {
+        return 'idle';
+    }
     try {
-        $result = brvtal_ticket_issue_consume($db, $jobId, brvtal_ticket_issue_mail_deliverer($origin));
-        brvtal_ticket_issue_remember_failure(null);
-        return $result['state'] === 'duplicate' ? 'duplicate' : 'issued';
+        $result = brvtal_ticket_issue_consume(
+            $db,
+            (int)$job['id'],
+            brvtal_ticket_issue_mail_deliverer($origin),
+            $job,
+            brvtal_ticket_issue_record_failure(...)
+        );
+        $state = $result['state'];
+        if ($state === 'failed' || $state === 'waiting') {
+            $code = brvtal_ticket_issue_failure_code((string)$result['code']);
+            brvtal_ticket_issue_remember_failure($code);
+            return $state === 'waiting' ? 'waiting' : 'failed:' . $code;
+        }
+        if ($state === 'issued') {
+            brvtal_ticket_issue_remember_failure(null);
+        }
+        return $state;
     } catch (Throwable $error) {
-        $code = $error->getMessage();
-        $wait = in_array($code, BRVTAL_TICKET_ISSUE_WAIT_CODES, true);
-        $attempts = $db->prepare('SELECT attempts FROM ticket_issue_outbox WHERE id=?');
-        $attempts->execute([$jobId]);
-        // Back off so one broken order never starves the rest of the queue: 1, 2, 4 … 60 min.
-        $delay = $wait ? 300 : min(3600, 60 * (2 ** min(6, (int)$attempts->fetchColumn())));
-        $db->prepare("UPDATE ticket_issue_outbox
-            SET state=IF(?=1,state,'failed'),attempts=attempts+IF(?=1,0,1),
-                next_attempt_at_utc=DATE_ADD(UTC_TIMESTAMP(6),INTERVAL ? SECOND),
-                updated_at_utc=UTC_TIMESTAMP(6)
-            WHERE id=? AND state IN ('pending','failed')")
-            ->execute([$wait ? 1 : 0, $wait ? 1 : 0, $delay, $jobId]);
+        // No unlocked write here: an uncertain/aborted transaction has no
+        // generation authority. Leave the durable job for a legitimate retry.
+        $code = brvtal_ticket_issue_failure_code($error->getMessage());
         brvtal_ticket_issue_remember_failure($code);
-        // Only controlled codes leave the worker: never emails, tokens or SQL text.
-        return $wait ? 'waiting' : 'failed:' . brvtal_ticket_issue_failure_code($code);
+        return 'failed:' . $code;
     }
 }
 
