@@ -138,7 +138,7 @@ for (const width of [1440, 390]) {
     await expect(page.locator('#access-message')).toContainText('Correo confirmado');
     await capture(page, testInfo, 'antes-activacion-' + width + 'px');
     actions.length = 0;
-    await page.goto(base + '/mi-cuenta/restablecer?accion=verificar#token=otro-token-sintetico');
+    await page.goto(base + '/mi-cuenta/restablecer?accion=verificar&token=otro-token-sintetico');
     await expect(page.getByRole('heading', { name: /Confirma tu correo/i })).toBeVisible();
     await expect(page.getByRole('button', { name: /Activar cuenta/i })).toBeEnabled();
     expect(actions).toHaveLength(0);
@@ -152,6 +152,7 @@ for (const width of [1440, 390]) {
     expect(actions[0]).toMatchObject({ action: 'verify', token: 'otro-token-sintetico',
       password: 'UnaClaveLarga1234' });
     await expect(page).not.toHaveURL(/token=/);
+    await page.keyboard.press('Tab');
     await checkA11y(page, '.access-footnote a:first-child');
   });
 }

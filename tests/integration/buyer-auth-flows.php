@@ -162,6 +162,9 @@ function buyerAuthMissingMailKeyHttpCheck(
             $headers = ['Cookie: '.$cookie,'X-CSRF-Token: '.$csrf];
             $urlPath = '/api/buyer/auth.php';
             $payload = ['action'=>'verify','token'=>$activation['token']];
+            $invalid = $send($urlPath, 'POST',
+                ['action'=>'verify','token'=>str_repeat('X',43),'password'=>$activation['password']], $headers);
+            buyerAuthAssert($invalid['status'] === 422, 'unknown activation token rejected');
             $missing = $send($urlPath, 'POST', $payload, $headers);
             buyerAuthAssert($missing['status'] === 422, 'link alone cannot activate');
             $malformed = $send($urlPath, 'POST', $payload + ['password'=>[]], $headers);
@@ -384,8 +387,8 @@ buyerAuthAssert(str_starts_with($sealed, BRVTAL_BUYER_MAIL_SEAL_PREFIX)
 $mail = brvtalBuyerMailUnseal($sealed);
 preg_match('/token=([A-Za-z0-9_-]{43})/', (string)$mail, $matches);
 $verifyToken = $matches[1] ?? '';
-buyerAuthAssert(str_contains((string)$mail, '?accion=verify#token='),
-    'new verification links keep bearer outside HTTP URL');
+buyerAuthAssert(str_contains((string)$mail, '?accion=verify&token='),
+    'verification link retains the protected mail-renderer contract');
 buyerAuthAssert($verifyToken !== '' && !str_contains($sealed, $verifyToken), 'secure 43-char token in memory');
 // The worker unwraps only at the delivery boundary; ciphertext stays in DB.
 putenv('BRVTAL_TICKET_MAIL_MODE=mock');

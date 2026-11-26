@@ -40,8 +40,7 @@
   'use strict';
   const api = '/api/buyer/auth.php';
   const params = new URLSearchParams(location.search);
-  const fragment = new URLSearchParams(location.hash.slice(1));
-  const token = fragment.get('token') || params.get('token') || '';
+  const token = params.get('token') || '';
   const verifying = ['verificar', 'verify'].includes(params.get('accion')) ||
     ['verificar', 'verify'].includes(params.get('action')) ||
     params.get('vista') === 'verificar' || params.has('verify');
@@ -78,6 +77,8 @@
     PASSWORD_TOO_SHORT: 'Usa una contraseña de al menos 12 caracteres.',
     PASSWORD_COMMON: 'Elige una contraseña menos común.',
     PASSWORD_INVALID: 'Elige una contraseña válida de al menos 12 caracteres.',
+    PASSWORD_REUSED: 'Elige una contraseña nueva, distinta de la anterior.',
+    PASSWORD_TOO_LONG: 'Usa una contraseña de hasta 4096 caracteres.',
     CSRF_INVALID: 'La sesión ha caducado. Recarga la página e inténtalo de nuevo.'
   };
   const unavailable = 'El servicio no está disponible en este momento. Inténtalo más tarde.';
@@ -85,7 +86,6 @@
     const url = new URL(location.href);
     url.searchParams.delete('token');
     url.searchParams.delete('verify');
-    if (fragment.has('token')) url.hash = '';
     history.replaceState(null, '', url.pathname + url.search + url.hash);
   };
   async function send(action, values) {
