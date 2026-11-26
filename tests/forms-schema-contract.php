@@ -46,8 +46,16 @@ $historical['version_number'] = 2;
 $historical['fields'][0]['max_length'] = 3;
 formsSchemaReject(static fn() => brvtalFormPayloadValidate($historical, 'fixture', 2, $json), 'FORM_PAYLOAD_INVALID');
 formsSchemaExpect($definition['fields'][0]['max_length'] === 4);
+$ordinary = $definition;
+$ordinary['fields'][0]['id'] = 'display_name';
+$ordinaryPayload = $valid;
+$ordinaryPayload['display_name'] = $ordinaryPayload['nickname'];
+unset($ordinaryPayload['nickname']);
+formsSchemaExpect(brvtalFormPayloadValidate($ordinary, 'fixture', 3,
+    json_encode($ordinaryPayload, JSON_THROW_ON_ERROR))['display_name'] === 'á🌑ñé');
 
 foreach ([['id' => 'password'], ['id' => 'csrf_token'], ['id' => 'form_key'], ['id' => 'mail'],
+    ['id' => 'api_key'], ['id' => 'private_key'], ['id' => 'api__key'], ['id' => 'credit_card'],
     ['order' => 2], ['order' => '1'], ['type' => 'password'], ['type' => 'file'], ['type' => 'payment'],
     ['type' => 'url'], ['required' => 1], ['label' => '<script>'], ['help' => 'https://example.invalid'],
     ['label' => "\xFF"], ['max_length' => 0], ['max_length' => 4097], ['max_length' => '4'],

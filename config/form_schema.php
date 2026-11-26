@@ -70,7 +70,7 @@ function brvtalFormSchemaValidate(mixed $definition): array
             ) === 1
             || preg_match(
                 '/password|passwd|passphrase|secret|token|credential|creditcard|apikey|privatekey|payment/',
-                $id
+                str_replace('_', '', $id)
             ) === 1
             || in_array($id, [
                 'id', 'form_key', 'version_number', 'definition_sha256', 'entry_id', 'payload',
