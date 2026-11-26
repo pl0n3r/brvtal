@@ -312,7 +312,7 @@ guestAssert($memberCookie !== $guestCookie, 'independent verified and guest cook
 // Copy only reviewed source files, never local config, storage, or credentials.
 $source = dirname(__DIR__, 2);
 $fixtureRoot = $httpDirectory . '/site';
-foreach (['/config', '/api/ticketing', '/storage'] as $directory) {
+foreach (['/config', '/api/ticketing', '/storage', '/templates/ticketing'] as $directory) {
     guestAssert(mkdir($fixtureRoot . $directory, 0700, true), 'create private fixture subtree');
 }
 $fixtureSources = [
@@ -328,7 +328,10 @@ $fixtureSources = [
     'config/ticketing_wompi_webhook.php', 'config/ticketing_event_incident_policy.php',
     'config/ticketing_mail_outbox.php', 'config/ticketing_resend.php',
     'config/ticketing_mail_events.php', 'config/public_abuse_guard.php',
-    'config/mail_template_renderer.php', 'api/ticketing/order-status.php',
+    'config/mail_template_renderer.php', 'config/mail_template_catalog.php',
+    'config/buyer_auth_mail_templates.php', 'config/ticketing_staff_permissions.php',
+    'config/ticketing_mail_templates.php', 'config/ticketing_mail_mode.php',
+    'templates/ticketing/transactional.php', 'api/ticketing/order-status.php',
 ];
 foreach ($fixtureSources as $relative) {
     $input = $source . '/' . $relative;
