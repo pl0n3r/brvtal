@@ -178,7 +178,9 @@ function brvtalTicketAdminPage(PDO $pdo, array $f): array
         $where[] = $column . ($key === 'from' ? ' >= ?' : ' < ?');
         // Order timestamps are explicitly UTC; buyer creation has no verified UTC contract.
         $date = new DateTimeImmutable($f[$key], new DateTimeZone($isOrder ? 'America/Bogota' : 'UTC'));
-        if ($key === 'to') $date = $date->modify('+1 day');
+        if ($key === 'to') {
+            $date = $date->modify('+1 day');
+        }
         $params[] = $date->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s');
     }
     $whereSql = $where ? ' WHERE ' . implode(' AND ', $where) : '';

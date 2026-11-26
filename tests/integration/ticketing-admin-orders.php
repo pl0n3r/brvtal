@@ -120,16 +120,16 @@ try {
         (105,4,9,'paid','COP',40000,'2026-11-20 05:00:00.000000')");
     $calendar=['kind'=>'orders','event_id'=>'9','from'=>'2026-11-19','to'=>'2026-11-19'];
     $cut=brvtalTicketAdminPage($pdo,brvtalTicketAdminFilters($calendar))['rows'];
-    t18Assert(array_map('intval',array_column($cut,'id'))===[104,103]
+    t18Assert(array_map(intval(...),array_column($cut,'id'))===[104,103]
         && array_sum(array_column($cut,'total_cop'))===50000,'Bogota inclusive day, UTC half-open');
     $calendar['to']='2026-11-20';
     $cut=brvtalTicketAdminPage($pdo,brvtalTicketAdminFilters($calendar))['rows'];
-    t18Assert(array_map('intval',array_column($cut,'id'))===[105,104,103],'inclusive two-day range');
+    t18Assert(array_map(intval(...),array_column($cut,'id'))===[105,104,103],'inclusive two-day range');
     $calendar['to']='2026-11-19'; $calendar['email']='synthetic@example.test';
     $cut=brvtalTicketAdminPage($pdo,brvtalTicketAdminFilters($calendar))['rows'];
-    t18Assert(array_map('intval',array_column($cut,'id'))===[103],'calendar retains buyer filter');
+    t18Assert(array_map(intval(...),array_column($cut,'id'))===[103],'calendar retains buyer filter');
     $legacy=brvtalTicketAdminPage($pdo,brvtalTicketAdminFilters(
         ['kind'=>'buyers','from'=>'2026-11-01','to'=>'2026-11-01']))['rows'];
-    t18Assert(array_map('intval',array_column($legacy,'id'))===[4,3],'legacy buyer creation scope preserved');
+    t18Assert(array_map(intval(...),array_column($legacy,'id'))===[4,3],'legacy buyer creation scope preserved');
 } finally { $root->exec('DROP DATABASE IF EXISTS '.$name); }
 echo "T18 MariaDB synthetic joins, filters, pagination and degraded mail OK.\n";
