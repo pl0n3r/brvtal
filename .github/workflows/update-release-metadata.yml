@@ -691,6 +691,11 @@ jobs:
           bash tests/e2e/run-ticketing-provider-fixture.sh | tee "$receipt"
           grep -q '^T31_PROVIDER_FIXTURE_PASS:' "$receipt"
 
+      - name: Verify buyer login and reset over real HTTP with disposable MariaDB
+        env:
+          BRVTAL_INTEGRATION_TESTS: '1'
+        run: php tests/integration/buyer-auth-flows.php
+
       - name: Verify T15 scanner concurrency against isolated real-stack MariaDB
         env:
           BRVTAL_INTEGRATION_TESTS: '1'

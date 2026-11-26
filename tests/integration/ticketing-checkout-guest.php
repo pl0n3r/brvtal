@@ -193,6 +193,26 @@ try {
 guestAssert($existingLoginRejected, 'existing email cannot auto-login');
 guestAssert((int)($_SESSION['buyer_id'] ?? 0) === 0, 'existing account stayed signed out');
 
+// A deterministic INSERT failure must preserve only browser checkout provenance.
+$grantsBeforeFailure = $_SESSION['buyer_checkout_orders'];
+$db->exec("CREATE TRIGGER guest_session_insert_failure BEFORE INSERT ON ticket_buyer_sessions
+    FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='SYNTHETIC_SESSION_FAILURE'");
+$insertRejected = false;
+try {
+    brvtalBuyerLoginSession($guestId, $db, (int)$result['order_id']);
+} catch (PDOException $error) {
+    $insertRejected = (string)$error->getCode() === '45000';
+} finally {
+    $db->exec('DROP TRIGGER guest_session_insert_failure');
+}
+guestAssert($insertRejected && !$db->inTransaction(), 'failed guest session INSERT rolls back');
+guestAssert($_SESSION === ['buyer_checkout_orders'=>$grantsBeforeFailure],
+    'failure keeps only original checkout provenance, not authenticated identity');
+guestAssert((int)$db->query("SELECT COUNT(*) FROM ticket_buyer_sessions WHERE buyer_id=$guestId")->fetchColumn() === 0,
+    'failed guest session has no persisted identity');
+guestAssert(brvtalBuyerCheckoutPaidGrant($db, $token) === $newGrant,
+    'same original browser can retry the paid guest login');
+
 // New email, paid order and the ORIGINAL checkout session => real login.
 // Still do not mark email_verified_at; payment is not proof of inbox control.
 brvtalBuyerLoginSession($guestId, $db, (int)$result['order_id']);
@@ -208,6 +228,12 @@ guestAssert($db->query("SELECT email_verified_at FROM ticket_buyers WHERE id=$gu
 guestAssert((int)$db->query("SELECT COUNT(*) FROM ticket_buyer_sessions WHERE buyer_id=$guestId")->fetchColumn() === 1,
     'new buyer login has a persisted revocable session');
 
+$guestEpoch = (int)$db->query("SELECT security_epoch FROM ticket_buyers WHERE id=$guestId")->fetchColumn();
+$guestSession = $db->prepare('SELECT issued_epoch FROM ticket_buyer_sessions
+    WHERE buyer_id=? AND session_hash=?');
+$guestSession->execute([$guestId, hash('sha256', session_id())]);
+guestAssert((int)$guestSession->fetchColumn() === $guestEpoch,
+    'guest session persists its own epoch without password proof');
 unset($_SESSION['buyer_checkout_orders']);
 
 echo "BRVTAL #1943 guest checkout: input, same-origin, guest buyer, reuse, blocked, order and token status passed.\n";

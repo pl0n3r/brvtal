@@ -152,7 +152,7 @@ try {
         json_response(['ok' => false, 'error' => 'EMAIL_NOT_VERIFIED',
             'can_resend' => true], 403);
     }
-    brvtalBuyerLoginSession((int)$buyer['id']);
+    brvtalBuyerLoginSession((int)$buyer['id'], $pdo, null, (int)$buyer['security_epoch']);
     brvtal_password_rate_limit_reset('buyer|' . $email, __DIR__ . '/../../storage/buyer_rate_limits');
     json_response(['ok' => true, 'csrf' => $_SESSION['buyer_csrf']]);
 } catch (Throwable $error) {
