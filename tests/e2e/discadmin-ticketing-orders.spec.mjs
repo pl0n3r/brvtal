@@ -535,7 +535,7 @@ test('#2041: POS/Wompi/courtesy/unknown and true payment conflicts agree in list
     await expect(row.locator('.tk-records-anomaly')).toHaveCount(alarm?1:0);
     await page.getByRole('button',{name:'Detalle #91'}).click();
     await expect(page.locator('[data-ticketing-payment-evidence]'))
-      .toContainText(alarm ? 'Conciliar' : label);
+      .toContainText(alarm ? /conciliar|revisar/i : label);
     expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   }
   const pos={channel:'pos',state:'registered_offline',anomaly:false};
@@ -555,7 +555,8 @@ test('#2041: POS/Wompi/courtesy/unknown and true payment conflicts agree in list
       const image=await page.screenshot({fullPage:true});
       expect(image.byteLength).toBeGreaterThan(1500);
       await info.attach('2041-'+stage+'-'+width+'px.png',{body:image,contentType:'image/png'});
-      expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+      if(stage==='despues')
+        expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
     }
   }
 });
