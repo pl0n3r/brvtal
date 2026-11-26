@@ -694,6 +694,15 @@ jobs:
           bash tests/e2e/run-ticketing-provider-fixture.sh | tee "$receipt"
           grep -q '^T31_PROVIDER_FIXTURE_PASS:' "$receipt"
 
+      - name: Run mandatory isolated T31 checkout-to-account stack
+        shell: bash
+        run: |
+          set -euo pipefail
+          receipt="$(mktemp)"
+          trap 'rm -f "$receipt"' EXIT
+          bash tests/e2e/run-ticketing-real-stack.sh | tee "$receipt"
+          grep -q '^T31_CHECKOUT_STACK_PASS:' "$receipt"
+
       - name: Verify buyer login and reset over real HTTP with disposable MariaDB
         env:
           BRVTAL_INTEGRATION_TESTS: '1'
