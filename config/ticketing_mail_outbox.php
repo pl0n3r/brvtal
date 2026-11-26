@@ -115,6 +115,52 @@ function brvtal_ticket_mail_enqueue(
     return $id;
 }
 
+/**
+ * Reconcile a bounded set of expired leases and exhausted attempts without any
+ * provider call. A possibly sent message is uncertain, never an automatic retry.
+ * Row locks serialize workers; generation and expiry predicates fence updates.
+ */
+function brvtal_ticket_mail_reconcile_stale(PDO $pdo, int $limit = 25): int
+{
+    if ($limit < 1 || $limit > 100) {
+        throw new InvalidArgumentException('MAIL_RECONCILE_INVALID_LIMIT');
+    }
+    if ($pdo->inTransaction()) {
+        throw new RuntimeException('MAIL_RECONCILE_TRANSACTION_ACTIVE');
+    }
+    $where = "state IN ('queued','retry','sending')
+        AND provider_message_id IS NULL AND accepted_at IS NULL
+        AND (locked_until IS NULL OR locked_until < UTC_TIMESTAMP())
+        AND (
+            (state='sending' AND locked_until IS NOT NULL AND locked_until < UTC_TIMESTAMP())
+            OR (state IN ('queued','retry') AND (
+                attempts >= 5
+                OR first_attempt_at <= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 23 HOUR)
+            ))
+        )";
+    $pdo->beginTransaction();
+    try {
+        // The same row cannot be reconciled by two workers or claimed while locked.
+        $rows = $pdo->query("SELECT id,attempts,state FROM ticket_mail_outbox
+            WHERE {$where} ORDER BY id LIMIT {$limit} FOR UPDATE")->fetchAll(PDO::FETCH_ASSOC);
+        $update = $pdo->prepare("UPDATE ticket_mail_outbox
+            SET state='uncertain',locked_until=NULL,
+                last_error_code=COALESCE(last_error_code,'receipt_unknown'),
+                updated_at=UTC_TIMESTAMP()
+            WHERE id=? AND attempts=? AND state=? AND {$where}");
+        $changed = 0;
+        foreach ($rows as $row) {
+            $update->execute([(int)$row['id'], (int)$row['attempts'], (string)$row['state']]);
+            $changed += $update->rowCount();
+        }
+        $pdo->commit();
+        return $changed;
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $error;
+    }
+}
+
 /** Claim using a DB row lock; attempts is the fencing generation. */
 function brvtal_ticket_mail_claim(PDO $pdo): ?array
 {
@@ -123,7 +169,7 @@ function brvtal_ticket_mail_claim(PDO $pdo): ?array
         // A previously attempted unknown request is never auto-replayed after
         // Resend's 24h idempotency window (leave it for manual reconciliation).
         $row = $pdo->query("SELECT * FROM ticket_mail_outbox
-            WHERE state IN ('queued','retry','sending') AND attempts<5
+            WHERE state IN ('queued','retry') AND attempts<5
             AND next_attempt_at<=UTC_TIMESTAMP()
             AND (locked_until IS NULL OR locked_until<UTC_TIMESTAMP())
             AND (first_attempt_at IS NULL OR first_attempt_at>DATE_SUB(UTC_TIMESTAMP(),INTERVAL 23 HOUR))
@@ -152,6 +198,7 @@ function brvtal_ticket_mail_claim(PDO $pdo): ?array
 /** One attempt per worker invocation, no caller-visible PII. */
 function brvtal_ticket_mail_deliver_one(PDO $pdo, ?callable $request = null): string
 {
+    brvtal_ticket_mail_reconcile_stale($pdo);
     $job = brvtal_ticket_mail_claim($pdo);
     if ($job === null) {
         return 'idle';
