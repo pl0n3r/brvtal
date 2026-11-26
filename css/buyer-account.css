@@ -100,3 +100,26 @@
 }
 .buyer-account .access-brand{min-height:44px;justify-content:center}
 .account-footer a{display:inline-flex;align-items:center;min-height:44px;padding:8px 0}
+
+/* #2184: reuse the authorized account QR; only the selected pass prints. */
+.account-ticket-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.account-order .account-ticket-actions .account-secondary{background:transparent;border-color:var(--access-line);color:var(--access-bone)}
+.account-order .account-ticket-actions .account-secondary:hover{background:#242020;border-color:#d1c8be}
+.account-pass-details{margin:20px 0;overflow-wrap:anywhere}
+.account-pass-details h3{margin:0;font-size:24px;line-height:1.2}
+.account-qr .account-pass-details p{margin:5px 0;font-size:16px;line-height:1.4}
+.account-qr .account-pass-brand{font-weight:700;letter-spacing:.06em}
+.account-qr #pass-actions p{font-size:15px;margin:10px 0}
+@media print{
+  body.buyer-account{background:#fff;color:#000;color-scheme:light;min-height:0;overflow:visible}
+  .buyer-account::before,.buyer-account::after,.buyer-account .account-skip,.buyer-account .access-topbar,
+  .buyer-account .account-footer,.buyer-account .account-hero,.buyer-account .account-sidebar,
+  .buyer-account .account-content>section:not(#qr),.buyer-account #qr>:not(#pass-details):not(#qr-output){display:none!important}
+  .buyer-account:not(.account-pass-ready) .account-main{display:none!important}
+  .buyer-account .account-main,.buyer-account .account-wrap,.buyer-account .account-layout,.buyer-account .account-content{display:block;width:100%;max-width:none;padding:0;margin:0}
+  .buyer-account #qr{background:#fff;border:0;padding:8mm;break-inside:avoid;color:#000}
+  .buyer-account #pass-details{margin:0;text-align:center;font:400 12pt/1.4 Arial,sans-serif}
+  .buyer-account #pass-details h3{color:#000;font:700 24pt/1.2 Arial,sans-serif}
+  .buyer-account #pass-details p{color:#000;font:400 12pt/1.4 Arial,sans-serif}
+  .buyer-account #qr-output svg{width:65mm;max-width:100%;height:auto;margin:4mm auto;break-inside:avoid}
+}
