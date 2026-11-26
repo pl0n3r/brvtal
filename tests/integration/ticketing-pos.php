@@ -11,6 +11,10 @@ function posDenies(callable $run,string $code): void {
         posAssert($e->getMessage()===$code, 'expected '.$code.', got '.$e->getMessage());
     }
 }
+$statusRead=['action'=>'shift_status','event_id'=>'6'];
+posAssert(brvtalPosInput($statusRead)===['action'=>'shift_status','event_id'=>6],'typed status read');
+posDenies(static fn()=>brvtalPosInput($statusRead+['operator_admin_id'=>'1']),'POS_INVALID_FIELDS');
+posDenies(static fn()=>brvtalPosInput(array_replace($statusRead,['event_id'=>null])),'POS_INVALID_NUMBER');
 $prepare=['action'=>'prepare','shift_id'=>'1','ticket_type_id'=>'10',
           'quantity'=>'1','method'=>'cash','idempotency_key'=>str_repeat('a',32)];
 posAssert(brvtalPosInput($prepare)['quantity']===1,'typed prepare');
@@ -140,6 +144,8 @@ ROUTER;
             [$status,$body]=$request($path,[...$base,'X-CSRF-Token: '.$session['csrf']],$intent);
             if($actor===1)posAssert($status===200&&$body===['ok'=>true,'data'=>$expected],'real HTTP receipt');
             elseif($actor===2)posAssert($status===200&&$body===['ok'=>true,'data'=>['state'=>'not_found']],'HTTP actor isolation');
+            elseif($intent['action']==='shift_status')
+                posAssert($status===200&&$body===['ok'=>true,'data'=>['state'=>'not_found']],'HTTP other staff isolated');
             else posAssert($status===403&&$body['error']==='FORBIDDEN','HTTP role denied');
         }
     } finally {
@@ -205,6 +211,7 @@ $ddl=[
   "CREATE TABLE ticket_issue_outbox (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
       order_id BIGINT UNSIGNED UNIQUE,payment_attempt_id BIGINT UNSIGNED NULL,
       state VARCHAR(24) NOT NULL DEFAULT 'pending',attempts INT NOT NULL DEFAULT 0,
+      next_attempt_at_utc DATETIME(6) NULL,
       updated_at_utc DATETIME(6) NOT NULL DEFAULT (UTC_TIMESTAMP(6))) ENGINE=InnoDB",
   "CREATE TABLE ticket_order_notes (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
       order_id BIGINT UNSIGNED,actor_admin_id INT UNSIGNED,note_text VARCHAR(280),
@@ -235,7 +242,14 @@ $db->exec("INSERT INTO ticket_inventory_types(ticket_type_id,event_id,capacity,c
  VALUES(10,6,3,0)");
 $open=['action'=>'open','event_id'=>'6','opening_cash_cop'=>'50000'];
 posDenies(static fn()=>brvtalPosRun($db,1,'door',$open),'FORBIDDEN');
+$read=static fn(int $actor=1,?array $input=null)=>brvtalPosRun($db,$actor,'admin',$input??$statusRead);
+posAssert($read()===['state'=>'not_found'],'no shift before opening');
+posDenies(static fn()=>brvtalPosRun($db,1,'door',$statusRead),'FORBIDDEN');
 $shift=brvtalPosRun($db,1,'admin',$open);
+$openState=['state'=>'open','shift_id'=>$shift['shift_id'],'event_id'=>6,'preparations'=>[]];
+posAssert($read()===$openState,'own durable open shift');
+posAssert($read(2)===['state'=>'not_found'],'other operator cannot see shift');
+posAssert($read(1,['action'=>'shift_status','event_id'=>'7'])===['state'=>'not_found'],'other event isolated');
 posAssert($shift['status']==='open','open drawer');
 posDenies(static fn()=>brvtalPosRun($db,1,'admin',$open),'POS_SHIFT_ALREADY_OPEN');
 posDenies(static fn()=>brvtalPosRun($db,2,'admin',['action'=>'prepare']+$prepare),
@@ -249,6 +263,21 @@ posDenies(static fn()=>brvtalPosRun($db,1,'admin',
 $req=array_replace($prepare,['shift_id'=>(string)$shift['shift_id']]);
 $prepared=brvtalPosRun($db,1,'admin',$req);
 posAssert($prepared['status']==='prepared'&&$prepared['amount_cop']===25000,'server-owned price');
+$snapshotRead=static function()use($db):array {
+    $snapshot=[];
+    foreach(['ticket_pos_shifts','ticket_pos_sales','ticket_orders','ticket_order_items',
+        'ticket_inventory_holds','ticket_issue_outbox','ticket_entries','ticket_order_notes'] as $table) {
+        $snapshot[$table]=$db->query('SELECT * FROM '.$table)->fetchAll(PDO::FETCH_ASSOC);
+    }
+    return $snapshot;
+};
+$beforeRead=$snapshotRead();
+$pendingState=$openState;
+$pendingState['preparations'][]=['sale_id'=>$prepared['sale_id'],'ticket_type_id'=>10,
+    'quantity'=>1,'amount_cop'=>25000,'state'=>'pending'];
+posAssert($read()===$pendingState,'own preparation without credentials or PII');
+posIntentHttp(['host'=>$host,'port'=>$port,'name'=>$name,'user'=>$user,'pass'=>$pass],$statusRead,$pendingState);
+posAssert($snapshotRead()===$beforeRead,'status read does not mutate durable tables');
 $repeat=brvtalPosRun($db,1,'admin',$req);
 posAssert($repeat['replayed']&&$repeat['confirmation_token']===null,'replay cannot mint token');
 posDenies(static fn()=>brvtalPosRun($db,1,'admin',array_replace($req,['quantity'=>'2'])),
@@ -291,6 +320,8 @@ $close=brvtalPosRun($db,1,'admin',[
 posAssert($close['expected_cash_cop']===75000&&$close['cash_difference_cop']===-5000,
     'cash variance excludes Wompi and cancelled sale');
 posDenies(static fn()=>brvtalPosRun($db,1,'admin',$req),'POS_SHIFT_UNAVAILABLE');
+posAssert($read()===['state'=>'closed','shift_id'=>$shift['shift_id'],'event_id'=>6,'preparations'=>[]],
+    'closed physical drawer has durable sale evidence');
 // Real-owner lane is allowed without synthetic-mode flag but only on the
 // disposable database fixture; no Wompi charge or network request is made.
 putenv('BRVTAL_INTEGRATION_TESTS=0');
@@ -303,6 +334,9 @@ try {
     posDenies(static fn()=>brvtalPosRun($db,1,'admin',$intent),'FORBIDDEN');
     posAssert(brvtalPosRun($db,1,'superadmin',$intent)===['state'=>'not_found'],'absent intention');
     $created=brvtalPosRun($db,1,'superadmin',$manual);
+    putenv('BRVTAL_INTEGRATION_TESTS=1');
+    try {posAssert($read()===['state'=>'unverifiable'],'manual audit parent is not a physical drawer');}
+    finally {putenv('BRVTAL_INTEGRATION_TESTS=0');}
     posAssert($created['status']==='paid' && $created['issuance_queued'] && !$created['replayed'],
         'owner records paid wallet order and queues QR issuance');
     posAssert((int)$db->query("SELECT COUNT(*) FROM ticket_payment_attempts")->fetchColumn()===0,
@@ -368,6 +402,9 @@ try {
         'issuance idempotency does not duplicate QR');
 } finally {putenv('BRVTAL_INTEGRATION_TESTS=1');}
 putenv('BRVTAL_INTEGRATION_TESTS=0');
-try {posDenies(static fn()=>brvtalPosRun($db,1,'admin',$open),'POS_SYNTHETIC_ONLY');}
+try {
+    posDenies(static fn()=>brvtalPosRun($db,1,'admin',$open),'POS_SYNTHETIC_ONLY');
+    posDenies(static fn()=>brvtalPosRun($db,1,'admin',$statusRead),'POS_SYNTHETIC_ONLY');
+}
 finally {putenv('BRVTAL_INTEGRATION_TESTS=1');}
 echo "T24 disposable POS cash, inventory, QR/check-in, audit, cancellation, RBAC OK.\n";
