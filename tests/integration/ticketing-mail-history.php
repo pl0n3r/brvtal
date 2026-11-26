@@ -40,13 +40,36 @@ $schema=(string)file_get_contents(__DIR__.'/../../database/migration_ticketing_m
 foreach (preg_split('/;\s*(?=CREATE|$)/i',$schema) ?: [] as $statement) {
     if (trim($statement)!=='') $pdo->exec($statement);
 }
+
+/* Small, synthetic staff fixture. No production staff records are used. */
+$pdo->exec('CREATE TABLE admins (
+    id INT PRIMARY KEY, staff_role VARCHAR(32) NOT NULL,
+    is_active TINYINT NOT NULL, credential_epoch INT NOT NULL DEFAULT 1
+)');
+$pdo->exec("INSERT INTO admins (id,staff_role,is_active,credential_epoch) VALUES
+    (1,'admin',1,1),(2,'owner',1,1),(3,'door',1,1),
+    (4,'admin',0,1),(5,'unexpected_role',1,1)");
+
 $pdo->exec("INSERT INTO ticket_mail_outbox (message_key,payload_hash,related_ref,recipient_email,subject,body_text,provider_message_id,state)
  VALUES ('test:mail:1',REPEAT('a',64),'entry:1','buyer@example.test','Test','Synthetic','synthetic-email-1','accepted')");
 $id=brvtal_mail_history_record($pdo,1,['event_id'=>5,'buyer_id'=>6,'order_id'=>7,'ticket_id'=>8]);
 mail_t11_assert($id===brvtal_mail_history_record($pdo,1),'idempotent');
-foreach(['event_id'=>5,'buyer_id'=>6,'order_id'=>7,'ticket_id'=>8] as $key=>$val) {
+foreach (['event_id'=>5,'buyer_id'=>6,'order_id'=>7,'ticket_id'=>8] as $key=>$val) {
     mail_t11_assert(count(brvtal_mail_history_list($pdo,[$key=>$val],1))===1,$key);
+    mail_t11_assert(count(brvtal_mail_history_list($pdo,[$key=>$val],2))===1,'owner '.$key);
 }
+foreach ([3,4,5,999] as $unauthorized) {
+    try {
+        brvtal_mail_history_list($pdo,['event_id'=>5],$unauthorized);
+        mail_t11_assert(false,'no mail grant '.$unauthorized);
+    } catch (DomainException $e) {
+        mail_t11_assert($e->getMessage()==='MAIL_FORBIDDEN','mail permission '.$unauthorized);
+    }
+}
+$pdo->prepare("UPDATE admins SET is_active=0 WHERE id=1")->execute();
+try {brvtal_mail_history_list($pdo,['event_id'=>5],1);mail_t11_assert(false,'revoked admin');}
+catch (DomainException $e) {mail_t11_assert($e->getMessage()==='MAIL_FORBIDDEN','revoked access');}
+$pdo->prepare("UPDATE admins SET is_active=1 WHERE id=1")->execute();
 try {brvtal_mail_history_list($pdo,['event_id'=>5],0);mail_t11_assert(false,'public leak');}
 catch(RuntimeException $e){mail_t11_assert($e->getMessage()==='MAIL_ADMIN_REQUIRED','admin gate');}
 mail_t11_assert((string)$pdo->query('SELECT delivery_state FROM ticket_mail_history')->fetchColumn()==='accepted','accepted != delivered');
@@ -106,6 +129,142 @@ mail_t11_assert(brvtal_mail_webhook_process($pdo,$raw,$headers,$secret,$now)===5
     'privacy gate still denies signed webhook without approval');
 try {brvtal_mail_history_record($pdo,1);mail_t11_assert(false,'privacy denied');}
 catch (RuntimeException $e) {mail_t11_assert($e->getMessage()==='MAIL_PRIVACY_NOT_APPROVED','privacy gate');}
+
+
+// #2107: real HTTP boundary in an isolated localhost PHP server + disposable MariaDB.
+// It runs within the existing T11 database gate, without any provider or production account.
+putenv('BRVTAL_TICKET_MAIL_TESTING=1');
+putenv('BRVTAL_TICKET_MAIL_WEBHOOK_SECRET='.$secret);
+$httpDir=sys_get_temp_dir().'/brvtal-mail-history-http-'.bin2hex(random_bytes(6));
+mail_t11_assert(mkdir($httpDir,0700),'create isolated HTTP fixture');
+$fixtureConfig=$httpDir.'/config.php';
+$routerFile=$httpDir.'/router.php';
+$serverLog=$httpDir.'/php.log';
+$root=realpath(__DIR__.'/../..');
+mail_t11_assert(is_string($root),'locate web root');
+$configData=[
+    'app'=>['timezone'=>'UTC','base_url'=>'http://127.0.0.1'],
+    'db'=>['host'=>$host,'port'=>$port,'name'=>$dbName,
+        'user'=>$user,'pass'=>$pass,'charset'=>'utf8mb4'],
+    'security'=>['session_name'=>'BRVTAL_T11_HTTP','csrf_key'=>'synthetic-only'],
+];
+file_put_contents($fixtureConfig,'<?php return '.var_export($configData,true).';');
+$router=<<<'T11_ROUTER'
+<?php
+declare(strict_types=1);
+define('BRVTAL_SENTRY_TESTING',true);
+$GLOBALS['brvtalBootstrapConfigPath']=__T11_CONFIG__;
+if (parse_url((string)($_SERVER['REQUEST_URI']??''),PHP_URL_PATH)==='/__t11_ready') {
+    echo 'ready';
+    return;
+}
+if (parse_url((string)($_SERVER['REQUEST_URI']??''),PHP_URL_PATH)==='/__t11_login') {
+    require_once __T11_AUTH__;
+    brvtal_admin_session_start();
+    $_SESSION['admin_id']=(int)($_GET['id']??0);
+    $_SESSION['credential_epoch']=1;
+    $_SESSION['issued_at']=time();
+    $_SESSION['last_activity']=time();
+    header('Cache-Control: no-store');
+    echo 'ready';
+    return;
+}
+$_SERVER['SCRIPT_FILENAME']=__T11_ENDPOINT__;
+require __T11_ENDPOINT__;
+T11_ROUTER;
+$router=str_replace(['__T11_CONFIG__','__T11_AUTH__','__T11_ENDPOINT__'],
+    [var_export($fixtureConfig,true),
+     var_export($root.'/config/admin_auth.php',true),
+     var_export($root.'/api/ticketing/webhook-resend.php',true)],$router);
+file_put_contents($routerFile,$router);
+$listener=stream_socket_server('tcp://127.0.0.1:0',$portError,$portMessage);
+mail_t11_assert($listener!==false,'reserve loopback port');
+$listenAddress=stream_socket_get_name($listener,false);
+$httpPort=(int)substr((string)strrchr($listenAddress,':'),1);
+fclose($listener);
+mail_t11_assert($httpPort>0,'loopback port');
+$server=proc_open([PHP_BINARY,'-S','127.0.0.1:'.$httpPort,'-t',$root,$routerFile],
+    [['pipe','r'],['file',$serverLog,'a'],['file',$serverLog,'a']],$serverPipes);
+mail_t11_assert(is_resource($server),'start isolated server');
+fclose($serverPipes[0]);
+try {
+    $origin='http://127.0.0.1:'.$httpPort;
+    $ready=false;
+    for ($attempt=0;$attempt<40;$attempt++) {
+        if (@file_get_contents($origin.'/__t11_ready')==='ready') {$ready=true;break;}
+        usleep(100000);
+    }
+    mail_t11_assert($ready,'local HTTP server ready');
+    $request=static function (string $method,string $url,array $headers=[],string $body=''): array {
+        $opts=['http'=>['method'=>$method,'ignore_errors'=>true,'timeout'=>8,
+            'header'=>implode("\r\n",$headers),'content'=>$body]];
+        $response=file_get_contents($url,false,stream_context_create($opts));
+        $responseHeaders=$http_response_header;
+        mail_t11_assert($response!==false && count($responseHeaders)>0,'HTTP transport');
+        preg_match('/^HTTP\/[0-9.]+ ([0-9]{3})/',(string)$responseHeaders[0],$match);
+        return [(int)($match[1]??0),(string)$response,$responseHeaders];
+    };
+    $historyUrl=$origin.'/api/ticketing/webhook-resend.php?event_id=5';
+    [$status,$body]=$request('GET',$historyUrl);
+    mail_t11_assert($status===401 && !str_contains($body,'"items"'),'HTTP anonymous denied');
+    foreach ([3=>403,4=>401,5=>403] as $roleId=>$expectedStatus) {
+        [$loginStatus,$loginBody,$loginHeaders]=$request('GET',$origin.'/__t11_login?id='.$roleId);
+        mail_t11_assert($loginStatus===200 && $loginBody==='ready','HTTP login '.$roleId);
+        $cookie='';
+        foreach ($loginHeaders as $header) {
+            if (preg_match('/^Set-Cookie:\s*([^;]+)/i',$header,$cookieMatch)) {
+                $cookie=$cookieMatch[1];
+            }
+        }
+        mail_t11_assert($cookie!=='','session cookie '.$roleId);
+        [$status,$body]=$request('GET',$historyUrl,['Cookie: '.$cookie]);
+        mail_t11_assert($status===$expectedStatus && !str_contains($body,'"items"'),
+            'HTTP staff denial '.$roleId);
+    }
+    foreach ([1,2] as $authorizedId) {
+        [$loginStatus,$loginBody,$loginHeaders]=$request('GET',$origin.'/__t11_login?id='.$authorizedId);
+        mail_t11_assert($loginStatus===200,'HTTP authorized login '.$authorizedId);
+        $cookie='';
+        foreach ($loginHeaders as $header) {
+            if (preg_match('/^Set-Cookie:\s*([^;]+)/i',$header,$cookieMatch)) $cookie=$cookieMatch[1];
+        }
+        mail_t11_assert($cookie!=='','authorized cookie');
+        [$status,$body,$headers]=$request('GET',$historyUrl,['Cookie: '.$cookie]);
+        $json=json_decode($body,true);
+        mail_t11_assert($status===200 && is_array($json) && ($json['ok']??false)
+            && count($json['items']??[])===1,'HTTP allowed mail '.$authorizedId);
+        mail_t11_assert(!array_key_exists('recipient_digest',$json['items'][0])
+            && !array_key_exists('body_text',$json['items'][0]),'HTTP projected fields');
+        mail_t11_assert((bool)array_filter($headers,
+            static fn($h)=>stripos($h,'Cache-Control: no-store')===0),'HTTP no-store');
+        [$invalidStatus]=$request('GET',$origin.'/api/ticketing/webhook-resend.php?event_id=invalid',
+            ['Cookie: '.$cookie]);
+        mail_t11_assert($invalidStatus===422,'HTTP filter check');
+    }
+    $httpRaw=json_encode(['type'=>'email.delivered','created_at'=>gmdate('c',$now),
+        'data'=>['email_id'=>'synthetic-http-2107','to'=>['safe@example.test']]],
+        JSON_THROW_ON_ERROR);
+    $beforeEvents=(int)$pdo->query('SELECT COUNT(*) FROM ticket_mail_provider_events')->fetchColumn();
+    $httpHeaders=$sign('msg_http_2107',$httpRaw,$now);
+    $headLines=['Content-Type: application/json'];
+    foreach ($httpHeaders as $key=>$value) $headLines[]=$key.': '.$value;
+    [$postStatus]=$request('POST',$origin.'/api/ticketing/webhook-resend.php',$headLines,$httpRaw);
+    mail_t11_assert($postStatus===200,'signed POST without staff session');
+    $afterEvents=(int)$pdo->query('SELECT COUNT(*) FROM ticket_mail_provider_events')->fetchColumn();
+    mail_t11_assert($afterEvents===$beforeEvents+1,'POST created one synthetic event');
+    [$postStatus,$body]=$request('POST',$origin.'/api/ticketing/webhook-resend.php',
+        $headLines,$httpRaw.' ');
+    mail_t11_assert($postStatus===401,'tampered POST rejected');
+    mail_t11_assert((int)$pdo->query('SELECT COUNT(*) FROM ticket_mail_provider_events')->fetchColumn()
+        ===$afterEvents,'invalid POST did not mutate');
+} finally {
+    proc_terminate($server);
+    proc_close($server);
+    putenv('BRVTAL_TICKET_MAIL_TESTING=0');
+    putenv('BRVTAL_TICKET_MAIL_WEBHOOK_SECRET');
+    foreach ([$fixtureConfig,$routerFile,$serverLog] as $path) if (is_file($path)) unlink($path);
+    rmdir($httpDir);
+}
 
 // #1874: exercise the encrypted-secret CLI worker in the existing MariaDB T11 gate.
 // Keep local fixture state isolated from the webhook and subsequent buyer-auth tests.
