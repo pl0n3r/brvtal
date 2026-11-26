@@ -143,6 +143,58 @@ for ($i = 0; $i < 45; ++$i) {
         'legitimate four-second polling remains available');
 }
 
+// Separate PHP processes share the actual atomic store and contend for the same budget.
+$parallelPath = $newDir() . '/parallel.json';
+$workerCode = <<<'PHP'
+require $argv[1];
+$_SERVER['REMOTE_ADDR'] = '203.0.113.77';
+$config = ['security' => ['csrf_key' => str_repeat('test-antibot-hmac-key!', 3)],
+    'ticketing' => ['status_rate_limit' => ['window_seconds' => 60, 'origin_limit' => 3, 'global_limit' => 5]]];
+for ($i = 0; $i < 12; ++$i) {
+    echo brvtal_ticket_status_budget($config, 'order', $argv[2], 1800000000)['status'], "\n";
+    usleep(1000);
+}
+PHP;
+$workers = [];
+$admitted = 0;
+try {
+    for ($i = 0; $i < 4; ++$i) {
+        $worker = proc_open([PHP_BINARY, '-r', $workerCode,
+            dirname(__DIR__, 2) . '/config/public_ticket_checkout.php', $parallelPath],
+            [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+        abuseAssert(is_resource($worker), 'start concurrent status worker');
+        fclose($pipes[0]);
+        $workers[] = [$worker, $pipes[1], $pipes[2]];
+    }
+    foreach ($workers as [$worker, $output, $errors]) {
+        $statuses = explode("\n", trim((string)stream_get_contents($output)));
+        $stderr = stream_get_contents($errors);
+        fclose($output);
+        fclose($errors);
+        abuseAssert(proc_close($worker) === 0 && $stderr === '' && count($statuses) === 12,
+            'concurrent status worker completed');
+        foreach ($statuses as $status) {
+            abuseAssert(in_array($status, ['200', '429', '503'], true), 'neutral concurrent status');
+            if ($status === '200') ++$admitted;
+        }
+    }
+} finally {
+    foreach ($workers as [$worker, $output, $errors]) {
+        if (is_resource($output)) fclose($output);
+        if (is_resource($errors)) fclose($errors);
+        if (is_resource($worker)) { proc_terminate($worker); proc_close($worker); }
+    }
+}
+$parallel = json_decode((string)file_get_contents($parallelPath), true, 512, JSON_THROW_ON_ERROR);
+abuseAssert($admitted > 0 && $admitted <= 3 && $parallel['total'] === $admitted
+    && array_sum($parallel['buckets']) === $admitted, 'concurrent budget has no lost updates or overshoot');
+for ($i = $admitted; $i < 3; ++$i) {
+    abuseAssert(brvtal_ticket_status_budget($statusConfig, 'order', $parallelPath, $now)['allowed'],
+        'unused concurrent budget remains available');
+}
+abuseAssert(brvtal_ticket_status_budget($statusConfig, 'order', $parallelPath, $now)['status'] === 429,
+    'parallel budget exhausts exactly at origin ceiling');
+
 /** Inventory every syntactically public API POST entrypoint from source. */
 $root = dirname(__DIR__,2);
 $public = [
