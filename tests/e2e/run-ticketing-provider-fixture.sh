@@ -84,6 +84,28 @@ if ($mode === 'valid') {
         || $value['reference'] !== 'BW7-1-CARD-' . str_repeat('a', 24)) {
         throw new LogicException('Provider record was not independent and canonical');
     }
+} elseif ($mode === 'dynamic') {
+    $expected = [
+        'id' => 'tx-dynamic', 'reference' => getenv('FIXTURE_REF'),
+        'status' => 'APPROVED', 'currency' => 'COP', 'amount_in_cents' => 45600,
+    ];
+    $value = brvtal_wompi_hook_lookup($settings, $id);
+    if ($value !== $expected) {
+        throw new LogicException('Dynamic provider record differs from harness expectation');
+    }
+    // Construct contradictory notification data independently of the lookup.
+    // Both identity and reference must be rejected before touching any DB.
+    class NoDynamicDatabase extends PDO { public function __construct() {} }
+    foreach (['id' => 'tx-other', 'reference' => 'BW7-43-NEQUI-' . str_repeat('b', 24)] as $field => $wrong) {
+        $signed = $expected;
+        $signed[$field] = $wrong;
+        try {
+            brvtal_wompi_hook_apply(new NoDynamicDatabase(), $signed, $value);
+            throw new LogicException('Contradictory notification accepted');
+        } catch (DomainException $exception) {
+            if ($exception->getMessage() !== 'WEBHOOK_PROVIDER_MISMATCH') throw $exception;
+        }
+    }
 } elseif ($mode === 'mismatch') {
     $value = brvtal_wompi_hook_lookup($settings, $id);
     // Real application verifier checks provider fields before touching PDO.
@@ -138,10 +160,69 @@ run_case reject tx-valid /fixture/wrong-ca.pem
 run_case reject tx-valid /fixture/ca.pem https://wrong-host.invalid/v1
 run_case reject tx-valid /fixture/ca.pem https://192.0.2.1/v1
 run_case reject tx-valid /fixture/ca.pem https://sandbox.wompi.co/v1 invalid_test_auth
+# The harness owns the record independently of any notification/HTTP request.
+record=/fixture/dynamic-record.json
+export FIXTURE_REF="BW7-42-NEQUI-$(php -r 'echo bin2hex(random_bytes(12));')"
+valid_record="$(printf '{"id":"tx-dynamic","reference":"%s","status":"APPROVED","currency":"COP","amount_in_cents":45600}' "$FIXTURE_REF")"
+publish_record() {
+  printf '%s' "$1" > "$record.tmp"
+  chmod 600 "$record.tmp"
+  mv -f "$record.tmp" "$record"
+}
+run_case reject tx-dynamic
+publish_record "$valid_record"
+run_case dynamic tx-dynamic
+run_case reject tx-other
+run_case reject tx-dynamic /fixture/wrong-ca.pem
+run_case reject tx-dynamic /fixture/ca.pem https://wrong-host.invalid/v1
+run_case reject tx-dynamic /fixture/ca.pem https://192.0.2.1/v1
+run_case reject tx-dynamic /fixture/ca.pem https://sandbox.wompi.co/v1 invalid_test_auth
+
+# A provider POST cannot install or change the record.
+code="$(curl --noproxy '*' -sS --cacert /fixture/ca.pem -o /dev/null -w '%{http_code}' \
+  -X POST -H 'Authorization: Bearer prv_test_fixture_only_123456' \
+  -H 'Content-Type: application/json' --data '{"id":"tx-other"}' \
+  https://sandbox.wompi.co/v1/transactions/tx-dynamic)"
+[[ "$code" == 404 ]] || exit 1
+run_case dynamic tx-dynamic
+for malformed in \
+  '{' \
+  '[]' \
+  "''" \
+  "$(printf '%s' "$valid_record" | sed 's/"tx-dynamic"/"tx-other"/')" \
+  "$(printf '%s' "$valid_record" | sed 's/BW7-/BAD-/')" \
+  "$(printf '%s' "$valid_record" | sed 's/"COP"/"USD"/')" \
+  "$(printf '%s' "$valid_record" | sed 's/45600/0/')" \
+  "$(printf '%s' "$valid_record" | sed 's/45600/1.5/')" \
+  "$(printf '%s' "$valid_record" | sed 's/"APPROVED"/"UNKNOWN"/')" \
+  "$(printf '%s' "$valid_record" | sed 's/}$/,"unexpected":true}/')" \
+  "$(printf '%s%01025d' "$valid_record" 0)"; do
+  publish_record "$malformed"
+  run_case reject tx-dynamic
+done
+publish_record "$valid_record"
+chmod 644 "$record"
+run_case reject tx-dynamic
+rm -f "$record"
+run_case reject tx-dynamic
+ln -s /fixture/ca.pem "$record"
+run_case reject tx-dynamic
+rm -f "$record"
+publish_record "$valid_record"
+run_case dynamic tx-dynamic
+run_case valid tx-valid
+grep -q '"id":"tx-dynamic","status":200' /fixture/audit.jsonl
+grep -q '"id":"tx-dynamic","status":404' /fixture/audit.jsonl
+grep -q '"id":"tx-dynamic","status":401' /fixture/audit.jsonl
+
 [[ -s /fixture/audit.jsonl ]] || { echo 'T31: no provider evidence' >&2; exit 1; }
 grep -q '"id":"tx-valid","status":200' /fixture/audit.jsonl || exit 1
 grep -q '"id":"tx-conflict","status":200' /fixture/audit.jsonl || exit 1
 if grep -Eq 'Authorization|Bearer|prv_test_|test_events_|INTEGRITY_SECRET' /fixture/audit.jsonl; then
   echo 'T31: credential leaked to audit' >&2; exit 1
 fi
+if grep -Eq 'BW7-|amount_in_cents|reference' /fixture/audit.jsonl; then
+  echo 'T31: provider record leaked to audit' >&2; exit 1
+fi
+echo 'T31_PROVIDER_DYNAMIC_RECORD_PASS: independent variable record, exact PHP lookup, negative cases'
 echo 'T31_PROVIDER_FIXTURE_PASS: isolated network, verified TLS and hostname, independent provider records, real PHP lookup, local HTTPS endpoint, negative cases; zero external egress'
