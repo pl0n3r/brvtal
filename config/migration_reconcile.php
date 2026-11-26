@@ -216,20 +216,31 @@ function brvtalMigrationProofSpecifications(): array
             true
         ),
         'migration_forms_entries_01.sql' => array_merge(
-            brvtalMigrationObjectRequirements('form_definition_versions',
+            brvtalMigrationObjectRequirements(
+                'form_definition_versions',
                 ['form_key','version_number','definition_sha256','definition_json','created_at_utc'],
-                ['PRIMARY','uq_form_version_digest'], true),
-            brvtalMigrationObjectRequirements('form_entries',
+                ['PRIMARY','uq_form_version_digest'],
+                true
+            ),
+            brvtalMigrationObjectRequirements(
+                'form_entries',
                 ['entry_id','form_key','version_number','definition_sha256','idempotency_digest',
                  'payload_json','created_at_utc','purpose_key','notice_version','retention_policy_key',
                  'retention_until_utc','state','redacted_at_utc'],
-                ['PRIMARY','uq_form_entry_idempotency','idx_form_entry_version','idx_form_entry_state','idx_form_entry_retention'], true),
-            brvtalMigrationObjectRequirements('form_notification_intents',
+                ['PRIMARY','uq_form_entry_idempotency','idx_form_entry_version',
+                 'idx_form_entry_state','idx_form_entry_retention'],
+                true
+            ),
+            brvtalMigrationObjectRequirements(
+                'form_notification_intents',
                 ['entry_id','action_key','state','created_at_utc'],
-                ['PRIMARY','idx_form_intent_pending'], true),
+                ['PRIMARY','idx_form_intent_pending'],
+                true
+            ),
             [
                 'unique-index:form_definition_versions.PRIMARY=form_key,version_number',
-                'unique-index:form_definition_versions.uq_form_version_digest=form_key,version_number,definition_sha256',
+                'unique-index:form_definition_versions.uq_form_version_digest=' .
+                    'form_key,version_number,definition_sha256',
                 'unique-index:form_entries.PRIMARY=entry_id',
                 'unique-index:form_entries.uq_form_entry_idempotency=form_key,idempotency_digest',
                 'unique-index:form_notification_intents.PRIMARY=entry_id,action_key',
@@ -239,8 +250,10 @@ function brvtalMigrationProofSpecifications(): array
                 'column-type:form_definition_versions.definition_sha256=binary(32)',
                 'column-type:form_notification_intents.entry_id=binary(16)',
                 'fk-reference:form_entries.fk_form_entry_version=form_key:form_definition_versions.form_key',
-                'fk-reference:form_entries.fk_form_entry_version=version_number:form_definition_versions.version_number',
-                'fk-reference:form_entries.fk_form_entry_version=definition_sha256:form_definition_versions.definition_sha256',
+                'fk-reference:form_entries.fk_form_entry_version=version_number:' .
+                    'form_definition_versions.version_number',
+                'fk-reference:form_entries.fk_form_entry_version=definition_sha256:' .
+                    'form_definition_versions.definition_sha256',
                 'fk-reference:form_notification_intents.fk_form_intent_entry=entry_id:form_entries.entry_id',
                 'check-constraint:form_definition_versions.ck_form_version_number',
                 'check-constraint:form_definition_versions.ck_form_version_key',
