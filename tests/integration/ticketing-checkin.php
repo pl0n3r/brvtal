@@ -251,6 +251,88 @@ try {
     }
     $pdo->prepare("UPDATE events SET status='published',event_date=?,published_at=? WHERE id=1")
         ->execute([$openAt15,$publicAt15]);
+    // #2098: disposable POS evidence rows; T24 also exercises the actual
+    // brvtalPosConfirm/manual-order issuance paths against MariaDB.
+    foreach ([
+        "ALTER TABLE ticket_orders ADD currency CHAR(3) DEFAULT 'COP',
+            ADD total_cop BIGINT UNSIGNED DEFAULT 25000, ADD checkout_key_hash CHAR(64)",
+        'ALTER TABLE ticket_order_items ADD quantity INT UNSIGNED DEFAULT 1,
+            ADD unit_price_cop BIGINT UNSIGNED DEFAULT 25000, ADD subtotal_cop BIGINT UNSIGNED DEFAULT 25000',
+        'ALTER TABLE ticket_issue_outbox ADD payment_attempt_id BIGINT UNSIGNED NULL',
+        'CREATE TABLE ticket_pos_shifts (id BIGINT UNSIGNED PRIMARY KEY,event_id INT UNSIGNED,
+            operator_admin_id INT UNSIGNED) ENGINE=InnoDB',
+        'CREATE TABLE ticket_pos_sales (id BIGINT UNSIGNED PRIMARY KEY,shift_id BIGINT UNSIGNED,
+            event_id INT UNSIGNED,operator_admin_id INT UNSIGNED,ticket_type_id INT UNSIGNED,
+            order_id BIGINT UNSIGNED UNIQUE,quantity INT UNSIGNED,unit_price_cop BIGINT UNSIGNED,
+            amount_cop BIGINT UNSIGNED,method VARCHAR(20),status VARCHAR(20),
+            completed_at_utc DATETIME NULL,request_hash CHAR(64)) ENGINE=InnoDB',
+        'CREATE TABLE ticket_order_notes (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            order_id BIGINT UNSIGNED,actor_admin_id INT UNSIGNED,note_text VARCHAR(280)) ENGINE=InnoDB',
+        'INSERT INTO ticket_pos_shifts VALUES (1,1,7),(2,2,7),(3,1,8)',
+    ] as $sql) $pdo->exec($sql);
+    $posFixture=static function(int $id,string $method,bool $direct) use ($pdo):string {
+        $digest=hash('sha256','manual-fixture:'.$id);
+        $checkout=$direct?hash('sha256','pos:'.$id):$digest;
+        $pdo->prepare("INSERT INTO ticket_orders(id,event_id,status,checkout_key_hash)
+            VALUES (?,1,'paid',?)")->execute([$id,$checkout]);
+        $pdo->prepare('INSERT INTO ticket_order_items(id,order_id,event_id,ticket_type_id)
+            VALUES (?,?,1,11)')->execute([$id,$id]);
+        $pdo->prepare("INSERT INTO ticket_pos_sales VALUES (?,1,1,7,11,?,1,25000,25000,
+            ?,'paid',UTC_TIMESTAMP(),?)")->execute([$id,$id,$method,$digest]);
+        if (!$direct) {
+            $pdo->prepare("INSERT INTO ticket_issue_outbox(id,order_id,state)
+                VALUES (?,?,'done')")->execute([$id,$id]);
+        }
+        if ($method==='transfer') {
+            $pdo->prepare('INSERT INTO ticket_order_notes(order_id,actor_admin_id,note_text)
+                VALUES (?,7,?)')->execute([$id,'manual-payment|transfer|REF-2098|'.$digest]);
+        }
+        $opaque=random_bytes(16); $secret=random_bytes(32);
+        $pdo->prepare('INSERT INTO ticket_entries(id,public_id,order_item_id,event_id,ticket_type_id,
+            unit_number,issued_at_utc) VALUES (?,?,?,1,11,1,UTC_TIMESTAMP(6))')->execute([$id,$opaque,$id]);
+        $pdo->prepare('INSERT INTO ticket_entry_credentials(entry_id,version,token_hash,created_at_utc)
+            VALUES (?,1,?,UTC_TIMESTAMP(6))')->execute([$id,hash('sha256',$secret,true)]);
+        return t15Qr(bin2hex($opaque),$secret);
+    };
+    foreach ([[200,'cash',true],[201,'cash',false],[202,'terminal',false],[203,'transfer',false]]
+        as [$id,$method,$direct]) {
+        $qr=$posFixture($id,$method,$direct);
+        t15(brvtalTicketCheckinConsume($pdo,1,7,'pos-reader',$qr)['ok'],'valid POS '.$id);
+    }
+    $invalid=[
+        210=>"UPDATE ticket_pos_sales SET amount_cop=1 WHERE id=210",
+        211=>"UPDATE ticket_pos_sales SET event_id=2 WHERE id=211",
+        212=>"UPDATE ticket_pos_sales SET quantity=2 WHERE id=212",
+        213=>"UPDATE ticket_pos_sales SET shift_id=2 WHERE id=213",
+        214=>"UPDATE ticket_pos_sales SET shift_id=3 WHERE id=214",
+        215=>"UPDATE ticket_pos_sales SET completed_at_utc=NULL WHERE id=215",
+        216=>"UPDATE ticket_pos_sales SET status='prepared' WHERE id=216",
+        217=>"UPDATE ticket_issue_outbox SET state='pending' WHERE id=217",
+        218=>"UPDATE ticket_issue_outbox SET payment_attempt_id=1 WHERE id=218",
+        219=>"DELETE FROM ticket_issue_outbox WHERE id=219",
+        220=>"UPDATE ticket_order_items SET unit_price_cop=1 WHERE id=220",
+        221=>"UPDATE ticket_orders SET currency='USD' WHERE id=221",
+        222=>"UPDATE ticket_entries SET unit_number=2 WHERE id=222",
+        223=>"INSERT INTO ticket_payment_attempts VALUES (223,223,'wompi','approved','mixed')",
+        224=>"DELETE FROM ticket_order_notes WHERE order_id=224",
+    ];
+    foreach ($invalid as $id=>$mutation) {
+        $qr=$posFixture($id,$id===224?'transfer':'cash',false);
+        $pdo->exec($mutation);
+        if ($id===223) {
+            $pdo->exec("INSERT INTO ticket_payment_webhook_events VALUES (223,223,'mixed','APPROVED')");
+        }
+        t15(brvtalTicketCheckinConsume($pdo,1,7,'pos-reader',$qr)['reason']==='payment_unverified',
+            'inconsistent POS rejected '.$id);
+        $status=$pdo->prepare('SELECT status FROM ticket_entries WHERE id=?');
+        $status->execute([$id]);
+        t15($status->fetchColumn()==='issued','invalid POS preserves QR '.$id);
+    }
+    $qr=$posFixture(225,'cash',true);
+    $pdo->exec("UPDATE ticket_orders SET checkout_key_hash=SHA2('wrong',256) WHERE id=225");
+    t15(brvtalTicketCheckinConsume($pdo,1,7,'pos-reader',$qr)['reason']==='payment_unverified',
+        'direct receipt provenance required');
+    echo "T15 #2098 POS direct/manual financial proof and negative cases passed.\n";
     $pdo->exec('DROP TABLE ticket_payment_webhook_events');
     try {brvtalTicketCheckinConsume($pdo,1,7,'scanner-A',$qr4);throw new RuntimeException('DB outage accepted');}
     catch (RuntimeException $e) {t15($e->getMessage()==='CHECKIN_STORAGE_UNAVAILABLE','DB failure fail-closed');}
