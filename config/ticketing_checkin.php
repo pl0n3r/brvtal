@@ -231,6 +231,14 @@ function brvtalTicketCheckinConsume(
     try {
         $pdo->beginTransaction();
         try {
+            $event=$pdo->prepare('SELECT status,event_date,published_at FROM events WHERE id=? FOR UPDATE');
+            $event->execute([$eventId]);
+            $eventRow=$event->fetch(PDO::FETCH_ASSOC);
+            if (!is_array($eventRow)) {
+                throw new DomainException('CHECKIN_EVENT_NOT_FOUND');
+            }
+            // Establish the consistent-read snapshot only AFTER the event mutex:
+            // a pre-mutex read could observe outdated financial/incident evidence.
             // A known attempt never reaches credential validation or consumption.
             // No gap lock: concurrent new IDs are serialized by the unique audit index.
             if ($requestId!==null) {
@@ -240,12 +248,6 @@ function brvtalTicketCheckinConsume(
                     $pdo->rollBack();
                     return ['ok'=>false,'reason'=>'attempt_conflict'];
                 }
-            }
-            $event=$pdo->prepare('SELECT status,event_date,published_at FROM events WHERE id=? FOR UPDATE');
-            $event->execute([$eventId]);
-            $eventRow=$event->fetch(PDO::FETCH_ASSOC);
-            if (!is_array($eventRow)) {
-                throw new DomainException('CHECKIN_EVENT_NOT_FOUND');
             }
             // Event mutex precedes incident decision and every entry/order lock.
             $eligible=brvtalTicketCheckinEventEligible($eventRow, $now);

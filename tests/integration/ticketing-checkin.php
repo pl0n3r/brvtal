@@ -322,13 +322,24 @@ try {
             $proc=proc_open([PHP_BINARY,'-r',$program],[0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes,null,$env);
             t15(is_resource($proc),'collision worker launched');$workers2121[]=[$proc,$pipes];
         }
-        foreach ($workers2121 as [$proc,$pipes]) {
-            stream_set_timeout($pipes[1],10);
-            t15(trim((string)fgets($pipes[1]))==='READY','both workers reached audit insert');
+        $ready2121=[];$deadline2121=microtime(true)+10;
+        foreach ($workers2121 as [$proc,$pipes]) stream_set_blocking($pipes[1],false);
+        while (count($ready2121)<2 && microtime(true)<$deadline2121) {
+            $read=[];
+            foreach ($workers2121 as [$proc,$pipes]) {
+                if (!isset($ready2121[(int)$pipes[1]])) $read[]=$pipes[1];
+            }
+            $write=[];$except=[];
+            t15(stream_select($read,$write,$except,0,100000)!==false,'collision ready select');
+            foreach ($read as $stream) {
+                if (trim((string)fgets($stream))==='READY') $ready2121[(int)$stream]=true;
+            }
         }
+        t15(count($ready2121)===2,'both workers reached audit insert');
         foreach ($workers2121 as [$proc,$pipes]) {fwrite($pipes[0],"GO\n");fflush($pipes[0]);}
         $results2121=[];
         foreach ($workers2121 as [$proc,$pipes]) {
+            stream_set_blocking($pipes[1],true);
             $results2121[]=json_decode((string)stream_get_contents($pipes[1]),true,512,JSON_THROW_ON_ERROR)['reason'];
         }
         sort($results2121);
