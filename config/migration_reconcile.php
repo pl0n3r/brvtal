@@ -92,6 +92,11 @@ function brvtalMigrationProofSpecifications(): array
             ['secret_key','value_encrypted','updated_by_admin_id','updated_at'],
             ['PRIMARY','idx_integration_secrets_updated'], true
         ),
+        'migration_event_visibility_01.sql' => [
+            'column:events.visibility',
+            "column-type:events.visibility=enum('public','unlisted')",
+            'column-not-null-default:events.visibility=public',
+        ],
         'migration_events_venue_address_01.sql' => [
             'column:events.venue_address',
             'column-type:events.venue_address=varchar(300)',
@@ -523,6 +528,20 @@ function brvtalMigrationNullableColumnMatches(mixed $observed): bool
 
 function brvtalMigrationProbeRequirement(PDO $pdo, string $requirement): bool
 {
+    if (preg_match(
+        '/^column-not-null-default:([A-Za-z0-9_]+)\.([A-Za-z0-9_]+)=([A-Za-z0-9_]+)$/',
+        $requirement,
+        $match
+    )) {
+        $statement = $pdo->prepare(
+            'SELECT IS_NULLABLE,COLUMN_DEFAULT FROM information_schema.COLUMNS '
+            . 'WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?'
+        );
+        $statement->execute([$match[1], $match[2]]);
+        $row = $statement->fetch(PDO::FETCH_ASSOC);
+        return is_array($row) && $row['IS_NULLABLE'] === 'NO'
+            && trim((string)$row['COLUMN_DEFAULT'], "'") === $match[3];
+    }
     if (preg_match('/^column-nullable:([A-Za-z0-9_]+)\\.([A-Za-z0-9_]+)$/', $requirement, $match)) {
         $statement = $pdo->prepare(
             'SELECT IS_NULLABLE FROM information_schema.COLUMNS ' .

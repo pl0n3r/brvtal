@@ -157,7 +157,7 @@ function brvtal_public_sitemap_editorial_is_visible(array $source): bool
         return false;
     }
     return $type === 'events'
-        ? brvtal_public_event_is_visible($source)
+        ? brvtal_public_event_is_listed($source)
         : strtolower(trim((string)($source['status'] ?? ''))) === 'published';
 }
 
