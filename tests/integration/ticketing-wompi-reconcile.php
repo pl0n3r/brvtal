@@ -50,8 +50,23 @@ register_shutdown_function(static function () use ($server, $name): void {
     try { $server->exec("DROP DATABASE IF EXISTS $name"); } catch (Throwable) {}
 });
 $db = new PDO("mysql:host=$host;port=$port;dbname=$name;charset=utf8mb4", $user, $pass, $opt);
-$db->exec("CREATE TABLE ticket_orders(id BIGINT UNSIGNED PRIMARY KEY,status VARCHAR(16) NOT NULL,
- currency CHAR(3) NOT NULL,total_cop BIGINT NOT NULL,updated_at_utc DATETIME(6) NULL) ENGINE=InnoDB");
+$db->exec("CREATE TABLE events(id INT UNSIGNED PRIMARY KEY,status VARCHAR(32) NOT NULL) ENGINE=InnoDB");
+$db->exec("CREATE TABLE event_ticket_types(id INT UNSIGNED PRIMARY KEY,event_id INT UNSIGNED NOT NULL,
+ UNIQUE KEY uq_t03_ticket_type_event(id,event_id)) ENGINE=InnoDB");
+$db->exec("CREATE TABLE ticket_orders(id BIGINT UNSIGNED PRIMARY KEY,event_id INT UNSIGNED NOT NULL,
+ status VARCHAR(16) NOT NULL,currency CHAR(3) NOT NULL,total_cop BIGINT NOT NULL,
+ expires_at_utc DATETIME(6) NULL,updated_at_utc DATETIME(6) NULL,
+ UNIQUE KEY uq_ticket_orders_id_event(id,event_id)) ENGINE=InnoDB");
+$db->exec("CREATE TABLE ticket_order_items(id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ order_id BIGINT UNSIGNED NOT NULL,event_id INT UNSIGNED NOT NULL,ticket_type_id INT UNSIGNED NOT NULL,
+ quantity INT UNSIGNED NOT NULL,currency CHAR(3) NOT NULL,
+ UNIQUE KEY uq_ticket_order_item_type(order_id,ticket_type_id)) ENGINE=InnoDB");
+$db->exec("CREATE TABLE ticket_refund_event_decisions(event_id INT UNSIGNED PRIMARY KEY,cause VARCHAR(20) NOT NULL) ENGINE=InnoDB");
+$db->exec("INSERT INTO events VALUES(1,'published')");
+$db->exec("INSERT INTO event_ticket_types VALUES(10,1)");
+$holdsSql=(string)file_get_contents(__DIR__.'/../../database/migration_ticketing_reservations_01.sql');
+foreach(explode(';',(string)preg_replace('/^\\h*--[^\\r\\n]*$/m','',$holdsSql)) as $ddl)
+    if(trim($ddl)!=='') $db->exec($ddl);
 $db->exec("CREATE TABLE ticket_payment_attempts(id BIGINT UNSIGNED PRIMARY KEY,order_id INT NOT NULL,
  provider VARCHAR(24) NOT NULL,provider_reference VARCHAR(190) NOT NULL,
  provider_transaction_id VARCHAR(190) NULL,gross_amount_cop BIGINT NOT NULL,status VARCHAR(16) NOT NULL,
@@ -60,7 +75,12 @@ $db->exec("CREATE TABLE ticket_payment_attempts(id BIGINT UNSIGNED PRIMARY KEY,o
  UNIQUE KEY uq_tx (provider,provider_transaction_id),UNIQUE KEY uq_ref (provider,provider_reference)) ENGINE=InnoDB");
 $sql = (string)preg_replace('/^\h*--[^\r\n]*$/m', '', (string)file_get_contents(__DIR__ . '/../../database/migration_ticketing_webhook_01.sql'));
 foreach (explode(';', $sql) as $ddl) if (trim($ddl) !== '') $db->exec($ddl);
-$db->exec("INSERT INTO ticket_orders VALUES (42,'pending','COP',50000,NULL),(43,'pending','COP',50000,NULL)");
+$db->exec("INSERT INTO ticket_orders(id,event_id,status,currency,total_cop) VALUES
+ (42,1,'pending','COP',50000),(43,1,'pending','COP',50000)");
+$db->exec("INSERT INTO ticket_order_items(order_id,event_id,ticket_type_id,quantity,currency)
+ VALUES(42,1,10,1,'COP'),(43,1,10,1,'COP')");
+$db->exec("INSERT INTO ticket_inventory_holds(order_id,event_id,ticket_type_id,quantity,kind,status,expires_at_utc)
+ VALUES(42,1,10,1,'paid','active',UTC_TIMESTAMP(6)+INTERVAL 15 MINUTE)");
 $db->prepare("INSERT INTO ticket_payment_attempts(id,order_id,provider,provider_reference,gross_amount_cop,status)
     VALUES (1,42,'wompi',?,50000,'created'),(2,43,'wompi',?,50000,'created')")
     ->execute([$reference, 'BW7-43-CARD-' . str_repeat('c', 24)]);
