@@ -134,6 +134,9 @@ abuseAssert(brvtal_ticket_status_budget($statusConfig, 'order', $invalidRoot.'/s
 file_put_contents($statusPath, '{broken');
 abuseAssert($budget('order')['status'] === 503, 'corrupt store fails closed');
 $_SERVER['REMOTE_ADDR'] = '203.0.113.77';
+$missingKeyPath = $newDir() . '/no-key.json';
+abuseAssert(brvtal_ticket_status_budget([], 'order', $missingKeyPath, $now)['status'] === 503
+    && !is_file($missingKeyPath), 'missing HMAC configuration fails closed without storing data');
 $pollPath = $newDir() . '/poll.json';
 for ($i = 0; $i < 45; ++$i) {
     abuseAssert(brvtal_ticket_status_budget($config, 'order', $pollPath, $now + $i * 4)['allowed'],

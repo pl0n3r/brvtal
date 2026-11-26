@@ -115,6 +115,37 @@
     return payload;
   }
   let statusRetries = 0;
+  function retryStatus(saved, response) {
+    if (statusRetries === 0) say('No se pudo actualizar el pago. Volveremos a consultar.');
+    const raw = response.headers.get('Retry-After') || '';
+    const ms = /^\d+$/.test(raw) ? Number(raw) * 1000 : Date.parse(raw) - Date.now();
+    const delay = Number.isFinite(ms) ? Math.max(1000, ms) : 8000;
+    if (++statusRetries < 45 && delay <= 2147483647) {
+      setTimeout(() => { if (record === saved) void refresh(saved); }, delay);
+    }
+  }
+  function renderCheckoutState(saved, state) {
+    const states = {
+      approved: 'Pago confirmado. Te enviamos las boletas con QR a tu correo.',
+      failed: 'El pago no fue aprobado. Puedes volver a intentarlo.',
+      cancelled: 'El pago fue cancelado.',
+      pending: 'Pago pendiente de confirmación.',
+      unverified: 'No existe una confirmación verificable. No se han emitido boletas.',
+    };
+    const number = /^[1-9]\d{0,17}$/.test(String(saved?.order_id || '')) ? `Pedido #${saved.order_id}: ` : '';
+    say(number + (states[state] || states.unverified));
+    if (state === 'pending' && /^[a-f0-9]{32}$/.test(String(saved?.order_token || ''))) {
+      const link = document.createElement('a');
+      link.className = 'event-checkout-follow';
+      link.href = '/compra/' + saved.order_token;
+      link.textContent = 'Ver el estado de tu compra';
+      status.append(' ', link);
+    }
+    if (['approved', 'failed', 'cancelled'].includes(state)) {
+      clear();
+      intent = null;
+    }
+  }
   async function refresh(saved) {
     if (record !== saved) return;
     if (panel) panel.hidden = false;
@@ -130,40 +161,13 @@
         headers: { 'X-BRVTAL-TICKET-CHECKOUT': 'status' } });
       if (record !== saved) return;
       if (response.status === 429 || response.status === 503) {
-        if (statusRetries === 0) say('No se pudo actualizar el pago. Volveremos a consultar.');
-        const raw = response.headers.get('Retry-After') || '';
-        const ms = /^\d+$/.test(raw) ? Number(raw) * 1000 : Date.parse(raw) - Date.now();
-        const delay = Number.isFinite(ms) ? Math.max(1000, ms) : 8000;
-        if (++statusRetries < 45 && delay <= 2147483647) {
-          setTimeout(() => { if (record === saved) void refresh(saved); }, delay);
-        }
+        retryStatus(saved, response);
         return;
       }
       const payload = await json(response);
       if (record !== saved) return;
       statusRetries = 0;
-      const states = {
-        approved: 'Pago confirmado. Te enviamos las boletas con QR a tu correo.',
-        failed: 'El pago no fue aprobado. Puedes volver a intentarlo.',
-        cancelled: 'El pago fue cancelado.',
-        pending: 'Pago pendiente de confirmación.',
-        unverified: 'No existe una confirmación verificable. No se han emitido boletas.',
-      };
-      // #1950: the same order number the buyer sees in Mi cuenta and in Wompi (BW7-<n>-…).
-      const number = /^[1-9]\d{0,17}$/.test(String(saved?.order_id || '')) ? `Pedido #${saved.order_id}: ` : '';
-      say(number + (states[payload.state] || states.unverified));
-      // #1960: a pending order points to its confirmation page instead of "reload".
-      if (payload.state === 'pending' && /^[a-f0-9]{32}$/.test(String(saved?.order_token || ''))) {
-        const link = document.createElement('a');
-        link.className = 'event-checkout-follow';
-        link.href = '/compra/' + saved.order_token;
-        link.textContent = 'Ver el estado de tu compra';
-        status.append(' ', link);
-      }
-      if (['approved', 'failed', 'cancelled'].includes(payload.state)) {
-        clear();
-        intent = null;
-      }
+      renderCheckoutState(saved, payload.state);
     } catch {
       if (record === saved) say('No se pudo consultar el pago. Revisa el estado de tu compra más tarde.');
     }

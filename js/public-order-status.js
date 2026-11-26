@@ -43,6 +43,10 @@
     $('purchase-summary').hidden = false;
     $('purchase-actions').hidden = false;
   }
+  function showUnavailable() {
+    if (!confirmed) show('offline');
+    else $('purchase-detail').textContent = 'No pudimos actualizar el estado. Volveremos a consultar.';
+  }
   async function refresh() {
     if (!token) { show('missing'); return; }
     let next = window.BRVTAL_ORDER_POLL_MS || 4000;
@@ -50,8 +54,7 @@
       const response = await fetch('/api/ticketing/order-status.php?t=' + token,
         { credentials: 'same-origin', cache: 'no-store' });
       if (response.status === 429 || response.status === 503) {
-        if (!confirmed) show('offline');
-        else $('purchase-detail').textContent = 'No pudimos actualizar el estado. Volveremos a consultar.';
+        showUnavailable();
         next = retryDelay(response);
       } else {
         if (response.status === 404) { show('missing'); return; }
@@ -62,8 +65,7 @@
         if (payload.order.state !== 'pending') return;
       }
     } catch {
-      if (!confirmed) show('offline');
-      else $('purchase-detail').textContent = 'No pudimos actualizar el estado. Volveremos a consultar.';
+      showUnavailable();
       next = 8000;
     }
     // Poll for about three minutes; after that the buyer can reload or check Mi cuenta.
