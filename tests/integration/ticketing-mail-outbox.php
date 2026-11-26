@@ -281,7 +281,12 @@ foreach ($before as $rowId => $row) {
     }
 }
 mail_assert(brvtal_ticket_mail_claim($pdo) === null, 'uncertain cannot be claimed');
-mail_assert($transportCalls === 0, 'reconciliation never called transport');
+mail_assert(brvtal_ticket_mail_deliver_one($pdo,
+    static function (array $payload, array $headers) use (&$transportCalls): array {
+        $transportCalls++;
+        return ['status' => 200, 'body' => '{"id":"must-not-send"}'];
+    }) === 'idle', 'worker cannot replay reconciled jobs');
+mail_assert($transportCalls === 0, 'uncertain never invokes the injected transport');
 $lockCase = $enqueueForReconciliation('lock-case');
 $set($lockCase, 'sending', 2, $recent, $past, $past);
 $pdo->exec('SET innodb_lock_wait_timeout=1');
