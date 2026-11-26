@@ -64,12 +64,12 @@ $db->exec("CREATE TABLE ticket_order_items(id INT UNSIGNED AUTO_INCREMENT PRIMAR
 $db->exec("CREATE TABLE ticket_refund_event_decisions(event_id INT UNSIGNED PRIMARY KEY,cause VARCHAR(20) NOT NULL) ENGINE=InnoDB");
 $db->exec("INSERT INTO events VALUES(1,'published')");
 $db->exec("INSERT INTO event_ticket_types VALUES(10,1)");
-$db->exec("INSERT INTO ticket_inventory_events VALUES(1,100)");
-$db->exec("INSERT INTO ticket_inventory_types(ticket_type_id,event_id,capacity,courtesy_capacity)
- VALUES(10,1,100,0)");
 $holdsSql=(string)file_get_contents(__DIR__.'/../../database/migration_ticketing_reservations_01.sql');
 foreach(explode(';',(string)preg_replace('/^\\h*--[^\\r\\n]*$/m','',$holdsSql)) as $ddl)
     if(trim($ddl)!=='') $db->exec($ddl);
+$db->exec("INSERT INTO ticket_inventory_events VALUES(1,100)");
+$db->exec("INSERT INTO ticket_inventory_types(ticket_type_id,event_id,capacity,courtesy_capacity)
+ VALUES(10,1,100,0)");
 $db->exec("CREATE TABLE ticket_payment_attempts(id BIGINT UNSIGNED PRIMARY KEY,order_id INT NOT NULL,
  provider VARCHAR(24) NOT NULL,provider_reference VARCHAR(190) NOT NULL,
  provider_transaction_id VARCHAR(190) NULL,gross_amount_cop BIGINT NOT NULL,status VARCHAR(16) NOT NULL,
