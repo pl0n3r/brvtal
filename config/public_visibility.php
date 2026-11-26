@@ -95,6 +95,37 @@ function brvtal_public_event_is_visible(array $event, ?DateTimeImmutable $now = 
     return $pastByDate || $publishedBeforeNow;
 }
 
+/** Missing visibility is the legacy public default; invalid explicit values are not listed. */
+function brvtal_public_event_has_public_visibility(array $event): bool
+{
+    return !array_key_exists('visibility', $event) || $event['visibility'] === 'public';
+}
+
+/** Discovery is stricter than access via a canonical Event URL. */
+function brvtal_public_event_is_listed(array $event, ?DateTimeImmutable $now = null): bool
+{
+    return brvtal_public_event_has_public_visibility($event)
+        && brvtal_public_event_is_visible($event, $now);
+}
+
+/**
+ * Project visibility without breaking reads during the additive schema rollout.
+ * SHOW COLUMNS inspects the actual table (including isolated temporary fixtures).
+ * A failed probe propagates; only a proven absent column uses the legacy default.
+ */
+function brvtal_public_event_visibility_select(PDO $pdo, bool $qualified = false): string
+{
+    static $available = null;
+    $available ??= new WeakMap();
+    if (!isset($available[$pdo])) {
+        $statement = $pdo->query("SHOW COLUMNS FROM events LIKE 'visibility'");
+        if ($statement === false) throw new RuntimeException('EVENT_VISIBILITY_SCHEMA_PROBE_FAILED');
+        $available[$pdo] = $statement->fetchColumn() !== false;
+    }
+    if (!$available[$pdo]) return "'public' AS visibility";
+    return $qualified ? 'e.visibility' : 'visibility';
+}
+
 /**
  * Canonical presentation/archive classification for a public Event.
  *

@@ -103,6 +103,22 @@ migrations_it_assert(
     'baseline must never execute migration SQL'
 );
 
+// Shadow any existing events table with an isolated pre-migration fixture.
+$pdo->exec("CREATE TEMPORARY TABLE events (id INT PRIMARY KEY, status VARCHAR(30) NOT NULL)");
+try {
+    $pdo->exec("INSERT INTO events VALUES (1,'published'),(2,'draft')");
+    $eventVisibilityMigration = (string)file_get_contents(__DIR__ . '/../../database/migration_event_visibility_01.sql');
+    $pdo->exec($eventVisibilityMigration);
+    migrations_it_assert((int)$pdo->query("SELECT COUNT(*) FROM events WHERE visibility='public'")->fetchColumn() === 2, 'existing events remain public');
+    $pdo->exec("UPDATE events SET visibility='unlisted' WHERE id=1");
+    $pdo->exec($eventVisibilityMigration);
+    migrations_it_assert($pdo->query("SELECT visibility FROM events WHERE id=1")->fetchColumn() === 'unlisted', 'second migration must preserve private visibility');
+    $pdo->exec("INSERT INTO events(id,status) VALUES (3,'published')");
+    migrations_it_assert($pdo->query("SELECT visibility FROM events WHERE id=3")->fetchColumn() === 'public', 'new events default to public');
+} finally {
+    $pdo->exec('DROP TEMPORARY TABLE events');
+}
+
 $cleanup();
 echo "BRVTAL migration-state MariaDB integration passed.\n";
 

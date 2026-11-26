@@ -60,6 +60,7 @@ function brvtal_page_public_event_rows(PDO $pdo, string $sql, array $parameters 
     return array_values(array_filter(
         brvtal_page_rows($pdo, $sql, $parameters),
         static fn(array $event): bool => brvtal_public_event_is_visible($event)
+            && brvtal_public_event_has_public_visibility($event)
     ));
 }
 
@@ -304,13 +305,14 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
             ));
         }
     } elseif ($type === 'artists') {
+        $eventVisibilitySelect = brvtal_public_event_visibility_select($pdo, true);
         $detail = brvtal_page_row($pdo, "SELECT instagram_url,soundcloud_url,website_url,collective_status FROM artists WHERE id=? LIMIT 1", [$id], true);
         $data['entity'] += $detail;
         $data['facts'] = array_filter(['COLLECTIVE' => strtoupper(str_replace('_', ' ', (string)($detail['collective_status'] ?? '')))]);
         $data['links'] = array_filter(['INSTAGRAM' => $detail['instagram_url'] ?? '', 'SOUNDCLOUD' => $detail['soundcloud_url'] ?? '', 'WEBSITE' => $detail['website_url'] ?? '']);
         $data['related']['EVENTS'] = brvtal_page_public_event_rows(
             $pdo,
-            "SELECT e.title,e.slug,e.cover_image AS image,CONCAT_WS(' / ',DATE_FORMAT(e.event_date,'%d.%m.%Y'),e.city) AS meta,'events' AS route_type,e.status,e.event_date,e.published_at FROM event_artists ea JOIN events e ON e.id=ea.event_id WHERE ea.artist_id=? AND e.status IN ({$eventPlaceholders}) ORDER BY e.event_date DESC",
+            "SELECT e.title,e.slug,e.cover_image AS image,CONCAT_WS(' / ',DATE_FORMAT(e.event_date,'%d.%m.%Y'),e.city) AS meta,'events' AS route_type,e.status,e.event_date,e.published_at,{$eventVisibilitySelect} FROM event_artists ea JOIN events e ON e.id=ea.event_id WHERE ea.artist_id=? AND e.status IN ({$eventPlaceholders}) ORDER BY e.event_date DESC",
             array_merge([$id], $eventStatuses)
         );
         $data['related']['SETS'] = brvtal_page_rows($pdo, "SELECT title,slug,cover_image AS image,platform AS meta,'sets' AS route_type FROM sets_media WHERE artist_id=? AND status='published' ORDER BY sort_order,created_at DESC", [$id]);
@@ -339,14 +341,15 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
         foreach ($relations as $relation) {
             if (!isset($map[$relation['related_type']])) continue;
             [$table,$title,$image,$route,$where,$whereParameters] = $map[$relation['related_type']];
-            $lifecycleSelect = $route === 'events' ? ',status,event_date,published_at' : '';
+            $lifecycleSelect = $route === 'events'
+                ? ',status,event_date,published_at,' . brvtal_public_event_visibility_select($pdo) : '';
             $artistIdSelect = $route === 'artists' ? ',id AS artist_card_id' : '';
             $item = brvtal_page_row(
                 $pdo,
                 "SELECT `{$title}` AS title,slug,`{$image}` AS image,'{$route}' AS route_type{$lifecycleSelect}{$artistIdSelect} FROM `{$table}` WHERE id=? AND {$where} LIMIT 1",
                 array_merge([(int)$relation['related_id']], $whereParameters)
             );
-            if ($item && ($route !== 'events' || brvtal_public_event_is_visible($item))) $data['related']['RELATED'][] = $item;
+            if ($item && ($route !== 'events' || brvtal_public_event_is_listed($item))) $data['related']['RELATED'][] = $item;
         }
     } elseif ($type === 'sets') {
         $detail = brvtal_page_row($pdo, "SELECT platform,external_url,embed_url,artist_id,event_id FROM sets_media WHERE id=? LIMIT 1", [$id], true);
@@ -355,9 +358,10 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
         $data['links'] = array_filter(['LISTEN' => $detail['external_url'] ?? '']);
         if (!empty($detail['artist_id'])) $data['related']['ARTIST'] = brvtal_page_rows($pdo, "SELECT id AS artist_card_id,name AS title,slug,photo AS image,'artists' AS route_type FROM artists WHERE id=? AND status='published'", [(int)$detail['artist_id']]);
         if (!empty($detail['event_id'])) {
+            $eventVisibilitySelect = brvtal_public_event_visibility_select($pdo);
             $data['related']['EVENT'] = brvtal_page_public_event_rows(
                 $pdo,
-                "SELECT title,slug,cover_image AS image,'events' AS route_type,status,event_date,published_at FROM events WHERE id=? AND status IN ({$eventPlaceholders})",
+                "SELECT title,slug,cover_image AS image,'events' AS route_type,status,event_date,published_at,{$eventVisibilitySelect} FROM events WHERE id=? AND status IN ({$eventPlaceholders})",
                 array_merge([(int)$detail['event_id']], $eventStatuses)
             );
         }
@@ -797,7 +801,7 @@ JS;
         $backLabel = $escape($backToSection ? '← VOLVER AL ARCHIVO' : '← VOLVER AL INICIO');
     }
     $tags = brvtal_public_seo_tags($seo);
-    $robots = $degraded ? '<meta name="robots" content="noindex, follow">' : '';
+    $robots = $degraded && empty($seo['robots']) ? '<meta name="robots" content="noindex, follow">' : '';
     $degradedNotice = $degraded
         ? '<section class="entity-statement" role="status"><div class="entity-section-label">ESTADO DE LOS DATOS / DEGRADADO</div><p>Parte de la información conectada no está disponible por ahora. Esta página volverá a mostrarse completa automáticamente cuando el servicio de datos se recupere.</p></section>'
         : '';
