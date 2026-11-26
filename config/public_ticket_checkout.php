@@ -613,6 +613,23 @@ function brvtal_public_ticket_checkout_state_by_token(PDO $db, int $eventId, str
 /** Only verified database state (signed T08 webhook or #1952 Wompi API check) is authoritative. */
 function brvtal_public_ticket_checkout_state(PDO $db, int $eventId, int $buyerId, int $orderId): string
 {
+    // Numeric order IDs require the authenticated buyer's canonical account scope.
+    // The independent opaque-token route does not use this session capability.
+    if ($buyerId < 1 || (int)($_SESSION['buyer_id'] ?? 0) !== $buyerId) {
+        return 'unverified';
+    }
+    require_once __DIR__ . '/buyer_account.php';
+    try {
+        $scope = brvtalBuyerAccountCheckoutScope($db, $buyerId);
+    } catch (DomainException) {
+        return 'unverified';
+    }
+    // An old guest session must not become a full account if activation races
+    // with this request after SessionStart validated the persisted epoch.
+    if (($scope !== null && $scope !== $orderId)
+        || ($scope === null && isset($_SESSION['buyer_checkout_new_order']))) {
+        return 'unverified';
+    }
     $q = $db->prepare('SELECT id,status FROM ticket_orders
         WHERE id=? AND event_id=? AND buyer_id=? LIMIT 1');
     $q->execute([$orderId,$eventId,$buyerId]);
@@ -635,6 +652,8 @@ function brvtal_public_ticket_checkout_http(PDO $db, int $eventId): void
     require_once __DIR__ . '/buyer_auth.php';
     try {
         brvtalBuyerSessionStart();
+        // PHP's session cache limiter can replace the endpoint's Cache-Control.
+        header('Cache-Control: private, no-store');
         $buyerId = (int)($_SESSION['buyer_id'] ?? 0);
         $csrfValid = brvtalBuyerCsrfValid($_SERVER['HTTP_X_CSRF_TOKEN']??null);
         // #1940: nothing below writes the session; releasing its lock means a slow

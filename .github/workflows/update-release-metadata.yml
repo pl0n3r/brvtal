@@ -478,6 +478,9 @@ jobs:
       - name: Verify buyer registration diagnostic with missing mail key (synthetic MariaDB)
         run: php tests/integration/buyer-auth-flows.php
 
+      - name: Verify checkout guest numeric scope in disposable MariaDB
+        run: php tests/integration/ticketing-checkout-guest.php
+
       - name: Verify T09 paid-only idempotent QR emission in disposable MariaDB
         run: php tests/integration/ticketing-issue.php
 
@@ -695,6 +698,11 @@ jobs:
         env:
           BRVTAL_INTEGRATION_TESTS: '1'
         run: php tests/integration/buyer-auth-flows.php
+
+      - name: Verify checkout guest scope over isolated real HTTP
+        env:
+          BRVTAL_INTEGRATION_TESTS: '1'
+        run: php tests/integration/ticketing-checkout-guest.php
 
       - name: Verify T15 scanner concurrency against isolated real-stack MariaDB
         env:
