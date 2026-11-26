@@ -29,12 +29,39 @@ function buyerAuthMissingMailKeyHttpCheck(
 ): void {
     buyerAuthAssert(function_exists('proc_open') && function_exists('stream_socket_server'),
         'HTTP integration requires a local PHP server');
-    $root = dirname(__DIR__, 2);
+    $sourceRoot = dirname(__DIR__, 2);
     $directory = sys_get_temp_dir() . '/brvtal-buyer-1909-' . bin2hex(random_bytes(6));
     buyerAuthAssert(mkdir($directory, 0700), 'create disposable HTTP fixture directory');
     $process = null;
     $pipes = [];
     try {
+        // Run the actual tracked HTTP code in a fresh document root. The
+        // database suite invokes this fixture twice in one checkout; sharing
+        // storage would exhaust the real public-login IP/subject buckets.
+        $root = $directory . '/app';
+        buyerAuthAssert(mkdir($root, 0700), 'create isolated HTTP document root');
+        $listing = proc_open(['git','ls-files','-z','--','config','database',
+            'api/buyer/auth.php','api/health.php'], [
+            0=>['pipe','r'], 1=>['pipe','w'], 2=>['pipe','w'],
+        ], $listingPipes, $sourceRoot);
+        buyerAuthAssert(is_resource($listing), 'enumerate tracked fixture source files');
+        fclose($listingPipes[0]);
+        $tracked = stream_get_contents($listingPipes[1]);
+        fclose($listingPipes[1]);
+        fclose($listingPipes[2]);
+        buyerAuthAssert(proc_close($listing) === 0 && is_string($tracked),
+            'tracked source enumeration succeeds');
+        foreach (explode("\0", $tracked) as $relative) {
+            if ($relative === '' || $relative === 'config/config.php') continue;
+            $source = $sourceRoot . '/' . $relative;
+            $target = $root . '/' . $relative;
+            buyerAuthAssert(is_file($source) && !is_link($source), 'fixture source is a regular file');
+            buyerAuthAssert(is_dir(dirname($target)) || mkdir(dirname($target),0700,true),
+                'create fixture source directory');
+            buyerAuthAssert(copy($source,$target), 'copy tracked source to isolated fixture');
+        }
+        buyerAuthAssert(mkdir($root . '/storage',0700), 'isolated rate-limit storage');
+        buyerAuthAssert(mkdir($directory . '/sessions',0700), 'isolated PHP sessions');
         $configPath = $directory . '/config.php';
         $prependPath = $directory . '/prepend.php';
         $loggerPath = $directory . '/brvtal.log';
@@ -76,6 +103,7 @@ function buyerAuthMissingMailKeyHttpCheck(
         $environment['BRVTAL_TICKET_MAIL_PRIVACY_APPROVED'] = '1';
         $environment['BRVTAL_TICKET_MAIL_MODE'] = 'disabled';
         $command = [PHP_BINARY, '-d', 'auto_prepend_file=' . $prependPath,
+            '-d', 'session.save_path=' . $directory . '/sessions',
             '-S', '127.0.0.1:' . $listenPort, '-t', $root];
         $process = proc_open($command, [
             0 => ['pipe', 'r'],
@@ -171,7 +199,7 @@ function buyerAuthMissingMailKeyHttpCheck(
                 ['action'=>'login','email'=>$input['email'],'password'=>$resetScenario['password']],
                 ['Cookie: '.$freshCookie,'X-CSRF-Token: '.$freshCsrf]);
             buyerAuthAssert($newLogin['status'] === 200 && ($newLogin['json']['ok'] ?? false),
-                'new password authenticates after reset');
+                'new password authenticates after reset (HTTP ' . $newLogin['status'] . ')');
             return;
         }
 
@@ -221,10 +249,14 @@ function buyerAuthMissingMailKeyHttpCheck(
             proc_terminate($process);
             proc_close($process);
         }
-        foreach (glob($directory . '/*') ?: [] as $file) {
-            if (is_file($file)) unlink($file);
+        $entries = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::CHILD_FIRST);
+        foreach ($entries as $entry) {
+            if ($entry->isDir() && !$entry->isLink()) rmdir($entry->getPathname());
+            else unlink($entry->getPathname());
         }
-        @rmdir($directory);
+        rmdir($directory);
     }
 }
 
