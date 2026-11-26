@@ -240,6 +240,21 @@ t08($db->query("SELECT signed_status FROM ticket_payment_webhook_events WHERE at
     ->fetchColumn()==='PENDING','original signature never upgraded');
 t08((int)$db->query('SELECT COUNT(*) FROM ticket_issue_outbox WHERE order_id=48')->fetchColumn()===1,
     'provider authenticated approval enqueues once');
+// Complete multi-type reservations remain admissible after a later sell-out;
+// neither current public stock nor a newly edited price revokes a valid hold.
+[$multiSigned,$multiProvider]=$case(51,'pending','valid',false,true);
+$db->exec("INSERT INTO ticket_inventory_holds(order_id,event_id,ticket_type_id,quantity,kind,status,expires_at_utc)
+ VALUES(51,1,11,1,'paid','active',UTC_TIMESTAMP(6)+INTERVAL 15 MINUTE)");
+$db->exec("UPDATE events SET status='sold_out' WHERE id=1");
+t08($process($multiSigned,$multiProvider)==='approved','valid multi-type hold admitted after sold-out');
+t08((int)$db->query("SELECT COUNT(*) FROM ticket_inventory_holds
+ WHERE order_id=51 AND status='consumed'")->fetchColumn()===2,'all ticket types consumed atomically');
+$db->exec("UPDATE events SET status='published' WHERE id=1");
+[$expirySigned,$expiryProvider]=$case(52,'pending','valid');
+$db->exec("UPDATE ticket_orders SET expires_at_utc=UTC_TIMESTAMP(6)-INTERVAL 1 SECOND
+ WHERE id=52");
+t08($process($expirySigned,$expiryProvider)==='approved_unfulfilled',
+    'expired order cannot be paid despite a still-active hold');
 // Two processes race for an Event with exactly one legitimate held unit.
 // The other confirmed charge is financially recorded without issuance.
 $pack = static function(int $id,bool $hold) use($db,$sign,$settings,$now):array {
