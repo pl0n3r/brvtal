@@ -1,6 +1,11 @@
 <?php
 declare(strict_types=1);
-require_once __DIR__ . '/../../config/admin_auth.php';
+// Only the authenticated HTTP entry point needs the production bootstrap.
+// T19's CLI-only library fixture must run on disposable MariaDB even without
+// a private config/config.php; never bypass auth in an HTTP request.
+if (!(defined('BRVTAL_T19_LIBRARY_ONLY') && PHP_SAPI==='cli')) {
+    require_once __DIR__ . '/../../config/admin_auth.php';
+}
 require_once __DIR__ . '/../../config/ticketing_staff_permissions.php';
 require_once __DIR__ . '/../../config/ticketing_checkin.php';
 require_once __DIR__ . '/../../config/ticketing_issue.php';
