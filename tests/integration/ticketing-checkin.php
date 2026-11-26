@@ -34,6 +34,35 @@ foreach ([['event_id'=>0,'device_id'=>'d','qr'=>'x'],['event_id'=>1,'device_id'=
     try {brvtalTicketCheckinInput($bad);throw new RuntimeException('invalid accepted');}
     catch (InvalidArgumentException) {}
 }
+// Fast-CI contract: canonical states and Bogota admission boundaries.
+$tz15=new DateTimeZone('America/Bogota');
+$start15=new DateTimeImmutable('2026-11-28 21:00:00', $tz15);
+$event15=['status'=>'tickets_available','event_date'=>'2026-11-28 21:00:00',
+    'published_at'=>'2026-11-27 09:00:00'];
+foreach (brvtal_public_event_statuses()['active'] as $status15) {
+    $event15['status']=$status15;
+    t15(brvtalTicketCheckinEventEligible($event15, $start15),'canonical admission '.$status15);
+}
+foreach (['active','draft','finished','archived','cancelled'] as $status15) {
+    $event15['status']=$status15;
+    t15(!brvtalTicketCheckinEventEligible($event15, $start15),'closed lifecycle '.$status15);
+}
+$event15['status']='sold_out';
+t15(!brvtalTicketCheckinEventEligible($event15, $start15->modify('-1 second')),'door not open');
+t15(brvtalTicketCheckinEventEligible($event15,
+    $start15->modify('+1 day')->modify('-1 second')),'overnight last second');
+t15(!brvtalTicketCheckinEventEligible($event15, $start15->modify('+1 day')),'door cutoff exclusive');
+t15(!brvtalTicketCheckinEventEligible($event15, $start15->modify('+1 day +1 second')),'door expired');
+foreach (['', '2026-02-30 20:00:00', 'bogus'] as $invalid15) {
+    $event15['event_date']=$invalid15;
+    t15(!brvtalTicketCheckinEventEligible($event15, $start15),'invalid event date closed');
+}
+$event15['event_date']='2026-11-28 21:00:00';
+$event15['published_at']='2026-11-29 09:00:00';
+t15(!brvtalTicketCheckinEventEligible($event15, $start15),'future publication denied');
+$event15['published_at']='malformed';
+t15(!brvtalTicketCheckinEventEligible($event15, $start15),'invalid publication denied');
+
 $dir=sys_get_temp_dir().'/brvtal_t15_'.bin2hex(random_bytes(8));
 try {
     for ($i=0;$i<30;$i++) brvtalTicketCheckinRate(7,'127.0.0.1',10000,$dir);
@@ -50,8 +79,9 @@ $root->exec('CREATE DATABASE '.$db.' CHARACTER SET utf8mb4');
 try {
     $pdo=t15Conn($db);
     foreach ([
-        'CREATE TABLE events (id INT UNSIGNED PRIMARY KEY,status VARCHAR(20)) ENGINE=InnoDB',
+        'CREATE TABLE events (id INT UNSIGNED PRIMARY KEY,status VARCHAR(20),event_date DATETIME NULL,published_at DATETIME NULL) ENGINE=InnoDB',
         'CREATE TABLE admins (id INT UNSIGNED PRIMARY KEY) ENGINE=InnoDB',
+        'CREATE TABLE ticket_refund_event_decisions (event_id INT UNSIGNED PRIMARY KEY,cause VARCHAR(20) NOT NULL) ENGINE=InnoDB',
         'CREATE TABLE event_ticket_types (id INT UNSIGNED PRIMARY KEY,event_id INT UNSIGNED) ENGINE=InnoDB',
         'CREATE TABLE ticket_orders (id BIGINT UNSIGNED PRIMARY KEY,event_id INT UNSIGNED,status VARCHAR(20)) ENGINE=InnoDB',
         'CREATE TABLE ticket_order_items (id BIGINT UNSIGNED PRIMARY KEY,order_id BIGINT UNSIGNED,event_id INT UNSIGNED,ticket_type_id INT UNSIGNED) ENGINE=InnoDB',
@@ -61,7 +91,15 @@ try {
     ] as $sql) $pdo->exec($sql);
     $migration=(string)file_get_contents(__DIR__.'/../../database/migration_ticketing_entries_01.sql');
     foreach (array_filter(array_map(trim(...),explode(';',preg_replace('/^\s*--.*$/m','',$migration)))) as $sql) $pdo->exec($sql);
-    foreach (["INSERT INTO events VALUES (1,'active'),(2,'active')","INSERT INTO admins VALUES (7)",
+    // Synthetic Bogota Event began twelve hours ago: safely inside the door window.
+    $openAt15=new DateTimeImmutable('now', new DateTimeZone('America/Bogota'))
+        ->modify('-12 hours')->format('Y-m-d H:i:s');
+    $publicAt15=new DateTimeImmutable('now', new DateTimeZone('America/Bogota'))
+        ->modify('-2 days')->format('Y-m-d H:i:s');
+    $pdo->prepare("INSERT INTO events(id,status,event_date,published_at)
+        VALUES (1,'published',?,?),(2,'published',?,?)")
+        ->execute([$openAt15,$publicAt15,$openAt15,$publicAt15]);
+    foreach (["INSERT INTO admins VALUES (7)",
         'INSERT INTO event_ticket_types VALUES (11,1)',"INSERT INTO ticket_orders VALUES (100,1,'paid')",
         'INSERT INTO ticket_order_items VALUES (1,100,1,11)',
         "INSERT INTO ticket_issue_outbox VALUES (1,100,'done')",
@@ -112,7 +150,7 @@ try {
             // the real event FOR UPDATE query, not merely after connecting.
             .'class T15ReadyStmt extends PDOStatement {protected function __construct(){}'
             .'public function execute(?array $params=null):bool {'
-            .'if(str_contains($this->queryString,"SELECT status FROM events WHERE id=? FOR UPDATE"))'
+            .'if(str_contains($this->queryString,"SELECT status,event_date,published_at FROM events WHERE id=? FOR UPDATE"))'
             .'{echo "READY".PHP_EOL;flush();}'
             .'return parent::execute($params);}}'
             .'$pdo=new PDO(getenv("T15_DSN"),getenv("BRVTAL_TEST_DB_USER"),getenv("BRVTAL_TEST_DB_PASS"),'
@@ -174,7 +212,45 @@ try {
     [$id4,$qr4]=t15Entry($pdo,4,4);
     $pdo->exec("UPDATE events SET status='cancelled' WHERE id=1");
     t15(brvtalTicketCheckinConsume($pdo,1,7,'scanner-A',$qr4)['reason']==='event_closed','cancelled denied');
-    $pdo->exec("UPDATE events SET status='active' WHERE id=1");
+    $pdo->exec("UPDATE events SET status='published' WHERE id=1");
+    // MariaDB: QR admission in canonical stock statuses, irrespective of sold-out inventory.
+    foreach (['tickets_available','last_tickets','sold_out'] as $j=>$status15) {
+        $pdo->prepare('UPDATE events SET status=? WHERE id=1')->execute([$status15]);
+        [, $qrValid15]=t15Entry($pdo,5+$j,5+$j);
+        t15(brvtalTicketCheckinConsume($pdo,1,7,'scanner-A',$qrValid15)['ok'],
+            'MariaDB admits legitimate QR in '.$status15);
+    }
+    // A previously downloaded QR must not grant early/late entry.
+    $pdo->prepare("UPDATE events SET status='sold_out',event_date=?,published_at=? WHERE id=1")
+        ->execute([$start15->format('Y-m-d H:i:s'),'2026-11-27 09:00:00']);
+    t15(brvtalTicketCheckinConsume($pdo,1,7,'scanner-A',$qr4,
+        $start15->modify('-1 second'))['reason']==='event_closed','MariaDB early denied');
+    t15(brvtalTicketCheckinConsume($pdo,1,7,'scanner-A','garbage',$start15)
+        ['reason']==='malformed_qr','MariaDB opening inclusive');
+    t15(brvtalTicketCheckinConsume($pdo,1,7,'scanner-A','garbage',
+        $start15->modify('+1 day')->modify('-1 second'))['reason']==='malformed_qr',
+        'MariaDB overnight near end');
+    t15(brvtalTicketCheckinConsume($pdo,1,7,'scanner-A',$qr4,
+        $start15->modify('+1 day'))['reason']==='event_closed','MariaDB cutoff exclusive');
+    t15($pdo->query('SELECT status FROM ticket_entries WHERE id=4')->fetchColumn()==='issued',
+        'window denial preserves downloaded QR');
+
+    $pdo->exec("INSERT INTO ticket_refund_event_decisions VALUES (1,'postponed')");
+    t15(brvtalTicketCheckinConsume($pdo,1,7,'scanner-A',$qr4,$start15)
+        ['reason']==='event_closed','owner postponement blocks sold_out admission');
+    $pdo->exec('DELETE FROM ticket_refund_event_decisions WHERE event_id=1');
+    $pdo->prepare('UPDATE events SET event_date=? WHERE id=1')
+        ->execute([$start15->modify('+7 days')->format('Y-m-d H:i:s')]);
+    t15(brvtalTicketCheckinConsume($pdo,1,7,'scanner-A',$qr4,$start15)
+        ['reason']==='event_closed','rescheduled start controls old QR');
+    foreach (['cancelled','archived','finished','draft','active'] as $status15) {
+        $pdo->prepare('UPDATE events SET status=? WHERE id=1')->execute([$status15]);
+        t15(brvtalTicketCheckinConsume($pdo,1,7,'scanner-A',$qr4,
+            $start15->modify('+7 days'))['reason']==='event_closed',
+            'MariaDB rejects lifecycle '.$status15);
+    }
+    $pdo->prepare("UPDATE events SET status='published',event_date=?,published_at=? WHERE id=1")
+        ->execute([$openAt15,$publicAt15]);
     $pdo->exec('DROP TABLE ticket_payment_webhook_events');
     try {brvtalTicketCheckinConsume($pdo,1,7,'scanner-A',$qr4);throw new RuntimeException('DB outage accepted');}
     catch (RuntimeException $e) {t15($e->getMessage()==='CHECKIN_STORAGE_UNAVAILABLE','DB failure fail-closed');}
