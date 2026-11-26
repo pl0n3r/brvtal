@@ -7,5 +7,8 @@ parameters:
     - tests
     - index.php
     - sitemap.php
+  # Discover the CLI cycle functions without executing the worker.
+  scanFiles:
+    - ops/ticketing-mail-worker.php
   tmpDir: .phpstan-cache
   reportUnmatchedIgnoredErrors: true
