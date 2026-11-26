@@ -109,12 +109,60 @@ function brvtalBuyerCsrfValid(mixed $token): bool
 }
 
 /**
- * Normal login requires a verified inbox. The optional paid checkout order
- * instead allows a short-lived *original browser* to authenticate a newly
- * inserted guest account that has no previous orders. It never marks email
- * verified; reset/password login remains unavailable until mail verification.
+ * Persist against the credential epoch under the buyer-row lock shared by reset.
+ * Guest provenance is checked by the caller; recheck guest/order state here.
+ * This function owns its transaction and never adopts a caller's transaction.
  */
-function brvtalBuyerLoginSession(int $id, ?PDO $pdo = null, ?int $checkoutOrderId = null): void
+function brvtalBuyerPersistSession(PDO $pdo, int $id, string $sessionHash,
+    ?int $verifiedEpoch, ?int $checkoutOrderId = null): void
+{
+    if ($pdo->inTransaction()) {
+        throw new RuntimeException('BUYER_SESSION_TRANSACTION_ACTIVE');
+    }
+    if (($checkoutOrderId === null && ($verifiedEpoch === null || $verifiedEpoch < 1))
+        || ($checkoutOrderId !== null && ($verifiedEpoch !== null || $checkoutOrderId < 1))) {
+        throw new RuntimeException('BUYER_SESSION_NOT_ELIGIBLE');
+    }
+    $pdo->beginTransaction();
+    try {
+        $query = $pdo->prepare('SELECT security_epoch,status,email_verified_at
+            FROM ticket_buyers WHERE id=? FOR UPDATE');
+        $query->execute([$id]);
+        $buyer = $query->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($buyer) || (int)$buyer['security_epoch'] < 1) {
+            throw new RuntimeException('BUYER_SESSION_NOT_ELIGIBLE');
+        }
+        if ($checkoutOrderId === null) {
+            if ($buyer['status'] !== 'active' || $buyer['email_verified_at'] === null
+                || (int)$buyer['security_epoch'] !== $verifiedEpoch) {
+                throw new RuntimeException('BUYER_SESSION_NOT_ELIGIBLE');
+            }
+        } else {
+            $order = $pdo->prepare("SELECT 1 FROM ticket_orders
+                WHERE id=? AND buyer_id=? AND status='paid' LIMIT 1");
+            $order->execute([$checkoutOrderId, $id]);
+            if ($buyer['status'] !== 'guest' || $buyer['email_verified_at'] !== null
+                || $order->fetchColumn() === false) {
+                throw new RuntimeException('BUYER_SESSION_NOT_ELIGIBLE');
+            }
+        }
+        $save = $pdo->prepare('INSERT INTO ticket_buyer_sessions
+            (buyer_id,session_hash,issued_epoch,expires_at_utc)
+            VALUES (?,?,?,DATE_ADD(UTC_TIMESTAMP(6), INTERVAL 12 HOUR))');
+        $save->execute([$id, $sessionHash, (int)$buyer['security_epoch']]);
+        $pdo->commit();
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $error;
+    }
+}
+
+/**
+ * Password login must supply the epoch observed with the verified password.
+ * Paid checkout instead requires original-browser provenance, never email proof.
+ */
+function brvtalBuyerLoginSession(int $id, ?PDO $pdo = null, ?int $checkoutOrderId = null,
+    ?int $verifiedEpoch = null): void
 {
     if ($id <= 0 || session_name() !== BRVTAL_BUYER_SESSION_NAME
         || session_status() !== PHP_SESSION_ACTIVE) {
@@ -122,7 +170,8 @@ function brvtalBuyerLoginSession(int $id, ?PDO $pdo = null, ?int $checkoutOrderI
     }
     $pdo ??= db();
     if ($checkoutOrderId !== null) {
-        if ($checkoutOrderId < 1 || (int)($_SESSION['buyer_id'] ?? 0) > 0) {
+        if ($verifiedEpoch !== null || $checkoutOrderId < 1
+            || (int)($_SESSION['buyer_id'] ?? 0) > 0) {
             throw new RuntimeException('BUYER_SESSION_NOT_ELIGIBLE');
         }
         $token = $pdo->prepare("SELECT LOWER(HEX(o.public_id))
@@ -136,31 +185,27 @@ function brvtalBuyerLoginSession(int $id, ?PDO $pdo = null, ?int $checkoutOrderI
             || $proof['order_id'] !== $checkoutOrderId || $proof['buyer_id'] !== $id) {
             throw new RuntimeException('BUYER_SESSION_NOT_ELIGIBLE');
         }
-        $query = $pdo->prepare("SELECT security_epoch FROM ticket_buyers WHERE id=?
-            AND status='guest' AND email_verified_at IS NULL LIMIT 1");
-    } else {
-        $query = $pdo->prepare("SELECT security_epoch FROM ticket_buyers WHERE id=?
-            AND status='active' AND email_verified_at IS NOT NULL LIMIT 1");
     }
-    $query->execute([$id]);
-    $epoch = $query->fetchColumn();
-    if ($epoch === false || (int)$epoch < 1) {
-        throw new RuntimeException('BUYER_SESSION_NOT_ELIGIBLE');
-    }
-    if (!session_regenerate_id(true)) {
-        throw new RuntimeException('BUYER_SESSION_ROTATION_FAILED');
-    }
-    $save = $pdo->prepare('INSERT INTO ticket_buyer_sessions
-        (buyer_id,session_hash,issued_epoch,expires_at_utc)
-        VALUES (?,?,?,DATE_ADD(UTC_TIMESTAMP(6), INTERVAL 12 HOUR))');
-    $save->execute([$id, hash('sha256', session_id()), (int)$epoch]);
-    $_SESSION = [
-        'buyer_id' => $id, 'buyer_issued_at' => time(),
-        'buyer_last_at' => time(), 'buyer_csrf' => brvtalBuyerNewToken(),
-    ];
-    if ($checkoutOrderId !== null) {
-        // This proof is server-side only: no bearer URL or email can set it.
-        $_SESSION['buyer_checkout_new_order'] = $checkoutOrderId;
+    // Do not copy authenticated state to the regenerated PHP session. Publish
+    // identity only after the persisted epoch-bound session has committed.
+    $_SESSION = [];
+    try {
+        $csrf = brvtalBuyerNewToken();
+        if (!session_regenerate_id(true)) {
+            throw new RuntimeException('BUYER_SESSION_ROTATION_FAILED');
+        }
+        brvtalBuyerPersistSession($pdo, $id, hash('sha256', session_id()),
+            $verifiedEpoch, $checkoutOrderId);
+        $_SESSION = [
+            'buyer_id' => $id, 'buyer_issued_at' => time(),
+            'buyer_last_at' => time(), 'buyer_csrf' => $csrf,
+        ];
+        if ($checkoutOrderId !== null) {
+            $_SESSION['buyer_checkout_new_order'] = $checkoutOrderId;
+        }
+    } catch (Throwable $error) {
+        $_SESSION = [];
+        throw $error;
     }
 }
 

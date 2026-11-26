@@ -208,6 +208,12 @@ guestAssert($db->query("SELECT email_verified_at FROM ticket_buyers WHERE id=$gu
 guestAssert((int)$db->query("SELECT COUNT(*) FROM ticket_buyer_sessions WHERE buyer_id=$guestId")->fetchColumn() === 1,
     'new buyer login has a persisted revocable session');
 
+$guestEpoch = (int)$db->query("SELECT security_epoch FROM ticket_buyers WHERE id=$guestId")->fetchColumn();
+$guestSession = $db->prepare('SELECT issued_epoch FROM ticket_buyer_sessions
+    WHERE buyer_id=? AND session_hash=?');
+$guestSession->execute([$guestId, hash('sha256', session_id())]);
+guestAssert((int)$guestSession->fetchColumn() === $guestEpoch,
+    'guest session persists its own epoch without password proof');
 unset($_SESSION['buyer_checkout_orders']);
 
 echo "BRVTAL #1943 guest checkout: input, same-origin, guest buyer, reuse, blocked, order and token status passed.\n";

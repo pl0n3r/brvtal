@@ -25,7 +25,7 @@ function buyerAuthAssert(bool $ok, string $reason): void
  */
 function buyerAuthMissingMailKeyHttpCheck(
     PDO $db, string $dbName, string $host, int $port, string $dbUser, string $dbPass,
-    array $input
+    array $input, ?array $resetScenario = null
 ): void {
     buyerAuthAssert(function_exists('proc_open') && function_exists('stream_socket_server'),
         'HTTP integration requires a local PHP server');
@@ -129,6 +129,51 @@ function buyerAuthMissingMailKeyHttpCheck(
             }
         }
         buyerAuthAssert(is_string($cookie), 'buyer cookie retained');
+
+        if ($resetScenario !== null) {
+            $cookieFrom = static function (array $response): string {
+                foreach ($response['headers'] as $header) {
+                    if (stripos($header, 'Set-Cookie: BRVTAL_BUYER=') === 0) {
+                        return explode(';', substr($header, strlen('Set-Cookie: ')), 2)[0];
+                    }
+                }
+                throw new RuntimeException('expected rotated buyer cookie');
+            };
+            $login = $send('/api/buyer/auth.php', 'POST',
+                ['action'=>'login','email'=>$input['email'],'password'=>$input['password']],
+                ['Cookie: '.$cookie,'X-CSRF-Token: '.$csrf]);
+            buyerAuthAssert($login['status'] === 200 && ($login['json']['ok'] ?? false),
+                'verified password HTTP login');
+            $authenticatedCookie = $cookieFrom($login);
+            $authenticatedCsrf = $login['json']['csrf'];
+            buyerAuthAssert($authenticatedCookie !== $cookie && $authenticatedCsrf !== $csrf,
+                'login rotates cookie and CSRF');
+            $beforeReset = $send('/api/buyer/auth.php', 'GET', null, ['Cookie: '.$authenticatedCookie]);
+            buyerAuthAssert(($beforeReset['json']['authenticated'] ?? false) === true,
+                'persisted cookie authenticates before reset');
+            $reset = $send('/api/buyer/auth.php', 'POST',
+                ['action'=>'confirm-reset','token'=>$resetScenario['token'],
+                    'password'=>$resetScenario['password']],
+                ['Cookie: '.$authenticatedCookie,'X-CSRF-Token: '.$authenticatedCsrf]);
+            buyerAuthAssert($reset['status'] === 200 && ($reset['json']['ok'] ?? false),
+                'actual HTTP reset consumes synthetic token');
+            $afterReset = $send('/api/buyer/auth.php', 'GET', null, ['Cookie: '.$authenticatedCookie]);
+            buyerAuthAssert($afterReset['status'] === 200
+                && ($afterReset['json']['authenticated'] ?? null) === false,
+                'old authenticated cookie rejected after reset');
+            $freshCookie = $cookieFrom($afterReset);
+            $freshCsrf = $afterReset['json']['csrf'];
+            $oldLogin = $send('/api/buyer/auth.php', 'POST',
+                ['action'=>'login','email'=>$input['email'],'password'=>$input['password']],
+                ['Cookie: '.$freshCookie,'X-CSRF-Token: '.$freshCsrf]);
+            buyerAuthAssert($oldLogin['status'] === 401, 'old password rejected after reset');
+            $newLogin = $send('/api/buyer/auth.php', 'POST',
+                ['action'=>'login','email'=>$input['email'],'password'=>$resetScenario['password']],
+                ['Cookie: '.$freshCookie,'X-CSRF-Token: '.$freshCsrf]);
+            buyerAuthAssert($newLogin['status'] === 200 && ($newLogin['json']['ok'] ?? false),
+                'new password authenticates after reset');
+            return;
+        }
 
         // Challenge timestamp is already 3 seconds old; no artificial test delay.
         $challenge = brvtal_public_abuse_challenge($fixture, 'register', time() - 3);
@@ -335,7 +380,28 @@ $db->prepare('INSERT INTO ticket_buyer_sessions
     VALUES (?,?,?,DATE_ADD(UTC_TIMESTAMP(6), INTERVAL 1 HOUR))')
     ->execute([(int)$row['id'],hash('sha256','synthetic-session-id'),(int)$row['security_epoch']]);
 $newPassword = 'SynthETIC-new-3849-Strong';
-brvtalBuyerAuthConsume($db,$resetToken,'reset_password',$newPassword);
+$db->exec("CREATE TABLE ticket_orders (
+    id BIGINT UNSIGNED PRIMARY KEY,buyer_id BIGINT UNSIGNED NOT NULL,
+    status VARCHAR(16) NOT NULL) ENGINE=InnoDB");
+// Connection A verifies the old credential. The HTTP server uses a distinct
+// connection B to commit reset before A attempts to persist the stale proof.
+$stale = $db->query('SELECT id,password_hash,security_epoch FROM ticket_buyers')->fetch();
+buyerAuthAssert(password_verify($input['password'], $stale['password_hash']),
+    'old password verified before reset on connection A');
+buyerAuthMissingMailKeyHttpCheck($db, $dbName, $host, $port, $user, $pass, $input,
+    ['token'=>$resetToken,'password'=>$newPassword]);
+$staleHash = hash('sha256','stale-epoch-session');
+try {
+    brvtalBuyerPersistSession($db, (int)$stale['id'], $staleHash, (int)$stale['security_epoch']);
+    buyerAuthAssert(false, 'stale credential must not create a new-epoch session');
+} catch (RuntimeException $error) {
+    buyerAuthAssert($error->getMessage() === 'BUYER_SESSION_NOT_ELIGIBLE',
+        'stale epoch rejected after committed reset');
+}
+$lookupSession = $db->prepare('SELECT COUNT(*) FROM ticket_buyer_sessions WHERE session_hash=?');
+$lookupSession->execute([$staleHash]);
+buyerAuthAssert((int)$lookupSession->fetchColumn() === 0 && !$db->inTransaction(),
+    'stale attempt rolled back with zero session rows');
 $after = $db->query('SELECT password_hash,security_epoch FROM ticket_buyers')->fetch();
 buyerAuthAssert(password_verify($newPassword, (string)$after['password_hash'])
     && !password_verify($input['password'], (string)$after['password_hash'])
@@ -343,6 +409,27 @@ buyerAuthAssert(password_verify($newPassword, (string)$after['password_hash'])
     'reset rotates password and epoch');
 buyerAuthAssert($db->query('SELECT revoked_at_utc FROM ticket_buyer_sessions')->fetchColumn() !== null,
     'all prior stored sessions revoked');
+$currentEpoch = (int)$after['security_epoch'];
+$currentId = (int)$stale['id'];
+$sessionHash = hash('sha256','verified-current-session');
+brvtalBuyerPersistSession($db, $currentId, $sessionHash, $currentEpoch);
+try {
+    brvtalBuyerPersistSession($db, $currentId, $sessionHash, $currentEpoch);
+    buyerAuthAssert(false, 'duplicate session persistence must fail');
+} catch (PDOException) {
+    buyerAuthAssert(!$db->inTransaction(), 'persistence failure rolls back transaction');
+}
+$lookupSession->execute([$sessionHash]);
+buyerAuthAssert((int)$lookupSession->fetchColumn() === 1, 'failed insert leaves original row intact');
+$db->prepare("UPDATE ticket_buyers SET status='blocked' WHERE id=?")->execute([$currentId]);
+try {
+    brvtalBuyerPersistSession($db, $currentId, $staleHash, $currentEpoch);
+    buyerAuthAssert(false, 'blocked account cannot start session');
+} catch (RuntimeException $error) {
+    buyerAuthAssert($error->getMessage() === 'BUYER_SESSION_NOT_ELIGIBLE',
+        'blocked status rechecked under lock');
+}
+$db->prepare("UPDATE ticket_buyers SET status='active' WHERE id=?")->execute([$currentId]);
 try {
     brvtalBuyerAuthConsume($db,$resetToken,'reset_password','SynthETIC-3494-Reused');
     buyerAuthAssert(false,'reset token replay rejected');
@@ -359,9 +446,6 @@ buyerAuthAssert((int)$db->query("SELECT COUNT(*) FROM ticket_buyer_tokens WHERE 
 
 // #1985: guest purchase → one-use password token → verified account.
 // Synthetic database and mail only; no external payments or messages.
-$db->exec("CREATE TABLE ticket_orders (
-    id BIGINT UNSIGNED PRIMARY KEY,buyer_id BIGINT UNSIGNED NOT NULL,
-    status VARCHAR(16) NOT NULL) ENGINE=InnoDB");
 $db->exec("CREATE TABLE ticket_issue_outbox (
     order_id BIGINT UNSIGNED PRIMARY KEY,state VARCHAR(16) NOT NULL) ENGINE=InnoDB");
 $guestBuyer = $db->prepare("INSERT INTO ticket_buyers
