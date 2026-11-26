@@ -199,7 +199,7 @@ try {
         $opts=['http'=>['method'=>$method,'ignore_errors'=>true,'timeout'=>8,
             'header'=>implode("\r\n",$headers),'content'=>$body]];
         $response=file_get_contents($url,false,stream_context_create($opts));
-        $responseHeaders=$http_response_header??[];
+        $responseHeaders=$http_response_header;
         mail_t11_assert($response!==false && count($responseHeaders)>0,'HTTP transport');
         preg_match('/^HTTP\/[0-9.]+ ([0-9]{3})/',(string)$responseHeaders[0],$match);
         return [(int)($match[1]??0),(string)$response,$responseHeaders];
@@ -260,6 +260,8 @@ try {
 } finally {
     proc_terminate($server);
     proc_close($server);
+    putenv('BRVTAL_TICKET_MAIL_TESTING=0');
+    putenv('BRVTAL_TICKET_MAIL_WEBHOOK_SECRET');
     foreach ([$fixtureConfig,$routerFile,$serverLog] as $path) if (is_file($path)) unlink($path);
     rmdir($httpDir);
 }
