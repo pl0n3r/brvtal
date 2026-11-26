@@ -19,7 +19,7 @@ function brvtal_public_partition_events(array $events, ?DateTimeImmutable $now =
     $archive = [];
 
     foreach ($events as $event) {
-        if (!is_array($event) || !brvtal_public_event_is_visible($event, $now)) continue;
+        if (!is_array($event) || !brvtal_public_event_is_listed($event, $now)) continue;
         $eventDate = brvtal_public_event_datetime($event['event_date'] ?? null);
         $isHistorical = brvtal_public_event_is_historical($event, $now);
 

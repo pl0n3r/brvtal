@@ -12,6 +12,21 @@ require_once __DIR__ . '/ticketing_wompi_webhook.php';
  */
 const BRVTAL_WOMPI_RECONCILE_WINDOW_HOURS = 48;
 const BRVTAL_WOMPI_RECONCILE_BACKOFF_SECONDS = 60;
+const BRVTAL_WOMPI_RECONCILE_OLD_BACKOFF_SECONDS = 900;
+const BRVTAL_WOMPI_RECONCILE_STALE_HOURS = 168;
+const BRVTAL_WOMPI_RECONCILE_STALE_BACKOFF_SECONDS = 21600;
+
+/** Same eligibility for the candidate and its atomic, autocommitted claim. */
+function brvtal_wompi_reconcile_due_sql(): string
+{
+    return "provider='wompi' AND status IN ('created','pending')
+        AND updated_at_utc <= UTC_TIMESTAMP(6) - INTERVAL (CASE
+            WHEN created_at_utc <= UTC_TIMESTAMP(6) - INTERVAL " . BRVTAL_WOMPI_RECONCILE_STALE_HOURS . " HOUR
+                THEN " . BRVTAL_WOMPI_RECONCILE_STALE_BACKOFF_SECONDS . "
+            WHEN created_at_utc <= UTC_TIMESTAMP(6) - INTERVAL " . BRVTAL_WOMPI_RECONCILE_WINDOW_HOURS . " HOUR
+                THEN " . BRVTAL_WOMPI_RECONCILE_OLD_BACKOFF_SECONDS . "
+            ELSE " . BRVTAL_WOMPI_RECONCILE_BACKOFF_SECONDS . " END) SECOND";
+}
 
 /** Marks a journal row as "verified by the Wompi API", never as a signed event. */
 function brvtal_wompi_reconcile_checksum(string $transactionId): string
@@ -57,7 +72,8 @@ function brvtal_wompi_reconcile_fetch(array $config, string $reference, ?callabl
 
 /**
  * Reconcile one open attempt. Returns a state, never buyer data or keys:
- * skipped | not_found | not_approved | approved | approved_unfulfilled | duplicate | unavailable.
+ * skipped | not_found | not_approved | stale_pending | approved | approved_unfulfilled | duplicate | unavailable.
+ * stale_pending is an operational signal, not a financial state or a release of inventory.
  */
 function brvtal_wompi_reconcile_attempt(PDO $db, int $attemptId, ?array $config = null, ?callable $transport = null): string
 {
@@ -65,21 +81,25 @@ function brvtal_wompi_reconcile_attempt(PDO $db, int $attemptId, ?array $config 
     $config ??= brvtal_ticket_wompi_config();
     // Mock never talks to Wompi; only a real environment can confirm money.
     if (!in_array($config['mode'] ?? '', ['sandbox', 'production'], true)) return 'skipped';
-    $read = $db->prepare("SELECT id,provider_reference,status,gross_amount_cop FROM ticket_payment_attempts
-        WHERE id=? AND provider='wompi'");
+    $read = $db->prepare("SELECT id,provider_reference,status,gross_amount_cop,
+        (created_at_utc <= UTC_TIMESTAMP(6) - INTERVAL " . BRVTAL_WOMPI_RECONCILE_STALE_HOURS . " HOUR) AS stale_pending
+        FROM ticket_payment_attempts WHERE id=? AND " . brvtal_wompi_reconcile_due_sql());
     $read->execute([$attemptId]);
     $attempt = $read->fetch(PDO::FETCH_ASSOC);
     if (!is_array($attempt) || !in_array($attempt['status'], ['created', 'pending'], true)) return 'skipped';
-    // Back off before the network call so a slow provider never hammers itself.
-    $db->prepare('UPDATE ticket_payment_attempts SET updated_at_utc=UTC_TIMESTAMP(6) WHERE id=?')
-        ->execute([$attemptId]);
+    // Atomic conditional claim before I/O; no DB lock held across the provider call.
+    $claim = $db->prepare('UPDATE ticket_payment_attempts SET updated_at_utc=UTC_TIMESTAMP(6)
+        WHERE id=? AND ' . brvtal_wompi_reconcile_due_sql());
+    $claim->execute([$attemptId]);
+    if ($claim->rowCount() !== 1) return 'skipped';
+    $stale = (int)$attempt['stale_pending'] === 1;
     try {
         $tx = brvtal_wompi_reconcile_fetch($config, (string)$attempt['provider_reference'], $transport);
     } catch (RuntimeException) {
         return 'unavailable';
     }
-    if ($tx === null) return 'not_found';
-    if (($tx['status'] ?? null) !== 'APPROVED') return 'not_approved';
+    if ($tx === null) return $stale ? 'stale_pending' : 'not_found';
+    if (($tx['status'] ?? null) !== 'APPROVED') return $stale ? 'stale_pending' : 'not_approved';
     if (!is_string($tx['id'] ?? null) || !preg_match('/^[a-zA-Z0-9-]{1,128}$/D', $tx['id'])
         || ($tx['currency'] ?? null) !== 'COP' || !is_int($tx['amount_in_cents'] ?? null)
         || $tx['amount_in_cents'] !== (int)$attempt['gross_amount_cop'] * 100) {
@@ -100,14 +120,11 @@ function brvtal_wompi_reconcile_attempt(PDO $db, int $attemptId, ?array $config 
     return in_array($result, ['approved','approved_unfulfilled'], true) ? $result : 'duplicate';
 }
 
-/** Worker step: at most one open attempt from the last 48 h, oldest check first. */
+/** Worker step: at most one due open attempt, oldest check first, irrespective of age. */
 function brvtal_wompi_reconcile_next(PDO $db, ?array $config = null, ?callable $transport = null): string
 {
-    $next = $db->prepare("SELECT id FROM ticket_payment_attempts
-        WHERE provider='wompi' AND status IN ('created','pending')
-          AND created_at_utc >= UTC_TIMESTAMP(6) - INTERVAL " . BRVTAL_WOMPI_RECONCILE_WINDOW_HOURS . " HOUR
-          AND updated_at_utc <= UTC_TIMESTAMP(6) - INTERVAL " . BRVTAL_WOMPI_RECONCILE_BACKOFF_SECONDS . " SECOND
-        ORDER BY updated_at_utc, id LIMIT 1");
+    $next = $db->prepare('SELECT id FROM ticket_payment_attempts WHERE '
+        . brvtal_wompi_reconcile_due_sql() . ' ORDER BY updated_at_utc, id LIMIT 1');
     $next->execute();
     $id = $next->fetchColumn();
     return $id === false ? 'idle' : brvtal_wompi_reconcile_attempt($db, (int)$id, $config, $transport);

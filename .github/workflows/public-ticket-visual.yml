@@ -1,0 +1,111 @@
+name: Public ticket before-after evidence
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/public-ticket-visual.yml
+      - buyer/ticket.php
+      - js/public-ticket-view.js
+      - css/public-ticket-view.css
+      - css/buyer-access.css
+      - js/vendor/qrcode-generator.js
+      - assets/fonts/BrokenGlass.ttf
+      - tests/e2e/public-ticket-view.spec.mjs
+      - package.json
+      - package-lock.json
+      - playwright.config.mjs
+permissions:
+  contents: read
+jobs:
+  public-ticket-visual:
+    name: public-ticket-visual
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - name: Checkout exact base
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: baseline
+          persist-credentials: false
+      - name: Checkout exact head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: candidate
+          persist-credentials: false
+      - name: Render both revisions in Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C baseline rev-parse HEAD)" = "$BASE_SHA"
+          test "$(git -C candidate rev-parse HEAD)" = "$HEAD_SHA"
+          for revision in baseline candidate; do
+            (
+              cd "$revision"
+              rm -rf visual-evidence
+              if [[ -f package-lock.json ]]; then
+                npm ci --prefer-offline --no-audit --no-fund
+              else
+                npm install --prefer-offline --no-audit --no-fund
+              fi
+              if [[ "$revision" == baseline ]]; then
+                npx playwright install --with-deps chromium
+              else
+                npx playwright install chromium
+              fi
+              npx playwright test tests/e2e/public-ticket-view.spec.mjs --project=chromium --workers=1 --reporter=list
+            )
+          done
+      - name: Verify PNGs and write exact-revision manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          import struct
+          from pathlib import Path
+
+          out = Path('ticket-visual-evidence')
+          out.mkdir(exist_ok=False)
+          captures = []
+          def record(revision, source, dest, width, min_height):
+              data = (Path(revision) / 'visual-evidence' / source).read_bytes()
+              assert data[:8] == b'\x89PNG\r\n\x1a\n' and data[12:16] == b'IHDR', source
+              w, h = struct.unpack('>II', data[16:24])
+              assert w == width and h >= min_height, (source, w, h)
+              (out / dest).write_bytes(data)
+              captures.append({'name': dest, 'width': w, 'height': h,
+                               'sha256': hashlib.sha256(data).hexdigest()})
+          for width, height in ((390, 844), (1440, 900)):
+              record('baseline', f'ticket-view-despues-{width}.png',
+                     f'ticket-view-antes-{width}.png', width, height)
+              record('candidate', f'ticket-view-despues-{width}.png',
+                     f'ticket-view-despues-{width}.png', width, height)
+              if 'id="ticket-print"' in Path('candidate/buyer/ticket.php').read_text():
+                  record('candidate', f'ticket-view-print-{width}.png',
+                         f'ticket-view-print-{width}.png', width, height)
+          record('candidate', 'ticket-view-error-390.png', 'ticket-view-error-390.png', 390, 844)
+          (out / 'manifest.json').write_text(json.dumps({
+              'source': 'Chromium synthetic fixture; exact checkout of both revisions',
+              'base_sha': os.environ['BASE_SHA'], 'head_sha': os.environ['HEAD_SHA'],
+              'captures': captures}, indent=2) + '\n')
+          PY
+      - name: Publish visual evidence
+        id: evidence
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: public-ticket-visual-${{ github.event.pull_request.head.sha }}-${{ github.run_id }}
+          path: ticket-visual-evidence/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Link evidence
+        env:
+          EVIDENCE_URL: ${{ steps.evidence.outputs.artifact-url }}
+        run: |
+          printf 'Base: `%s`\n\nHEAD: `%s`\n\n[Capturas sintéticas](%s)\n' "$BASE_SHA" "$HEAD_SHA" "$EVIDENCE_URL" >> "$GITHUB_STEP_SUMMARY"
