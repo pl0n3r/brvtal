@@ -202,6 +202,112 @@ mail_assert(brvtal_ticket_mail_deliver_one($pdo, static fn() => ['status' => 503
     'max retries fail closed to reconciliation');
 mail_assert(!brvtal_ticket_mail_redrive($pdo, $id3), 'uncertain cannot redrive blindly');
 mail_assert(brvtal_ticket_mail_deliver_one($pdo) === 'idle', 'uncertain not automatically replayed');
+
+// #2063: orphaned leases and exhausted windows are reconciled without transport.
+// These assertions intentionally precede the implementation change (red-first).
+$enqueueForReconciliation = static function (string $key) use ($pdo): int {
+    $pdo->beginTransaction();
+    try {
+        $id = brvtal_ticket_mail_enqueue($pdo, 'ticket:reconcile:' . $key, 'entry:reconcile',
+            $key . '@example.test', 'Synthetic', 'No real delivery');
+        $pdo->commit();
+        return $id;
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $error;
+    }
+};
+$expired = $enqueueForReconciliation('expired');
+$exhausted = $enqueueForReconciliation('exhausted');
+$window = $enqueueForReconciliation('window');
+$orphan = $enqueueForReconciliation('orphan');
+$active = $enqueueForReconciliation('active');
+$activeRetry = $enqueueForReconciliation('active-retry');
+$normal = $enqueueForReconciliation('normal');
+$receipt = $enqueueForReconciliation('receipt');
+$failed = $enqueueForReconciliation('failed');
+$change = $pdo->prepare("UPDATE ticket_mail_outbox SET state=?,attempts=?,first_attempt_at=?,
+    locked_until=?,next_attempt_at=?,provider_message_id=?,accepted_at=?,last_error_code=? WHERE id=?");
+$older = gmdate('Y-m-d H:i:s', time() - 24 * 3600);
+$recent = gmdate('Y-m-d H:i:s', time() - 3600);
+$past = gmdate('Y-m-d H:i:s', time() - 180);
+$future = gmdate('Y-m-d H:i:s', time() + 3600);
+$set = static function (int $id, string $state, int $attempts, ?string $first,
+    ?string $locked, ?string $next, ?string $provider = null,
+    ?string $accepted = null, ?string $error = null) use ($change): void {
+    $change->execute([$state,$attempts,$first,$locked,$next,$provider,$accepted,$error,$id]);
+};
+$set($expired, 'sending', 5, $recent, $past, $past);
+$set($exhausted, 'retry', 5, $recent, null, $future, null, null, 'provider_5xx');
+$set($window, 'retry', 2, $older, null, $future);
+$set($orphan, 'sending', 1, $recent, $past, $past);
+$set($active, 'sending', 5, $recent, $future, $past);
+$set($activeRetry, 'retry', 5, $recent, $future, $past);
+$set($normal, 'retry', 2, $recent, null, $future);
+$set($receipt, 'sending', 5, $recent, $past, $past, 'provider-real-1', $recent);
+$set($failed, 'failed', 5, $recent, null, $past, null, null, 'provider_rejected');
+$before = $pdo->query("SELECT id,message_key,payload_hash,attempts,first_attempt_at,
+    next_attempt_at,provider_message_id,accepted_at,last_error_code
+    FROM ticket_mail_outbox WHERE id IN ($expired,$exhausted,$window,$orphan,$active,$activeRetry,$normal,$receipt,$failed)
+    ORDER BY id")->fetchAll(PDO::FETCH_UNIQUE | PDO::FETCH_ASSOC);
+$transportCalls = 0;
+mail_assert(brvtal_ticket_mail_reconcile_stale($pdo, 2) === 2, 'bounded first batch');
+$second = new PDO("mysql:host={$host};port={$port};dbname={$dbName};charset=utf8mb4", $user, $pass, $opts);
+mail_assert(brvtal_ticket_mail_reconcile_stale($second, 2) === 2, 'second worker handles remaining batch');
+mail_assert(brvtal_ticket_mail_reconcile_stale($pdo, 2) === 0, 'reconciliation is idempotent');
+$states = $pdo->query("SELECT id,state,locked_until FROM ticket_mail_outbox
+    WHERE id IN ($expired,$exhausted,$window,$orphan,$active,$activeRetry,$normal,$receipt,$failed)
+    ORDER BY id")->fetchAll(PDO::FETCH_UNIQUE | PDO::FETCH_ASSOC);
+foreach ([$expired,$exhausted,$window,$orphan] as $id) {
+    mail_assert($states[$id]['state'] === 'uncertain' && $states[$id]['locked_until'] === null,
+        'stale job is fenced without redrive');
+    mail_assert(!brvtal_ticket_mail_redrive($pdo, $id), 'uncertain is not redrivable');
+}
+foreach ([$active,$activeRetry,$normal,$receipt,$failed] as $id) {
+    mail_assert($states[$id]['state'] === ($id === $normal || $id === $activeRetry ? 'retry'
+        : ($id === $failed ? 'failed' : 'sending')), 'active/terminal/receipt unchanged');
+}
+$after = $pdo->query("SELECT id,message_key,payload_hash,attempts,first_attempt_at,
+    next_attempt_at,provider_message_id,accepted_at,last_error_code
+    FROM ticket_mail_outbox WHERE id IN ($expired,$exhausted,$window,$orphan,$active,$activeRetry,$normal,$receipt,$failed)
+    ORDER BY id")->fetchAll(PDO::FETCH_UNIQUE | PDO::FETCH_ASSOC);
+foreach ($before as $rowId => $row) {
+    foreach ($row as $field => $value) {
+        mail_assert($after[$rowId][$field] === $value
+            || ($field === 'last_error_code' && $value === null
+                && in_array((int)$rowId, [$expired,$window,$orphan], true)
+                && $after[$rowId][$field] === 'receipt_unknown'),
+            'preserve evidence ' . $field);
+    }
+}
+mail_assert(brvtal_ticket_mail_claim($pdo) === null, 'uncertain cannot be claimed');
+mail_assert($transportCalls === 0, 'reconciliation never called transport');
+$lockCase = $enqueueForReconciliation('lock-case');
+$set($lockCase, 'sending', 2, $recent, $past, $past);
+$pdo->exec('SET innodb_lock_wait_timeout=1');
+$second->exec('SET innodb_lock_wait_timeout=1');
+$pdo->beginTransaction();
+$pdo->query("SELECT id FROM ticket_mail_outbox WHERE id=$lockCase FOR UPDATE")->fetchColumn();
+try {
+    brvtal_ticket_mail_reconcile_stale($second, 1);
+    mail_assert(false, 'competing worker must not bypass lock');
+} catch (PDOException $error) {
+    mail_assert(in_array((string)$error->getCode(), ['HY000','40001'], true),
+        'competing worker is fenced by DB row lock');
+}
+$pdo->rollBack();
+mail_assert(brvtal_ticket_mail_reconcile_stale($second, 1) === 1, 'lock released permits safe reconcile');
+mail_assert((string)$pdo->query("SELECT state FROM ticket_mail_outbox WHERE id=$lockCase")
+    ->fetchColumn() === 'uncertain', 'late worker cannot send orphan');
+try {
+    brvtal_ticket_mail_reconcile_stale($pdo, 0);
+    mail_assert(false, 'zero limit must fail');
+} catch (InvalidArgumentException $error) {
+    mail_assert($error->getMessage() === 'MAIL_RECONCILE_INVALID_LIMIT', 'invalid limit reason');
+}
+mail_assert((string)$pdo->query('SELECT status FROM synthetic_paid_ticket')->fetchColumn() === 'paid',
+    'reconciliation does not change paid tickets');
+
 echo "BRVTAL ticket-mail outbox integration OK.\n";
 
 // T11: run signed webhook and durable history tests in the existing canonical mail integration suite.
