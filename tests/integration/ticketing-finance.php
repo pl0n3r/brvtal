@@ -57,6 +57,10 @@ $full=brvtalFinanceSummarize([$fullyRefunded],[$items[0]],[$payments[0]],[], $re
 t20($full['refunded_orders']===1 && $full['gross_cop']===100000
     && $full['refund_cop']===90000 && $full['net_after_refunds_cop']===0
     && $full['refund_in_period_cop']===35000,'full refund retains gross sale and separate posting cut');
+$legacyMissing=brvtalFinanceSummarize([$fullyRefunded],[$items[0]],[$payments[0]])[0];
+t20($legacyMissing['gross_cop']===100000 && $legacyMissing['refund_cop']===null
+    && $legacyMissing['net_after_refunds_cop']===null,
+    'fully refunded Wompi order without confirmed adjustment stays UNKNOWN');
 $invalidRefund=brvtalFinanceSummarize([$orders[0]],[$items[0]],[$payments[0]],[],
     [1=>[['refund_id'=>73,'order_id'=>1,'event_id'=>9,'amount_cop'=>90001]]])[0];
 t20($invalidRefund['refund_cop']===null && $invalidRefund['net_after_refunds_cop']===null,
@@ -79,6 +83,11 @@ $posOrder=['id'=>5,'event_id'=>9,'status'=>'paid','total_cop'=>20000,'currency'=
 $posItem=['order_id'=>5,'ticket_type_id'=>7,'quantity'=>1,'subtotal_cop'=>20000];
 $posSale=['id'=>15,'order_id'=>5,'event_id'=>9,'ticket_type_id'=>7,'quantity'=>1,
     'amount_cop'=>20000,'method'=>'cash','status'=>'paid'];
+$posRefunded=$posOrder;$posRefunded['status']='refunded';
+$posUnknown=brvtalFinanceSummarize([$posRefunded],[$posItem],[],[$posSale])[0];
+t20($posUnknown['gross_cop']===20000 && $posUnknown['refund_cop']===null
+    && $posUnknown['net_after_refunds_cop']===null,
+    'fully refunded POS order without confirmed adjustment stays UNKNOWN');
 $summary=brvtalFinanceSummarize([$posOrder],[$posItem],[],[$posSale])[0];
 t20($summary['pos_cop']===20000 && $summary['pos_orders']===1
     && $summary['approved_cop']===0 && $summary['paid_orders']===1,

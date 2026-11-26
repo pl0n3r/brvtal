@@ -96,6 +96,9 @@ function brvtalFinanceSummarize(array $orders, array $items, array $attempts,
                 $summary['pos_cop']+=$amount;
                 $refund=$refundEvidence
                     ? brvtalFinanceRefundAmounts($refundsByOrder[$id]??[], $eventId, $amount) : null;
+                // A legacy fully refunded order without a confirmed adjustment
+                // is unknown, not a verified zero-refund sale.
+                if ($status==='refunded' && ($refund['total']??0)===0) $refund=null;
                 $summary['refund_cop']=brvtalFinanceAdd($summary['refund_cop'], $refund['total']??null);
                 $summary['refund_in_period_cop']=brvtalFinanceAdd(
                     $summary['refund_in_period_cop'], $refund['in_period']??null);
@@ -132,6 +135,7 @@ function brvtalFinanceSummarize(array $orders, array $items, array $attempts,
             $summary['approved_cop'] += $amount;
             $refund=$refundEvidence
                 ? brvtalFinanceRefundAmounts($refundsByOrder[$id]??[], $eventId, $amount) : null;
+            if ($status==='refunded' && ($refund['total']??0)===0) $refund=null;
             $summary['refund_cop']=brvtalFinanceAdd($summary['refund_cop'], $refund['total']??null);
             $summary['refund_in_period_cop']=brvtalFinanceAdd(
                 $summary['refund_in_period_cop'], $refund['in_period']??null);
