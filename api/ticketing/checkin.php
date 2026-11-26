@@ -45,11 +45,18 @@ try {
         json_response(['ok'=>false,'error'=>'RATE_LIMITED'],429);
     }
     if ($receipt) {
-        $history=brvtalTicketCheckinReceipt($pdo,$data['event_id'],$operator,$data['device_id'],$data['request_id']);
-        json_response($history??['ok'=>false,'error'=>'RECEIPT_NOT_FOUND'],$history===null?404:200);
+        $history=brvtalTicketCheckinReceipt($pdo, $data['event_id'], $operator, $data['device_id'], $data['request_id']);
+        json_response($history??['ok'=>false,'error'=>'RECEIPT_NOT_FOUND'], $history===null?404:200);
     }
-    $result=brvtalTicketCheckinConsume($pdo,$data['event_id'],$operator,$data['device_id'],$data['qr'],
-        null,$data['request_id']??null);
+    $result=brvtalTicketCheckinConsume(
+        $pdo,
+        $data['event_id'],
+        $operator,
+        $data['device_id'],
+        $data['qr'],
+        null,
+        $data['request_id']??null
+    );
     json_response(['ok'=>$result['ok'],'reason'=>$result['reason']],$result['ok']?200:409);
 } catch (DomainException $e) {
     json_response(['ok'=>false,'error'=>$e->getMessage()==='CHECKIN_RATE_LIMITED'
