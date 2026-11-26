@@ -9,14 +9,41 @@ require_once __DIR__ . '/ticketing_event_incident_policy.php';
 function brvtalTicketCheckinInput(array $body): array
 {
     $keys=array_keys($body); sort($keys);
-    if ($keys !== ['device_id','event_id','qr']
+    $receipt=$keys===['action','device_id','event_id','request_id'] && $body['action']==='receipt';
+    $scan=$keys===['device_id','event_id','qr'] || $keys===['device_id','event_id','qr','request_id'];
+    if ((!$receipt && !$scan)
         || !is_int($body['event_id']) || $body['event_id'] < 1
         || !is_string($body['device_id'])
         || preg_match('/^[A-Za-z0-9._:-]{1,96}$/D',$body['device_id']) !== 1
-        || !is_string($body['qr']) || strlen($body['qr']) > 256) {
+        || ($scan && (!is_string($body['qr']) || strlen($body['qr']) > 256))
+        || (array_key_exists('request_id',$body) && !brvtalTicketCheckinRequestId($body['request_id']))) {
         throw new InvalidArgumentException('CHECKIN_INVALID_INPUT');
     }
     return $body;
+}
+
+/** A scanner generates 128 random bits before its first submission. */
+function brvtalTicketCheckinRequestId(mixed $id): bool
+{
+    return is_string($id) && preg_match('/^[a-f0-9]{32}$/D',$id)===1
+        && $id!==str_repeat('0',32);
+}
+
+/** Historical evidence only; caller must reauthorize active door staff. */
+function brvtalTicketCheckinReceipt(PDO $pdo,int $eventId,int $operator,string $device,string $requestId): ?array
+{
+    if ($eventId<1 || $operator<1 || preg_match('/^[A-Za-z0-9._:-]{1,96}$/D',$device)!==1
+        || !brvtalTicketCheckinRequestId($requestId)) {
+        throw new InvalidArgumentException('CHECKIN_INVALID_INPUT');
+    }
+    $query=$pdo->prepare("SELECT outcome,reason_code FROM ticket_checkins
+        WHERE request_id=UNHEX(?) AND event_id=? AND operator_admin_id=? AND device_id=?
+          AND (reason_code IS NULL OR reason_code<>'rate_limited')");
+    $query->execute([$requestId,$eventId,$operator,$device]);
+    $row=$query->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($row)) return null;
+    return ['ok'=>false,'receipt'=>['outcome'=>$row['outcome'],
+        'reason'=>$row['outcome']==='accepted'?'accepted':$row['reason_code']]];
 }
 
 /** Shared, file-backed, fail-closed budget; no QR or PII is stored. */
@@ -191,10 +218,12 @@ function brvtalTicketCheckinConsume(
     int $operator,
     string $device,
     string $qr,
-    ?DateTimeImmutable $now = null
+    ?DateTimeImmutable $now = null,
+    ?string $requestId = null
 ): array
 {
-    if ($eventId<1||$operator<1||preg_match('/^[A-Za-z0-9._:-]{1,96}$/D',$device)!==1) {
+    if ($eventId<1||$operator<1||preg_match('/^[A-Za-z0-9._:-]{1,96}$/D',$device)!==1
+        || ($requestId!==null && !brvtalTicketCheckinRequestId($requestId))) {
         throw new InvalidArgumentException('CHECKIN_INVALID_INPUT');
     }
     if ($pdo->inTransaction()) throw new RuntimeException('CHECKIN_BUSY');
@@ -202,6 +231,16 @@ function brvtalTicketCheckinConsume(
     try {
         $pdo->beginTransaction();
         try {
+            // A known attempt never reaches credential validation or consumption.
+            // No gap lock: concurrent new IDs are serialized by the unique audit index.
+            if ($requestId!==null) {
+                $existing=$pdo->prepare('SELECT 1 FROM ticket_checkins WHERE request_id=UNHEX(?)');
+                $existing->execute([$requestId]);
+                if ($existing->fetchColumn()!==false) {
+                    $pdo->rollBack();
+                    return ['ok'=>false,'reason'=>'attempt_conflict'];
+                }
+            }
             $event=$pdo->prepare('SELECT status,event_date,published_at FROM events WHERE id=? FOR UPDATE');
             $event->execute([$eventId]);
             $eventRow=$event->fetch(PDO::FETCH_ASSOC);
@@ -277,9 +316,20 @@ function brvtalTicketCheckinConsume(
             $audit=$pdo->prepare('INSERT INTO ticket_checkins
                 (request_id,event_id,entry_id,credential_version,operator_admin_id,device_id,outcome,reason_code,attempted_at_utc)
                 VALUES (?,?,?,?,?,?,?,?,UTC_TIMESTAMP(6))');
-            $audit->execute([random_bytes(16),$eventId,$accepted?$entryId:null,
-                $accepted?$version:null,$operator,$device,$accepted?'accepted':'rejected',
-                $accepted?null:$reason]);
+            try {
+                $audit->execute([$requestId===null?random_bytes(16):hex2bin($requestId),
+                    $eventId,$accepted?$entryId:null,$accepted?$version:null,$operator,$device,
+                    $accepted?'accepted':'rejected',$accepted?null:$reason]);
+            } catch (PDOException $error) {
+                // Only the request UNIQUE collision is a neutral replay; all other
+                // integrity/storage errors still fail closed. Roll back any admission.
+                if ($requestId!==null && (int)($error->errorInfo[1]??0)===1062
+                    && str_contains((string)($error->errorInfo[2]??''),'uq_ticket_checkin_request')) {
+                    $pdo->rollBack();
+                    return ['ok'=>false,'reason'=>'attempt_conflict'];
+                }
+                throw $error;
+            }
             $pdo->commit();
             return ['ok'=>$accepted,'reason'=>$reason];
         } catch (Throwable $error) {
