@@ -128,10 +128,12 @@ function brvtalTicketCheckinEventEligible(array $event, ?DateTimeImmutable $now 
  * Legacy direct cash receipts use the exact checkout digest written by
  * brvtalPosConfirm; manual owner orders require a completed offline outbox.
  */
-function brvtalTicketCheckinPosIssued(PDO $pdo,int $orderId,int $entryId): bool
+function brvtalTicketCheckinPosIssued(PDO $pdo, int $orderId, int $entryId): bool
 {
     require_once __DIR__.'/ticketing_issue.php';
-    if (!brvtal_ticket_pos_verified($pdo,$orderId)) return false;
+    if (!brvtal_ticket_pos_verified($pdo, $orderId)) {
+        return false;
+    }
     $proof=$pdo->prepare("SELECT
         EXISTS(SELECT 1 FROM ticket_issue_outbox b WHERE b.order_id=o.id
             AND b.state='done' AND b.payment_attempt_id IS NULL) AS manual_issued,
@@ -149,7 +151,7 @@ function brvtalTicketCheckinPosIssued(PDO $pdo,int $orderId,int $entryId): bool
     return is_array($row) && ((int)$row['manual_issued']===1 || (int)$row['direct_issued']===1);
 }
 
-function brvtalTicketCheckinPaid(PDO $pdo,array $entry,int $eventId): bool
+function brvtalTicketCheckinPaid(PDO $pdo, array $entry, int $eventId): bool
 {
     // Pre-POS deployments and T15/T25 fixtures must not reference absent tables.
     $posTable=$pdo->query("SELECT COUNT(*) FROM information_schema.TABLES
@@ -173,7 +175,7 @@ function brvtalTicketCheckinPaid(PDO $pdo,array $entry,int $eventId): bool
         return false;
     }
     if ((int)$order['pos_sale']===1) {
-        return brvtalTicketCheckinPosIssued($pdo,(int)$order['id'],(int)$entry['id']);
+        return brvtalTicketCheckinPosIssued($pdo, (int)$order['id'], (int)$entry['id']);
     }
     return (int)$order['issued']===1 && (int)$order['verified']===1;
 }
@@ -232,7 +234,7 @@ function brvtalTicketCheckinConsume(
                             || !hash_equals($credential['token_hash'],$token['hash'])) {
                             $reason='credential_revoked';
                         } else {
-                            $paidValid=brvtalTicketCheckinPaid($pdo,$entry,$eventId);
+                            $paidValid=brvtalTicketCheckinPaid($pdo, $entry, $eventId);
                             $courtesyValid=false;
                             // T25 is disabled by default. Existing paid QR scans never
                             // depend on a pending courtesy migration or a fabricated payment.
