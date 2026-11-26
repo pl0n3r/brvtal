@@ -551,6 +551,12 @@ function brvtalMigrationProofSpecifications(): array
             'fk-reference:ticket_issue_outbox.fk_ticket_issue_outbox_pos_attempt=payment_attempt_id:ticket_payment_attempts.id',
         ];
     }
+    if (is_file(__DIR__ . '/../database/migration_ticketing_door_price_01.sql')) {
+        $specifications['migration_ticketing_door_price_01.sql'] = [
+            'column:event_ticket_types.door_price_cop',
+            'column-unsigned-nullable:event_ticket_types.door_price_cop',
+        ];
+    }
     // #1978: nullable QR ciphertext on existing credentials table; old rows remain valid.
     if (is_file(__DIR__ . '/../database/migration_ticket_entry_secret_01.sql')) {
         $specifications['migration_ticket_entry_secret_01.sql'] = [
