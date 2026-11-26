@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/ticketing_issue.php';
 
 /** Read-only DISCADMIN T18 contracts. No checkout, payment, or mail mutations. */
 function brvtalTicketAdminFilters(array $raw): array
@@ -57,6 +58,103 @@ function brvtalTicketAdminHasTable(PDO $pdo, string $table): bool
     return $s->fetchColumn() !== false;
 }
 
+
+/** Optional proof tables are checked once per list page; no financial writes. */
+function brvtalTicketAdminPaymentSchema(PDO $pdo): array
+{
+    return [
+        'pos_sales'=>brvtalTicketAdminHasTable($pdo,'ticket_pos_sales'),
+        'pos_shifts'=>brvtalTicketAdminHasTable($pdo,'ticket_pos_shifts'),
+        'pos_notes'=>brvtalTicketAdminHasTable($pdo,'ticket_order_notes'),
+        'courtesy'=>brvtalTicketAdminHasTable($pdo,'ticket_courtesy_invites'),
+        'wompi_events'=>brvtalTicketAdminHasTable($pdo,'ticket_payment_webhook_events'),
+    ];
+}
+
+/** Reuse T09's signed-event and trusted POS boundaries for read-only labels. */
+function brvtalTicketAdminPaymentEvidence(PDO $pdo, array $order, ?array $schema = null): array
+{
+    $schema ??= brvtalTicketAdminPaymentSchema($pdo);
+    $id = (int)($order['id'] ?? 0);
+    $status = (string)($order['status'] ?? '');
+    $total = (int)($order['total_cop'] ?? 0);
+    $currency = (string)($order['currency'] ?? '');
+    $paidBefore = in_array($status,['paid','refunded'],true);
+    $evidence = static fn(string $channel,string $state,string $reason='',bool $anomaly=false): array =>
+        ['channel'=>$channel,'state'=>$state,'reason'=>$reason,'anomaly'=>$anomaly];
+
+    // An approved attempt alone is not proof: T09 requires the matching
+    // durable signed/API-verification event, never a synthetic approval.
+    $verifiedEvent = $schema['wompi_events']
+        ? "EXISTS (SELECT 1 FROM ticket_payment_webhook_events w
+            WHERE w.attempt_id=a.id AND w.provider_transaction_id=a.provider_transaction_id)"
+        : 'FALSE';
+    $q = $pdo->prepare("SELECT COUNT(*) AS total,
+        COALESCE(SUM(a.status='approved'),0) AS approvals,
+        COALESCE(SUM(a.status='approved' AND a.provider='wompi' AND a.gross_amount_cop=?
+            AND a.provider_reference IS NOT NULL AND a.provider_reference<>''
+            AND a.provider_transaction_id IS NOT NULL AND a.provider_transaction_id<>''
+            AND $verifiedEvent),0) AS confirmed
+        FROM ticket_payment_attempts a WHERE a.order_id=?");
+    $q->execute([$total,$id]);
+    $attempt = $q->fetch(PDO::FETCH_ASSOC) ?: [];
+    $attempts = (int)($attempt['total'] ?? 0);
+    $approvals = (int)($attempt['approvals'] ?? 0);
+    $confirmed = (int)($attempt['confirmed'] ?? 0);
+
+    $pos = 0; $posMethod = '';
+    if ($schema['pos_sales']) {
+        $q = $pdo->prepare('SELECT COUNT(*) AS total,MAX(method) AS method FROM ticket_pos_sales WHERE order_id=?');
+        $q->execute([$id]);
+        $row = $q->fetch(PDO::FETCH_ASSOC) ?: [];
+        $pos = (int)($row['total'] ?? 0);
+        $posMethod = (string)($row['method'] ?? '');
+    }
+    $courtesy = 0;
+    if ($schema['courtesy']) {
+        $q = $pdo->prepare('SELECT COUNT(*) FROM ticket_courtesy_invites WHERE order_id=?');
+        $q->execute([$id]);
+        $courtesy = (int)$q->fetchColumn();
+    }
+    if ($approvals > 1) return $evidence('conflict','discrepancy','duplicate_wompi',true);
+    if (($pos && $attempts) || ($courtesy && ($pos || $attempts))) {
+        return $evidence('conflict','discrepancy','channel_conflict',true);
+    }
+    if ($courtesy) {
+        if ($courtesy !== 1 || $total !== 0 || $status !== 'draft') {
+            return $evidence('conflict','discrepancy','invalid_courtesy',true);
+        }
+        return $evidence('courtesy','courtesy');
+    }
+    if ($pos) {
+        if (!$schema['pos_shifts'] || ($posMethod==='transfer' && !$schema['pos_notes'])) {
+            return $evidence('unknown','unavailable','pos_schema_missing');
+        }
+        if ($pos===1 && $status==='paid' && brvtal_ticket_pos_verified($pdo,$id)) {
+            return $evidence('pos','registered_offline');
+        }
+        // A refunded order no longer passes T09's paid-state predicate.
+        if ($status==='refunded') return $evidence('unknown','unavailable','pos_refunded');
+        return $evidence('conflict','discrepancy','invalid_pos',true);
+    }
+    if ($approvals) {
+        if (!$schema['wompi_events']) return $evidence('unknown','unavailable','wompi_ledger_missing');
+        if ($paidBefore && $currency==='COP' && $confirmed===1) {
+            return $evidence('wompi','verified');
+        }
+        return $evidence('conflict','discrepancy','invalid_wompi',true);
+    }
+    if ($paidBefore) {
+        return $schema['pos_sales']
+            ? $evidence('conflict','discrepancy','paid_without_proof',true)
+            : $evidence('unknown','unavailable','pos_schema_missing');
+    }
+    if ($status==='draft' && $total===0 && !$schema['courtesy']) {
+        return $evidence('unknown','unavailable','courtesy_schema_missing');
+    }
+    return $evidence('none','no_payment');
+}
+
 /** One row per buyer/order; correlated aggregates avoid multiplying monetary totals. */
 function brvtalTicketAdminPage(PDO $pdo, array $f): array
 {
@@ -109,6 +207,13 @@ function brvtalTicketAdminPage(PDO $pdo, array $f): array
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
     $more = count($rows) > $f['limit'];
     if ($more) array_pop($rows);
+    if ($isOrder && $rows) {
+        $schema = brvtalTicketAdminPaymentSchema($pdo);
+        foreach ($rows as &$row) {
+            $row['payment_evidence'] = brvtalTicketAdminPaymentEvidence($pdo,$row,$schema);
+        }
+        unset($row);
+    }
     return ['rows'=>$rows,'kind'=>$f['kind'],'has_more'=>$more,
         'next_cursor'=>$more && $rows ? (int)end($rows)['id'] : null];
 }
@@ -175,6 +280,11 @@ function brvtalTicketAdminDetail(PDO $pdo, int $orderId): array
     }
     $paymentsFound=$payments->fetchAll(PDO::FETCH_ASSOC);
     $itemsFound=$items->fetchAll(PDO::FETCH_ASSOC);
+    $source = $pdo->prepare('SELECT id,status,total_cop,currency FROM ticket_orders WHERE id=?');
+    $source->execute([$orderId]);
+    $sourceOrder = $source->fetch(PDO::FETCH_ASSOC);
+    $paymentEvidence = $sourceOrder ? brvtalTicketAdminPaymentEvidence($pdo,$sourceOrder) : null;
     return ['order'=>$order ?: null,'items'=>$itemsFound,'payments'=>$paymentsFound,
+        'payment_evidence'=>$paymentEvidence,
         'mail'=>$mails, 'issue'=>$issue,'notes'=>$notes,'entries'=>$entries];
 }

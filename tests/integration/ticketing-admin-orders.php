@@ -58,5 +58,59 @@ try {
     $pdo->exec('DROP TABLE ticket_mail_history');
     $withoutMail=brvtalTicketAdminPage($pdo,brvtalTicketAdminFilters(['kind'=>'orders','q'=>'91']));
     t18Assert($withoutMail['rows'][0]['mail_state']===null,'mail provider unavailable is not sale unavailable');
+
+    // #2041: synthetic POS/courtesy/Wompi proof; real data and payment writes are forbidden.
+    foreach ([
+        'ALTER TABLE ticket_order_items ADD COLUMN event_id INT NOT NULL DEFAULT 0, ADD COLUMN ticket_type_id INT NOT NULL DEFAULT 0',
+        'UPDATE ticket_order_items SET event_id=6,ticket_type_id=IF(id=1,7,8)',
+        'CREATE TABLE ticket_pos_shifts (id BIGINT PRIMARY KEY,event_id INT,operator_admin_id INT)',
+        'CREATE TABLE ticket_pos_sales (id BIGINT PRIMARY KEY,shift_id BIGINT,event_id INT,operator_admin_id INT,ticket_type_id INT,order_id BIGINT,quantity INT,unit_price_cop BIGINT,amount_cop BIGINT,method VARCHAR(20),status VARCHAR(20),completed_at_utc DATETIME)',
+        'CREATE TABLE ticket_courtesy_invites (id BIGINT PRIMARY KEY,order_id BIGINT,status VARCHAR(20))',
+        'CREATE TABLE ticket_payment_webhook_events (id BIGINT PRIMARY KEY,attempt_id BIGINT,provider_transaction_id VARCHAR(190))',
+        "INSERT INTO ticket_orders VALUES (94,3,6,'paid','COP',12000,'2026-11-19'),(95,3,6,'paid','COP',12000,'2026-11-19'),(96,3,6,'paid','COP',12000,'2026-11-19'),(97,3,6,'paid','COP',12000,'2026-11-19'),(98,4,6,'draft','COP',0,'2026-11-19'),(99,3,6,'paid','COP',12000,'2026-11-19'),(100,3,6,'paid','COP',12000,'2026-11-19'),(101,3,6,'paid','COP',12000,'2026-11-19')",
+        "INSERT INTO ticket_order_items VALUES (3,94,'General',1,12000,12000,6,9),(4,96,'General',1,12000,12000,6,9),(5,98,'Cortesía',1,0,0,6,9),(6,100,'General',1,11000,11000,6,9),(7,101,'General',1,12000,12000,6,9)",
+        "INSERT INTO ticket_pos_shifts VALUES (1,6,12)",
+        "INSERT INTO ticket_pos_sales VALUES (1,1,6,12,9,94,1,12000,12000,'cash','paid','2026-11-19'),(2,1,6,12,9,96,1,12000,12000,'cash','paid','2026-11-19'),(3,1,6,12,9,100,1,11000,11000,'cash','paid','2026-11-19'),(4,1,6,12,9,101,1,12000,12000,'transfer','paid','2026-11-19')",
+        "INSERT INTO ticket_courtesy_invites VALUES (1,98,'issued')",
+        "INSERT INTO ticket_payment_attempts VALUES (3,95,'wompi','approved',12000,'2026-11-19','BW7-95-CARD-aaaaaaaaaaaaaaaaaaaaaaaa','tx-95-a'),(4,95,'wompi','approved',12000,'2026-11-19','BW7-95-CARD-bbbbbbbbbbbbbbbbbbbbbbbb','tx-95-b'),(5,96,'wompi','pending',12000,'2026-11-19','BW7-96-CARD-cccccccccccccccccccccccc',NULL),(6,97,'wompi','approved',11000,'2026-11-19','BW7-97-CARD-dddddddddddddddddddddddd','tx-97')",
+        "INSERT INTO ticket_payment_webhook_events VALUES (1,2,'tx-91'),(2,3,'tx-95-a'),(3,4,'tx-95-b'),(4,6,'tx-97')",
+    ] as $sql) $pdo->exec($sql);
+    $get=$pdo->prepare('SELECT id,status,total_cop,currency FROM ticket_orders WHERE id=?');
+    $cases=[
+        91=>['wompi','verified',false],92=>['none','no_payment',false],
+        94=>['pos','registered_offline',false],95=>['conflict','discrepancy',true],
+        96=>['conflict','discrepancy',true],97=>['conflict','discrepancy',true],
+        98=>['courtesy','courtesy',false],99=>['conflict','discrepancy',true],
+        100=>['conflict','discrepancy',true],101=>['unknown','unavailable',false],
+    ];
+    $schema=brvtalTicketAdminPaymentSchema($pdo);
+    foreach ($cases as $id=>[$channel,$state,$alert]) {
+        $get->execute([$id]); $raw=$get->fetch(PDO::FETCH_ASSOC);
+        $proof=brvtalTicketAdminPaymentEvidence($pdo,$raw,$schema);
+        t18Assert($proof['channel']===$channel && $proof['state']===$state
+            && $proof['anomaly']===$alert,'payment evidence order '.$id);
+    }
+    $posPage=brvtalTicketAdminPage($pdo,brvtalTicketAdminFilters(['kind'=>'orders','q'=>'94']));
+    $posDetail=brvtalTicketAdminDetail($pdo,94);
+    t18Assert($posPage['rows'][0]['payment_evidence']===$posDetail['payment_evidence'],
+        'POS row and detail use the same trusted classification');
+    t18Assert((int)$posPage['rows'][0]['approvals']===0
+        && $posPage['rows'][0]['payment_evidence']['anomaly']===false,
+        'valid POS has zero Wompi approvals without a false alarm');
+    $pdo->exec('DROP TABLE ticket_pos_sales');
+    $get->execute([94]); $missingPos=$get->fetch(PDO::FETCH_ASSOC);
+    t18Assert(brvtalTicketAdminPaymentEvidence($pdo,$missingPos)['state']==='unavailable',
+        'missing POS schema does not invent a failed payment');
+    $get->execute([91]); $validWompi=$get->fetch(PDO::FETCH_ASSOC);
+    t18Assert(brvtalTicketAdminPaymentEvidence($pdo,$validWompi)['channel']==='wompi',
+        'Wompi proof survives optional POS schema absence');
+    $pdo->exec('DROP TABLE ticket_courtesy_invites');
+    $get->execute([98]); $missingCourtesy=$get->fetch(PDO::FETCH_ASSOC);
+    t18Assert(brvtalTicketAdminPaymentEvidence($pdo,$missingCourtesy)['state']==='unavailable',
+        'missing courtesy table remains unknown, not a paid order');
+    $pdo->exec('DROP TABLE ticket_payment_webhook_events');
+    t18Assert(brvtalTicketAdminPaymentEvidence($pdo,$validWompi)['state']==='unavailable',
+        'approved without verified Wompi ledger is never certified');
+
 } finally { $root->exec('DROP DATABASE IF EXISTS '.$name); }
 echo "T18 MariaDB synthetic joins, filters, pagination and degraded mail OK.\n";

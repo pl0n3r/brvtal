@@ -47,6 +47,24 @@ export async function mount(panel, initialKind = 'orders') {
     const key = String(code).trim().toLowerCase();
     return labelState[key] || 'Estado no reconocido';
   };
+  // Backend-derived, read-only payment evidence. Missing legacy fixtures keep
+  // their older display; production never infers Wompi from order.status.
+  const paymentEvidenceLabel = proof => ({
+    verified:'Wompi · aprobación acreditada',
+    registered_offline:'POS · pago registrado',
+    courtesy:'Cortesía · sin cobro',
+    no_payment:'Sin pago confirmado',
+    discrepancy:'Discrepancia de pagos',
+    unavailable:'Evidencia no disponible'
+  })[proof?.state] || 'Evidencia no disponible';
+  const paymentEvidenceWarning = proof => ({
+    duplicate_wompi:'Varias aprobaciones Wompi: revisar pagos duplicados.',
+    channel_conflict:'Hay registros de varios canales de pago. Conciliar.',
+    invalid_wompi:'El intento Wompi no coincide con la evidencia verificable.',
+    invalid_pos:'El registro POS no coincide con el pedido.',
+    invalid_courtesy:'La cortesía presenta datos inconsistentes.',
+    paid_without_proof:'Pedido marcado pagado sin prueba verificable.'
+  })[proof?.reason] || 'La evidencia de pago requiere conciliación.';
   const bogotaDate = value => {
     if (!value) return 'Sin fecha';
     const source=String(value).trim();
@@ -107,7 +125,8 @@ export async function mount(panel, initialKind = 'orders') {
       if (kind.value === 'orders') {
         const values = [row.id,row.event_id,row.email,displayState(row.status),
           money(row.total_cop),row.units,row.approvals,
-          displayState(row.last_payment_state),displayState(row.mail_state)];
+          row.payment_evidence ? paymentEvidenceLabel(row.payment_evidence) : displayState(row.last_payment_state),
+          displayState(row.mail_state)];
         values.forEach((value,index) => cell(tr,value,headings[index]));
         const actionCell = tr.insertCell();
         actionCell.dataset.label = 'Detalle';
@@ -116,11 +135,17 @@ export async function mount(panel, initialKind = 'orders') {
         action.textContent = 'Detalle #' + row.id;
         action.addEventListener('click', () => void loadDetail(row.id));
         actionCell.append(action);
-        if ((row.status === 'paid' && Number(row.approvals) !== 1) || Number(row.approvals) > 1) {
+        const anomalous = row.payment_evidence
+          ? row.payment_evidence.anomaly === true
+          : (row.status === 'paid' && Number(row.approvals) !== 1) || Number(row.approvals) > 1;
+        if (row.payment_evidence) tr.dataset.ticketingPaymentChannel = row.payment_evidence.channel;
+        if (anomalous) {
           tr.dataset.ticketingAnomaly = '1';
           const warning = document.createElement('span');
           warning.className = 'tk-records-anomaly';
-          warning.textContent = 'Atención: los pagos aprobados no coinciden con el pedido. Revisar.';
+          warning.textContent = row.payment_evidence
+            ? paymentEvidenceWarning(row.payment_evidence)
+            : 'Atención: los pagos aprobados no coinciden con el pedido. Revisar.';
           tr.cells[3].append(warning);
         }
       } else {
@@ -254,7 +279,8 @@ export async function mount(panel, initialKind = 'orders') {
   function renderOrderTimeline(box,info,openAction,id) {
     const issue=info.issue||{};
     const order=info.order||{};
-    const paid=order.status==='paid';
+    const paid=order.status==='paid' &&
+      (!info.payment_evidence || ['verified','registered_offline'].includes(info.payment_evidence.state));
     const rows=info.mail||[];
     const mail=rows[0]||{};
     const entries=info.entries||{};
@@ -384,7 +410,8 @@ export async function mount(panel, initialKind = 'orders') {
         ['Correo',record.email||'No visible para este rol'],
         ['Evento',order.event_title||'Sin registro'],
         ['Total',money(order.total_cop??record.total_cop)],
-        ['Medio de pago',info.payments?.[0]?.provider||'Sin pago']];
+        ['Medio de pago',info.payment_evidence
+          ? paymentEvidenceLabel(info.payment_evidence) : (info.payments?.[0]?.provider||'Sin pago')]];
       for(const [label,value] of keys){
         const div=document.createElement('div');
         const dt=document.createElement('dt');dt.textContent=label;
@@ -393,6 +420,15 @@ export async function mount(panel, initialKind = 'orders') {
       }
       const openAction=addOrderActions(header,id,order.status||record.status);
       header.prepend(top,facts);page.append(header);
+      if (info.payment_evidence) {
+        const proof=document.createElement('p');
+        proof.dataset.ticketingPaymentEvidence='';
+        proof.textContent=info.payment_evidence.anomaly
+          ? paymentEvidenceWarning(info.payment_evidence)
+          : paymentEvidenceLabel(info.payment_evidence);
+        if (info.payment_evidence.anomaly) proof.setAttribute('role','alert');
+        page.append(proof);
+      }
       renderOrderTimeline(page,info,openAction,id);
       const sections=document.createElement('div');sections.className='tk-order-sections';
       const section=(heading,rows,format,empty)=>{
@@ -413,7 +449,9 @@ export async function mount(panel, initialKind = 'orders') {
         r=>displayState(r.status)+' · '+money(r.gross_amount_cop)+' · Ref. '+
           (r.provider_reference||'sin referencia')+' · Transacción '+
           (r.provider_transaction_id||'sin transacción'),
-        'No hay transacciones registradas.'));
+        info.payment_evidence?.channel==='pos' ? 'Pago POS registrado, sin transacción Wompi.'
+          : info.payment_evidence?.channel==='courtesy' ? 'Cortesía sin cobro.'
+          : 'No hay transacciones registradas.'));
       // Mail status has its own source of truth. Payment or issuance cannot
       // imply that a QR email was sent, accepted or delivered.
       sections.append(section('Correo',info.mail,

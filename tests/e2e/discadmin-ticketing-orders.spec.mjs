@@ -506,3 +506,57 @@ test('#1986: Boletería loaded as ticketing.js?v=X requests Pedidos with ?v=X',a
   await expect.poll(() => requested).toContain('?v=abc1234');
   expect(requested).not.toContain('');
 });
+
+
+test('#2041: POS/Wompi/courtesy/unknown and true payment conflicts agree in list and detail',async({page},info)=>{
+  const scenarios=[
+    ['POS',{channel:'pos',state:'registered_offline',anomaly:false},0,'paid','POS · pago registrado',false],
+    ['Wompi',{channel:'wompi',state:'verified',anomaly:false},1,'paid','Wompi · aprobación acreditada',false],
+    ['Cortesía',{channel:'courtesy',state:'courtesy',anomaly:false},0,'draft','Cortesía · sin cobro',false],
+    ['Pendiente',{channel:'none',state:'no_payment',anomaly:false},0,'pending','Sin pago confirmado',false],
+    ['Desconocido',{channel:'unknown',state:'unavailable',anomaly:false},0,'paid','Evidencia no disponible',false],
+    ['Duplicado',{channel:'conflict',state:'discrepancy',reason:'duplicate_wompi',anomaly:true},2,'paid','Discrepancia de pagos',true],
+    ['Multicanal',{channel:'conflict',state:'discrepancy',reason:'channel_conflict',anomaly:true},1,'paid','Discrepancia de pagos',true]
+  ];
+  const reply=(proof,approvals,orderStatus)=>route=>{
+    const detail=new URL(route.request().url()).searchParams.has('order_id');
+    const data={...order,status:orderStatus,approvals,total_cop:orderStatus==='draft'?0:12000,
+      payment_evidence:proof};
+    return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:detail
+      ? {rows:[data],detail:{order:{...data,event_title:'Ensayo sintético'},
+          items:[],payments:[],mail:[],payment_evidence:proof}}
+      : {rows:[data],kind:'orders',has_more:false,next_cursor:null}})});
+  };
+  await page.setViewportSize({width:390,height:844});
+  for(const [,proof,approvals,orderStatus,label,alarm] of scenarios){
+    await start(page,reply(proof,approvals,orderStatus));
+    const row=page.locator('.ticketing-records-table tbody tr');
+    await expect(row).toContainText(label);
+    await expect(row.locator('.tk-records-anomaly')).toHaveCount(alarm?1:0);
+    await page.getByRole('button',{name:'Detalle #91'}).click();
+    await expect(page.locator('[data-ticketing-payment-evidence]'))
+      .toContainText(alarm ? /conciliar|revisar/i : label);
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  }
+  const pos={channel:'pos',state:'registered_offline',anomaly:false};
+  for(const width of [390,1440]){
+    await page.setViewportSize({width,height:width===390?844:900});
+    const mock=reply(pos,0,'paid');
+    for(const [stage,source,styles,markup] of [
+      ['antes',BEFORE_ORDERS_JS,BEFORE_ORDERS_CSS,beforeFixture],
+      ['despues',js,css,fixture]
+    ]){
+      await start(page,mock,'orders',source,styles,markup);
+      await expect(page.locator('table tbody tr')).toHaveCount(1);
+      if(stage==='despues') {
+        await expect(page.locator('table tbody tr .tk-records-anomaly')).toHaveCount(0);
+        await expect(page.locator('table tbody tr')).toContainText('POS · pago registrado');
+      }
+      const image=await page.screenshot({fullPage:true});
+      expect(image.byteLength).toBeGreaterThan(1500);
+      await info.attach('2041-'+stage+'-'+width+'px.png',{body:image,contentType:'image/png'});
+      if(stage==='despues')
+        expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    }
+  }
+});
