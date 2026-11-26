@@ -365,7 +365,17 @@ try {
         : 'BRVTAL_TICKET_MAIL_WEBHOOK_ENABLED='.$oldHookFlag);
 
     foreach ([
-        'CREATE TABLE events (id INT PRIMARY KEY,title VARCHAR(160) NOT NULL) ENGINE=InnoDB',
+        'CREATE TABLE events (id INT PRIMARY KEY,title VARCHAR(160) NOT NULL,
+            status VARCHAR(32) NOT NULL) ENGINE=InnoDB',
+        'CREATE TABLE event_ticket_types (id INT PRIMARY KEY,event_id INT NOT NULL) ENGINE=InnoDB',
+        'CREATE TABLE ticket_inventory_events (event_id INT PRIMARY KEY,capacity INT NOT NULL) ENGINE=InnoDB',
+        'CREATE TABLE ticket_inventory_types (ticket_type_id INT PRIMARY KEY,event_id INT NOT NULL,
+            capacity INT NOT NULL,courtesy_capacity INT NOT NULL DEFAULT 0) ENGINE=InnoDB',
+        'CREATE TABLE ticket_refund_event_decisions (event_id INT PRIMARY KEY,
+            cause VARCHAR(20) NOT NULL) ENGINE=InnoDB',
+        'CREATE TABLE ticket_order_items (id INT AUTO_INCREMENT PRIMARY KEY,
+            order_id BIGINT NOT NULL,event_id INT NOT NULL,ticket_type_id INT NOT NULL,
+            quantity INT NOT NULL,currency CHAR(3) NOT NULL) ENGINE=InnoDB',
         'CREATE TABLE ticket_buyers (id BIGINT PRIMARY KEY,email VARCHAR(190) NOT NULL) ENGINE=InnoDB',
         'CREATE TABLE ticket_orders (id BIGINT PRIMARY KEY,event_id INT NOT NULL,
             buyer_id BIGINT NOT NULL,status VARCHAR(16) NOT NULL,currency CHAR(3) NOT NULL,
@@ -382,7 +392,9 @@ try {
         'CREATE TABLE ticket_issue_outbox (order_id BIGINT PRIMARY KEY,payment_attempt_id BIGINT,
             state VARCHAR(16) NOT NULL DEFAULT "pending") ENGINE=InnoDB',
         'CREATE TABLE ticket_inventory_holds (id BIGINT AUTO_INCREMENT PRIMARY KEY,
-            order_id BIGINT,status VARCHAR(16),expires_at_utc DATETIME(6)) ENGINE=InnoDB',
+            order_id BIGINT,event_id INT NOT NULL,ticket_type_id INT NOT NULL,
+            quantity INT NOT NULL,kind VARCHAR(16) NOT NULL,
+            status VARCHAR(16),expires_at_utc DATETIME(6)) ENGINE=InnoDB',
         'CREATE TABLE ticket_order_action_requests (id BIGINT AUTO_INCREMENT PRIMARY KEY,
             order_id BIGINT,actor_admin_id BIGINT,action VARCHAR(32),request_key_hash CHAR(64),
             request_hash CHAR(64),status VARCHAR(24),mail_outbox_id BIGINT,note_id BIGINT,
@@ -390,7 +402,10 @@ try {
         'CREATE TABLE ticket_order_notes (id BIGINT AUTO_INCREMENT PRIMARY KEY,
             order_id BIGINT,actor_admin_id BIGINT,note_text VARCHAR(280)) ENGINE=InnoDB',
     ] as $ddl) $db->exec($ddl);
-    $db->exec("INSERT INTO events VALUES (6,'Noche de prueba')");
+    $db->exec("INSERT INTO events VALUES (6,'Noche de prueba','published')");
+    $db->exec("INSERT INTO event_ticket_types VALUES (10,6)");
+    $db->exec("INSERT INTO ticket_inventory_events VALUES (6,100)");
+    $db->exec("INSERT INTO ticket_inventory_types VALUES (10,6,100,0)");
     $db->exec("INSERT INTO ticket_buyers VALUES (3,'buyer@example.test')");
     $db->exec("INSERT INTO ticket_orders VALUES
       (701,6,3,'pending','COP',50000,NULL,NULL),
@@ -399,6 +414,15 @@ try {
       (704,6,3,'pending','COP',50000,NULL,NULL),
       (705,6,3,'pending','COP',50000,NULL,NULL),
       (706,6,3,'pending','COP',50000,NULL,NULL)");
+    // T08 admission consumes the entire matching paid hold in one transaction.
+    // This mail test keeps its expected outcomes but supplies real Event and
+    // inventory rows instead of bypassing verification in production code.
+    $db->exec("INSERT INTO ticket_order_items(order_id,event_id,ticket_type_id,quantity,currency)
+        VALUES (701,6,10,1,'COP'),(704,6,10,1,'COP')");
+    $db->exec("INSERT INTO ticket_inventory_holds
+        (order_id,event_id,ticket_type_id,quantity,kind,status,expires_at_utc)
+        VALUES (701,6,10,1,'paid','active',UTC_TIMESTAMP(6)+INTERVAL 15 MINUTE),
+               (704,6,10,1,'paid','active',UTC_TIMESTAMP(6)+INTERVAL 15 MINUTE)");
     $reference='BW7-701-CARD-'.str_repeat('b',24);
     $db->prepare("INSERT INTO ticket_payment_attempts
       VALUES (1,701,'wompi',?,NULL,50000,'created',NULL)")->execute([$reference]);
@@ -443,8 +467,8 @@ try {
         'cancellation queues once, repeat is idempotent');
 
     $db->exec("INSERT INTO ticket_inventory_holds
-        (order_id,status,expires_at_utc)
-        VALUES (703,'active','2000-01-01 00:00:00')");
+        (order_id,event_id,ticket_type_id,quantity,kind,status,expires_at_utc)
+        VALUES (703,6,10,1,'paid','active','2000-01-01 00:00:00')");
     brvtal_ticket_inventory_reconcile($db);
     mail_delivery_assert($countMail('order_expired')===1,
         'expired order queues one buyer email');
@@ -469,8 +493,8 @@ try {
         && $countMail('order_expired')===1,
         'mail disabled enqueues no additional notifications');
     $db->exec("INSERT INTO ticket_inventory_holds
-        (order_id,status,expires_at_utc)
-        VALUES (706,'active','2000-01-01 00:00:00')");
+        (order_id,event_id,ticket_type_id,quantity,kind,status,expires_at_utc)
+        VALUES (706,6,10,1,'paid','active','2000-01-01 00:00:00')");
     $db->exec("UPDATE ticket_orders SET expires_at_utc='2000-01-01 00:00:00' WHERE id=706");
     brvtal_ticket_inventory_reconcile($db);
     mail_delivery_assert($db->query('SELECT status FROM ticket_orders WHERE id=706')
