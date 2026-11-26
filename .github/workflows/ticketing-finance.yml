@@ -1,0 +1,74 @@
+name: Ticketing finance MariaDB
+on:
+  pull_request:
+    branches: [main]
+    paths: &finance_paths
+      - config/ticketing_*.php
+      - config/buyer_*.php
+      - config/admin_auth.php
+      - config/bootstrap.php
+      - config/db_connect_recovery.php
+      - config/mail_template*.php
+      - config/secrets.php
+      - config/integration_secrets_store.php
+      - api/ticketing/admin-finances.php
+      - api/ticketing/admin-refunds.php
+      - api/buyer/refunds.php
+      - database/migration_ticketing_*.sql
+      - database/schema.sql
+      - templates/ticketing/**
+      - tests/integration/ticketing-finance.php
+      - tests/integration/ticketing-refunds.php
+      - scripts/ci_self_audit.py
+      - .github/workflows/ticketing-finance.yml
+  push:
+    branches: [main]
+    paths: *finance_paths
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  database:
+    name: database
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      mariadb:
+        image: ghcr.io/mariadb/mariadb:11.4.13-noble@sha256:3cff57293253c640483e8a19ce506cf68bf8e4529385e64aeec700c02038e7ed
+        env:
+          MARIADB_ROOT_PASSWORD: brvtal_root
+          MARIADB_DATABASE: brvtal_test_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=15
+    env:
+      BRVTAL_INTEGRATION_TESTS: '1'
+      BRVTAL_TEST_DB_HOST: 127.0.0.1
+      BRVTAL_TEST_DB_PORT: '3306'
+      BRVTAL_TEST_DB_NAME: brvtal_test_ci
+      BRVTAL_TEST_DB_USER: root
+      BRVTAL_TEST_DB_PASS: brvtal_root
+    steps:
+      - name: Checkout exact HEAD
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Audit CI safety baseline
+        run: python3 scripts/ci_self_audit.py
+      - name: PHP 8.5 + PDO MySQL
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: '8.5'
+          extensions: pdo_mysql, gd
+          coverage: none
+          ini-file: production
+      - name: Verify finance and refund integration against disposable MariaDB
+        run: |
+          set -euo pipefail
+          php -l config/ticketing_finance.php
+          php -l tests/integration/ticketing-finance.php
+          php tests/integration/ticketing-finance.php
