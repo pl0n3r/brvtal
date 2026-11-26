@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require_once __DIR__ . '/ticketing_staff_permissions.php';
 require_once __DIR__ . '/ticketing_wompi_client.php';
+require_once __DIR__ . '/buyer_account.php';
 
 /** Opt-in for the manual dashboard policy; default is no production refunds. */
 function brvtalRefundGuard(PDO $db): void {
@@ -112,6 +113,13 @@ function brvtalRefundRequest(PDO $db,int $buyer,array $input):array {
         $q->execute([$ref,$buyer]); $order=$q->fetch(PDO::FETCH_ASSOC);
         if($order&&(int)$order['event_id']!==$eventId)throw new DomainException('ORDER_NOT_REFUNDABLE');
         if (!$order||$order['currency']!=='COP') {
+            throw new DomainException('ORDER_NOT_REFUNDABLE');
+        }
+        // Recheck the server-issued checkout grant *inside* the transaction,
+        // after Event and Order locks and before replay/audit/claim writes.
+        // Do not let an authenticated guest act on a second paid order.
+        $scope=brvtalBuyerAccountCheckoutScope($db,$buyer);
+        if ($scope!==null && $scope!==(int)$order['id']) {
             throw new DomainException('ORDER_NOT_REFUNDABLE');
         }
         $prior=$db->prepare('SELECT id,status,selection_hash FROM ticket_refunds WHERE order_id=? AND request_hash=?');
@@ -258,10 +266,14 @@ function brvtalRefundStaff(PDO $db,int $actor,string $role,int $id,string $actio
 function brvtalRefundBuyerList(PDO $db,int $buyer):array {
     brvtalRefundGuard($db);
     if ($buyer<1) throw new DomainException('AUTH_REQUIRED');
-    $q=$db->prepare('SELECT r.id,LOWER(HEX(o.public_id)) AS order_id,r.status,r.amount_cop,r.created_at_utc
-        FROM ticket_refunds r JOIN ticket_orders o ON o.id=r.order_id WHERE r.buyer_id=?
-        ORDER BY r.id DESC LIMIT 100');
-    $q->execute([$buyer]); return $q->fetchAll(PDO::FETCH_ASSOC);
+    $scope=brvtalBuyerAccountCheckoutScope($db,$buyer);
+    $sql='SELECT r.id,LOWER(HEX(o.public_id)) AS order_id,r.status,r.amount_cop,r.created_at_utc
+        FROM ticket_refunds r JOIN ticket_orders o ON o.id=r.order_id
+        WHERE r.buyer_id=? AND o.buyer_id=?';
+    $args=[$buyer,$buyer];
+    if ($scope!==null) { $sql.=' AND o.id=?'; $args[]=$scope; }
+    $q=$db->prepare($sql.' ORDER BY r.id DESC LIMIT 100');
+    $q->execute($args); return $q->fetchAll(PDO::FETCH_ASSOC);
 }
 
 

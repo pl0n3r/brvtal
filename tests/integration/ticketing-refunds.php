@@ -136,7 +136,13 @@ try {
     $statements=[
         'CREATE TABLE events (id INT UNSIGNED PRIMARY KEY,title VARCHAR(180) NOT NULL) ENGINE=InnoDB',
         'CREATE TABLE admins (id INT UNSIGNED PRIMARY KEY) ENGINE=InnoDB',
-        'CREATE TABLE ticket_buyers (id BIGINT UNSIGNED PRIMARY KEY,email VARCHAR(190)) ENGINE=InnoDB',
+        "CREATE TABLE ticket_buyers (id BIGINT UNSIGNED PRIMARY KEY,email VARCHAR(190),
+            status ENUM('guest','active','blocked') NOT NULL DEFAULT 'active',
+            email_verified_at DATETIME(6) NULL,security_epoch BIGINT UNSIGNED NOT NULL DEFAULT 1) ENGINE=InnoDB",
+        'CREATE TABLE ticket_buyer_sessions (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            buyer_id BIGINT UNSIGNED NOT NULL,session_hash CHAR(64) NOT NULL UNIQUE,
+            issued_epoch BIGINT UNSIGNED NOT NULL,expires_at_utc DATETIME(6) NOT NULL,
+            revoked_at_utc DATETIME(6) NULL) ENGINE=InnoDB',
         "CREATE TABLE ticket_orders (
             id BIGINT UNSIGNED PRIMARY KEY, public_id BINARY(16) NOT NULL,
             buyer_id BIGINT UNSIGNED NOT NULL,event_id INT UNSIGNED NOT NULL,
@@ -190,7 +196,9 @@ try {
     foreach ([
         "INSERT INTO events VALUES (1,'Evento sintético cancelado')",
         "INSERT INTO admins VALUES (7),(8)",
-        "INSERT INTO ticket_buyers VALUES (3,'comprador@brvtal.invalid'),(4,'otro@brvtal.invalid')",
+        "INSERT INTO ticket_buyers(id,email,status,email_verified_at) VALUES
+          (3,'comprador@brvtal.invalid','active',UTC_TIMESTAMP(6)),
+          (4,'otro@brvtal.invalid','active',UTC_TIMESTAMP(6))",
         "INSERT INTO ticket_orders VALUES
           (91,UNHEX('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'),3,1,12000,'paid','COP',UTC_TIMESTAMP(6)),
           (92,UNHEX('ffffffffffffffffffffffffffffffff'),3,1,7000,'paid','COP',UTC_TIMESTAMP(6))",
@@ -296,6 +304,182 @@ try {
         'full refund closes order');
     t21($pdo->query('SELECT status FROM ticket_entry_credentials WHERE entry_id=204')->fetchColumn()==='revoked',
         'manual witness revokes QR only after confirmation');
+
+    // #2102: one synthetic buyer owns two paid orders; a checkout guest
+    // may see/request ONLY the original server-granted order.
+    foreach ([
+        "INSERT INTO events VALUES (2,'Incidente de pruebas #2102')",
+        "INSERT INTO ticket_orders VALUES
+          (94,UNHEX('11111111111111111111111111111111'),3,2,2000,'paid','COP',UTC_TIMESTAMP(6)),
+          (95,UNHEX('22222222222222222222222222222222'),3,2,3000,'paid','COP',UTC_TIMESTAMP(6)),
+          (96,UNHEX('33333333333333333333333333333333'),4,2,4000,'paid','COP',UTC_TIMESTAMP(6))",
+        'INSERT INTO ticket_order_items VALUES (105,94,2000),(106,95,3000),(107,96,4000)',
+        "INSERT INTO ticket_entries(id,public_id,order_item_id,status,revoked_at_utc) VALUES
+          (205,UNHEX('44444444444444444444444444444444'),105,'issued',NULL),
+          (206,UNHEX('55555555555555555555555555555555'),106,'issued',NULL),
+          (207,UNHEX('66666666666666666666666666666666'),107,'issued',NULL)",
+        "INSERT INTO ticket_refund_event_decisions(event_id,cause,owner_admin_id)
+          VALUES (2,'cancelled',7)"
+    ] as $sql) $pdo->exec($sql);
+    $order94=['order_id'=>str_repeat('1',32),'entry_ids'=>[str_repeat('4',32)],
+        'reason'=>'Incidente sintético del pedido permitido',
+        'idempotency_key'=>'t31-guest-scope-order94'];
+    $order95=['order_id'=>str_repeat('2',32),'entry_ids'=>[str_repeat('5',32)],
+        'reason'=>'Incidente sintético del pedido ajeno al grant',
+        'idempotency_key'=>'t31-other-order-95-a'];
+    $order96=['order_id'=>str_repeat('3',32),'entry_ids'=>[str_repeat('6',32)],
+        'reason'=>'Incidente de otro comprador',
+        'idempotency_key'=>'t31-other-buyer-96'];
+    // Verified sessions retain all OWN orders; never a different buyer.
+    $foreignRefund=brvtalRefundRequest($pdo,4,$order96);
+    $ungrantedRefund=brvtalRefundRequest($pdo,3,$order95);
+    t21((int)$ungrantedRefund['id']>0 && (int)$foreignRefund['id']>0,
+        'synthetic refunds for both buyers created under verified scope');
+    $pdo->exec("UPDATE ticket_buyers SET status='guest',email_verified_at=NULL WHERE id=3");
+    $_SESSION=['buyer_id'=>3,'buyer_checkout_new_order'=>94];
+    t21(brvtalBuyerAccountCheckoutScope($pdo,3)===94,'guest scope is single paid order');
+    t21(brvtalRefundBuyerList($pdo,3)===[],
+        'GET must not expose a prior refund on another paid order of the SAME buyer');
+    $auditBefore=(int)$pdo->query('SELECT COUNT(*) FROM ticket_refund_audit')->fetchColumn();
+    t21Reject(static fn()=>brvtalRefundRequest($pdo,3,array_merge($order95,[
+        'idempotency_key'=>'t31-guest-foreign-95'
+    ])),'ORDER_NOT_REFUNDABLE');
+    t21Reject(static fn()=>brvtalRefundRequest($pdo,3,$order96),'ORDER_NOT_REFUNDABLE');
+    t21((int)$pdo->query('SELECT COUNT(*) FROM ticket_refund_audit')->fetchColumn()===$auditBefore,
+        'unauthorized guest POST must not create a refund or audit entry');
+    $allowed=brvtalRefundRequest($pdo,3,$order94);
+    t21($allowed['status']==='requested'&&!$allowed['replayed'],'granted order can request');
+    t21(brvtalRefundRequest($pdo,3,$order94)['replayed'],'granted order replay preserved');
+    $scoped=brvtalRefundBuyerList($pdo,3);
+    t21(count($scoped)===1 && $scoped[0]['order_id']===str_repeat('1',32),
+        'guest GET includes exactly the granted order, no other buyer/order leak');
+    $_SESSION['buyer_checkout_new_order']=0;
+    t21Reject(static fn()=>brvtalRefundBuyerList($pdo,3),'TICKET_UNAVAILABLE');
+    t21Reject(static fn()=>brvtalRefundRequest($pdo,3,$order94),'TICKET_UNAVAILABLE');
+    $_SESSION['buyer_checkout_new_order']=95;
+    t21Reject(static fn()=>brvtalRefundRequest($pdo,3,$order94),'ORDER_NOT_REFUNDABLE');
+    $_SESSION['buyer_checkout_new_order']=94;
+    $pdo->exec("UPDATE ticket_buyers SET status='active',email_verified_at=UTC_TIMESTAMP(6) WHERE id=3");
+    t21(count(brvtalRefundBuyerList($pdo,3))>=3,
+        'verified account retains access to own orders regardless of old guest grant');
+
+    // Authenticated real HTTP GET/POST to the *actual* PHP endpoint against
+    // disposable MariaDB. No simulated handler, real provider or live config.
+    t21(function_exists('proc_open')&&function_exists('stream_socket_server'),
+        'authenticated HTTP test requires local PHP and sockets');
+    $temporary=sys_get_temp_dir().'/brvtal-refund-2102-'.bin2hex(random_bytes(5));
+    t21(mkdir($temporary,0700),'temporary config directory');
+    $serverProcess=null;$serverPipes=[];
+    try {
+        $configFile=$temporary.'/config.php';
+        $configuration=['app'=>['timezone'=>'America/Bogota'],
+            'db'=>['host'=>$host,'port'=>$port,'name'=>$dbName,'user'=>$user,
+                'pass'=>$pass,'charset'=>'utf8mb4']];
+        file_put_contents($configFile,'<?php return '.var_export($configuration,true).';');
+        chmod($configFile,0600);
+        $prepend=$temporary.'/prepend.php';
+        file_put_contents($prepend,'<?php define("BRVTAL_SENTRY_TESTING",true);'
+            .'$GLOBALS["brvtalBootstrapConfigPath"]='.var_export($configFile,true).';');
+        chmod($prepend,0600);
+        $listener=stream_socket_server('tcp://127.0.0.1:0',$errno,$errstr);
+        t21($listener!==false,'loopback-only HTTP port allocated');
+        $name=(string)stream_socket_get_name($listener,false);
+        fclose($listener);
+        $httpPort=(int)substr(strrchr($name,':'),1);
+        t21($httpPort>0,'HTTP port valid');
+        $env=(array)getenv();
+        $env['BRVTAL_INTEGRATION_TESTS']='1';
+        $serverProcess=proc_open([PHP_BINARY,'-d','auto_prepend_file='.$prepend,
+            '-S','127.0.0.1:'.$httpPort,'-t',dirname(__DIR__,2)],
+            [0=>['pipe','r'],1=>['file',$temporary.'/server.log','a'],
+                2=>['file',$temporary.'/server.log','a']],
+            $serverPipes,dirname(__DIR__,2),$env);
+        t21(is_resource($serverProcess),'real API PHP server started');
+        if(is_resource($serverPipes[0]??null))fclose($serverPipes[0]);
+        $url='http://127.0.0.1:'.$httpPort.'/api/buyer/refunds.php';
+        $requestHttp=static function(?array $session,string $method='GET',
+            ?array $body=null,bool $csrf=true)use($url):array{
+            $headers=['Connection: close'];
+            if($session!==null) {
+                $headers[]='Cookie: BRVTAL_BUYER='.$session['sid'];
+                if($csrf)$headers[]='X-CSRF-Token: '.$session['csrf'];
+            }
+            $opts=['method'=>$method,'ignore_errors'=>true,'timeout'=>8,
+                'header'=>implode("\r\n",$headers)];
+            if($body!==null){
+                $opts['header'].="\r\nContent-Type: application/json";
+                $opts['content']=json_encode($body,JSON_THROW_ON_ERROR);
+            }
+            $ctx=stream_context_create(['http'=>$opts]);
+            $response=@file_get_contents($url,false,$ctx);
+            $headersOut=$http_response_header??[];
+            preg_match('~^HTTP/\S+ ([0-9]{3})~',(string)($headersOut[0]??''),$matches);
+            return ['status'=>(int)($matches[1]??0),
+                'data'=>is_string($response)?json_decode($response,true):null];
+        };
+        $started=false;
+        for($i=0;$i<30;$i++){
+            if($requestHttp(null)['status']===401){$started=true;break;}
+            usleep(100000);
+        }
+        t21($started,'authentic refund route ready on disposable local server');
+        $newSession=static function(int $buyer,?int $grant,bool $expired=false)use($pdo):array{
+            if(session_status()===PHP_SESSION_ACTIVE)session_write_close();
+            session_name('BRVTAL_BUYER');
+            session_id(bin2hex(random_bytes(16)));
+            t21(session_start(),'create isolated buyer session');
+            $csrf='t31-'.bin2hex(random_bytes(20));$sid=session_id();
+            $_SESSION=['buyer_id'=>$buyer,'buyer_csrf'=>$csrf,
+                'buyer_issued_at'=>time(),'buyer_last_at'=>time()];
+            if($grant!==null)$_SESSION['buyer_checkout_new_order']=$grant;
+            session_write_close();
+            $pdo->prepare('INSERT INTO ticket_buyer_sessions
+                (buyer_id,session_hash,issued_epoch,expires_at_utc)
+                VALUES (?,?,1,?)')->execute([$buyer,hash('sha256',$sid),
+                    $expired?'2000-01-01 00:00:00':gmdate('Y-m-d H:i:s',time()+3600)]);
+            return ['sid'=>$sid,'csrf'=>$csrf];
+        };
+        // Guest and verified sessions authenticated with server-side session rows.
+        $pdo->exec("UPDATE ticket_buyers SET status='guest',email_verified_at=NULL WHERE id=3");
+        $guestHttp=$newSession(3,94);
+        $verifiedHttp=$newSession(4,null);
+        $expiredHttp=$newSession(3,94,true);
+        $guestGet=$requestHttp($guestHttp);
+        t21($guestGet['status']===200
+            && count($guestGet['data']['data']??[])===1
+            && ($guestGet['data']['data'][0]['order_id']??null)===str_repeat('1',32),
+            'authenticated guest GET excludes same-buyer ungranted refund');
+        $badPost=$requestHttp($guestHttp,'POST',array_merge($order95,[
+            'idempotency_key'=>'t31-guest-http-foreign']),true);
+        t21($badPost['status']===403
+            && ($badPost['data']['error']??null)==='ORDER_NOT_REFUNDABLE',
+            'real POST rejects ungranted paid order without information leakage');
+        $validPost=$requestHttp($guestHttp,'POST',$order94);
+        t21($validPost['status']===201
+            && ($validPost['data']['data']['replayed']??false)===true,
+            'real POST preserves idempotent replay within granted order');
+        $missingCsrf=$requestHttp($guestHttp,'POST',$order94,false);
+        t21($missingCsrf['status']===403
+            && ($missingCsrf['data']['error']??null)==='CSRF_INVALID',
+            'real POST retains CSRF barrier');
+        $verifiedGet=$requestHttp($verifiedHttp);
+        t21($verifiedGet['status']===200
+            && count($verifiedGet['data']['data']??[])===1
+            && ($verifiedGet['data']['data'][0]['order_id']??null)===str_repeat('3',32),
+            'verified buyer GET cannot see another buyer refunds');
+        t21($requestHttp($verifiedHttp,'POST',$order94)['status']===403,
+            'verified buyer cannot submit another buyer order');
+        t21($requestHttp($expiredHttp)['status']===401,
+            'expired server-side session cannot read refunds');
+        t21((int)$pdo->query('SELECT COUNT(*) FROM ticket_refund_audit')->fetchColumn()
+            ===$auditBefore+1,
+            'HTTP rejected POST and replay cause no extra database audit');
+    } finally {
+        if(is_resource($serverProcess)){proc_terminate($serverProcess);proc_close($serverProcess);}
+        foreach(glob($temporary.'/*')?:[] as $file){if(is_file($file))unlink($file);}
+        rmdir($temporary);
+    }
+
     putenv('BRVTAL_TICKET_MAIL_TESTING=0');
     putenv('BRVTAL_INTEGRATION_TESTS=0');
     try { t21Reject(static fn()=>brvtalRefundGuard($pdo),'REFUND_SANDBOX_ONLY'); }
