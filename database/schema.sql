@@ -63,6 +63,7 @@ CREATE TABLE events (
   cover_image VARCHAR(255) NULL,
   ticket_url VARCHAR(500) NULL,
   status ENUM('draft','published','archived') NOT NULL DEFAULT 'draft',
+  visibility ENUM('public','unlisted') NOT NULL DEFAULT 'public',
   sort_order INT NOT NULL DEFAULT 0,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
