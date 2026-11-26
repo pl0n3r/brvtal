@@ -45,7 +45,9 @@ function brvtalPosInput(array $raw): array {
     foreach (['opening_cash_cop','closing_cash_cop'] as $name) {
         if (isset($raw[$name])) $result[$name]=brvtalPosInt($raw[$name],0,1000000000);
     }
-    if ($action==='shift_status') $result['event_id']=brvtalPosInt($raw['event_id']);
+    if ($action==='shift_status') {
+        $result['event_id']=brvtalPosInt($raw['event_id']);
+    }
     if ($action==='prepare') {
         if (!is_string($raw['method']) || !in_array($raw['method'],['cash','transfer','wompi_qr'],true)
             || !is_string($raw['idempotency_key'])
@@ -125,7 +127,7 @@ function brvtalPosRun(PDO $db, int $actor, string $role, array $raw): array {
         throw new DomainException('POS_SYNTHETIC_ONLY');
     }
     if ($input['action']==='shift_status') {
-        return brvtalPosShiftStatus($db,$actor,$input['event_id']);
+        return brvtalPosShiftStatus($db, $actor, $input['event_id']);
     }
     if ($db->inTransaction()) throw new LogicException('POS_TRANSACTION_REQUIRED');
     $db->beginTransaction();
@@ -150,7 +152,8 @@ function brvtalPosRun(PDO $db, int $actor, string $role, array $raw): array {
  * endpoint. A closed shift is physical only with positive legacy-sale evidence;
  * manual audit parents and empty historical drawers cannot prove that identity.
  */
-function brvtalPosShiftStatus(PDO $db,int $actor,int $event): array {
+function brvtalPosShiftStatus(PDO $db, int $actor, int $event): array
+{
     $q=$db->prepare("SELECT sh.id,sh.status,
         EXISTS(SELECT 1 FROM ticket_pos_sales p
             LEFT JOIN ticket_orders o ON o.id=p.order_id AND o.event_id=p.event_id
@@ -158,6 +161,14 @@ function brvtalPosShiftStatus(PDO $db,int $actor,int $event): array {
               AND p.event_id=sh.event_id
               AND (p.status IN ('prepared','cancelled') OR
                    (p.status='paid' AND o.checkout_key_hash=SHA2(CONCAT('pos:',p.id),256)))) AS physical,
+        EXISTS(SELECT 1 FROM ticket_pos_sales p
+            LEFT JOIN ticket_orders o ON o.id=p.order_id AND o.event_id=p.event_id
+            WHERE p.shift_id=sh.id AND
+              (p.operator_admin_id<>sh.operator_admin_id OR p.event_id<>sh.event_id
+               OR (p.status='paid' AND (o.id IS NULL OR
+                    o.checkout_key_hash<>SHA2(CONCAT('pos:',p.id),256))))) AS ambiguous,
+        (SELECT COUNT(*) FROM ticket_pos_shifts h
+            WHERE h.operator_admin_id=sh.operator_admin_id AND h.status='open') AS open_count,
         s.id AS sale_id,s.ticket_type_id,s.quantity,s.amount_cop,
         s.expires_at_utc>UTC_TIMESTAMP(6) AS pending
         FROM (SELECT h.id,h.status,h.operator_admin_id,h.event_id
@@ -170,14 +181,19 @@ function brvtalPosShiftStatus(PDO $db,int $actor,int $event): array {
         ORDER BY s.id LIMIT 101");
     $q->execute([$actor,$event]);
     $rows=$q->fetchAll(PDO::FETCH_ASSOC);
-    if (!$rows) return ['state'=>'not_found'];
+    if (!$rows) {
+        return ['state'=>'not_found'];
+    }
     $shift=$rows[0];
-    if (count($rows)>100 || ($shift['status']==='closed' && !(bool)$shift['physical'])) {
+    if (count($rows)>100 || (bool)$shift['ambiguous'] || (int)$shift['open_count']>1
+        || ($shift['status']==='closed' && !(bool)$shift['physical'])) {
         return ['state'=>'unverifiable'];
     }
     $preparations=[];
     foreach ($rows as $row) {
-        if ($row['sale_id']===null) continue;
+        if ($row['sale_id']===null) {
+            continue;
+        }
         $preparations[]=['sale_id'=>(int)$row['sale_id'],
             'ticket_type_id'=>(int)$row['ticket_type_id'],'quantity'=>(int)$row['quantity'],
             'amount_cop'=>(int)$row['amount_cop'],'state'=>(bool)$row['pending']?'pending':'expired'];

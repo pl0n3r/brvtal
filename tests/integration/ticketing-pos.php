@@ -278,6 +278,12 @@ $pendingState['preparations'][]=['sale_id'=>$prepared['sale_id'],'ticket_type_id
 posAssert($read()===$pendingState,'own preparation without credentials or PII');
 posIntentHttp(['host'=>$host,'port'=>$port,'name'=>$name,'user'=>$user,'pass'=>$pass],$statusRead,$pendingState);
 posAssert($snapshotRead()===$beforeRead,'status read does not mutate durable tables');
+$expiry=$db->prepare('UPDATE ticket_pos_sales SET expires_at_utc=? WHERE id=?');
+$expiry->execute(['2000-01-01 00:00:00',$prepared['sale_id']]);
+$expiredState=$pendingState;
+$expiredState['preparations'][0]['state']='expired';
+posAssert($read()===$expiredState,'expired preparation remains distinguishable');
+$expiry->execute([$beforeRead['ticket_pos_sales'][0]['expires_at_utc'],$prepared['sale_id']]);
 $repeat=brvtalPosRun($db,1,'admin',$req);
 posAssert($repeat['replayed']&&$repeat['confirmation_token']===null,'replay cannot mint token');
 posDenies(static fn()=>brvtalPosRun($db,1,'admin',array_replace($req,['quantity'=>'2'])),
@@ -322,6 +328,9 @@ posAssert($close['expected_cash_cop']===75000&&$close['cash_difference_cop']===-
 posDenies(static fn()=>brvtalPosRun($db,1,'admin',$req),'POS_SHIFT_UNAVAILABLE');
 posAssert($read()===['state'=>'closed','shift_id'=>$shift['shift_id'],'event_id'=>6,'preparations'=>[]],
     'closed physical drawer has durable sale evidence');
+$empty=brvtalPosRun($db,2,'admin',array_replace($open,['opening_cash_cop'=>'0']));
+brvtalPosRun($db,2,'admin',['action'=>'close','shift_id'=>(string)$empty['shift_id'],'closing_cash_cop'=>'0']);
+posAssert($read(2)===['state'=>'unverifiable'],'empty zero-cash closure is not proof of physical identity');
 // Real-owner lane is allowed without synthetic-mode flag but only on the
 // disposable database fixture; no Wompi charge or network request is made.
 putenv('BRVTAL_INTEGRATION_TESTS=0');
