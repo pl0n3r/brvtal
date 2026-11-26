@@ -148,7 +148,19 @@ $httpDirectory = sys_get_temp_dir() . '/brvtal-2113-' . bin2hex(random_bytes(8))
 guestAssert(mkdir($httpDirectory, 0700), 'create isolated HTTP fixture directory');
 register_shutdown_function(static function () use ($httpDirectory): void {
     if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
-    foreach (glob($httpDirectory . '/*') ?: [] as $file) unlink($file);
+    // Never follow symlinks or traverse outside the private fixture root.
+    $entries = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($httpDirectory, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::CHILD_FIRST
+    );
+    foreach ($entries as $entry) {
+        $path = $entry->getPathname();
+        if ($entry->isLink() || !$entry->isDir()) {
+            unlink($path);
+        } else {
+            rmdir($path);
+        }
+    }
     rmdir($httpDirectory);
 });
 session_save_path($httpDirectory);
@@ -297,21 +309,47 @@ $memberCookie = session_id();
 session_write_close();
 guestAssert($memberCookie !== $guestCookie, 'independent verified and guest cookies');
 
+// Copy only reviewed source files, never local config, storage, or credentials.
+$source = dirname(__DIR__, 2);
+$fixtureRoot = $httpDirectory . '/site';
+foreach (['/config', '/api/ticketing', '/storage'] as $directory) {
+    guestAssert(mkdir($fixtureRoot . $directory, 0700, true), 'create private fixture subtree');
+}
+$fixtureSources = [
+    'config/bootstrap.php', 'config/public_health.php', 'config/db_connect_recovery.php',
+    'config/logger.php', 'config/sentry.php', 'config/deployment.php', 'config/version.php',
+    'config/secrets.php', 'config/integration_secrets_store.php',
+    'config/public_ticket_checkout.php', 'config/public_order_status.php',
+    'config/public_contact.php', 'config/rate_limit_store.php', 'config/public_visibility.php',
+    'config/ticketing_inventory.php', 'config/ticketing_wompi_client.php',
+    'config/ticketing_stages.php', 'config/ticketing_waitlist.php', 'config/ticketing_promos.php',
+    'config/buyer_account.php', 'config/buyer_auth.php', 'config/password_rate_limit.php',
+    'config/ticketing_issue.php', 'config/ticketing_wompi_reconcile.php',
+    'config/ticketing_wompi_webhook.php', 'config/ticketing_event_incident_policy.php',
+    'config/ticketing_mail_outbox.php', 'config/ticketing_resend.php',
+    'config/ticketing_mail_events.php', 'config/public_abuse_guard.php',
+    'config/mail_template_renderer.php', 'api/ticketing/order-status.php',
+];
+foreach ($fixtureSources as $relative) {
+    $input = $source . '/' . $relative;
+    guestAssert(is_file($input) && !is_link($input)
+        && copy($input, $fixtureRoot . '/' . $relative), 'copy fixture source ' . $relative);
+}
 $fixtureConfig = [
+    'security'=>['csrf_key'=>bin2hex(random_bytes(32))],
     'app'=>['timezone'=>'UTC','debug'=>false],
     'db'=>['host'=>$host,'port'=>$port,'name'=>$name,'user'=>$user,'pass'=>$pass,'charset'=>'utf8mb4'],
 ];
-$configFile = $httpDirectory . '/config.php';
+$configFile = $fixtureRoot . '/config/config.php';
 guestAssert(file_put_contents($configFile, '<?php return ' . var_export($fixtureConfig, true) . ';') !== false,
     'write isolated configuration');
 chmod($configFile, 0600);
-$source = dirname(__DIR__, 2);
 $router = $httpDirectory . '/router.php';
 $prefix = '<?php define("BRVTAL_SENTRY_TESTING", true); '
     . '$GLOBALS["brvtalBootstrapConfigPath"] = ' . var_export($configFile, true) . '; '
     . '$GLOBALS["brvtalSentryTestLogFile"] = ' . var_export($httpDirectory . '/fixture.log', true) . '; '
-    . 'require ' . var_export($source . '/config/bootstrap.php', true) . '; '
-    . 'require ' . var_export($source . '/config/public_ticket_checkout.php', true) . ';';
+    . 'require ' . var_export($fixtureRoot . '/config/bootstrap.php', true) . '; '
+    . 'require ' . var_export($fixtureRoot . '/config/public_ticket_checkout.php', true) . ';';
 $routerCode = <<<'PHP'
 if ($_SERVER['REQUEST_URI'] === '/ready') {
     http_response_code(204);
@@ -341,8 +379,8 @@ guestAssert(is_string($address), 'loopback address');
 $process = proc_open([PHP_BINARY, '-d', 'session.save_path=' . $httpDirectory,
     '-d', 'allow_url_fopen=0',
     '-d', 'disable_functions=curl_init,curl_exec,curl_multi_init,curl_multi_exec,fsockopen,pfsockopen,stream_socket_client',
-    '-S', $address, '-t', $httpDirectory, $router],
-    [0=>['pipe','r'],1=>['file','/dev/null','a'],2=>['file','/dev/null','a']], $pipes, $httpDirectory);
+    '-S', $address, '-t', $fixtureRoot, $router],
+    [0=>['pipe','r'],1=>['file','/dev/null','a'],2=>['file','/dev/null','a']], $pipes, $fixtureRoot);
 guestAssert(is_resource($process), 'start isolated HTTP server');
 fclose($pipes[0]);
 try {
