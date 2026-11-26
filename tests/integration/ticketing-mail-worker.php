@@ -39,11 +39,16 @@ $gateCases = [
     ['mode' => '', 'expect' => ['mail'=>'disabled','issue'=>'disabled']],
     ['mode' => 'invalid', 'expect' => ['mail'=>'not_ready','issue'=>'not_ready']],
     ['mode' => 'mock', 'expect' => ['mail'=>'not_ready','issue'=>'not_ready']],
-    ['mode' => 'mock', 'testing'=>'1', 'expect' => ['mail'=>'ready','issue'=>'ready']],
+    ['mode' => 'mock', 'testing'=>'1', 'expect' => ['mail'=>'not_ready','issue'=>'not_ready']],
+    ['mode' => 'mock', 'testing'=>'1', 'keys'=>true, 'expect' => ['mail'=>'ready','issue'=>'ready']],
     ['mode' => 'test', 'expect' => ['mail'=>'not_ready','issue'=>'not_ready']],
     ['mode' => 'test', 'keys'=>true, 'expect' => ['mail'=>'not_ready','issue'=>'not_ready']],
     ['mode' => 'test', 'keys'=>true, 'allowlist'=>true,
         'expect' => ['mail'=>'ready','issue'=>'not_ready']],
+    ['mode' => 'test', 'keys'=>true, 'invalid_allowlist'=>true,
+        'expect' => ['mail'=>'not_ready','issue'=>'not_ready']],
+    ['mode' => 'live', 'keys'=>true, 'flags'=>true, 'invalid_sender'=>true,
+        'expect' => ['mail'=>'not_ready','issue'=>'not_ready']],
     ['mode' => 'live', 'expect' => ['mail'=>'not_ready','issue'=>'not_ready']],
     ['mode' => 'live', 'keys'=>true, 'expect' => ['mail'=>'not_ready','issue'=>'not_ready']],
     ['mode' => 'live', 'keys'=>true, 'flags'=>true,
@@ -59,6 +64,12 @@ foreach ($gateCases as $case) {
     }
     if ($case['allowlist'] ?? false) {
         $values['BRVTAL_TICKET_MAIL_TEST_RECIPIENTS'] = 'test@test.invalid';
+    }
+    if ($case['invalid_allowlist'] ?? false) {
+        $values['BRVTAL_TICKET_MAIL_TEST_RECIPIENTS'] = '*';
+    }
+    if ($case['invalid_sender'] ?? false) {
+        $values['BRVTAL_TICKET_MAIL_REPLY_TO'] = 'invalid-reply';
     }
     if ($case['flags'] ?? false) {
         foreach (['ALLOW_LIVE', 'PRIVACY_APPROVED', 'DNS_VERIFIED'] as $key) {
@@ -98,6 +109,13 @@ $ready = ['mail'=>'ready','issue'=>'ready'];
 $blocked = ['mail'=>'not_ready','issue'=>'not_ready'];
 $disabled = ['mail'=>'disabled','issue'=>'disabled'];
 $run('mail missing but payment reconciliation allowed', $blocked,
+    ['approved','issued','accepted'], ['reconcile'=>'approved','issue'=>'not_ready','state'=>'not_ready'],
+    1, ['reconcile']);
+$unreadableMail = brvtal_ticket_mail_worker_gate(static function (string $key): string {
+    throw new RuntimeException('synthetic_secret');
+});
+worker_test_assert($unreadableMail === $blocked, 'mail secret read failure is stage-specific');
+$run('mail secret read failure does not block reconciliation', $unreadableMail,
     ['approved','issued','accepted'], ['reconcile'=>'approved','issue'=>'not_ready','state'=>'not_ready'],
     1, ['reconcile']);
 $run('mail intentionally disabled is not idle', $disabled,

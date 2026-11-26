@@ -11,6 +11,18 @@ if (PHP_SAPI !== 'cli') {
 // Merely loading its pure cycle contract never reads credentials or starts cron.
 function brvtal_ticket_mail_worker_gate(callable $secret): array
 {
+    try {
+        return brvtal_ticket_mail_worker_readiness($secret);
+    } catch (Throwable) {
+        // Invalid/undecryptable mail configuration is stage-specific, not
+        // a global DB/master-key failure. Wompi can still reconcile.
+        return ['mail' => 'not_ready', 'issue' => 'not_ready'];
+    }
+}
+
+function brvtal_ticket_mail_worker_readiness(callable $secret): array
+{
+    require_once dirname(__DIR__) . '/config/integration_secrets_store.php';
     $mode = trim((string)$secret('BRVTAL_TICKET_MAIL_MODE'));
     if ($mode === '' || $mode === 'disabled' || $mode === 'off') {
         return ['mail' => 'disabled', 'issue' => 'disabled'];
@@ -18,16 +30,16 @@ function brvtal_ticket_mail_worker_gate(callable $secret): array
     if (!in_array($mode, ['live', 'test', 'mock'], true)) {
         return ['mail' => 'not_ready', 'issue' => 'not_ready'];
     }
-    if ($mode === 'mock') {
-        $ready = $secret('BRVTAL_TICKET_MAIL_TESTING') === '1';
-        return ['mail' => $ready ? 'ready' : 'not_ready',
-            'issue' => $ready ? 'ready' : 'not_ready'];
-    }
     foreach (['BRVTAL_TICKET_MAIL_API_KEY', 'BRVTAL_TICKET_MAIL_DOMAIN',
         'BRVTAL_TICKET_MAIL_FROM'] as $key) {
         if (trim((string)$secret($key)) === '') {
             return ['mail' => 'not_ready', 'issue' => 'not_ready'];
         }
+    }
+    if ($mode === 'mock') {
+        $ready = $secret('BRVTAL_TICKET_MAIL_TESTING') === '1';
+        return ['mail' => $ready ? 'ready' : 'not_ready',
+            'issue' => $ready ? 'ready' : 'not_ready'];
     }
     // Match Resend's sender-domain gate before minting a QR which would require
     // protected mail to be enqueued. The adapter rechecks every recipient/job.
@@ -40,9 +52,15 @@ function brvtal_ticket_mail_worker_gate(callable $secret): array
         || strpbrk($from, "\r\n") !== false) {
         return ['mail' => 'not_ready', 'issue' => 'not_ready'];
     }
+    $fromName = $secret('BRVTAL_TICKET_MAIL_FROM_NAME') ?: 'BRVTAL';
+    $replyTo = $secret('BRVTAL_TICKET_MAIL_REPLY_TO');
+    if (!brvtalIntegrationSecretValidFromName($fromName)
+        || ($replyTo !== '' && !brvtalIntegrationSecretValidReplyTo($replyTo))) {
+        return ['mail' => 'not_ready', 'issue' => 'not_ready'];
+    }
     if ($mode === 'test') {
         // Even a test transport needs its allowlist; test mode never issues QR.
-        $ready = trim((string)$secret('BRVTAL_TICKET_MAIL_TEST_RECIPIENTS')) !== '';
+        $ready = brvtalIntegrationSecretValidTestRecipients($secret('BRVTAL_TICKET_MAIL_TEST_RECIPIENTS'));
         return ['mail' => $ready ? 'ready' : 'not_ready', 'issue' => 'not_ready'];
     }
     // The delivery adapter enforces these gates too; do not issue QR while
