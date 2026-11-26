@@ -40,7 +40,7 @@ function buyerAuthMissingMailKeyHttpCheck(
         // storage would exhaust the real public-login IP/subject buckets.
         $root = $directory . '/app';
         buyerAuthAssert(mkdir($root, 0700), 'create isolated HTTP document root');
-        $listing = proc_open(['git','ls-files','-z','--','config','database',
+        $listing = proc_open(['git','ls-files','-z','--','config','database','templates',
             'api/buyer/auth.php','api/health.php'], [
             0=>['pipe','r'], 1=>['pipe','w'], 2=>['pipe','w'],
         ], $listingPipes, $sourceRoot);
