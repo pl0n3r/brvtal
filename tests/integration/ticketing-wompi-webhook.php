@@ -1,6 +1,32 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/../../config/ticketing_wompi_webhook.php';
+// Two independent DB connections race on the same Event mutex, not an in-memory simulation.
+if (($argv[1] ?? '') === '--admit-race') {
+    $dbname=(string)($argv[2] ?? '');
+    if (!preg_match('/^brvtal_test[A-Za-z0-9_]*$/D',$dbname)) exit(2);
+    $payload=json_decode((string)base64_decode((string)($argv[3] ?? ''),true),true);
+    if (!is_array($payload) || count($payload)!==2) exit(3);
+    $barrier=(float)($argv[4] ?? 0);
+    $host=(string)(getenv('BRVTAL_TEST_DB_HOST')?:'127.0.0.1');
+    $port=(int)(getenv('BRVTAL_TEST_DB_PORT')?:3306);
+    $user=(string)(getenv('BRVTAL_TEST_DB_USER')?:'root');
+    $pass=(string)(getenv('BRVTAL_TEST_DB_PASS')?:'');
+    $db=new PDO("mysql:host={$host};port={$port};dbname={$dbname};charset=utf8mb4",$user,$pass,[
+        PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES=>false,
+    ]);
+    while(microtime(true)<$barrier) usleep(10000);
+    $db->beginTransaction();
+    try {
+        $result=brvtal_wompi_hook_apply($db,$payload[0],$payload[1]);
+        $db->commit();echo $result;exit(0);
+    } catch(Throwable $error) {
+        if($db->inTransaction()) $db->rollBack();
+        fwrite(STDERR,$error::class.':'.$error->getMessage());exit(4);
+    }
+}
 function t08(bool $ok,string $label): void { if (!$ok) throw new RuntimeException('T08: '.$label); }
 function t08Reject(callable $fn,string $error): void {
     try { $fn(); } catch(DomainException $e) {
@@ -73,8 +99,27 @@ register_shutdown_function(static function() use($server,$dbname):void {
 $db=new PDO("mysql:host={$host};port={$port};dbname={$dbname};charset=utf8mb4",$user,$pass,
     [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,
      PDO::ATTR_EMULATE_PREPARES=>false]);
-$db->exec("CREATE TABLE ticket_orders(id BIGINT UNSIGNED PRIMARY KEY,status VARCHAR(16) NOT NULL,
- currency CHAR(3) NOT NULL,total_cop BIGINT NOT NULL,updated_at_utc DATETIME(6) NULL) ENGINE=InnoDB");
+$db->exec("CREATE TABLE events (id INT UNSIGNED PRIMARY KEY,status VARCHAR(32) NOT NULL) ENGINE=InnoDB");
+$db->exec("CREATE TABLE event_ticket_types (id INT UNSIGNED PRIMARY KEY,event_id INT UNSIGNED NOT NULL,
+ UNIQUE KEY uq_t03_ticket_type_event(id,event_id)) ENGINE=InnoDB");
+$db->exec("CREATE TABLE ticket_orders(id BIGINT UNSIGNED PRIMARY KEY,event_id INT UNSIGNED NOT NULL,
+ status VARCHAR(16) NOT NULL,currency CHAR(3) NOT NULL,total_cop BIGINT NOT NULL,
+ expires_at_utc DATETIME(6) NULL,updated_at_utc DATETIME(6) NULL,
+ UNIQUE KEY uq_ticket_orders_id_event(id,event_id)) ENGINE=InnoDB");
+$db->exec("CREATE TABLE ticket_order_items(id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ order_id BIGINT UNSIGNED NOT NULL,event_id INT UNSIGNED NOT NULL,ticket_type_id INT UNSIGNED NOT NULL,
+ quantity INT UNSIGNED NOT NULL,currency CHAR(3) NOT NULL,
+ UNIQUE KEY uq_ticket_order_item_type(order_id,ticket_type_id)) ENGINE=InnoDB");
+$db->exec("CREATE TABLE ticket_refund_event_decisions(event_id INT UNSIGNED PRIMARY KEY,cause VARCHAR(20) NOT NULL) ENGINE=InnoDB");
+$holdsSql=(string)file_get_contents(__DIR__.'/../../database/migration_ticketing_reservations_01.sql');
+foreach(explode(';',(string)preg_replace('/^\\h*--[^\\r\\n]*$/m','',$holdsSql)) as $ddl)
+    if(trim($ddl)!=='') $db->exec($ddl);
+$db->exec("INSERT INTO events VALUES (1,'published')");
+$db->exec("INSERT INTO event_ticket_types VALUES (10,1),(11,1),(12,2)");
+$db->exec("INSERT INTO events VALUES (2,'published')");
+$db->exec("INSERT INTO ticket_inventory_events VALUES (1,100),(2,1)");
+$db->exec("INSERT INTO ticket_inventory_types(ticket_type_id,event_id,capacity,courtesy_capacity)
+ VALUES(10,1,100,0),(11,1,100,0),(12,2,1,0)");
 $db->exec("CREATE TABLE ticket_payment_attempts(id BIGINT UNSIGNED PRIMARY KEY,order_id INT NOT NULL,
  provider VARCHAR(24) NOT NULL,provider_reference VARCHAR(190) NOT NULL,
  provider_transaction_id VARCHAR(190) NULL,gross_amount_cop BIGINT NOT NULL,
@@ -89,7 +134,12 @@ $runMigration=static function() use($db,$migration):void {
     }
 };
 $runMigration();
-$db->exec("INSERT INTO ticket_orders VALUES (42,'pending','COP',50000,NULL)");
+$db->exec("INSERT INTO ticket_orders(id,event_id,status,currency,total_cop) VALUES
+ (42,1,'pending','COP',50000)");
+$db->exec("INSERT INTO ticket_order_items(order_id,event_id,ticket_type_id,quantity,currency)
+ VALUES(42,1,10,1,'COP')");
+$db->exec("INSERT INTO ticket_inventory_holds(order_id,event_id,ticket_type_id,quantity,kind,status,expires_at_utc)
+ VALUES(42,1,10,1,'paid','active',UTC_TIMESTAMP(6)+INTERVAL 15 MINUTE)");
 $insert=$db->prepare("INSERT INTO ticket_payment_attempts VALUES
  (1,42,'wompi',?,NULL,50000,'created',NULL)");
 $insert->execute([$reference]);
@@ -105,6 +155,8 @@ t08((int)$db->query('SELECT COUNT(*) FROM ticket_payment_webhook_events')->fetch
 t08((int)$db->query('SELECT COUNT(*) FROM ticket_issue_outbox')->fetchColumn()===1,
     'exactly one durable issuance request');
 t08($db->query("SELECT status FROM ticket_orders WHERE id=42")->fetchColumn()==='paid','order paid once');
+t08($db->query("SELECT status FROM ticket_inventory_holds WHERE order_id=42")->fetchColumn()==='consumed',
+    'hold consumed atomically with paid and outbox');
 $pending=$tx; $pending['status']='PENDING';
 [$pendingBody,$pendingHash]=$sign($pending,$now);
 $pendingSigned=brvtal_wompi_hook_verify($pendingBody,$pendingHash,$settings,$now);
@@ -120,6 +172,8 @@ t08Reject(fn()=>$process($signed,$bad),'WEBHOOK_PROVIDER_MISMATCH');
 $bad=$provider; $bad['amount_in_cents']=500;
 t08Reject(fn()=>$process($signed,$bad),'WEBHOOK_PROVIDER_MISMATCH');
 $db->exec("UPDATE ticket_orders SET status='pending' WHERE id=42");
+$db->exec("UPDATE ticket_inventory_holds SET status='active',
+ expires_at_utc=UTC_TIMESTAMP(6)+INTERVAL 15 MINUTE WHERE order_id=42");
 $db->exec("UPDATE ticket_payment_attempts SET status='created',provider_transaction_id=NULL WHERE id=1");
 $db->exec("DROP TABLE ticket_payment_webhook_events");
 try { $process($signed,$provider); throw new RuntimeException('expected DB failure'); }
@@ -130,4 +184,170 @@ $runMigration();
 t08($process($signed,$provider)==='approved','retry after DB recovery');
 t08((int)$db->query('SELECT COUNT(*) FROM ticket_issue_outbox')->fetchColumn()===1,
     'retry never duplicates issuance');
-echo "BRVTAL T08 verified signed events, migration, outbox, reversals and DB recovery.\n";
+// Authenticated approval after expiry, terminal state, incident or missing holds
+// retains the original journal/approved attempt but never creates tickets.
+$case = static function(int $id,string $orderState,string $holdState,bool $incident=false,
+    bool $multi=false) use($db,$sign,$settings,$now):array {
+    $ref='BW7-'.$id.'-CARD-'.str_repeat(dechex($id%16),24);
+    $idTx='fixture-payment-'.$id;
+    $db->prepare("INSERT INTO ticket_orders(id,event_id,status,currency,total_cop)
+        VALUES(?,1,?,'COP',50000)")->execute([$id,$orderState]);
+    $db->prepare("INSERT INTO ticket_order_items(order_id,event_id,ticket_type_id,quantity,currency)
+        VALUES(?,1,10,1,'COP')")->execute([$id]);
+    if($multi) $db->prepare("INSERT INTO ticket_order_items(order_id,event_id,ticket_type_id,quantity,currency)
+        VALUES(?,1,11,1,'COP')")->execute([$id]);
+    $db->prepare("INSERT INTO ticket_payment_attempts(id,order_id,provider,provider_reference,
+        gross_amount_cop,status) VALUES(?,?,'wompi',?,50000,'created')")->execute([$id,$id,$ref]);
+    if($holdState!=='missing') {
+        $expiry=$holdState==='expired'?'UTC_TIMESTAMP(6)-INTERVAL 1 SECOND':
+            'UTC_TIMESTAMP(6)+INTERVAL 15 MINUTE';
+        $db->exec("INSERT INTO ticket_inventory_holds(order_id,event_id,ticket_type_id,quantity,kind,status,expires_at_utc)
+            VALUES($id,1,10,1,'paid','active',$expiry)");
+    }
+    if($incident) $db->exec("INSERT INTO ticket_refund_event_decisions VALUES(1,'postponed')");
+    $txn=['id'=>$idTx,'reference'=>$ref,'status'=>'APPROVED','currency'=>'COP',
+        'amount_in_cents'=>5000000];
+    [$raw,$sig]=$sign($txn,$now);
+    $verified=brvtal_wompi_hook_verify($raw,$sig,$settings,$now);
+    return [$verified,$txn];
+};
+foreach ([[43,'pending','missing',false,false],
+          [44,'pending','expired',false,false],
+          [45,'cancelled','valid',false,false],
+          [46,'pending','valid',true,false],
+          [47,'pending','valid',false,true]] as [$id,$state,$hold,$incident,$multi]) {
+    [$s,$p]=$case($id,$state,$hold,$incident,$multi);
+    t08($process($s,$p)==='approved_unfulfilled',"approved but unfulfilled $id");
+    t08($process($s,$p)==='approved_unfulfilled',"duplicate unfulfilled $id");
+    t08($db->query("SELECT status FROM ticket_payment_attempts WHERE id=$id")->fetchColumn()==='approved',
+        "preserved monetary approval $id");
+    t08($db->query("SELECT status FROM ticket_orders WHERE id=$id")->fetchColumn()===$state,
+        "order never incorrectly paid $id");
+    t08((int)$db->query("SELECT COUNT(*) FROM ticket_payment_webhook_events WHERE attempt_id=$id")->fetchColumn()===1,
+        "journal exactly once $id");
+    t08((int)$db->query("SELECT COUNT(*) FROM ticket_issue_outbox WHERE order_id=$id")->fetchColumn()===0,
+        "no issue request $id");
+    if($incident) $db->exec('DELETE FROM ticket_refund_event_decisions');
+}
+// Missing owner-decision migration is UNKNOWN and must never admit a late charge.
+// Wompi's authenticated money still stays in the journal; no ticket is emitted.
+[$missingPolicySigned,$missingPolicyProvider]=$case(54,'pending','valid');
+$db->exec('DROP TABLE ticket_refund_event_decisions');
+t08($process($missingPolicySigned,$missingPolicyProvider)==='approved_unfulfilled',
+    'owner-decision schema failure denies admission without denying authentic charge');
+t08($db->query("SELECT status FROM ticket_payment_attempts WHERE id=54")->fetchColumn()==='approved',
+    'missing policy schema still preserves verified money');
+t08((int)$db->query('SELECT COUNT(*) FROM ticket_payment_webhook_events WHERE attempt_id=54')
+    ->fetchColumn()===1, 'missing policy schema preserves signed journal exactly once');
+t08((int)$db->query('SELECT COUNT(*) FROM ticket_issue_outbox WHERE order_id=54')
+    ->fetchColumn()===0, 'missing policy schema cannot emit tickets');
+$db->exec("CREATE TABLE ticket_refund_event_decisions
+    (event_id INT UNSIGNED PRIMARY KEY,cause VARCHAR(20) NOT NULL) ENGINE=InnoDB");
+// Editorially historical or draft Events cannot admit even a still-active hold.
+// A genuine charge remains approved and journaled, not declined or fulfilled.
+foreach (['finished','archived','draft','cancelled','postponed'] as $offset=>$eventState) {
+    $id=55+$offset;
+    [$lifecycleSigned,$lifecycleProvider]=$case($id,'pending','valid');
+    $db->prepare('UPDATE events SET status=? WHERE id=1')->execute([$eventState]);
+    t08($process($lifecycleSigned,$lifecycleProvider)==='approved_unfulfilled',
+        "historical or inactive event denies admission: $eventState");
+    t08($db->query("SELECT status FROM ticket_payment_attempts WHERE id=$id")
+        ->fetchColumn()==='approved', 'historical event preserves charge');
+    t08((int)$db->query("SELECT COUNT(*) FROM ticket_issue_outbox WHERE order_id=$id")
+        ->fetchColumn()===0, 'historical event does not emit');
+    $db->exec("UPDATE events SET status='published' WHERE id=1");
+}
+// A signed PENDING event with independently authenticated APPROVED status must
+// keep its original signed provenance and still admit the valid reservation.
+[$s,$p]=$case(48,'pending','valid');
+$pendingTx=$p; $pendingTx['status']='PENDING';
+[$raw,$sig]=$sign($pendingTx,$now);
+$pendingSigned=brvtal_wompi_hook_verify($raw,$sig,$settings,$now);
+t08($process($pendingSigned,$p)==='approved','provider-approved after signed pending');
+t08($db->query("SELECT signed_status FROM ticket_payment_webhook_events WHERE attempt_id=48")
+    ->fetchColumn()==='PENDING','original signature never upgraded');
+t08((int)$db->query('SELECT COUNT(*) FROM ticket_issue_outbox WHERE order_id=48')->fetchColumn()===1,
+    'provider authenticated approval enqueues once');
+// Complete multi-type reservations remain admissible after a later sell-out;
+// neither current public stock nor a newly edited price revokes a valid hold.
+[$multiSigned,$multiProvider]=$case(51,'pending','valid',false,true);
+$db->exec("INSERT INTO ticket_inventory_holds(order_id,event_id,ticket_type_id,quantity,kind,status,expires_at_utc)
+ VALUES(51,1,11,1,'paid','active',UTC_TIMESTAMP(6)+INTERVAL 15 MINUTE)");
+$db->exec("UPDATE events SET status='sold_out' WHERE id=1");
+t08($process($multiSigned,$multiProvider)==='approved','valid multi-type hold admitted after sold-out');
+t08((int)$db->query("SELECT COUNT(*) FROM ticket_inventory_holds
+ WHERE order_id=51 AND status='consumed'")->fetchColumn()===2,'all ticket types consumed atomically');
+$db->exec("UPDATE events SET status='published' WHERE id=1");
+[$expirySigned,$expiryProvider]=$case(52,'pending','valid');
+$db->exec("UPDATE ticket_orders SET expires_at_utc=UTC_TIMESTAMP(6)-INTERVAL 1 SECOND
+ WHERE id=52");
+t08($process($expirySigned,$expiryProvider)==='approved_unfulfilled',
+    'expired order cannot be paid despite a still-active hold');
+// Optional administrative mail is NOT part of the paid/issued transaction.
+// An enabled mock mail path with no mail schema must fail inside the savepoint,
+// without rolling back the provider approval or the idempotent issue outbox.
+$originalConfig=$GLOBALS['config']??null;
+$GLOBALS['config']=['ticketing'=>['mail'=>[
+    'mode'=>'mock','testing'=>'1','admin_recipient'=>'admin@example.test',
+]]];
+try {
+    [$noticeSigned,$noticeProvider]=$case(53,'pending','valid');
+    t08($process($noticeSigned,$noticeProvider)==='approved',
+        'verified payment survives unavailable optional admin mail');
+    t08($process($noticeSigned,$noticeProvider)==='duplicate',
+        'replayed callback does not repeat admission on mail failure');
+    t08($db->query("SELECT status FROM ticket_payment_attempts WHERE id=53")
+        ->fetchColumn()==='approved','mail failure preserved authentic money');
+    t08($db->query("SELECT status FROM ticket_orders WHERE id=53")
+        ->fetchColumn()==='paid','mail failure preserved admitted order');
+    t08((int)$db->query("SELECT COUNT(*) FROM ticket_issue_outbox WHERE order_id=53")
+        ->fetchColumn()===1,'mail failure preserved one durable issue request');
+} finally {
+    if($originalConfig===null) unset($GLOBALS['config']);
+    else $GLOBALS['config']=$originalConfig;
+}
+// Two processes race for an Event with exactly one legitimate held unit.
+// The other confirmed charge is financially recorded without issuance.
+$pack = static function(int $id,bool $hold) use($db,$sign,$settings,$now):array {
+    $ref='BW7-'.$id.'-CARD-'.str_repeat(dechex($id%16),24);
+    $db->prepare("INSERT INTO ticket_orders(id,event_id,status,currency,total_cop)
+        VALUES(?,2,'pending','COP',50000)")->execute([$id]);
+    $db->prepare("INSERT INTO ticket_order_items(order_id,event_id,ticket_type_id,quantity,currency)
+        VALUES(?,2,12,1,'COP')")->execute([$id]);
+    $db->prepare("INSERT INTO ticket_payment_attempts(id,order_id,provider,provider_reference,
+        gross_amount_cop,status) VALUES(?,?,'wompi',?,50000,'created')")->execute([$id,$id,$ref]);
+    if($hold) $db->prepare("INSERT INTO ticket_inventory_holds
+        (order_id,event_id,ticket_type_id,quantity,kind,status,expires_at_utc)
+        VALUES(?,2,12,1,'paid','active',UTC_TIMESTAMP(6)+INTERVAL 15 MINUTE)")->execute([$id]);
+    $provider=['id'=>'race-'.$id,'reference'=>$ref,'status'=>'APPROVED',
+        'amount_in_cents'=>5000000,'currency'=>'COP'];
+    [$raw,$hash]=$sign($provider,$now);
+    return [brvtal_wompi_hook_verify($raw,$hash,$settings,$now),$provider];
+};
+$racePayloads=[$pack(49,true),$pack(50,false)];
+$barrier=microtime(true)+0.8;
+$workers=[];
+foreach($racePayloads as $payload) {
+    $processRace=proc_open([PHP_BINARY,__FILE__,'--admit-race',$dbname,
+        base64_encode(json_encode($payload,JSON_THROW_ON_ERROR)),(string)$barrier],
+        [0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes,__DIR__);
+    t08(is_resource($processRace),'race worker started');
+    fclose($pipes[0]);$workers[]=[$processRace,$pipes];
+}
+$results=[];
+foreach($workers as [$proc,$pipes]) {
+    $out=trim((string)stream_get_contents($pipes[1]));
+    $err=trim((string)stream_get_contents($pipes[2]));
+    fclose($pipes[1]);fclose($pipes[2]);
+    t08(proc_close($proc)===0 && $err==='','race worker completed: '.$err);
+    $results[]=$out;
+}
+sort($results);
+t08($results===['approved','approved_unfulfilled'],'last seat has only one admitted order');
+t08((int)$db->query("SELECT COUNT(*) FROM ticket_orders
+    WHERE event_id=2 AND status='paid'")->fetchColumn()===1,'exactly one paid order');
+t08((int)$db->query("SELECT COUNT(*) FROM ticket_issue_outbox
+    WHERE order_id IN (49,50)")->fetchColumn()===1,'exactly one issuance outbox');
+t08((int)$db->query("SELECT COUNT(*) FROM ticket_payment_webhook_events
+    WHERE attempt_id IN (49,50)")->fetchColumn()===2,'both authenticated charges journaled');
+echo "BRVTAL T08 authentic money and two-connection atomic last-seat admission passed.\n";

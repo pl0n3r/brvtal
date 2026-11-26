@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/ticketing_wompi_client.php';
+require_once __DIR__ . '/ticketing_inventory.php';
+require_once __DIR__ . '/ticketing_event_incident_policy.php';
 
 /** T08: the events secret is NOT the checkout integrity secret, and belongs to the active environment. */
 function brvtal_wompi_hook_config(?array $env = null): array
@@ -108,35 +110,144 @@ function brvtal_wompi_hook_enqueue(PDO $db, int $orderId, int $attemptId): void
         ON DUPLICATE KEY UPDATE payment_attempt_id=ticket_issue_outbox.payment_attempt_id")->execute([$attemptId,$orderId]);
 }
 
-/** Single row-locked transaction; repeated/out-of-order notifications are no-ops. */
+/**
+ * Admission is a separate fact from an authentic Wompi approval. The event
+ * row is the shared mutex: all checks below run after locking that row and
+ * before locking the order, attempt, items or holds. Never call Wompi here.
+ */
+function brvtal_wompi_hook_reserved(PDO $db, int $orderId, int $eventId, array $order): bool
+{
+    if (!in_array($order['status'], ['draft','pending'], true)) return false;
+    $event = $db->prepare('SELECT status FROM events WHERE id=? FOR UPDATE');
+    // Reentrant locking read: the caller already holds this Event mutex.
+    $event->execute([$eventId]);
+    $state = (string)$event->fetchColumn();
+    // A confirmed charge does not authorize tickets for historical, draft,
+    // or unknown editorial states. sold_out is still eligible for a hold
+    // acquired before the sell-out, subject to the checks below.
+    if (!in_array(strtolower(trim($state)), brvtal_public_event_statuses()['active'], true)) {
+        return false;
+    }
+    // The common owner decision is authoritative, independent of the
+    // editorial Event state and the refunds feature flag. UNKNOWN fails closed.
+    if (brvtal_ticket_event_incident_policy($db, $eventId)['state'] !== 'allowed') {
+        return false;
+    }
+    $now = (string)$db->query('SELECT UTC_TIMESTAMP(6)')->fetchColumn();
+    if ($now === '' || ($order['expires_at_utc'] !== null
+        && (string)$order['expires_at_utc'] <= $now)) return false;
+    $items = $db->prepare('SELECT event_id,ticket_type_id,quantity,currency
+        FROM ticket_order_items WHERE order_id=? ORDER BY ticket_type_id FOR UPDATE');
+    $items->execute([$orderId]);
+    $expected = [];
+    foreach ($items->fetchAll(PDO::FETCH_ASSOC) as $item) {
+        $type = (int)$item['ticket_type_id'];
+        $qty = (int)$item['quantity'];
+        if ((int)$item['event_id'] !== $eventId || $type < 1 || $qty < 1 || $qty > 20
+            || $item['currency'] !== 'COP' || isset($expected[$type])) return false;
+        $expected[$type] = $qty;
+    }
+    if (!$expected) return false;
+    $holds = $db->prepare('SELECT id,event_id,ticket_type_id,quantity,kind,status,expires_at_utc
+        FROM ticket_inventory_holds WHERE order_id=? ORDER BY ticket_type_id FOR UPDATE');
+    $holds->execute([$orderId]);
+    $actual = [];
+    $ids = [];
+    foreach ($holds->fetchAll(PDO::FETCH_ASSOC) as $hold) {
+        $type = (int)$hold['ticket_type_id'];
+        if ((int)$hold['event_id'] !== $eventId || $type < 1 || isset($actual[$type])
+            || $hold['kind'] !== 'paid' || $hold['status'] !== 'active'
+            || (string)$hold['expires_at_utc'] <= $now) return false;
+        $actual[$type] = (int)$hold['quantity'];
+        $ids[] = (int)$hold['id'];
+    }
+    ksort($actual);
+    ksort($expected);
+    if ($actual !== $expected) return false;
+    // Reservations authorize this charge, not newly available stock or a
+    // changed tariff. Still refuse an inconsistent oversubscribed inventory.
+    $cap = $db->prepare('SELECT capacity FROM ticket_inventory_events WHERE event_id=? FOR UPDATE');
+    $cap->execute([$eventId]);
+    $eventCap = $cap->fetchColumn();
+    if ($eventCap === false || (int)$eventCap < 1) return false;
+    $usage = brvtal_ticket_inventory_usage($db,$eventId,0,$now);
+    if (array_sum($usage) > (int)$eventCap) return false;
+    $typeCap = $db->prepare('SELECT capacity FROM ticket_inventory_types
+        WHERE event_id=? AND ticket_type_id=? FOR UPDATE');
+    foreach (array_keys($expected) as $typeId) {
+        $typeCap->execute([$eventId,$typeId]);
+        $capacity = $typeCap->fetchColumn();
+        if ($capacity === false || (int)$capacity < 1) return false;
+        $use = brvtal_ticket_inventory_usage($db,$eventId,$typeId,$now);
+        if (array_sum($use) > (int)$capacity) return false;
+    }
+    // Same transaction as paid + issuance outbox: no free interval in which a
+    // second checkout can claim these holds, even across multiple ticket types.
+    $consume = $db->prepare("UPDATE ticket_inventory_holds SET status='consumed'
+        WHERE id=? AND status='active' AND expires_at_utc>?");
+    foreach ($ids as $id) {
+        $consume->execute([$id,$now]);
+        if ($consume->rowCount() !== 1) throw new DomainException('WEBHOOK_HOLD_CONFLICT');
+    }
+    return true;
+}
+
+/** Optional notice never rolls back the provider's money or issue outbox. */
+function brvtal_wompi_hook_notice(PDO $db, int $orderId): void
+{
+    $db->exec('SAVEPOINT wompi_notice');
+    try {
+        require_once __DIR__ . '/ticketing_mail_templates.php';
+        brvtal_ticket_mail_queue_admin_new_order($db, $orderId);
+    } catch (Throwable $error) {
+        // The payment journal + paid order + issuance outbox remain durable.
+        // A later authenticated callback may retry the same idempotent mail.
+        // Never log the buyer, recipient, Wompi ID or exception message.
+        $db->exec('ROLLBACK TO SAVEPOINT wompi_notice');
+        error_log('BRVTAL_WOMPI_ADMIN_NOTICE_RETRY_REQUIRED:'.$error::class);
+    } finally {
+        $db->exec('RELEASE SAVEPOINT wompi_notice');
+    }
+}
+
+/** The caller owns one transaction; Event -> Order -> Attempt -> items -> holds. */
 function brvtal_wompi_hook_apply(PDO $db, array $signed, array $provider): string
 {
     foreach (['id','reference','status','currency','amount_in_cents'] as $key) {
         if (!array_key_exists($key, $provider) || $signed[$key] !== $provider[$key]) {
-            // A later provider status can supersede a delayed signed notification.
             if ($key !== 'status' || !in_array($provider['status'], ['APPROVED','PENDING','DECLINED','VOIDED','ERROR'], true)) {
                 throw new DomainException('WEBHOOK_PROVIDER_MISMATCH');
             }
         }
     }
     if (!$db->inTransaction()) throw new LogicException('WEBHOOK_TRANSACTION_REQUIRED');
-    // Same lock order as T07: parent order first, then payment attempt.
     $find = $db->prepare("SELECT order_id FROM ticket_payment_attempts
         WHERE provider='wompi' AND provider_reference=?");
     $find->execute([$signed['reference']]);
-    $orderId = $find->fetchColumn();
-    if ($orderId === false) throw new DomainException('WEBHOOK_ORDER_MISMATCH');
-    $order = $db->prepare('SELECT status,currency,total_cop FROM ticket_orders WHERE id=? FOR UPDATE');
-    $order->execute([(int)$orderId]);
+    $orderId = (int)$find->fetchColumn();
+    if ($orderId < 1) throw new DomainException('WEBHOOK_ORDER_MISMATCH');
+    // A preliminary nonlocking lookup is not authority. Recheck the immutable
+    // mapping under the Event and Order locks, in that order.
+    $mapping = $db->prepare('SELECT event_id FROM ticket_orders WHERE id=?');
+    $mapping->execute([$orderId]);
+    $eventId = (int)$mapping->fetchColumn();
+    if ($eventId < 1) throw new DomainException('WEBHOOK_ORDER_MISMATCH');
+    $mutex = $db->prepare('SELECT id FROM events WHERE id=? FOR UPDATE');
+    $mutex->execute([$eventId]);
+    if ($mutex->fetchColumn() === false) throw new DomainException('WEBHOOK_ORDER_MISMATCH');
+    $order = $db->prepare('SELECT event_id,status,currency,total_cop,expires_at_utc
+        FROM ticket_orders WHERE id=? FOR UPDATE');
+    $order->execute([$orderId]);
     $row = $order->fetch(PDO::FETCH_ASSOC);
-    if (!$row || $row['currency'] !== 'COP' || (int)$row['total_cop'] * 100 !== $signed['amount_in_cents']) {
+    if (!$row || (int)$row['event_id'] !== $eventId || $row['currency'] !== 'COP'
+        || (int)$row['total_cop'] * 100 !== $signed['amount_in_cents']) {
         throw new DomainException('WEBHOOK_ORDER_MISMATCH');
     }
     $get = $db->prepare("SELECT id,order_id,provider_transaction_id,gross_amount_cop,status
         FROM ticket_payment_attempts WHERE provider='wompi' AND provider_reference=? FOR UPDATE");
     $get->execute([$signed['reference']]);
     $attempt = $get->fetch(PDO::FETCH_ASSOC);
-    if (!$attempt || (int)$attempt['order_id'] !== (int)$orderId
+    if (!$attempt || (int)$attempt['order_id'] !== $orderId
         || (int)$attempt['gross_amount_cop'] * 100 !== $signed['amount_in_cents']
         || ($attempt['provider_transaction_id'] !== null && $attempt['provider_transaction_id'] !== $signed['id'])) {
         throw new DomainException('WEBHOOK_ORDER_MISMATCH');
@@ -153,11 +264,18 @@ function brvtal_wompi_hook_apply(PDO $db, array $signed, array $provider): strin
         $signed['status'],$signed['_event_timestamp']]);
     $status = ['APPROVED'=>'approved','PENDING'=>'pending','DECLINED'=>'declined',
         'VOIDED'=>'declined','ERROR'=>'error'][$provider['status']];
-    if ($attempt['status'] === 'approved' || $attempt['status'] === 'refunded') {
-        if ($attempt['status'] === 'approved') {
-            brvtal_wompi_hook_enqueue($db,(int)$attempt['order_id'],(int)$attempt['id']);
+    if (in_array($attempt['status'], ['approved','refunded'], true)) {
+        if ($attempt['status'] === 'approved' && $row['status'] === 'paid') {
+            // Legacy paid rows without proven admission must NOT gain new
+            // issuance or administrative-sale notices on callback replays.
+            $outbox = $db->prepare('SELECT 1 FROM ticket_issue_outbox WHERE order_id=? LIMIT 1');
+            $outbox->execute([$orderId]);
+            if ($outbox->fetchColumn() !== false) {
+                brvtal_wompi_hook_notice($db, $orderId);
+            }
+            return 'duplicate';
         }
-        return 'duplicate'; // Approved/settled payment never downgrades.
+        return $attempt['status'] === 'approved' ? 'approved_unfulfilled' : 'duplicate';
     }
     if ($status === $attempt['status'] && $attempt['provider_transaction_id'] === $signed['id']) {
         return 'duplicate';
@@ -165,13 +283,17 @@ function brvtal_wompi_hook_apply(PDO $db, array $signed, array $provider): strin
     $update = $db->prepare('UPDATE ticket_payment_attempts SET status=?,provider_transaction_id=?,
         updated_at_utc=UTC_TIMESTAMP(6) WHERE id=?');
     $update->execute([$status,$signed['id'],(int)$attempt['id']]);
-    if ($status === 'approved') {
-        // A paid order is the durable signal for T09 issuance; no ticket emitted here.
-        $db->prepare("UPDATE ticket_orders SET status='paid',updated_at_utc=UTC_TIMESTAMP(6)
-            WHERE id=? AND status IN ('pending','draft')")->execute([(int)$attempt['order_id']]);
-        brvtal_wompi_hook_enqueue($db,(int)$attempt['order_id'],(int)$attempt['id']);
-        require_once __DIR__ . '/ticketing_mail_templates.php';
-        brvtal_ticket_mail_queue_admin_new_order($db,(int)$attempt['order_id']);
+    if ($status !== 'approved') return 'accepted';
+    // Authentication/journal/attempt are durable even if capacity or incident
+    // now forbids fulfillment. This is never a declined payment or refund.
+    if (!brvtal_wompi_hook_reserved($db,$orderId,$eventId,$row)) {
+        return 'approved_unfulfilled';
     }
-    return $status === 'approved' ? 'approved' : 'accepted';
+    $paid = $db->prepare("UPDATE ticket_orders SET status='paid',updated_at_utc=UTC_TIMESTAMP(6)
+        WHERE id=? AND status IN ('pending','draft')");
+    $paid->execute([$orderId]);
+    if ($paid->rowCount() !== 1) throw new DomainException('WEBHOOK_ORDER_CONFLICT');
+    brvtal_wompi_hook_enqueue($db,$orderId,(int)$attempt['id']);
+    brvtal_wompi_hook_notice($db,$orderId);
+    return 'approved';
 }

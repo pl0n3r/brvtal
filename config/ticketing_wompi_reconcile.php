@@ -57,7 +57,7 @@ function brvtal_wompi_reconcile_fetch(array $config, string $reference, ?callabl
 
 /**
  * Reconcile one open attempt. Returns a state, never buyer data or keys:
- * skipped | not_found | not_approved | approved | duplicate | unavailable.
+ * skipped | not_found | not_approved | approved | approved_unfulfilled | duplicate | unavailable.
  */
 function brvtal_wompi_reconcile_attempt(PDO $db, int $attemptId, ?array $config = null, ?callable $transport = null): string
 {
@@ -97,7 +97,7 @@ function brvtal_wompi_reconcile_attempt(PDO $db, int $attemptId, ?array $config 
         if ($error instanceof DomainException) return 'not_approved';
         return 'unavailable';
     }
-    return $result === 'approved' ? 'approved' : 'duplicate';
+    return in_array($result, ['approved','approved_unfulfilled'], true) ? $result : 'duplicate';
 }
 
 /** Worker step: at most one open attempt from the last 48 h, oldest check first. */
