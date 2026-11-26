@@ -92,9 +92,9 @@ try {
     $migration=(string)file_get_contents(__DIR__.'/../../database/migration_ticketing_entries_01.sql');
     foreach (array_filter(array_map(trim(...),explode(';',preg_replace('/^\s*--.*$/m','',$migration)))) as $sql) $pdo->exec($sql);
     // Synthetic Bogota Event began twelve hours ago: safely inside the door window.
-    $openAt15=(new DateTimeImmutable('now', new DateTimeZone('America/Bogota')))
+    $openAt15=new DateTimeImmutable('now', new DateTimeZone('America/Bogota'))
         ->modify('-12 hours')->format('Y-m-d H:i:s');
-    $publicAt15=(new DateTimeImmutable('now', new DateTimeZone('America/Bogota')))
+    $publicAt15=new DateTimeImmutable('now', new DateTimeZone('America/Bogota'))
         ->modify('-2 days')->format('Y-m-d H:i:s');
     $pdo->prepare("INSERT INTO events(id,status,event_date,published_at)
         VALUES (1,'published',?,?),(2,'published',?,?)")
