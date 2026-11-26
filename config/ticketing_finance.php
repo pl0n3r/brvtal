@@ -114,8 +114,11 @@ function brvtalFinanceSummarize(array $orders, array $items, array $attempts,
                 continue;
             }
             if (!$payment || $pos || (int)($payment['gross_amount_cop'] ?? -1) !== (int)$order['total_cop']) {
-                $summary['unverified_orders']++;
-                if ($status==='refunded' || !empty($refundsByOrder[$id])) $summary['refund_cop']=null;
+                // Historical refunded orders without payment evidence are UNKNOWN;
+                // they are not extra unverified *paid* orders.
+                if ($status==='refunded') $summary['refund_cop']=null;
+                else $summary['unverified_orders']++;
+                if (!empty($refundsByOrder[$id])) $summary['refund_cop']=null;
                 $events[$eventId]=$summary; continue;
             }
             $gross = $lineByOrder[$id]['gross'] ?? 0;
