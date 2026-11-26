@@ -123,7 +123,7 @@ try {
     $queueFailed=false;
     try {
         brvtalTicketAdminEntryMutation($pdo,3,7,'superadmin','reissue','lost','t19-queue-failure-aaaaaaaaaa');
-    } catch (PDOException $error) {
+    } catch (PDOException) {
         $queueFailed=true;
     } finally {
         $pdo->exec('DROP TRIGGER t19_fail_mail');
