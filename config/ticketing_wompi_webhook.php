@@ -201,9 +201,12 @@ function brvtal_wompi_hook_notice(PDO $db, int $orderId): void
     try {
         require_once __DIR__ . '/ticketing_mail_templates.php';
         brvtal_ticket_mail_queue_admin_new_order($db, $orderId);
-    } catch (Throwable) {
+    } catch (Throwable $error) {
+        // The payment journal + paid order + issuance outbox remain durable.
         // A later authenticated callback may retry the same idempotent mail.
+        // Never log the buyer, recipient, Wompi ID or exception message.
         $db->exec('ROLLBACK TO SAVEPOINT wompi_notice');
+        error_log('BRVTAL_WOMPI_ADMIN_NOTICE_RETRY_REQUIRED:'.get_class($error));
     } finally {
         $db->exec('RELEASE SAVEPOINT wompi_notice');
     }
