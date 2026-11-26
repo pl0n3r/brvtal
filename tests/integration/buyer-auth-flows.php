@@ -407,8 +407,17 @@ buyerAuthAssert(password_verify($newPassword, (string)$after['password_hash'])
     && !password_verify($input['password'], (string)$after['password_hash'])
     && (int)$after['security_epoch'] === (int)$row['security_epoch']+1,
     'reset rotates password and epoch');
-buyerAuthAssert($db->query('SELECT revoked_at_utc FROM ticket_buyer_sessions')->fetchColumn() !== null,
-    'all prior stored sessions revoked');
+$prior = $db->prepare('SELECT COUNT(*) FROM ticket_buyer_sessions
+    WHERE buyer_id=? AND issued_epoch=? AND revoked_at_utc IS NULL');
+$prior->execute([(int)$stale['id'], (int)$stale['security_epoch']]);
+buyerAuthAssert((int)$prior->fetchColumn() === 0,
+    'all prior epoch sessions revoked, independently of newly issued sessions');
+$oldSession = $db->prepare('SELECT revoked_at_utc FROM ticket_buyer_sessions
+    WHERE session_hash=?');
+$oldSession->execute([hash('sha256','synthetic-session-id')]);
+$revokedAt = $oldSession->fetchColumn();
+buyerAuthAssert(is_string($revokedAt) && $revokedAt !== '',
+    'original synthetic session retained and revoked');
 $currentEpoch = (int)$after['security_epoch'];
 $currentId = (int)$stale['id'];
 $sessionHash = hash('sha256','verified-current-session');
