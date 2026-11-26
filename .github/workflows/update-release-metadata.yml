@@ -274,6 +274,9 @@ jobs:
           ini-file: production
           tools: phpstan:2.2.14, rector:2.8.3
 
+      - name: Verify pre-live operations runbook (#2215)
+        run: python3 -m unittest -v tests/test_prelive_operations_runbook.py
+
       - name: Validate Sonar Python runtime contract
         shell: bash
         run: |

@@ -78,7 +78,7 @@ function brvtal_ticket_mail_worker_state(string $stage, mixed $value): string
     if (!is_string($value)) return 'unavailable';
     $allowed = match ($stage) {
         'reconcile' => ['idle','skipped','not_found','not_approved','approved',
-            'approved_unfulfilled','duplicate','unavailable'],
+            'approved_unfulfilled','duplicate','stale_pending','unavailable'],
         'issue' => ['idle','issued','duplicate','waiting','unavailable'],
         'state' => ['idle','accepted','retry','failed','uncertain','lease_lost','unavailable'],
         default => [],
