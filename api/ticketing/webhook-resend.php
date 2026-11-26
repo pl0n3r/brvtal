@@ -50,6 +50,7 @@ if (realpath((string)($_SERVER['SCRIPT_FILENAME'] ?? ''))===__FILE__) {
         brvtal_admin_require();
         try {
             json_response(['ok'=>true,'items'=>brvtal_mail_history_list(db(),$_GET,(int)($_SESSION['admin_id'] ?? 0))]);
+        } catch (DomainException) { json_response(['ok'=>false,'error'=>'FORBIDDEN'],403); }
         } catch (InvalidArgumentException) { json_response(['ok'=>false,'error'=>'INVALID_QUERY'],422); }
         catch (Throwable) { json_response(['ok'=>false,'error'=>'UNAVAILABLE'],503); }
     }
