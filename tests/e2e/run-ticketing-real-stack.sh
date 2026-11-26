@@ -135,5 +135,7 @@ php -d curl.cainfo=/fixture/ca.pem -d session.save_path=/tmp/sessions -S 127.0.0
 php_pid=$!
 node tests/e2e/wompi-provider-fixture.mjs >/fixture/provider.log 2>&1 &
 provider_pid=$!
-node --test tests/e2e/ticketing-checkout-real-stack.spec.mjs
+node --test --test-reporter=tap tests/e2e/ticketing-checkout-real-stack.spec.mjs | tee /fixture/test.tap
+# A file with zero registered tests can exit zero: require the named scenario.
+grep -Fxq 'ok 1 - T31 real checkout, payment, issuance, mail and buyer isolation' /fixture/test.tap
 echo 'T31_CHECKOUT_STACK_PASS: HTTP checkout, signed payment, MariaDB, worker, mail, account and negative cases'
