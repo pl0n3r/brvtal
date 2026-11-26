@@ -117,7 +117,7 @@ ROUTER;
                 'timeout'=>5,'header'=>implode("\r\n",$headers)];
             if($payload!==null)$options['content']=json_encode($payload,JSON_THROW_ON_ERROR);
             $body=file_get_contents('http://'.$address.$path,false,stream_context_create(['http'=>$options]));
-            $lines=function_exists('http_get_last_response_headers')?http_get_last_response_headers():($http_response_header??[]);
+            $lines=http_get_last_response_headers();
             posAssert(is_string($body)&&is_array($lines)&&isset($lines[0]),'HTTP response present');
             return [(int)substr($lines[0],9,3),json_decode($body,true,8,JSON_THROW_ON_ERROR),$lines];
         };

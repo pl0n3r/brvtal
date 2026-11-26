@@ -369,11 +369,12 @@ for (const width of [390,1440]) {
 for (const width of [390,1440]) {
   test('2124 pérdida de respuesta y recuperación sin venta repetida '+width,async({page},testInfo)=>{
     await page.setViewportSize({width,height:900});
-    const calls=[];let committed=false,available=false;
+    const calls=[];let committed=false,available=false,denied=false;
     const handler=async route=>{
       const request=route.request().postDataJSON();calls.push(request);
       if(request.action==='manual_order'){committed=true;await route.abort('failed');return;}
       expect(request.action).toBe('manual_intent');
+      if(denied){await route.fulfill({status:403,contentType:'application/json',body:'{"ok":false,"error":"FORBIDDEN"}'});return;}
       if(!available){await route.fulfill({status:503,contentType:'application/json',body:'{"ok":false,"error":"POS_UNAVAILABLE"}'});return;}
       expect(committed).toBeTruthy();
       await route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:{
@@ -403,7 +404,13 @@ for (const width of [390,1440]) {
     await testInfo.attach('2124-uncertain-'+width+'.png',{body:await page.screenshot({fullPage:true}),contentType:'image/png'});
     const intent=calls[0].idempotency_key;
     expect(await page.evaluate(()=>sessionStorage.getItem('brvtal.pos.manual.intent.v1'))).toBe(intent);
-    available=true;
+    denied=true;
+    const lookup=manual.getByRole('button',{name:'Consultar recibo pendiente'});
+    await lookup.focus();await expect(lookup).toBeFocused();await page.keyboard.press('Enter');
+    await expect(manual).toContainText('Solo el propietario puede consultar este recibo');
+    await expect(form.getByRole('button',{name:'Confirmar y crear pedido'})).toBeDisabled();
+    await testInfo.attach('2124-denied-'+width+'.png',{body:await page.screenshot({fullPage:true}),contentType:'image/png'});
+    denied=false;available=true;
     await page.reload();
     await page.addStyleTag({content:css});
     await page.evaluate(async()=>{const m=await import('/discadmin/ticketing-finance.js');await m.mount(document.querySelector('#panel'));});

@@ -125,9 +125,11 @@ export function mount(target) {
   let recoveryRequired=!!storedIntent||!storageAvailable;
   const renderManualReceipt=(data,recovered)=>{
     manualSubmitted=true;manualSubmit.disabled=true;
-    const issued=data.issuance==='issued';
+    let delivery='emisión de QR en cola, entrega por correo no verificada.';
+    if(data.issuance==='issued')delivery='QR emitido, entrega por correo no verificada.';
+    else if(recovered)delivery='emisión de QR pendiente, entrega por correo no verificada.';
     manualStatus.textContent='Pedido #'+data.order_id+(recovered?' recuperado.':' creado.')
-      +' Pago offline confirmado; '+(issued?'QR emitido, entrega por correo no verificada.':recovered?'emisión de QR pendiente, entrega por correo no verificada.':'emisión de QR en cola, correo aún no enviado.');
+      +' Pago offline confirmado; '+delivery;
     manualReceipt.replaceChildren(el('p','Pedido #'+data.order_id+' · '
       +data.amount_cop+' COP · '+data.method+'. Consulta Pedidos para verificar el estado.'));
     const navigate=el('button','Ver en Pedidos','tk-button');navigate.type='button';
