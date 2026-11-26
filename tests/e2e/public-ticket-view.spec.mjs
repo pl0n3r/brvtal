@@ -95,7 +95,7 @@ for (const [label, size] of [['390', { width: 390, height: 844 }], ['1440', { wi
       document.getElementById('ticket-print').click();
     });
     await expect(browserPage.locator('#ticket-error')).toBeVisible();
-    await expect(button).toBeDisabled();
+    await expect(browserPage.locator('#ticket-print')).toBeDisabled();
     await expect(browserPage.locator('#ticket-ref')).toHaveText('');
     expect(await browserPage.evaluate(() => window.__printCalls)).toBe(2);
     for (const request of requests) expect(request).not.toContain(token);
