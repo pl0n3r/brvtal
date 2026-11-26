@@ -19,3 +19,15 @@ Fallas de Docker, TLS, rutas, pruebas PHP, logs o falta del recibo producen exit
 ## Reutilización
 
 El issue #2014 deberá ejecutar su propio camino autenticado checkout→webhook firmado→BD→emisión/cuenta sobre PHP/MariaDB descartables, usando este mismo proveedor solo como frontera externa. Su evidencia y permisos son independientes; un CI verde aquí **no prueba** pagos, despliegue ni HEALTH de producción.
+
+### Registro dinámico privado (#2160)
+
+Para el caso variable, el harness de #2014 debe obtener la referencia auténtica de la respuesta de checkout **antes** de construir la notificación y su firma. Publicar de forma atómica (archivo temporal privado 0600 y rename) en el directorio descartable del contenedor: /fixture/dynamic-record.json. El servidor solo acepta GET autenticado de /v1/transactions/tx-dynamic, con un objeto JSON de hasta 1024 bytes y exactamente estas cinco claves:
+
+- id: tx-dynamic (identidad sintética reservada).
+- reference: BW7-<orden positiva>-<CARD|NEQUI|PSE>-<24 hex minúsculas>.
+- currency: COP.
+- amount_in_cents: entero positivo seguro de JSON/JavaScript.
+- status: PENDING, APPROVED, DECLINED, VOIDED o ERROR.
+
+El archivo debe ser regular, con permisos 0600 y no un enlace simbólico. Ausencia, esquema incorrecto, ID no coincidente o archivo inválido dan 404; credencial errónea da 401. No hay API de escritura ni derivación del webhook, y los registros estáticos siguen disponibles. El runner actual genera una referencia variable sintética, verifica por HTTPS los cinco campos mediante PHP real, rechaza dos notificaciones contradictorias antes de BD y verifica que un POST no cambia el registro. Ejecuta también negativos de archivo, esquema, identidad, autenticación, TLS, hostname y egress. El recibo T31_PROVIDER_DYNAMIC_RECORD_PASS se emite solo después de todas las aserciones y controles de audit, antes del recibo obligatorio anterior. #2014 sigue siendo responsable del checkout y la persistencia reales en el stack aislado; no se acredita T31 completo ni producción.

@@ -1,6 +1,6 @@
 import https from 'node:https';
 import http from 'node:http';
-import { appendFileSync, readFileSync } from 'node:fs';
+import { appendFileSync, readFileSync, openSync, closeSync, fstatSync, readSync, constants } from 'node:fs';
 
 const root = '/fixture';
 const tls = {
@@ -12,6 +12,39 @@ const record = Object.freeze({
   id: 'tx-valid', reference: ref, status: 'APPROVED',
   currency: 'COP', amount_in_cents: 12300,
 });
+// Only the harness can publish this optional record; no provider write route.
+function dynamicRecord() {
+  let fd;
+  try {
+    fd = openSync(root + '/dynamic-record.json',
+      constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+    const stat = fstatSync(fd);
+    if (!stat.isFile() || (stat.mode & 0o777) !== 0o600 || stat.size < 1 || stat.size > 1024) {
+      return null;
+    }
+    const buffer = Buffer.alloc(1025);
+    const size = readSync(fd, buffer, 0, buffer.length, 0);
+    if (size !== stat.size || size > 1024) return null;
+    const value = JSON.parse(buffer.subarray(0, size).toString('utf8'));
+    if (!value || typeof value !== 'object' || Array.isArray(value) ||
+        Object.keys(value).sort().join(',') !== 'amount_in_cents,currency,id,reference,status' ||
+        value.id !== 'tx-dynamic' ||
+        typeof value.reference !== 'string' ||
+        !/^BW7-[1-9][0-9]*-(?:CARD|NEQUI|PSE)-[a-f0-9]{24}(?![\s\S])/.test(value.reference) ||
+        value.currency !== 'COP' ||
+        !Number.isSafeInteger(value.amount_in_cents) || value.amount_in_cents <= 0 ||
+        !['PENDING', 'APPROVED', 'DECLINED', 'VOIDED', 'ERROR'].includes(value.status)) {
+      return null;
+    }
+    return value;
+  } catch {
+    // Do not expose record content or filesystem details in HTTP/audit.
+    return null;
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
+}
+
 const writeAudit = (method, id, status) => appendFileSync(
   `${root}/audit.jsonl`, `${JSON.stringify({ method, id, status })}\n`,
 );
@@ -33,6 +66,12 @@ https.createServer(tls, (request, response) => {
     return reply(response, 401, '{"error":"unauthorized"}');
   }
   switch (id) {
+    case 'tx-dynamic': {
+      const value = dynamicRecord();
+      const status = value === null ? 404 : 200;
+      writeAudit(request.method, id, status);
+      return reply(response, status, value === null ? '{"error":"not-found"}' : JSON.stringify({ data: value }));
+    }
     case 'tx-valid':
       writeAudit(request.method, id, 200);
       return reply(response, 200, JSON.stringify({ data: record }));
