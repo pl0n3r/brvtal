@@ -56,7 +56,7 @@ root=(mariadb --no-defaults --socket=/tmp/t31.sock -uroot)
 sed -e "s/CREATE DATABASE IF NOT EXISTS brvtal /CREATE DATABASE IF NOT EXISTS $DB_NAME /" \
     -e "s/^USE brvtal;/USE $DB_NAME;/" database/schema.sql | "${root[@]}"
 # Real additive migrations; parents before their dependent tables.
-for migration in content_core_01 seo_01 integration_secrets_01 ticketing_orders_01 buyer_auth_tokens_01 \
+for migration in content_core_01 releases_01 seo_01 integration_secrets_01 ticketing_orders_01 buyer_auth_tokens_01 \
   ticketing_reservations_01 ticketing_stages_01 ticketing_promos_01 ticketing_waitlist_01 \
   ticketing_entries_01 ticket_entry_secret_01 ticketing_webhook_01 ticketing_refund_events_01 \
   ticketing_mail_outbox_01 ticket_mail_html_01 mail_templates_01 ticketing_mail_history_01; do
@@ -111,17 +111,19 @@ PHP
 # Real cycle and real mail adapter, with only its outbound transport captured.
 cat > /fixture/worker.php <<'PHP'
 <?php
-require '/tmp/app/config/bootstrap.php';
-require '/tmp/app/ops/ticketing-mail-worker.php';
-require '/tmp/app/config/ticketing_mail_outbox.php';
-require '/tmp/app/config/ticketing_wompi_reconcile.php';
-require '/tmp/app/config/ticketing_issue_delivery.php';
+require_once '/tmp/app/config/bootstrap.php';
+require_once '/tmp/app/ops/ticketing-mail-worker.php';
+require_once '/tmp/app/config/ticketing_mail_outbox.php';
+require_once '/tmp/app/config/ticketing_wompi_reconcile.php';
+require_once '/tmp/app/config/ticketing_issue_delivery.php';
 $cycle=brvtal_ticket_mail_worker_cycle(
     static fn()=>['pdo'=>db(),'gate'=>brvtal_ticket_mail_worker_gate(brvtal_secret_value(...))],
     static fn($pdo)=>brvtal_wompi_reconcile_next($pdo),
     static fn($pdo)=>brvtal_ticket_issue_process_next($pdo,'https://brvtal.invalid'),
     static fn($pdo)=>brvtal_ticket_mail_deliver_one($pdo,static function($payload,$headers) {
-        $key=$headers['Idempotency-Key'];
+        $keys=array_values(array_filter($headers, static fn($line)=>str_starts_with($line,'Idempotency-Key: ')));
+        if (count($keys)!==1) throw new RuntimeException('FIXTURE_MAIL_HEADER');
+        $key=substr($keys[0],strlen('Idempotency-Key: '));
         file_put_contents('/fixture/mail.jsonl',json_encode(['key'=>$key,'payload'=>$payload],JSON_THROW_ON_ERROR)."\n",FILE_APPEND|LOCK_EX);
         return ['status'=>200,'body'=>json_encode(['id'=>'fixture-'.hash('sha256',$key)])];
     })
@@ -133,4 +135,5 @@ php -d curl.cainfo=/fixture/ca.pem -d session.save_path=/tmp/sessions -S 127.0.0
 php_pid=$!
 node tests/e2e/wompi-provider-fixture.mjs >/fixture/provider.log 2>&1 &
 provider_pid=$!
-node tests/e2e/ticketing-checkout-real-stack.spec.mjs
+node --test tests/e2e/ticketing-checkout-real-stack.spec.mjs
+echo 'T31_CHECKOUT_STACK_PASS: HTTP checkout, signed payment, MariaDB, worker, mail, account and negative cases'

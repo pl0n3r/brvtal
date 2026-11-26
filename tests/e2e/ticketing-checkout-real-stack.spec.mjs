@@ -1,4 +1,6 @@
 // Executed by the mandatory real-stack shell, not by the intercepted Playwright suite.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
 import https from 'node:https';
 import http from 'node:http';
 import { execFileSync } from 'node:child_process';
@@ -6,7 +8,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync, renameSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-const check = (condition, label) => { if (!condition) throw new Error(label); };
+const check = (condition, label) => assert.ok(Boolean(condition), label);
 const sha = value => createHash('sha256').update(value).digest('hex');
 const db = sql => execFileSync('mariadb', ['--no-defaults', '-h127.0.0.1', '-ufixture', '-pfixture',
   '--batch', '--skip-column-names', process.env.DB_NAME, '-e', sql], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
@@ -117,12 +119,15 @@ async function run() {
       receipt[0].payload.text.includes(qr.body.qr), 'one captured receipt contains same credential');
     check(db("SELECT COUNT(*) FROM ticket_mail_outbox WHERE template_key='payment_approved' AND state='accepted'") === '1', 'mail receipt persisted');
     check(readFileSync('/fixture/audit.jsonl', 'utf8').includes('"id":"tx-dynamic","status":200'), 'independent TLS lookup observed');
-    console.log('T31_CHECKOUT_STACK_PASS: HTTP checkout, signed payment, MariaDB, worker, mail, account and negative cases');
   } finally { proxy.close(); }
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   // Do not print assertion operands, raw responses, SQL errors, QR or cookies.
-  run().catch(error => { console.error('T31 stack failed:', error instanceof Error && !error.message.includes('\n') &&
-    /^[a-zA-Z0-9 ,:._-]{1,120}$/.test(error.message) ? error.message : 'fixture operation failed'); process.exitCode = 1; });
+  test('T31 real checkout, payment, issuance, mail and buyer isolation', async () => {
+    try { await run(); } catch (error) {
+      throw new Error(error instanceof Error && /^[a-zA-Z0-9 ,:._-]{1,120}$/.test(error.message)
+        ? error.message : 'fixture operation failed');
+    }
+  });
 }
