@@ -180,7 +180,7 @@ function brvtal_contact_consume_rate_limit(
                 continue;
             }
             $timestamps = array_values(array_filter(
-                array_map('intval', $timestamps),
+                array_map(intval(...), $timestamps),
                 static fn(int $timestamp): bool => $timestamp > $cutoff && $timestamp <= $now + 60
             ));
             if ($timestamps) $state[$bucketKey] = $timestamps;
