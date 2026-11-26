@@ -80,6 +80,37 @@ function brvtalRefundProrate(int $total, int $selected, int $gross): int {
     if ($quotient<1||$quotient>$total) throw new DomainException('AMOUNT_UNVERIFIED');
     return $quotient;
 }
+/**
+ * Guest refund scope under the current buyer row lock.
+ * The Event and Order are already locked by the caller; this is a current
+ * locking read rather than the REPEATABLE READ snapshot established by
+ * the preliminary order lookup. A newly blocked/downgraded buyer must fail
+ * closed even when that snapshot still contains the old status.
+ *
+ * The server-only guest grant is compared to the locked, owned order ID.
+ * No new order grant is minted here; unpaid orders cannot create new refunds
+ * (the caller's existing paid-status guard still enforces that).
+ */
+function brvtalRefundRequestScope(PDO $db, int $buyerId, int $orderId): ?int
+{
+    if (!$db->inTransaction() || $buyerId < 1 || $orderId < 1) {
+        throw new DomainException('TICKET_UNAVAILABLE');
+    }
+    $stmt = $db->prepare('SELECT status,email_verified_at FROM ticket_buyers WHERE id=? FOR UPDATE');
+    $stmt->execute([$buyerId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($row)) throw new DomainException('TICKET_UNAVAILABLE');
+    if ($row['status'] === 'active' && $row['email_verified_at'] !== null) return null;
+    if ($row['status'] !== 'guest' || $row['email_verified_at'] !== null
+        || (int)($_SESSION['buyer_id'] ?? 0) !== $buyerId) {
+        throw new DomainException('TICKET_UNAVAILABLE');
+    }
+    $grant = (int)($_SESSION['buyer_checkout_new_order'] ?? 0);
+    if ($grant < 1) throw new DomainException('TICKET_UNAVAILABLE');
+    if ($grant !== $orderId) throw new DomainException('ORDER_NOT_REFUNDABLE');
+    return $grant;
+}
+
 /** Buyer identity is always session-derived; input supplies only opaque IDs. */
 function brvtalRefundRequest(PDO $db,int $buyer,array $input):array {
     brvtalRefundGuard($db);
@@ -115,10 +146,9 @@ function brvtalRefundRequest(PDO $db,int $buyer,array $input):array {
         if (!$order||$order['currency']!=='COP') {
             throw new DomainException('ORDER_NOT_REFUNDABLE');
         }
-        // Recheck the server-issued checkout grant *inside* the transaction,
-        // after Event and Order locks and before replay/audit/claim writes.
-        // Do not let an authenticated guest act on a second paid order.
-        $scope=brvtalBuyerAccountCheckoutScope($db,$buyer);
+        // Recheck the server-issued grant and current buyer status under
+        // a locking read, after Event and Order locks, before replay/audit.
+        $scope=brvtalRefundRequestScope($db,$buyer,(int)$order['id']);
         if ($scope!==null && $scope!==(int)$order['id']) {
             throw new DomainException('ORDER_NOT_REFUNDABLE');
         }
