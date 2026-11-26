@@ -234,6 +234,48 @@ $guestSession = $db->prepare('SELECT issued_epoch FROM ticket_buyer_sessions
 $guestSession->execute([$guestId, hash('sha256', session_id())]);
 guestAssert((int)$guestSession->fetchColumn() === $guestEpoch,
     'guest session persists its own epoch without password proof');
+// #2113: a second order of the same guest is not within the paid grant.
+$paidOrder = (int)$result['order_id'];
+$db->exec("INSERT INTO ticket_orders(event_id,buyer_id,status,public_id,checkout_key_hash,currency,total_cop)
+    VALUES (1,$guestId,'pending',RANDOM_BYTES(16),SHA2('scope-other-guest-order',256),'COP',30000)");
+$otherGuestOrder = (int)$db->lastInsertId();
+$otherGuestToken = brvtal_public_ticket_checkout_order_token($db, $otherGuestOrder);
+$probe = new class("mysql:host=$host;port=$port;dbname=$name;charset=utf8mb4", $user, $pass, $opt) extends PDO {
+    public int $providerQueries = 0;
+
+    public function prepare(string $query, array $options = []): PDOStatement|false
+    {
+        if (str_contains($query, 'ticket_payment_attempts')) {
+            ++$this->providerQueries;
+        }
+        return parent::prepare($query, $options);
+    }
+};
+guestAssert(brvtal_public_ticket_checkout_state($probe, 1, $guestId, $paidOrder) === 'approved',
+    'guest can query only its own paid grant by number');
+foreach ([$otherGuestOrder, $existingOrder, 999999] as $deniedOrder) {
+    guestAssert(brvtal_public_ticket_checkout_state($probe, 1, $guestId, $deniedOrder) === 'unverified',
+        'outside grant and unknown order are indistinguishable');
+}
+guestAssert(brvtal_public_ticket_checkout_state($probe, 1, $memberId, $existingOrder) === 'unverified',
+    'buyer parameter cannot substitute another authenticated session');
+guestAssert($probe->providerQueries === 0, 'no reconciliation lookup outside guest scope');
+$guestState = $_SESSION;
+unset($_SESSION['buyer_checkout_new_order']);
+guestAssert(brvtal_public_ticket_checkout_state($probe, 1, $guestId, $paidOrder) === 'unverified',
+    'guest without server-issued scope cannot query order');
+$_SESSION = $guestState;
+guestAssert(brvtal_public_ticket_checkout_state_by_token($probe, 1, $otherGuestToken) === 'pending',
+    'opaque token remains a separate confirmation capability');
+guestAssert($probe->providerQueries === 1, 'authorized pending token reaches reconciliation lookup');
+$db->exec("UPDATE ticket_buyers SET email_verified_at=UTC_TIMESTAMP(6) WHERE id=$memberId");
+$_SESSION = ['buyer_id'=>$memberId];
+guestAssert(brvtal_public_ticket_checkout_state($probe, 1, $memberId, $existingOrder) === 'approved',
+    'verified account retains access to its own order');
+guestAssert(brvtal_public_ticket_checkout_state($probe, 1, $memberId, $paidOrder) === 'unverified',
+    'verified account cannot see other buyers');
+$_SESSION = $guestState;
+
 unset($_SESSION['buyer_checkout_orders']);
 
 echo "BRVTAL #1943 guest checkout: input, same-origin, guest buyer, reuse, blocked, order and token status passed.\n";

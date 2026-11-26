@@ -31,6 +31,16 @@ t21Reject(static fn()=>brvtalRefundProrate(100,101,100),'AMOUNT_UNVERIFIED');
 t21Reject(static fn()=>brvtalRefundProrate(100,1,0),'AMOUNT_UNVERIFIED');
 t21Reject(static fn()=>brvtalRefundProrate(100,1,1000),'AMOUNT_UNVERIFIED');
 
+// #2087: net allocations are exact, integer-only and stable across partitions.
+t21(brvtalRefundAllocation(10000,[4000,4000,4000])===[3333,3333,3334],
+    'coupon residual assigned by stable ID, not request order');
+t21(brvtalRefundAllocation(10000,[2000,3000,7000])===[1666,2500,5834],
+    'unequal prices and coupon');
+t21(brvtalRefundAllocation(999999999999,[333333333333,333333333333,333333333334])
+    ===[333333333332,333333333333,333333333334],'allocation does not overflow');
+t21Reject(static fn()=>brvtalRefundAllocation(1,[1,1,1]),'AMOUNT_UNVERIFIED');
+t21Reject(static fn()=>brvtalRefundAllocation(10,[1000000000000,1]),'AMOUNT_UNVERIFIED');
+
 // Both list surfaces must fail closed on non-synthetic databases, including GET.
 $refundCode=(string)file_get_contents(__DIR__.'/../../config/ticketing_refunds.php');
 $adminCode=(string)file_get_contents(__DIR__.'/../../api/ticketing/admin-refunds.php');
@@ -517,6 +527,101 @@ try {
     ])),'ORDER_NOT_REFUNDABLE');
     t21((int)$pdo->query('SELECT COUNT(*) FROM ticket_refund_audit')->fetchColumn()
         ===$auditBefore+1,'no new refund audit after fully refunded order');
+
+    // #2087: every partition of three entries, both directions, mixed prices,
+    // legacy evidence and zero-COP rejection, exclusively in this disposable DB.
+    $pdo->exec("UPDATE ticket_buyers SET status='active',email_verified_at=UTC_TIMESTAMP(6) WHERE id=3");
+    $_SESSION=[];
+    $newOrder=static function(int $orderId,int $total,array $prices) use ($pdo):array {
+        $ref=sprintf('%032x',$orderId);
+        $pdo->prepare("INSERT INTO ticket_orders VALUES (?,UNHEX(?),3,1,?,'paid','COP',UTC_TIMESTAMP(6))")
+            ->execute([$orderId,$ref,$total]);
+        $refs=[];
+        foreach ($prices as $i=>$price) {
+            $entry=$orderId*10+$i; $entryRef=sprintf('%032x',$entry);
+            $pdo->prepare('INSERT INTO ticket_order_items VALUES (?,?,?)')->execute([$entry,$orderId,$price]);
+            $pdo->prepare("INSERT INTO ticket_entries(id,public_id,order_item_id,status)
+                VALUES (?,UNHEX(?),?,'issued')")->execute([$entry,$entryRef,$entry]);
+            $refs[]=$entryRef;
+        }
+        return [$ref,$refs];
+    };
+    $partitions=[[[0,1,2]],[[0],[1,2]],[[1],[0,2]],[[2],[0,1]],[[0],[1],[2]]];
+    $orderId=1000;
+    foreach ([[10000,[4000,4000,4000],[3333,3333,3334]],
+              [10000,[2000,3000,7000],[1666,2500,5834]],
+              [999999999999,[333333333333,333333333333,333333333334],
+                [333333333332,333333333333,333333333334]]] as [$total,$prices,$expected]) {
+        foreach ($partitions as $partition) foreach ([false,true] as $reverse) {
+            $orderId++; [$orderRef,$refs]=$newOrder($orderId,$total,$prices);
+            $groups=$reverse?array_reverse($partition):$partition;
+            $sum=0;
+            foreach ($groups as $i=>$group) {
+                $selected=array_map(static fn($index)=>$refs[$index],$reverse?array_reverse($group):$group);
+                $input=['order_id'=>$orderRef,'entry_ids'=>$selected,'reason'=>'Reparto sintético exacto',
+                    'idempotency_key'=>'t21-exact-'.$orderId.'-'.$i];
+                $refund=brvtalRefundRequest($pdo,3,$input);
+                $expectedAmount=array_sum(array_map(static fn($index)=>$expected[$index],$group));
+                t21($refund['amount_cop']===$expectedAmount,'partial amount invariant across partitions');
+                $line=$pdo->prepare('SELECT entry_id,amount_cop FROM ticket_refund_entries WHERE refund_id=?');
+                $line->execute([$refund['id']]);
+                $rows=$line->fetchAll(PDO::FETCH_KEY_PAIR);
+                t21(count($rows)===count($group),'one net row per claimed entry');
+                foreach ($group as $index) t21((int)$rows[$orderId*10+$index]===$expected[$index],
+                    'persisted net COP, not gross');
+                $sum+=$refund['amount_cop'];
+                t21($sum<=$total,'no over-refund');
+                $replay=brvtalRefundRequest($pdo,3,array_replace($input,['entry_ids'=>array_reverse($selected)]));
+                t21($replay['replayed']&&(int)$replay['id']===(int)$refund['id'],'same-key replay');
+                t21Reject(static fn()=>brvtalRefundRequest($pdo,3,array_replace($input,[
+                    'idempotency_key'=>'t21-duplicate-'.$orderId.'-'.$i])),'ENTRY_NOT_REFUNDABLE');
+            }
+            t21($sum===$total,'all disjoint claims reconcile paid total exactly');
+        }
+    }
+    [$legacyRef,$legacyEntries]=$newOrder(++$orderId,10000,[4000,4000,4000]);
+    $legacyInput=['order_id'=>$legacyRef,'entry_ids'=>[$legacyEntries[0]],'reason'=>'Legado sintético',
+        'idempotency_key'=>'t21-legacy-existing'];
+    $old=brvtalRefundRequest($pdo,3,$legacyInput);
+    // Model the old persisted gross entry amount, without rewriting during requests.
+    $pdo->prepare('UPDATE ticket_refund_entries SET amount_cop=4000 WHERE refund_id=?')->execute([$old['id']]);
+    $before=$pdo->query('SELECT COUNT(*) FROM ticket_refunds')->fetchColumn();
+    t21(brvtalRefundRequest($pdo,3,$legacyInput)['replayed'],'legacy replay is unchanged');
+    t21Reject(static fn()=>brvtalRefundRequest($pdo,3,array_replace($legacyInput,[
+        'entry_ids'=>[$legacyEntries[1]],'idempotency_key'=>'t21-legacy-new-claim'])),'AMOUNT_UNVERIFIED');
+    t21($pdo->query('SELECT COUNT(*) FROM ticket_refunds')->fetchColumn()===$before,'legacy mismatch creates no claim');
+    t21((int)$pdo->query('SELECT amount_cop FROM ticket_refund_entries WHERE refund_id='.(int)$old['id'])->fetchColumn()
+        ===4000,'legacy line remains immutable');
+    // Legacy header and finalized adjustment discrepancies are independent gates.
+    [$auditRef,$auditEntries]=$newOrder(++$orderId,10000,[4000,4000,4000]);
+    $auditOrder=$orderId;
+    $auditInput=['order_id'=>$auditRef,'entry_ids'=>[$auditEntries[0]],'reason'=>'Conciliación sintética',
+        'idempotency_key'=>'t21-audit-existing'];
+    $record=brvtalRefundRequest($pdo,3,$auditInput);
+    $recordId=(int)$record['id'];
+    $nextInput=array_replace($auditInput,['entry_ids'=>[$auditEntries[1]],
+        'idempotency_key'=>'t21-audit-next-claim']);
+    $pdo->prepare('UPDATE ticket_refunds SET amount_cop=3332 WHERE id=?')->execute([$recordId]);
+    t21Reject(static fn()=>brvtalRefundRequest($pdo,3,$nextInput),'AMOUNT_UNVERIFIED');
+    t21((int)$pdo->query('SELECT amount_cop FROM ticket_refunds WHERE id='.$recordId)->fetchColumn()
+        ===3332,'legacy header remains immutable');
+    // Restore only this synthetic fixture, then model an already recorded receipt.
+    $pdo->prepare("UPDATE ticket_refunds SET amount_cop=3333,status='refunded' WHERE id=?")->execute([$recordId]);
+    $pdo->prepare("UPDATE ticket_entries SET status='refunded' WHERE id=?")->execute([$auditOrder*10]);
+    $pdo->prepare('INSERT INTO ticket_refund_adjustments(refund_id,order_id,event_id,amount_cop)
+        VALUES (?,?,1,3332)')->execute([$recordId,$auditOrder]);
+    t21Reject(static fn()=>brvtalRefundRequest($pdo,3,$nextInput),'AMOUNT_UNVERIFIED');
+    t21((int)$pdo->query('SELECT amount_cop FROM ticket_refund_adjustments WHERE refund_id='.$recordId)->fetchColumn()
+        ===3332,'historic adjustment remains immutable');
+    $pdo->prepare('UPDATE ticket_refund_adjustments SET amount_cop=3333 WHERE refund_id=?')->execute([$recordId]);
+    t21(brvtalRefundRequest($pdo,3,$nextInput)['amount_cop']===3333,'consistent finalized net claim permits disjoint request');
+    $before=$pdo->query('SELECT COUNT(*) FROM ticket_refunds')->fetchColumn();
+
+    [$zeroRef,$zeroEntries]=$newOrder(++$orderId,1,[1,1,1]);
+    t21Reject(static fn()=>brvtalRefundRequest($pdo,3,[
+        'order_id'=>$zeroRef,'entry_ids'=>[$zeroEntries[2]],'reason'=>'Cero sintético',
+        'idempotency_key'=>'t21-zero-net-claim']),'AMOUNT_UNVERIFIED');
+    t21($pdo->query('SELECT COUNT(*) FROM ticket_refunds')->fetchColumn()===$before,'zero allocation creates no claim');
 
     putenv('BRVTAL_TICKET_MAIL_TESTING=0');
     putenv('BRVTAL_INTEGRATION_TESTS=0');

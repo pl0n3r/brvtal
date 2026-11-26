@@ -66,19 +66,106 @@ function brvtalRefundAudit(PDO $db,int $id,string $kind,?int $actor,?string $bef
         VALUES(?,?,?,?,?)')->execute([$id,$kind,$actor,$before,$after]);
 }
 /** Exact floor(total × selected / gross) without overflowing 64-bit PHP integers. */
-function brvtalRefundProrate(int $total, int $selected, int $gross): int {
-    $limit=1000000000000;
-    if ($total<1||$total>$limit||$gross<1||$gross>$limit
-        ||$selected<1||$selected>$gross) throw new DomainException('AMOUNT_UNVERIFIED');
-    // Binary long division: partial remainder < gross, so each step < 3 × limit.
-    $quotient=0; $remainder=0;
-    foreach (str_split(decbin($selected)) as $bit) {
-        $partial=2*$remainder+($bit==='1'?$total:0);
-        $quotient=2*$quotient+intdiv($partial,$gross);
-        $remainder=$partial%$gross;
+function brvtalRefundFloor(int $total, int $selected, int $gross): int
+{
+    $limit = 1000000000000;
+    if ($total < 1 || $total > $limit || $gross < 1 || $gross > $limit
+        || $selected < 1 || $selected > $gross) {
+        throw new DomainException('AMOUNT_UNVERIFIED');
     }
-    if ($quotient<1||$quotient>$total) throw new DomainException('AMOUNT_UNVERIFIED');
+    // Binary long division: partial remainder < gross, so each step < 3 × limit.
+    $quotient = 0;
+    $remainder = 0;
+    foreach (str_split(decbin($selected)) as $bit) {
+        $partial = 2 * $remainder + ($bit === '1' ? $total : 0);
+        $quotient = 2 * $quotient + intdiv($partial, $gross);
+        $remainder = $partial % $gross;
+    }
+    if ($quotient > $total) {
+        throw new DomainException('AMOUNT_UNVERIFIED');
+    }
     return $quotient;
+}
+function brvtalRefundProrate(int $total, int $selected, int $gross): int
+{
+    $amount = brvtalRefundFloor($total, $selected, $gross);
+    if ($amount < 1) {
+        throw new DomainException('AMOUNT_UNVERIFIED');
+    }
+    return $amount;
+}
+
+/** Net COP per entry in stable database ID order; differences telescope to total. */
+function brvtalRefundAllocation(int $total, array $prices): array
+{
+    $gross = 0;
+    foreach ($prices as $unit) {
+        if (!is_int($unit) || $unit < 1 || $unit > 1000000000000 - $gross) {
+            throw new DomainException('AMOUNT_UNVERIFIED');
+        }
+        $gross += $unit;
+    }
+    if (!$prices || $total < 1 || $total > 1000000000000) {
+        throw new DomainException('AMOUNT_UNVERIFIED');
+    }
+    $prefix = 0;
+    $previous = 0;
+    $net = [];
+    foreach ($prices as $entry => $unit) {
+        $prefix += $unit;
+        $next = brvtalRefundFloor($total, $prefix, $gross);
+        $amount = $next - $previous;
+        // No automatic zero-COP claims until an explicit policy exists.
+        if ($amount < 1) {
+            throw new DomainException('AMOUNT_UNVERIFIED');
+        }
+        $net[$entry] = $amount;
+        $previous = $next;
+    }
+    return $net;
+}
+
+/**
+ * Order mutex held by caller. Historical gross lines/residuals are not rewritten:
+ * refuse new requests unless every prior claim and receipt agrees with net COP.
+ * Equal gross/net legacy values are compatible; they need no data migration.
+ */
+function brvtalRefundVerifiedClaims(PDO $db, int $orderId, array $net): array
+{
+    $q = $db->prepare('SELECT r.id,r.amount_cop AS total,r.status,x.entry_id,
+        x.amount_cop AS line_amount,a.amount_cop AS adjustment,a.order_id AS adjustment_order,
+        a.event_id AS adjustment_event,r.event_id
+        FROM ticket_refunds r
+        LEFT JOIN ticket_refund_entries x ON x.refund_id=r.id
+        LEFT JOIN ticket_refund_adjustments a ON a.refund_id=r.id
+        WHERE r.order_id=? ORDER BY r.id,x.entry_id FOR UPDATE');
+    $q->execute([$orderId]);
+    $sums = [];
+    $totals = [];
+    $claimed = [];
+    foreach ($q->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $entry = (int)$row['entry_id'];
+        $id = (int)$row['id'];
+        $total = (int)$row['total'];
+        if (!isset($net[$entry]) || isset($claimed[$entry]) || (int)$row['line_amount'] !== $net[$entry]
+            || $total < 1 || $total > 1000000000000
+            || ($row['status'] === 'refunded'
+                ? ($row['adjustment'] === null || (int)$row['adjustment'] !== $total
+                    || (int)$row['adjustment_order'] !== $orderId
+                    || (int)$row['adjustment_event'] !== (int)$row['event_id'])
+                : $row['adjustment'] !== null)) {
+            throw new DomainException('AMOUNT_UNVERIFIED');
+        }
+        $claimed[$entry] = true;
+        $sums[$id] = ($sums[$id] ?? 0) + $net[$entry];
+        $totals[$id] = $total;
+    }
+    foreach ($sums as $id => $sum) {
+        if ($sum !== $totals[$id]) {
+            throw new DomainException('AMOUNT_UNVERIFIED');
+        }
+    }
+    return $claimed;
 }
 /**
  * Guest refund scope under the current buyer row lock.
@@ -165,31 +252,41 @@ function brvtalRefundRequest(PDO $db,int $buyer,array $input):array {
             WHERE i.order_id=? ORDER BY e.id FOR UPDATE');
         $q->execute([(int)$order['id']]); $all=$q->fetchAll(PDO::FETCH_ASSOC);
         if (!$all) throw new DomainException('ORDER_NOT_REFUNDABLE');
-        $chosen=[]; $gross=0; $selected=0;
+        $chosen = [];
+        $prices = [];
         foreach ($all as $row) {
-            $unit=(int)$row['unit_price_cop'];
-            if ($unit<1||$unit>1000000000000||$gross>1000000000000-$unit) {
-                throw new DomainException('AMOUNT_UNVERIFIED');
-            }
-            $gross+=$unit;
-            if (!$ids||in_array($row['ref'],$ids,true)) {
-                if ($row['status']!=='issued') throw new DomainException('ENTRY_NOT_REFUNDABLE');
-                if ($selected>1000000000000-$unit) throw new DomainException('AMOUNT_UNVERIFIED');
-                $chosen[]=$row; $selected+=$unit;
+            $entry = (int)$row['id'];
+            $prices[$entry] = (int)$row['unit_price_cop'];
+            if (!$ids || in_array($row['ref'], $ids, true)) {
+                if ($row['status'] !== 'issued') {
+                    throw new DomainException('ENTRY_NOT_REFUNDABLE');
+                }
+                $chosen[] = $entry;
             }
         }
-        if ($ids&&count($chosen)!==count($ids)) throw new DomainException('ENTRY_NOT_REFUNDABLE');
-        $total=(int)$order['total_cop'];
-        if (!$chosen||$gross<1||$total<1||$total>1000000000000||$gross>1000000000000) {
+        if (!$chosen || ($ids && count($chosen) !== count($ids))) {
+            throw new DomainException('ENTRY_NOT_REFUNDABLE');
+        }
+        $total = (int)$order['total_cop'];
+        $net = brvtalRefundAllocation($total, $prices);
+        $claimed = brvtalRefundVerifiedClaims($db, (int)$order['id'], $net);
+        $amount = 0;
+        foreach ($chosen as $entry) {
+            if (isset($claimed[$entry])) {
+                throw new DomainException('ENTRY_NOT_REFUNDABLE');
+            }
+            $amount += $net[$entry];
+        }
+        if ($amount < 1 || $amount > $total) {
             throw new DomainException('AMOUNT_UNVERIFIED');
         }
-        $amount=count($chosen)===count($all)?$total:brvtalRefundProrate($total,$selected,$gross);
-        if ($amount<1||$amount>$total) throw new DomainException('AMOUNT_UNVERIFIED');
         $db->prepare('INSERT INTO ticket_refunds(order_id,buyer_id,event_id,request_hash,selection_hash,reason,amount_cop)
             VALUES(?,?,?,?,?,?,?)')->execute([(int)$order['id'],$buyer,(int)$order['event_id'],$request,$selection,$reason,$amount]);
         $id=(int)$db->lastInsertId();
         $insert=$db->prepare('INSERT INTO ticket_refund_entries(refund_id,entry_id,amount_cop) VALUES(?,?,?)');
-        foreach ($chosen as $row) $insert->execute([$id,(int)$row['id'],(int)$row['unit_price_cop']]);
+        foreach ($chosen as $entry) {
+            $insert->execute([$id, $entry, $net[$entry]]);
+        }
         brvtalRefundAudit($db,$id,'buyer',$buyer,null,'requested');
         $db->commit(); return ['id'=>$id,'status'=>'requested','amount_cop'=>$amount,'replayed'=>false];
     } catch (Throwable $e) { if ($db->inTransaction()) $db->rollBack(); throw $e; }
