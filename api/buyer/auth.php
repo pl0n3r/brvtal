@@ -103,7 +103,7 @@ if ($action === 'verify' || $action === 'confirm-reset') {
         $token = is_string($body['token'] ?? null) ? $body['token'] : '';
         brvtalBuyerAuthConsume($pdo, $token,
             $action === 'verify' ? 'verify_email' : 'reset_password',
-            $action === 'confirm-reset' ? ($body['password'] ?? null) : null);
+            $body['password'] ?? null);
         json_response(['ok' => true]);
     } catch (DomainException) {
         json_response(['ok' => false, 'error' => 'TOKEN_INVALID'], 422);
