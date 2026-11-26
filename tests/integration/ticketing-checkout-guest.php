@@ -93,7 +93,8 @@ foreach ([
         ticket_type_id INT UNSIGNED,quantity INT,kind VARCHAR(20),status VARCHAR(20),expires_at_utc DATETIME(6),
         UNIQUE KEY uq_hold(order_id,ticket_type_id))",
     "CREATE TABLE ticket_payment_attempts (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,order_id BIGINT UNSIGNED,provider VARCHAR(24),
-        provider_reference VARCHAR(190),idempotency_key_hash CHAR(64),gross_amount_cop BIGINT UNSIGNED,status VARCHAR(20))",
+        provider_reference VARCHAR(190),idempotency_key_hash CHAR(64),gross_amount_cop BIGINT UNSIGNED,status VARCHAR(20),
+        updated_at_utc DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6))",
 ] as $ddl) $db->exec($ddl);
 foreach (['BRVTAL_TICKET_WOMPI_MODE=mock','BRVTAL_TICKET_WOMPI_TESTING=1','BRVTAL_TICKET_WOMPI_PUBLIC_KEY=pub_test_guest_fixture',
     'BRVTAL_TICKET_WOMPI_PRIVATE_KEY=prv_test_guest_fixture','BRVTAL_TICKET_WOMPI_INTEGRITY_SECRET=test_integrity_guest_fixture',
@@ -143,6 +144,14 @@ guestAssert(brvtal_public_ticket_checkout_state_by_token($db, 1, "' OR 1=1 --") 
 
 // BRVTAL #1988: grants are browser-session capabilities, not order-URL auth.
 // Only paid purchases in the original cookie may be upgraded in phase B.
+$httpDirectory = sys_get_temp_dir() . '/brvtal-2113-' . bin2hex(random_bytes(8));
+guestAssert(mkdir($httpDirectory, 0700), 'create isolated HTTP fixture directory');
+register_shutdown_function(static function () use ($httpDirectory): void {
+    if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
+    foreach (glob($httpDirectory . '/*') ?: [] as $file) unlink($file);
+    rmdir($httpDirectory);
+});
+session_save_path($httpDirectory);
 brvtalBuyerSessionStart();
 guestAssert(brvtalBuyerCheckoutPaidGrant($db, $token) === null,
     'bearer order URL alone cannot authorize the buyer');
@@ -276,6 +285,119 @@ guestAssert(brvtal_public_ticket_checkout_state($probe, 1, $memberId, $paidOrder
     'verified account cannot see other buyers');
 $_SESSION = $guestState;
 
-unset($_SESSION['buyer_checkout_orders']);
+// Exercise the actual checkout HTTP handler, session epoch revalidation and
+// JSON response over loopback, not a simulated HTTP response or live provider.
+$guestCookie = session_id();
+session_write_close();
+session_id('');
+brvtalBuyerSessionStart();
+$memberEpoch = (int)$db->query("SELECT security_epoch FROM ticket_buyers WHERE id=$memberId")->fetchColumn();
+brvtalBuyerLoginSession($memberId, $db, null, $memberEpoch);
+$memberCookie = session_id();
+session_write_close();
+guestAssert($memberCookie !== $guestCookie, 'independent verified and guest cookies');
+
+$fixtureConfig = [
+    'app'=>['timezone'=>'UTC','debug'=>false],
+    'db'=>['host'=>$host,'port'=>$port,'name'=>$name,'user'=>$user,'pass'=>$pass,'charset'=>'utf8mb4'],
+];
+$configFile = $httpDirectory . '/config.php';
+guestAssert(file_put_contents($configFile, '<?php return ' . var_export($fixtureConfig, true) . ';') !== false,
+    'write isolated configuration');
+chmod($configFile, 0600);
+$source = dirname(__DIR__, 2);
+$router = $httpDirectory . '/router.php';
+$prefix = '<?php define("BRVTAL_SENTRY_TESTING", true); '
+    . '$GLOBALS["brvtalBootstrapConfigPath"] = ' . var_export($configFile, true) . '; '
+    . '$GLOBALS["brvtalSentryTestLogFile"] = ' . var_export($httpDirectory . '/fixture.log', true) . '; '
+    . 'require ' . var_export($source . '/config/bootstrap.php', true) . '; '
+    . 'require ' . var_export($source . '/config/public_ticket_checkout.php', true) . ';';
+$routerCode = <<<'PHP'
+if ($_SERVER['REQUEST_URI'] === '/ready') {
+    http_response_code(204);
+    exit;
+}
+// Loopback-only fixture models HTTPS termination; never trust a client header.
+$_SERVER['HTTPS'] = 'on';
+$settings = $GLOBALS['config']['db'];
+$probe = new class(sprintf('mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4',
+    $settings['host'], $settings['port'], $settings['name']), $settings['user'], $settings['pass'],
+    [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION, PDO::ATTR_EMULATE_PREPARES=>false]) extends PDO {
+    public function prepare(string $query, array $options = []): PDOStatement|false
+    {
+        if (str_contains($query, 'ticket_payment_attempts')) header('X-Fixture-Reconcile: yes');
+        return parent::prepare($query, $options);
+    }
+};
+brvtal_public_ticket_checkout_http($probe, 1);
+PHP;
+guestAssert(file_put_contents($router, $prefix . "\n" . $routerCode) !== false, 'write HTTP handler router');
+chmod($router, 0600);
+$socket = stream_socket_server('tcp://127.0.0.1:0', $errno, $errstr);
+guestAssert(is_resource($socket), 'allocate loopback port');
+$address = stream_socket_get_name($socket, false);
+fclose($socket);
+guestAssert(is_string($address), 'loopback address');
+$process = proc_open([PHP_BINARY, '-d', 'session.save_path=' . $httpDirectory,
+    '-d', 'allow_url_fopen=0',
+    '-d', 'disable_functions=curl_init,curl_exec,curl_multi_init,curl_multi_exec,fsockopen,pfsockopen,stream_socket_client',
+    '-S', $address, '-t', $httpDirectory, $router],
+    [0=>['pipe','r'],1=>['file','/dev/null','a'],2=>['file','/dev/null','a']], $pipes, $httpDirectory);
+guestAssert(is_resource($process), 'start isolated HTTP server');
+fclose($pipes[0]);
+try {
+    $url = 'http://' . $address;
+    $ready = false;
+    for ($attempt = 0; $attempt < 30; ++$attempt) {
+        $connection = @stream_socket_client('tcp://' . $address, $errno, $errstr, 0.2);
+        if (is_resource($connection)) {
+            fclose($connection);
+            $ready = true;
+            break;
+        }
+        usleep(100000);
+    }
+    guestAssert($ready, 'HTTP fixture ready');
+    $send = static function (array $query, ?string $cookie = null) use ($url): array {
+        $headers = ['Connection: close', 'X-BRVTAL-Ticket-Checkout: status'];
+        if ($cookie !== null) $headers[] = 'Cookie: BRVTAL_BUYER=' . $cookie;
+        $context = stream_context_create(['http'=>['method'=>'GET','ignore_errors'=>true,
+            'timeout'=>5,'header'=>implode("\r\n", $headers)]]);
+        $http_response_header = [];
+        $body = file_get_contents($url . '/?' . http_build_query($query), false, $context);
+        $received = $http_response_header;
+        preg_match('~^HTTP/\S+ ([0-9]{3})~', (string)($received[0] ?? ''), $status);
+        $normalized = array_map(strtolower(...), $received);
+        guestAssert(in_array('cache-control: private, no-store', $normalized, true)
+            && in_array('referrer-policy: no-referrer', $normalized, true), 'HTTP privacy headers');
+        guestAssert(is_string($body), 'HTTP JSON body');
+        return [(int)($status[1] ?? 0), json_decode($body, true, 512, JSON_THROW_ON_ERROR),
+            in_array('x-fixture-reconcile: yes', $normalized, true)];
+    };
+    $approved = [200, ['ok'=>true,'state'=>'approved'], false];
+    $denied = [200, ['ok'=>true,'state'=>'unverified'], false];
+    $signedOut = [401, ['ok'=>false,'error'=>'AUTH_REQUIRED'], false];
+    guestAssert($send(['order_id'=>$paidOrder], $guestCookie) === $approved, 'HTTP guest grant');
+    foreach ([$otherGuestOrder, $existingOrder, 999999] as $deniedOrder) {
+        guestAssert($send(['order_id'=>$deniedOrder], $guestCookie) === $denied,
+            'HTTP uniform denial before reconciliation');
+    }
+    guestAssert($send(['order_id'=>$existingOrder], $memberCookie) === $approved,
+        'HTTP verified buyer owns its order');
+    guestAssert($send(['order_id'=>$paidOrder], $memberCookie) === $denied, 'HTTP different buyer denied');
+    guestAssert($send(['order_id'=>$paidOrder]) === $signedOut, 'HTTP anonymous numeric request denied');
+    guestAssert($send(['order_token'=>$otherGuestToken]) === [200,['ok'=>true,'state'=>'pending'],true],
+        'HTTP opaque token remains independent and only authorized lookup reaches reconciliation');
+    $db->prepare('UPDATE ticket_buyer_sessions SET expires_at_utc=UTC_TIMESTAMP(6) - INTERVAL 1 SECOND
+        WHERE session_hash=?')->execute([hash('sha256', $guestCookie)]);
+    guestAssert($send(['order_id'=>$paidOrder], $guestCookie) === $signedOut, 'HTTP expired grant session denied');
+    guestAssert($send(['order_id'=>$otherGuestOrder], $guestCookie) === $signedOut,
+        'HTTP expired session never reconciles pending order');
+} finally {
+    proc_terminate($process);
+    proc_close($process);
+}
+
+echo "BRVTAL #2113 HTTP and MariaDB scope regression passed.\n";
 
 echo "BRVTAL #1943 guest checkout: input, same-origin, guest buyer, reuse, blocked, order and token status passed.\n";
