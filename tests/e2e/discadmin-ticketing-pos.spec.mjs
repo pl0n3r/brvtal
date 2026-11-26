@@ -41,7 +41,7 @@ const beforeHtml = '<!doctype html><html lang="es"><meta name="viewport" content
   +'</tr></tbody></table></body></html>';
 
 async function setup(page, handler, rows=[], openCash=true, catalogMode='api',
-    financeSource=finance) {
+    financeSource=finance,posSource=pos) {
   await page.route('**/discadmin/pos-test.html',route=>route.fulfill({
     contentType:'text/html',body:'<!doctype html><html lang="es"><meta name="viewport" content="width=device-width,initial-scale=1">'
       +'<body style="margin:0;background:#050505;color:#f4f5f6;font-family:system-ui">'
@@ -51,7 +51,7 @@ async function setup(page, handler, rows=[], openCash=true, catalogMode='api',
   await page.route('**/discadmin/ticketing-finance.js',route=>route.fulfill({
     contentType:'text/javascript',body:financeSource}));
   await page.route('**/discadmin/ticketing-pos.js',route=>route.fulfill({
-    contentType:'text/javascript',body:pos}));
+    contentType:'text/javascript',body:posSource}));
   await page.route('**/discadmin/ticketing-finance.php',route=>route.fulfill({
     contentType:'text/html',body:catalogMode==='embedded' ? fragment.replace(/<script type="application\/json" data-finance-catalog>[\s\S]*?<\/script>/,
       '<script type="application/json" data-finance-catalog>'+JSON.stringify(catalog)+'</script>') : fragment}));
@@ -363,5 +363,63 @@ for (const width of [390,1440]) {
           },null,2));
         }
       }
+  });
+}
+
+for (const width of [390,1440]) {
+  test('2124 pérdida de respuesta y recuperación sin venta repetida '+width,async({page},testInfo)=>{
+    await page.setViewportSize({width,height:900});
+    const calls=[];let committed=false,available=false,denied=false;
+    const handler=async route=>{
+      const request=route.request().postDataJSON();calls.push(request);
+      if(request.action==='manual_order'){committed=true;await route.abort('failed');return;}
+      expect(request.action).toBe('manual_intent');
+      if(denied){await route.fulfill({status:403,contentType:'application/json',body:'{"ok":false,"error":"FORBIDDEN"}'});return;}
+      if(!available){await route.fulfill({status:503,contentType:'application/json',body:'{"ok":false,"error":"POS_UNAVAILABLE"}'});return;}
+      expect(committed).toBeTruthy();
+      await route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:{
+        state:'found',order_id:123,amount_cop:50000,method:'cash',status:'paid',issuance:'issued'}})});
+    };
+    const beforeRef='3e31c526319b6cdc2cccdefdd2f13c83976c4c71';
+    try {execFileSync('git',['cat-file','-e',beforeRef+':discadmin/ticketing-pos.js']);}
+    catch {execFileSync('git',['fetch','--no-tags','--depth=1','origin',beforeRef],{timeout:60000});}
+    const beforeSource=execFileSync('git',['show',beforeRef+':discadmin/ticketing-pos.js'],{encoding:'utf8'});
+    const baseline=await page.context().newPage();
+    await baseline.setViewportSize({width,height:900});
+    await setup(baseline,handler,[],true,'api',finance,beforeSource);
+    await testInfo.attach('2124-before-'+width+'.png',{body:await baseline.screenshot({fullPage:true}),contentType:'image/png'});
+    await baseline.close();
+    await setup(page,handler);
+    const manual=page.locator('[data-pos-manual]');
+    const form=manual.locator('form');
+    await form.locator('[name="manual_event_id"]').selectOption('6');
+    await form.locator('[name="manual_ticket_type_id"]').selectOption('10');
+    await form.locator('[name="manual_buyer_name"]').fill('Comprador Ejemplo');
+    await form.locator('[name="manual_buyer_email"]').fill('manual@example.test');
+    await form.locator('[name="manual_confirm"]').check();
+    await form.getByRole('button',{name:'Revisar pedido manual'}).click();
+    await form.getByRole('button',{name:'Confirmar y crear pedido'}).click();
+    await expect(manual).toContainText('No se pudo verificar el recibo');
+    await expect(form.getByRole('button',{name:'Confirmar y crear pedido'})).toBeDisabled();
+    await testInfo.attach('2124-uncertain-'+width+'.png',{body:await page.screenshot({fullPage:true}),contentType:'image/png'});
+    const intent=calls[0].idempotency_key;
+    expect(await page.evaluate(()=>sessionStorage.getItem('brvtal.pos.manual.intent.v1'))).toBe(intent);
+    denied=true;
+    const lookup=manual.getByRole('button',{name:'Consultar recibo pendiente'});
+    await lookup.focus();await expect(lookup).toBeFocused();await page.keyboard.press('Enter');
+    await expect(manual).toContainText('Solo el propietario puede consultar este recibo');
+    await expect(form.getByRole('button',{name:'Confirmar y crear pedido'})).toBeDisabled();
+    await testInfo.attach('2124-denied-'+width+'.png',{body:await page.screenshot({fullPage:true}),contentType:'image/png'});
+    denied=false;available=true;
+    await page.reload();
+    await page.addStyleTag({content:css});
+    await page.evaluate(async()=>{const m=await import('/discadmin/ticketing-finance.js');await m.mount(document.querySelector('#panel'));});
+    await page.getByRole('button',{name:'Caja',exact:true}).click();
+    await expect(page.locator('[data-pos-manual]')).toContainText('Pedido #123 recuperado');
+    expect(calls.filter(x=>x.action==='manual_order')).toHaveLength(1);
+    expect(calls.filter(x=>x.action==='manual_intent').every(x=>x.idempotency_key===intent&&Object.keys(x).length===2)).toBeTruthy();
+    await expect(page.locator('[data-pos-manual]')).toContainText('entrega por correo no verificada');
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    await testInfo.attach('2124-recovered-'+width+'.png',{body:await page.screenshot({fullPage:true}),contentType:'image/png'});
   });
 }

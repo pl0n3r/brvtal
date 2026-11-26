@@ -22,6 +22,7 @@ function brvtalPosInt(mixed $value, int $min = 1, int $max = 1000000000): int {
 function brvtalPosInput(array $raw): array {
     $shape = [
         'open'=>['action','event_id','opening_cash_cop'],
+        'manual_intent'=>['action','idempotency_key'],
         'manual_order'=>['action','event_id','ticket_type_id','quantity','buyer_name',
             'buyer_email','method','payment_reference','idempotency_key','confirm'],
         'prepare'=>['action','shift_id','ticket_type_id','quantity','method','idempotency_key'],
@@ -51,6 +52,13 @@ function brvtalPosInput(array $raw): array {
         }
         $result['method']=$raw['method'];
         $result['idempotency_key']=$raw['idempotency_key'];
+    }
+    if ($action==='manual_intent') {
+        $key=$raw['idempotency_key'];
+        if (!is_string($key) || !preg_match('/^[A-Za-z0-9_-]{20,64}$/D', $key)) {
+            throw new InvalidArgumentException('POS_INVALID_MANUAL_INTENT');
+        }
+        $result['idempotency_key']=$key;
     }
     if ($action==='manual_order') {
         $name=trim((string)($raw['buyer_name']??''));
@@ -100,11 +108,14 @@ function brvtalPosInput(array $raw): array {
 }
 function brvtalPosRun(PDO $db, int $actor, string $role, array $raw): array {
     $input=brvtalPosInput($raw);
-    $manual=$input['action']==='manual_order';
+    $manual=in_array($input['action'], ['manual_order', 'manual_intent'], true);
     $isOwner=in_array(strtolower(trim($role)),
         ['superadmin','root','owner','platform_owner'],true);
     if ($actor<1 || ($manual ? !$isOwner : !brvtalPosCan($role))) {
         throw new DomainException('FORBIDDEN');
+    }
+    if ($input['action']==='manual_intent') {
+        return brvtalPosManualIntent($db, $actor, $input['idempotency_key']);
     }
     // Legacy drawer remains synthetic-only. Only the tightly validated owner
     // manual-order action is production-capable; it never calls Wompi.
@@ -386,4 +397,49 @@ function brvtalPosManualOrder(PDO $db,int $actor,array $i): array {
     return ['order_id'=>$orderId,'sale_id'=>$saleId,'status'=>'paid',
         'amount_cop'=>$amount,'method'=>$i['method'],
         'issuance_queued'=>true,'replayed'=>false];
+}
+
+/** Read-only recovery of a single actor-bound manual checkout intention.
+ * A missing order is not proof that an in-flight request cannot commit.
+ */
+function brvtalPosManualIntent(PDO $db, int $actor, string $key): array
+{
+    $hash=hash('sha256', 'manual-order:'.$actor.':'.$key);
+    $q=$db->prepare("SELECT o.id,o.status,o.total_cop,s.method,s.request_hash,
+        n.note_text,b.state AS issuance_state,b.payment_attempt_id
+        FROM ticket_orders o
+        JOIN admins a ON a.id=? AND a.is_active=1
+        LEFT JOIN ticket_pos_sales s ON s.order_id=o.id AND s.event_id=o.event_id
+            AND s.operator_admin_id=a.id AND s.request_key_hash=?
+        LEFT JOIN ticket_order_notes n ON n.order_id=o.id AND n.actor_admin_id=a.id
+            AND n.note_text LIKE CONCAT('manual-payment|%|',s.request_hash)
+        LEFT JOIN ticket_issue_outbox b ON b.order_id=o.id
+        WHERE o.checkout_key_hash=? LIMIT 2");
+    $q->execute([$actor, hash('sha256', 'pos:'.$hash), $hash]);
+    $rows=$q->fetchAll(PDO::FETCH_ASSOC);
+    if (!$rows) {
+        return ['state'=>'not_found'];
+    }
+    if (count($rows)!==1) {
+        return ['state'=>'uncertain'];
+    }
+    $row=$rows[0];
+    $parts=explode('|', (string)$row['note_text']);
+    $method=$parts[1]??'';
+    $mapped=in_array($method, ['nequi', 'daviplata'], true)?'transfer':$method;
+    if (count($parts)!==4 || $parts[0]!=='manual-payment'
+        || !in_array($method, ['cash', 'transfer', 'nequi', 'daviplata', 'terminal'], true)
+        || ($method==='cash' ? $parts[2]!=='' :
+            !preg_match('/^[A-Za-z0-9][A-Za-z0-9 ._\\/-]{3,79}$/D', $parts[2]))
+        || !preg_match('/^[a-f0-9]{64}$/D', (string)$row['request_hash'])
+        || !hash_equals((string)$row['request_hash'], $parts[3])
+        || $mapped!==$row['method'] || $row['payment_attempt_id']!==null
+        || $row['status']!=='paid'
+        || !in_array($row['issuance_state'], ['pending', 'processing', 'done'], true)
+        || !brvtal_ticket_pos_verified($db, (int)$row['id'])) {
+        return ['state'=>'uncertain'];
+    }
+    return ['state'=>'found','order_id'=>(int)$row['id'],
+        'amount_cop'=>(int)$row['total_cop'],'method'=>$method,'status'=>'paid',
+        'issuance'=>$row['issuance_state']==='done'?'issued':'pending'];
 }
