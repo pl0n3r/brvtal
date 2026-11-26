@@ -55,7 +55,7 @@ class UnlistedEventStatement extends PDOStatement
 }
 class UnlistedEventPDO extends PDO
 {
-    public function __construct(private array $events) {}
+    public function __construct(private readonly array $events) {}
     public function query(string $query, ?int $fetchMode = null, mixed ...$fetchModeArgs): PDOStatement|false
     {
         unlisted_expect(str_contains($query, 'SHOW COLUMNS FROM events'), 'only visibility schema probe expected');

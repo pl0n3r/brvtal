@@ -1,0 +1,7 @@
+# T31: checkout → emisión → cuenta (#2014)
+
+Prueba exclusivamente sintética. Ejecutar `bash tests/e2e/run-ticketing-real-stack.sh` en CI, o localmente con Docker y `BRVTAL_T31_FIXTURE_LOCAL=1`. El runner exporta únicamente fuentes versionadas a un directorio temporal y crea un contenedor con red deshabilitada; instala dependencias durante el build, antes de la prueba. MariaDB escucha solo en loopback, con esquema único `brvtal_test_t31_*` y usuario limitado a ese esquema. La configuración, CA, sesiones, registros y correo son descartables. El checkout original queda intacto.
+
+Se siembran únicamente evento, cupo y dos compradores ficticios verificados. El pedido, hold, intento de pago, journal, outbox, entrada y credencial nacen de los endpoints y workers reales. El proveedor HTTPS de #2021/#2160 recibe un registro independiente antes del webhook firmado; solo el transporte de correo se captura. Los negativos comprueban falta de pago, cupo agotado, firma inválida, replay y aislamiento de compradores. La misma identidad y digest se comparan en HTTP, MariaDB y el mensaje capturado. No imprimir respuestas, QR, tokens ni correo.
+
+El job real-stack requiere el recibo `T31_CHECKOUT_STACK_PASS`; ningún skip acredita la prueba. Revertir el squash retira solo pruebas/wiring. No certifica puerta, reembolso, T31 completo ni producción; no autoriza merge live, cobros, envíos, migraciones o despliegue.
