@@ -15,7 +15,8 @@ function unlisted_expect(bool $ok, string $message): void
 $now = new DateTimeImmutable('2026-11-26 12:00:00');
 $public = ['id'=>1, 'slug'=>'public-night', 'title'=>'Public night', 'status'=>'published',
     'event_date'=>'2099-12-01 21:00:00', 'visibility'=>'public', 'featured'=>0,
-    'description'=>'Synthetic event', 'image'=>'', 'schema_type'=>'MusicEvent', 'route_type'=>'events'];
+    'description'=>'Synthetic event', 'venue'=>'Synthetic venue', 'city'=>'Test city',
+    'image'=>'', 'schema_type'=>'MusicEvent', 'route_type'=>'events'];
 $unlisted = array_replace($public, ['id'=>2, 'slug'=>'unlisted-night', 'visibility'=>'unlisted', 'featured'=>1]);
 $pastPublic = array_replace($public, ['id'=>3, 'slug'=>'past-public', 'event_date'=>'2000-01-01']);
 $pastUnlisted = array_replace($pastPublic, ['id'=>4, 'slug'=>'past-unlisted', 'visibility'=>'unlisted']);
