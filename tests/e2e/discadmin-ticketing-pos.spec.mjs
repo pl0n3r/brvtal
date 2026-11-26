@@ -360,7 +360,7 @@ for (const width of [390,1440]) {
             browser:'Playwright Chromium',synthetic_fixture:true,
             production_observed:false,real_personal_data:false,
             actual_browser:!!page.context().browser()
-          },null,2)+'\\n');
+          },null,2));
         }
       }
   });
