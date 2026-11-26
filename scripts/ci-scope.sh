@@ -95,7 +95,7 @@ brvtal_ci_classify_files() {
         brvtal_ci_scope_add_area "Integration tests"; BRVTAL_SCOPE_RUN_DB=true ;;
       tests/e2e/wompi-provider-fixture.mjs|tests/e2e/run-ticketing-provider-fixture.sh)
         brvtal_ci_scope_add_area "Real-stack tests"; BRVTAL_SCOPE_RUN_REALSTACK=true ;;
-      tests/e2e/*-real-stack.spec.mjs|tests/e2e/run-content-core-real-stack.sh)
+      tests/e2e/*-real-stack.spec.mjs|tests/e2e/run-content-core-real-stack.sh|tests/e2e/run-ticketing-real-stack.sh)
         brvtal_ci_scope_add_area "Real-stack tests"; BRVTAL_SCOPE_RUN_REALSTACK=true ;;
       tests/e2e/discadmin-totp-login.spec.mjs)
         brvtal_ci_scope_add_area "Auth browser tests"; BRVTAL_SCOPE_RUN_BROWSER=true; BRVTAL_SCOPE_RUN_WEBKIT=true ;;
