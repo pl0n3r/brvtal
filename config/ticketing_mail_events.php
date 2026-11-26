@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/secrets.php';
+require_once __DIR__ . '/ticketing_staff_permissions.php';
 /** T11: internal server-only durable mail audit, retaining no full recipient or recovery token. */
 function brvtal_mail_history_allowed(): bool {
     return brvtal_secret_value('BRVTAL_TICKET_MAIL_TESTING') === '1'
@@ -128,9 +129,20 @@ function brvtal_mail_history_reconcile(PDO $pdo, string $provider): void {
     $q=$pdo->prepare('UPDATE ticket_mail_history SET delivery_state=?,state_at=? WHERE id=?');
     $q->execute([$state,$at ?: null,(int)$mail['id']]);
 }
-/** Staff access only, invoked AFTER canonical brvtal_admin_require(). */
-function brvtal_mail_history_list(PDO $pdo, array $filters, int $adminId): array {
+/**
+ * Enforce the live staff role on every history entry point, including direct
+ * helper calls. The session is authenticated separately by the HTTP boundary.
+ */
+function brvtal_mail_history_require_mail(PDO $pdo, int $adminId): void {
     if ($adminId<1) throw new RuntimeException('MAIL_ADMIN_REQUIRED');
+    $stmt=$pdo->prepare('SELECT staff_role FROM admins WHERE id=? AND is_active=1 LIMIT 1');
+    $stmt->execute([$adminId]);
+    $role=(string)($stmt->fetchColumn() ?: '');
+    if (!brvtalTicketingCan($role, 'mail')) throw new DomainException('MAIL_FORBIDDEN');
+}
+/** Staff access only; active identity + canonical mail grant are mandatory. */
+function brvtal_mail_history_list(PDO $pdo, array $filters, int $adminId): array {
+    brvtal_mail_history_require_mail($pdo, $adminId);
     $where=[];$values=[];
     foreach (['event_id','buyer_id','order_id','ticket_id'] as $key) {
         if (isset($filters[$key])) {
