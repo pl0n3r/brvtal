@@ -218,7 +218,7 @@ function brvtal_public_seo_entity(PDO $pdo, string $type, string $slug): ?array
     $imageSelect = $imageField === '' ? "'' AS image" : "`{$imageField}` AS image";
     // Whitelisted columns from the existing published content-family tables.
     $eventSelect = match ($type) {
-        'events' => ',status,event_date,published_at,venue,city',
+        'events' => ',status,event_date,published_at,venue,city,' . brvtal_public_event_visibility_select($pdo),
         'artists' => ',instagram_url,soundcloud_url,website_url',
         'sets' => ',external_url,artist_id',
         'releases' => ',release_date,catalog_number,spotify_url,soundcloud_url,bandcamp_url,youtube_url,beatport_url',
@@ -287,6 +287,11 @@ function brvtal_public_seo_document(?array $entity, string $base, array $default
         'image' => $image,
         'description' => $description,
     ];
+    if (($entity['route_type'] ?? '') === 'events' && !brvtal_public_event_has_public_visibility($entity)) {
+        $schema = [];
+        $robots = 'noindex,nofollow';
+        return compact('title', 'description', 'canonical', 'image', 'schema', 'robots');
+    }
     if ($entity !== null) $schema = brvtal_public_schema_enrich($schema, $entity, $base);
     return compact('title', 'description', 'canonical', 'image', 'schema');
 }
@@ -323,6 +328,9 @@ function brvtal_public_seo_tags(array $seo): string
     $tags = [
         '<link rel="canonical" href="' . $escape($seo['canonical']) . '">',
     ];
+    if (!empty($seo['robots'])) {
+        $tags[] = '<meta name="robots" content="' . $escape($seo['robots']) . '">';
+    }
     // Public SEO emits no alternate-language hreflang tags.
 
     array_push(
@@ -336,9 +344,11 @@ function brvtal_public_seo_tags(array $seo): string
         '<meta name="twitter:card" content="summary_large_image">',
         '<meta name="twitter:title" content="' . $escape($seo['title']) . '">',
         '<meta name="twitter:description" content="' . $escape($seo['description']) . '">',
-        '<meta name="twitter:image" content="' . $escape($seo['image']) . '">',
-        '<script type="application/ld+json">' . $json . '</script>'
+        '<meta name="twitter:image" content="' . $escape($seo['image']) . '">'
     );
+    if (empty($seo['robots'])) {
+        $tags[] = '<script type="application/ld+json">' . $json . '</script>';
+    }
 
     return implode("\n  ", $tags);
 }

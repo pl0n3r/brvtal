@@ -288,10 +288,11 @@ try {
 
     // Public lifecycle states are visible; draft remains private. Past dates are
     // partitioned into archive below even if the editor has not manually finished them.
+    $eventVisibilitySelect = brvtal_public_event_visibility_select($pdo);
     $eventsStatement = $pdo->prepare(
         "SELECT id,title,slug,event_date,archive_year,venue,city,description,seo_title,seo_description,skin,accent,
                 cover_image,ticket_url,ticket_instructions,ticket_qr,featured,published_at,
-                cancelled_at,finished_at,status,sort_order
+                cancelled_at,finished_at,status,sort_order,{$eventVisibilitySelect}
          FROM events
          WHERE status IN ({$eventPlaceholders})
          ORDER BY event_date ASC, sort_order ASC, id ASC"

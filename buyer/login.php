@@ -37,7 +37,6 @@
           <input name="website" type="text" autocomplete="off" tabindex="-1" aria-hidden="true" hidden>
           <div class="access-field"><label for="crear-nombre">Nombre</label><input id="crear-nombre" name="name" type="text" autocomplete="name" maxlength="120" required></div>
           <div class="access-field"><label for="crear-email">Correo electrónico</label><input id="crear-email" name="email" type="email" autocomplete="email" inputmode="email" maxlength="190" placeholder="tu@correo.com" required></div>
-          <div class="access-field"><label for="crear-password">Contraseña</label><div class="access-password"><input id="crear-password" name="password" type="password" autocomplete="new-password" minlength="12" maxlength="4096" aria-describedby="password-help" required><button type="button" class="access-toggle" data-password-toggle="crear-password" aria-label="Mostrar contraseña" aria-pressed="false">Mostrar</button></div><p class="access-hint" id="password-help">Mínimo 12 caracteres. Evita contraseñas comunes.</p></div>
           <label class="access-consent"><input id="crear-acepto" name="terms_accepted" type="checkbox" required><span>Acepto los <a href="/pages/terminos-condiciones" target="_blank" rel="noopener noreferrer">términos y condiciones</a> y la <a href="/privacy" target="_blank" rel="noopener noreferrer">política de privacidad</a>.</span></label>
           <div class="access-field">
             <label for="crear-captcha">Verificación humana: <span id="crear-captcha-question">Cargando suma…</span></label>
@@ -46,7 +45,7 @@
           </div>
           <button class="access-submit" type="submit">Crear cuenta <span aria-hidden="true">↗</span></button>
         </form>
-        <p class="access-hint access-mail-note">Te enviaremos un correo para confirmar tu cuenta.</p>
+        <p class="access-hint access-mail-note">Elige tu contraseña cuando confirmes tu correo.</p>
         <p class="access-footnote">¿Ya tienes cuenta? <a href="?vista=entrar" data-access-link="entrar">Entrar</a></p>
       </section>
       <section class="access-view" id="view-recuperar" data-access-view="recuperar" aria-labelledby="heading-recuperar" hidden>
@@ -112,17 +111,6 @@
   });
   addEventListener('popstate', () => render(currentView(), true));
 
-  document.querySelectorAll('[data-password-toggle]').forEach(button => {
-    button.addEventListener('click', () => {
-      const input = document.getElementById(button.dataset.passwordToggle);
-      const revealing = input.type === 'password';
-      input.type = revealing ? 'text' : 'password';
-      button.textContent = revealing ? 'Ocultar' : 'Mostrar';
-      button.setAttribute('aria-pressed', String(revealing));
-      button.setAttribute('aria-label', revealing ? 'Ocultar contraseña' : 'Mostrar contraseña');
-      input.focus();
-    });
-  });
   const errors = {
     INVALID_CREDENTIALS: 'Correo o contraseña incorrectos. Revisa tus datos.',
     RATE_LIMITED: 'Demasiados intentos. Espera un momento antes de volver a entrar.',
@@ -202,14 +190,13 @@
   handle('form-crear', 'register', form => ({
     name: form.elements.namedItem('name').value.trim(),
     email: form.elements.namedItem('email').value.trim(),
-    password: form.elements.namedItem('password').value,
     terms_accepted: form.elements.namedItem('terms_accepted').checked,
     privacy_accepted: form.elements.namedItem('terms_accepted').checked,
     captcha_token: challenges.register?.captcha_token || '',
     captcha_answer: form.elements.namedItem('captcha_answer').value.trim(),
     website: form.elements.namedItem('website').value
   }), () => {
-    announce('Revisa tu correo para confirmar tu cuenta.', 'success');
+    announce('Revisa tu correo para confirmar tu cuenta y elegir tu contraseña.', 'success');
   });
   handle('form-recuperar', 'request-reset', form => ({
     email: form.elements.namedItem('email').value.trim(),

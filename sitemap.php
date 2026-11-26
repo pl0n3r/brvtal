@@ -14,7 +14,7 @@ foreach (brvtal_public_content_definitions() as $route => $definition) {
     $parameters = $definition['parameters'];
     try {
         $select = $definition['event_visibility']
-            ? 'id,slug,updated_at,status,event_date,published_at'
+            ? 'id,slug,updated_at,status,event_date,published_at,' . brvtal_public_event_visibility_select(db())
             : 'id,slug,updated_at,status';
         $sql = "SELECT {$select} FROM `{$table}` "
             . "WHERE {$where} AND slug<>'' ORDER BY id";
