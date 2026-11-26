@@ -415,7 +415,7 @@ try {
             }
             $ctx=stream_context_create(['http'=>$opts]);
             $response=@file_get_contents($url,false,$ctx);
-            $headersOut=$http_response_header??[];
+            $headersOut=$http_response_header;
             preg_match('~^HTTP/\S+ ([0-9]{3})~',(string)($headersOut[0]??''),$matches);
             return ['status'=>(int)($matches[1]??0),
                 'data'=>is_string($response)?json_decode($response,true):null];
