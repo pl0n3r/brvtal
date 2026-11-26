@@ -1,5 +1,5 @@
 import {test, expect} from '@playwright/test';
-import {readFileSync} from 'node:fs';
+import {readFileSync,mkdirSync,writeFileSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
 
 const finance=readFileSync('discadmin/ticketing-finance.js','utf8');
@@ -331,6 +331,8 @@ for (const width of [390,1440]) {
         await expect(root).toBeVisible();
         await expect(root.locator('table.tk-table thead th'))
           .toHaveCount(phase==='before'?5:7);
+        // Keep the comparison in the same expanded operational state.
+        await root.locator('details summary').first().click();
         if(phase==='after'){
           await expect(root).toContainText('Devuelto');
           await expect(root).toContainText('Neto tras devolución');
@@ -342,9 +344,24 @@ for (const width of [390,1440]) {
         }
         expect(await page.evaluate(()=>document.documentElement.scrollWidth))
           .toBeLessThanOrEqual(width);
-        await testInfo.attach('issue2033-'+phase+'-'+width+'.png',{
-          body:await page.screenshot({fullPage:true}),contentType:'image/png'
+        const visualPath='artifacts/issue-2033';
+        mkdirSync(visualPath,{recursive:true});
+        const fileName=phase+'-'+width+'.png';
+        const png=await page.screenshot({fullPage:true});
+        writeFileSync(visualPath+'/'+fileName,png);
+        await testInfo.attach('issue2033-'+fileName,{
+          body:png,contentType:'image/png'
         });
+        if (width===1440 && phase==='after') {
+          writeFileSync(visualPath+'/manifest.json',JSON.stringify({
+            issue:2033,pr:2141,before_sha:baselineSha,
+            after_source:'PR head SHA named on GitHub Actions artifact',
+            screenshot_files:['before-390.png','after-390.png','before-1440.png','after-1440.png'],
+            browser:'Playwright Chromium',synthetic_fixture:true,
+            production_observed:false,real_personal_data:false,
+            actual_browser:!!page.context().browser()
+          },null,2)+'\\n');
+        }
       }
   });
 }

@@ -231,7 +231,7 @@ function brvtalFinanceReport(PDO $db, ?int $eventId, ?string $from, ?string $to,
     $refundEvidence=true; $refundsByOrder=[];
     // The date filters select sale cohorts. Refunds have a separate recorded date.
     $start=$from===null ? null : $from.' 00:00:00';
-    $end=$to===null ? null : (new DateTimeImmutable($to,new DateTimeZone('UTC')))
+    $end=$to===null ? null : new DateTimeImmutable($to,new DateTimeZone('UTC'))
         ->modify('+1 day')->format('Y-m-d').' 00:00:00';
     try {
         $adjust=$db->prepare("SELECT a.refund_id,a.order_id,a.event_id,a.amount_cop,a.recorded_at_utc
