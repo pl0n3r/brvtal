@@ -77,6 +77,34 @@ function brvtalCourtesyQueue(
         brvtalBuyerMailSeal($text),brvtalBuyerMailSeal($html,50000),'courtesy',1);
 }
 
+/** Honor canonical active states; sold_out still requires physical courtesy stock. */
+function brvtalCourtesyEventEligible(array $event, ?DateTimeImmutable $now = null): bool
+{
+    $clock = brvtal_ticket_inventory_now($now)
+        ->setTimezone(new DateTimeZone('America/Bogota'));
+    $tz = new DateTimeZone('America/Bogota');
+    foreach (['event_date', 'published_at'] as $field) {
+        $raw = trim((string)($event[$field] ?? ''));
+        if ($field === 'event_date' && $raw === '') {
+            return false;
+        }
+        if ($raw === '') {
+            continue;
+        }
+        try {
+            $date = new DateTimeImmutable($raw, $tz);
+        } catch (Throwable) {
+            return false;
+        }
+        if ($field === 'event_date' && $date <= $clock) {
+            return false;
+        }
+        // DATE_ATOM preserves Bogota wall-clock meaning for the canonical policy.
+        $event[$field] = $date->format(DATE_ATOM);
+    }
+    return brvtal_public_event_allows_ticketing($event, $clock);
+}
+
 /** A courtesy consumes inventory, not payment or income. */
 function brvtalCourtesyIssue(PDO $db,int $actor,string $role,array $data): array {
     if ($actor<1 || !brvtalTicketingCan($role,'courtesy')) throw new DomainException('FORBIDDEN');
@@ -88,8 +116,11 @@ function brvtalCourtesyIssue(PDO $db,int $actor,string $role,array $data): array
     $db->beginTransaction();
     try {
         // The event mutex serializes paid holds and courtesy reservations.
-        $q=$db->prepare('SELECT status FROM events WHERE id=? FOR UPDATE'); $q->execute([$event]);
-        if (!in_array($q->fetchColumn(),['active','published'],true)) throw new DomainException('EVENT_CLOSED');
+        $q=$db->prepare('SELECT status,event_date,published_at FROM events WHERE id=? FOR UPDATE');
+        $q->execute([$event]);
+        $eventRow = $q->fetch(PDO::FETCH_ASSOC);
+        if (!$eventRow || !brvtalCourtesyEventEligible($eventRow))
+            throw new DomainException('EVENT_CLOSED');
         $q=$db->prepare('SELECT id,request_digest,ticket_type_id,category,reason,status FROM ticket_courtesy_invites
             WHERE event_id=? AND recipient_digest=? FOR UPDATE');
         $q->execute([$event,$recipient]); $existing=$q->fetch(PDO::FETCH_ASSOC);

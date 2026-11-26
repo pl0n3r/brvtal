@@ -11,7 +11,29 @@ function brvtalFinanceAdd(?int $sum, mixed $value): ?int
  *  @param array<int,array<string,mixed>> $items
  *  @param array<int,array<string,mixed>> $attempts
  */
-function brvtalFinanceSummarize(array $orders, array $items, array $attempts, array $posSales=[]): array
+function brvtalFinanceRefundAmounts(array $rows, int $eventId, int $collected): ?array
+{
+    $seen=[]; $total=0; $period=0;
+    foreach ($rows as $row) {
+        $id=(int)($row['refund_id']??0);
+        $amount=(int)($row['amount_cop']??0);
+        if ($id<1 || (int)($row['event_id']??0)!==$eventId
+            || $amount<1 || $amount>$collected) return null;
+        if (isset($seen[$id])) {
+            if ($seen[$id]!==$amount) return null;
+            continue; // Same refund receipt can never be counted twice.
+        }
+        $seen[$id]=$amount;
+        if ($total>$collected-$amount) return null;
+        $total+=$amount;
+        if ($row['in_period']??false) $period+=$amount;
+    }
+    return ['total'=>$total,'in_period'=>$period];
+}
+
+/** Refunds must be confirmed adjustment records, never inferred from order status. */
+function brvtalFinanceSummarize(array $orders, array $items, array $attempts,
+    array $posSales=[], array $refundsByOrder=[], bool $refundEvidence=true): array
 {
     $lineByOrder = [];
     foreach ($items as $item) {
@@ -22,7 +44,8 @@ function brvtalFinanceSummarize(array $orders, array $items, array $attempts, ar
     }
     $paymentByOrder = [];
     foreach ($attempts as $attempt) {
-        if (($attempt['status'] ?? '') !== 'approved' || ($attempt['provider']??'')!=='wompi') continue;
+        if (!in_array($attempt['status'] ?? '', ['approved','refunded'], true)
+            || ($attempt['provider']??'')!=='wompi') continue;
         $id = (int)$attempt['order_id'];
         if (!isset($paymentByOrder[$id]) || (int)$attempt['id'] < (int)$paymentByOrder[$id]['id']) {
             $paymentByOrder[$id] = $attempt;
@@ -42,6 +65,7 @@ function brvtalFinanceSummarize(array $orders, array $items, array $attempts, ar
         $summary = $events[$eventId] ?? [
             'event_id'=>$eventId, 'gross_cop'=>0, 'discount_cop'=>0,
             'approved_cop'=>0, 'pos_cop'=>0, 'pos_orders'=>0,
+            'refund_cop'=>0, 'refund_in_period_cop'=>0, 'net_after_refunds_cop'=>null,
             'paid_orders'=>0, 'pending_orders'=>0,
             'declined_orders'=>0, 'refunded_orders'=>0, 'unverified_orders'=>0,
             'tickets'=>0, 'fee_cop'=>0, 'fee_vat_cop'=>0,
@@ -53,9 +77,9 @@ function brvtalFinanceSummarize(array $orders, array $items, array $attempts, ar
         $id = (int)$order['id'];
         $status = (string)$order['status'];
         if ($status === 'refunded') $summary['refunded_orders']++;
-        elseif (in_array($status, ['pending','draft'], true)) $summary['pending_orders']++;
+        if (in_array($status, ['pending','draft'], true)) $summary['pending_orders']++;
         elseif (in_array($status, ['failed','cancelled','expired'], true)) $summary['declined_orders']++;
-        elseif ($status === 'paid') {
+        elseif (in_array($status, ['paid','refunded'], true)) {
             $payment = $paymentByOrder[$id] ?? null;
             $pos = $posByOrder[$id] ?? null;
             $lines=$lineByOrder[$id]['items']??[];
@@ -70,6 +94,14 @@ function brvtalFinanceSummarize(array $orders, array $items, array $attempts, ar
                 $summary['paid_orders']++;
                 $summary['pos_orders']++;
                 $summary['pos_cop']+=$amount;
+                $refund=$refundEvidence
+                    ? brvtalFinanceRefundAmounts($refundsByOrder[$id]??[], $eventId, $amount) : null;
+                // A legacy fully refunded order without a confirmed adjustment
+                // is unknown, not a verified zero-refund sale.
+                if ($status==='refunded' && ($refund['total']??0)===0) $refund=null;
+                $summary['refund_cop']=brvtalFinanceAdd($summary['refund_cop'], $refund['total']??null);
+                $summary['refund_in_period_cop']=brvtalFinanceAdd(
+                    $summary['refund_in_period_cop'], $refund['in_period']??null);
                 $summary['gross_cop']+=$amount;
                 $summary['tickets']+=(int)$pos['quantity'];
                 $type=(int)$pos['ticket_type_id'];
@@ -85,7 +117,12 @@ function brvtalFinanceSummarize(array $orders, array $items, array $attempts, ar
                 continue;
             }
             if (!$payment || $pos || (int)($payment['gross_amount_cop'] ?? -1) !== (int)$order['total_cop']) {
-                $summary['unverified_orders']++; $events[$eventId]=$summary; continue;
+                // Historical refunded orders without payment evidence are UNKNOWN;
+                // they are not extra unverified *paid* orders.
+                if ($status==='refunded') $summary['refund_cop']=null;
+                else $summary['unverified_orders']++;
+                if (!empty($refundsByOrder[$id])) $summary['refund_cop']=null;
+                $events[$eventId]=$summary; continue;
             }
             $gross = $lineByOrder[$id]['gross'] ?? 0;
             $amount = (int)$order['total_cop'];
@@ -96,6 +133,12 @@ function brvtalFinanceSummarize(array $orders, array $items, array $attempts, ar
             $summary['gross_cop'] += $gross;
             $summary['discount_cop'] += $gross - $amount;
             $summary['approved_cop'] += $amount;
+            $refund=$refundEvidence
+                ? brvtalFinanceRefundAmounts($refundsByOrder[$id]??[], $eventId, $amount) : null;
+            if ($status==='refunded' && ($refund['total']??0)===0) $refund=null;
+            $summary['refund_cop']=brvtalFinanceAdd($summary['refund_cop'], $refund['total']??null);
+            $summary['refund_in_period_cop']=brvtalFinanceAdd(
+                $summary['refund_in_period_cop'], $refund['in_period']??null);
             $summary['tickets'] += $lineByOrder[$id]['quantity'] ?? 0;
             $summary['transactions'][] = [
                 'order_id'=>$id,'provider'=>$payment['provider'] ?? null,
@@ -129,7 +172,12 @@ function brvtalFinanceSummarize(array $orders, array $items, array $attempts, ar
         $events[$eventId] = $summary;
     }
     ksort($events);
-    foreach ($events as &$event) $event['types'] = array_values($event['types']);
+    foreach ($events as &$event) {
+        $event['types']=array_values($event['types']);
+        // Sale cohort: recorded refunds up to the selected end date, not payouts.
+        $event['net_after_refunds_cop']=$event['refund_cop']===null ? null :
+            $event['approved_cop']+$event['pos_cop']-$event['refund_cop'];
+    }
     unset($event);
     return array_values($events);
 }
@@ -184,7 +232,30 @@ function brvtalFinanceReport(PDO $db, ?int $eventId, ?string $from, ?string $to,
     // A channel may remove every order after the initial nonempty query.
     // Never generate SQL metadata IN () from an empty report.
     if (!$orders) return [];
-    $report=brvtalFinanceSummarize($orders,$items,$attempts,$sales);
+    $refundEvidence=true; $refundsByOrder=[];
+    // The date filters select sale cohorts. Refunds have a separate recorded date.
+    $start=$from===null ? null : $from.' 00:00:00';
+    $end=$to===null ? null : new DateTimeImmutable($to,new DateTimeZone('UTC'))
+        ->modify('+1 day')->format('Y-m-d').' 00:00:00';
+    try {
+        $adjust=$db->prepare("SELECT a.refund_id,a.order_id,a.event_id,a.amount_cop,a.recorded_at_utc
+            FROM ticket_refund_adjustments a
+            JOIN ticket_refunds r ON r.id=a.refund_id AND r.status='refunded'
+                AND r.order_id=a.order_id AND r.event_id=a.event_id
+            WHERE a.order_id IN ($in) ORDER BY a.refund_id");
+        $adjust->execute($ids);
+        foreach ($adjust->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $at=(string)$row['recorded_at_utc'];
+            if ($end!==null && $at >= $end) continue;
+            $row['in_period']=$start===null || $at >= $start;
+            $refundsByOrder[(int)$row['order_id']][]=$row;
+        }
+    } catch (PDOException $e) {
+        if ($e->getCode()!=='42S02') throw $e;
+        $refundEvidence=false; // Missing ledger is UNKNOWN, not zero refunds.
+    }
+    $report=brvtalFinanceSummarize(
+        $orders,$items,$attempts,$sales,$refundsByOrder,$refundEvidence);
     $eventIds=array_column($report,'event_id');
     $eventIn=implode(',',array_fill(0,count($eventIds),'?'));
     $metadata=[

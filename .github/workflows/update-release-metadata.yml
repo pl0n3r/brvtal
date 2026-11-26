@@ -568,6 +568,17 @@ jobs:
           PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ runner.temp }}/c05-playwright-report.json
         run: npx playwright test --project=chromium --reporter=list,json
 
+      # #2033 exact-main vs PR-head: four browser PNGs, synthetic data only.
+      # This exports no credentials/production data and does not deploy.
+      - name: Upload Finance 2033 A/B evidence (390/1440)
+        if: ${{ success() && github.event_name == 'pull_request' && github.head_ref == 'work/issue-2033' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: finance-2033-ab-${{ github.event.pull_request.head.sha }}-${{ github.run_id }}
+          path: artifacts/issue-2033/
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Export verified synthetic Concept 05 owner-v2 evidence
         id: concept05_evidence
         if: success()

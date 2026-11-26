@@ -11,6 +11,22 @@ foreach ([['action'=>'issue'],array_merge($input,['reason'=>'x']),array_merge($i
     try {brvtalCourtesyValidate($bad);throw new RuntimeException('invalid input accepted');}
     catch(InvalidArgumentException) {}
 }
+// Deterministic offline lifecycle and timezone tests.
+$clock=new DateTimeImmutable('2026-11-26 15:00:00',new DateTimeZone('America/Bogota'));
+$dates=['event_date'=>'2026-11-27 21:00:00','published_at'=>'2026-11-25 10:00:00'];
+foreach (['published','upcoming','tickets_available','last_tickets','sold_out'] as $status)
+    t25(brvtalCourtesyEventEligible(['status'=>$status]+$dates,$clock),'eligible '.$status);
+foreach (['active','draft','cancelled','finished','archived'] as $status)
+    t25(!brvtalCourtesyEventEligible(['status'=>$status]+$dates,$clock),'rejected '.$status);
+foreach ([
+    ['event_date'=>'2026-11-25 21:00:00'],
+    ['event_date'=>'2026-11-26 14:59:59'],
+    ['event_date'=>''],['event_date'=>'invalid-date'],
+    ['published_at'=>'2026-11-27 10:00:00'],
+    ['published_at'=>'invalid-date']
+] as $boundary)
+    t25(!brvtalCourtesyEventEligible(['status'=>'published']+array_replace($dates,$boundary),$clock),
+        'date or publication must fail closed');
 if(getenv('BRVTAL_INTEGRATION_TESTS')!=='1'){echo "T25 offline parser/RBAC passed, DB skipped.\n";exit;}
 $prefix=(string)getenv('BRVTAL_TEST_DB_NAME');
 t25(preg_match('/^brvtal_test[A-Za-z0-9_]*$/D',$prefix)===1,'test-only DB prefix');
@@ -25,7 +41,8 @@ try {
     $db=new PDO($dsn.';dbname='.$dbname,(string)getenv('BRVTAL_TEST_DB_USER'),
         (string)getenv('BRVTAL_TEST_DB_PASS'),$options);
     $schema=[
-        'CREATE TABLE events(id INT UNSIGNED PRIMARY KEY,status VARCHAR(20)) ENGINE=InnoDB',
+        'CREATE TABLE events(id INT UNSIGNED PRIMARY KEY,status VARCHAR(20),
+            event_date DATETIME NULL,published_at DATETIME NULL) ENGINE=InnoDB',
         'CREATE TABLE admins(id INT UNSIGNED PRIMARY KEY,staff_role VARCHAR(32),is_active TINYINT) ENGINE=InnoDB',
         'CREATE TABLE event_ticket_types(id INT UNSIGNED PRIMARY KEY,event_id INT UNSIGNED,
             status VARCHAR(20),UNIQUE KEY uq_t03_ticket_type_event(id,event_id)) ENGINE=InnoDB',
@@ -57,7 +74,11 @@ try {
         $sql=(string)preg_replace('/^\s*--[^\r\n]*$/m','',$sql);
         foreach(array_filter(array_map(trim(...),explode(';',$sql))) as $statement) $db->exec($statement);
     }
-    $db->exec("INSERT INTO events VALUES (1,'published')");
+    $now=new DateTimeImmutable('now',new DateTimeZone('America/Bogota'));
+    $future=$now->modify('+2 days')->format('Y-m-d H:i:s');
+    $published=$now->modify('-1 day')->format('Y-m-d H:i:s');
+    $addEvent=$db->prepare('INSERT INTO events VALUES (?,?,?,?)');
+    $addEvent->execute([1,'published',$future,$published]);
     $db->exec("INSERT INTO admins VALUES (7,'superadmin',1),(8,'admin',1)");
     $db->exec("INSERT INTO event_ticket_types VALUES (11,1,'active'),(12,1,'active')");
     $db->exec('INSERT INTO ticket_inventory_events VALUES (1,2)');
@@ -141,6 +162,95 @@ try {
         'revocation releases unconsumed seat');
     t25((int)$db->query('SELECT COUNT(*) FROM ticket_checkins WHERE outcome="accepted"')->fetchColumn()===1,
         'audit exactly one admission');
+    // Dedicated MariaDB fixtures for all canonical active Event states.
+    $addType=$db->prepare("INSERT INTO event_ticket_types VALUES (?,?,'active')");
+    $addOverall=$db->prepare('INSERT INTO ticket_inventory_events VALUES (?,?)');
+    $addTypeCap=$db->prepare('INSERT INTO ticket_inventory_types VALUES (?,?,?,?)');
+    $seed=static function(int $id,string $status,?string $date,string $pub,
+        int $overall,int $type,int $courtesy) use ($addEvent,$addType,$addOverall,$addTypeCap): void {
+        $addEvent->execute([$id,$status,$date,$pub]);
+        $addType->execute([$id+20,$id]);
+        $addOverall->execute([$id,$overall]);
+        $addTypeCap->execute([$id+20,$id,$type,$courtesy]);
+    };
+    $make=static fn(int $id,int $n=0):array=>[
+        'action'=>'issue','event_id'=>$id,'ticket_type_id'=>$id+20,
+        'recipient'=>"guest-{$id}-{$n}@example.test",'category'=>'staff',
+        'reason'=>'Invitacion sintetica de control',
+        'idempotency_key'=>str_repeat(chr(65+$id+$n),24)
+    ];
+    foreach ([
+        [2,'tickets_available',2,2,1], // courtesy cap
+        [3,'last_tickets',2,1,2],      // ticket type cap
+        [4,'sold_out',1,2,2],          // physical Event cap
+        [5,'published',2,2,2],
+        [6,'upcoming',2,2,2]
+    ] as [$id,$status,$overall,$type,$courtesy]) {
+        $seed($id,$status,$future,$published,$overall,$type,$courtesy);
+        $inputCase=$make($id);
+        $accepted=brvtalCourtesyIssue($db,7,'superadmin',$inputCase);
+        t25($accepted['queued'] && !$accepted['replayed'],'MariaDB Event '.$status);
+        $again=brvtalCourtesyIssue($db,7,'superadmin',$inputCase);
+        t25($again['replayed']&&$again['invite_id']===$accepted['invite_id'],'idempotent retry');
+        if ($id<=4) {
+            try {
+                brvtalCourtesyIssue($db,7,'superadmin',$make($id,1));
+                throw new RuntimeException('quota bypass');
+            } catch (DomainException $e) {
+                t25($e->getMessage()==='COURTESY_CAPACITY','all quotas enforced');
+            }
+            $check=$db->prepare('SELECT COUNT(*) FROM ticket_courtesy_invites WHERE event_id=?');
+            $check->execute([$id]);
+            t25((int)$check->fetchColumn()===1,'no second invitation on overbooking');
+        }
+    }
+    foreach ([
+        [7,'cancelled',$future,$published],
+        [8,'archived',$future,$published],
+        [9,'finished',$future,$published],
+        [10,'active',$future,$published],
+        [11,'draft',$future,$published],
+        [12,'published',$now->modify('-1 day')->format('Y-m-d H:i:s'),$published],
+        [13,'published',$now->modify('-1 minute')->format('Y-m-d H:i:s'),$published],
+        [14,'published',null,$published],
+        [15,'published',$future,$now->modify('+1 day')->format('Y-m-d H:i:s')]
+    ] as [$id,$status,$date,$publication]) {
+        $seed($id,$status,$date,$publication,2,2,2);
+        try {
+            brvtalCourtesyIssue($db,7,'superadmin',$make($id));
+            throw new RuntimeException('invalid Event accepted');
+        } catch (DomainException $e) {
+            t25($e->getMessage()==='EVENT_CLOSED','past or inactive Event denied');
+        }
+    }
+    t25((int)$db->query('SELECT COUNT(*) FROM ticket_courtesy_invites WHERE event_id BETWEEN 7 AND 15')
+        ->fetchColumn()===0,'rejected Event never emits courtesy');
+    // A second PDO connection cannot reserve during the held Event mutex.
+    $seed(20,'tickets_available',$future,$published,1,1,1);
+    $db2=new PDO($dsn.';dbname='.$dbname,(string)getenv('BRVTAL_TEST_DB_USER'),
+        (string)getenv('BRVTAL_TEST_DB_PASS'),$options);
+    $db2->exec('SET SESSION innodb_lock_wait_timeout=1');
+    $db->beginTransaction();
+    try {
+        $lock=$db->prepare('SELECT id FROM events WHERE id=? FOR UPDATE');
+        $lock->execute([20]);
+        try {
+            brvtalCourtesyIssue($db2,7,'superadmin',$make(20));
+            throw new RuntimeException('mutex bypass');
+        } catch (RuntimeException $e) {
+            t25($e->getMessage()==='COURTESY_STORAGE_UNAVAILABLE','second connection blocked');
+        }
+        t25((int)$db->query('SELECT COUNT(*) FROM ticket_courtesy_invites WHERE event_id=20')
+            ->fetchColumn()===0,'no write on lock timeout');
+    } finally { if ($db->inTransaction()) $db->commit(); }
+    t25(brvtalCourtesyIssue($db2,7,'superadmin',$make(20))['queued'],'retry after mutex release');
+    try {
+        brvtalCourtesyIssue($db,7,'superadmin',$make(20,1));
+        throw new RuntimeException('capacity bypass after mutex');
+    } catch (DomainException $e) {
+        t25($e->getMessage()==='COURTESY_CAPACITY','committed seat is counted');
+    }
+    $db2=null;
     $db=null;
 } finally {$root->exec('DROP DATABASE IF EXISTS '.$dbname);}
 echo "T25 real courtesy: sealed QR email, RBAC, budget, idempotency, resend, revoke, zero revenue passed.\n";

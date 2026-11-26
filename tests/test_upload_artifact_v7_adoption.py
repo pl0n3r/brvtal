@@ -186,7 +186,16 @@ class UploadArtifactV7AdoptionTests(unittest.TestCase):
         self.assertEqual(3, ci.count(image))
         self.assertNotIn("image: mariadb:11.4", ci)
 
-        self.assertEqual(3, ci.count("uses: actions/upload-artifact@"))
+        # Three existing uploads plus the isolated synthetic Finance #2033 evidence.
+        self.assertEqual(4, ci.count("uses: actions/upload-artifact@"))
+        finance_block = upload_block(ci, target_name="name: finance-2033-ab-")
+        validate_upload_block(finance_block)
+        self.assertIn("github.event_name == 'pull_request'", finance_block)
+        self.assertIn("github.head_ref == 'work/issue-2033'", finance_block)
+        self.assertIn("if: ${{ success()", finance_block)
+        self.assertIn("path: artifacts/issue-2033/", finance_block)
+        self.assertIn("if-no-files-found: error", finance_block)
+        self.assertEqual(finance_block.count("retention-days: 14"), 1)
         success_block = upload_block(ci, target_name="name: concept05-owner-v2-ab-")
         validate_upload_block(success_block)
         self.assertIn("if: success() && steps.concept05_evidence.outputs.has_evidence == 'true'", success_block)
