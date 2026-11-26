@@ -188,6 +188,7 @@ function brvtalBuyerLoginSession(int $id, ?PDO $pdo = null, ?int $checkoutOrderI
     }
     // Do not copy authenticated state to the regenerated PHP session. Publish
     // identity only after the persisted epoch-bound session has committed.
+    $checkoutGrants = $checkoutOrderId !== null ? ($_SESSION['buyer_checkout_orders'] ?? null) : null;
     $_SESSION = [];
     try {
         $csrf = brvtalBuyerNewToken();
@@ -204,7 +205,7 @@ function brvtalBuyerLoginSession(int $id, ?PDO $pdo = null, ?int $checkoutOrderI
             $_SESSION['buyer_checkout_new_order'] = $checkoutOrderId;
         }
     } catch (Throwable $error) {
-        $_SESSION = [];
+        $_SESSION = is_array($checkoutGrants) ? ['buyer_checkout_orders' => $checkoutGrants] : [];
         throw $error;
     }
 }

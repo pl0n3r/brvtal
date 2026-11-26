@@ -113,6 +113,37 @@ contact_assert($blocked['allowed'] === false && $blocked['error'] === 'RATE_LIMI
 contact_assert((int)$blocked['retry_after'] > 0, 'rate limit exposes retry window');
 @unlink($temp);
 
+// #2059: the approved recipient is the fallback; never send real mail in this fixture.
+// Environment isolation is essential: a host-level override must not contaminate CI.
+$oldContactTo = getenv('BRVTAL_CONTACT_TO');
+try {
+    putenv('BRVTAL_CONTACT_TO');
+    contact_assert(brvtal_contact_recipient([]) === 'contacto@brvtal.com.co',
+        'missing configuration and env use the owner-approved recipient');
+    contact_assert(brvtal_contact_recipient(['contact' => ['to' => 'broken-address']]) === 'contacto@brvtal.com.co',
+        'invalid server override fails back to the approved recipient');
+    putenv('BRVTAL_CONTACT_TO=not-an-email');
+    contact_assert(brvtal_contact_recipient([]) === 'contacto@brvtal.com.co',
+        'invalid environment recipient fails back to the approved recipient');
+    putenv('BRVTAL_CONTACT_TO=env@example.test');
+    contact_assert(brvtal_contact_recipient([]) === 'env@example.test',
+        'valid environment override is preserved');
+    contact_assert(brvtal_contact_recipient(['contact' => ['to' => '  config@example.test  ']]) === 'config@example.test',
+        'valid server configuration wins over environment and is trimmed');
+    contact_assert(brvtal_contact_recipient(['contact' => ['to' => 'broken-address']]) === 'contacto@brvtal.com.co',
+        'invalid server configuration must not leak to mail');
+    [$fallbackRecipient] = brvtal_contact_build_mail($valid['data'], []);
+    contact_assert($fallbackRecipient === 'env@example.test',
+        'mail composition resolves recipient without calling mail()');
+    putenv('BRVTAL_CONTACT_TO');
+    [$fallbackRecipient] = brvtal_contact_build_mail($valid['data'], []);
+    contact_assert($fallbackRecipient === 'contacto@brvtal.com.co',
+        'mail composition uses approved fallback without sending');
+} finally {
+    if ($oldContactTo === false) putenv('BRVTAL_CONTACT_TO');
+    else putenv('BRVTAL_CONTACT_TO=' . $oldContactTo);
+}
+
 [$recipient, $mailSubject, $body, $headers] = brvtal_contact_build_mail($valid['data'], $config);
 contact_assert($recipient === 'inbox@example.com', 'contact recipient comes from server-side configuration');
 contact_assert($mailSubject === '[BRVTAL CONTACT] Booking inquiry', 'mail subject is scoped and sanitized');

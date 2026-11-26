@@ -338,5 +338,10 @@ mail_assert(brvtal_ticket_mail_reconcile_stale($pdo, 2) === 0,
     'reconciler cannot rewrite a late delivered event');
 putenv('BRVTAL_TICKET_MAIL_TESTING=0');
 
+// T28: run the isolated worker cycle fixture in the canonical database gate.
+(static function (): void {
+    require __DIR__ . '/ticketing-mail-worker.php';
+})();
+
 // T34: run the buyer-auth synthetic MariaDB contracts in the canonical database gate.
 require __DIR__ . '/buyer-auth-flows.php';
