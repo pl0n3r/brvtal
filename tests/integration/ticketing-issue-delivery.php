@@ -388,6 +388,53 @@ try {
         'renderer rejects externally supplied account-creation URL');
 }
 
+// #2116: effective eligibility, not new-vs-retry class, determines service order.
+$queueCases = [
+    [120, 'failed', '1999-12-01 00:00:00', '2000-01-01 00:00:00'],
+    [121, 'pending', '2000-01-02 00:00:00', null],
+    [122, 'failed', '1999-12-01 00:00:00', '2000-01-04 00:00:00'],
+    [123, 'pending', '2000-01-03 00:00:00', null],
+    [124, 'pending', '2000-01-04 00:00:00', null],
+    [125, 'failed', '1999-12-01 00:00:00', '9999-01-01 00:00:00'],
+    [126, 'done', '1999-01-01 00:00:00', null],
+];
+$orderInsert = $db->prepare("INSERT INTO ticket_orders(id,event_id,buyer_id,status) VALUES (?,1,9,'paid')");
+$itemInsert = $db->prepare("INSERT INTO ticket_order_items
+    (id,order_id,event_id,ticket_type_id,quantity,ticket_name_snapshot) VALUES (?,?,1,11,1,'Preventa')");
+$attemptInsert = $db->prepare("INSERT INTO ticket_payment_attempts
+    (id,order_id,provider,provider_transaction_id,status) VALUES (?,?,'wompi',?,'approved')");
+$outboxInsert = $db->prepare("INSERT INTO ticket_issue_outbox
+    (order_id,payment_attempt_id,state,created_at_utc,next_attempt_at_utc,attempts) VALUES (?,?,?,?,?,?)");
+foreach ($queueCases as [$orderId,$state,$created,$due]) {
+    $orderInsert->execute([$orderId]);
+    $itemInsert->execute([$orderId+200,$orderId]);
+    $tx = 'synthetic-queue-' . $orderId;
+    $attemptInsert->execute([$orderId,$orderId,$tx]);
+    $journal->execute([$orderId,$tx,hash('sha256',$tx),'APPROVED',time()]);
+    $outboxInsert->execute([$orderId,$orderId,$state,$created,$due,$state==='failed' ? 1 : 0]);
+}
+$expectedIssued = [];
+foreach ([120,121,123,122,124] as $expectedOrder) {
+    deliveryAssert(brvtal_ticket_issue_process_next($db,$origin)==='issued', 'eligible job issued');
+    $expectedIssued[] = $expectedOrder;
+    $issuedOrders = $db->query("SELECT i.order_id FROM ticket_entries t
+        JOIN ticket_order_items i ON i.id=t.order_item_id
+        WHERE i.order_id BETWEEN 120 AND 126 ORDER BY t.id")->fetchAll(PDO::FETCH_COLUMN);
+    deliveryAssert(array_map('intval',$issuedOrders)===$expectedIssued,
+        'effective date order, stable id tie and retry progress');
+}
+deliveryAssert(brvtal_ticket_issue_process_next($db,$origin)==='idle', 'future and terminal jobs excluded');
+deliveryAssert($count("SELECT COUNT(*) FROM ticket_mail_outbox
+    WHERE message_key IN ('order:120:payment_approved','order:121:payment_approved',
+    'order:122:payment_approved','order:123:payment_approved','order:124:payment_approved')")===5,
+    'one email per eligible order');
+deliveryAssert($count("SELECT COUNT(*) FROM ticket_issue_outbox
+    WHERE (order_id=125 AND state='failed' AND attempts=1) OR (order_id=126 AND state='done' AND attempts=0)")===2,
+    'future and terminal states and attempts untouched');
+deliveryAssert($count("SELECT COUNT(*) FROM ticket_issue_outbox
+    WHERE order_id IN (120,122) AND state='done' AND attempts=2")===2, 'retry attempts preserved');
+deliveryAssert(brvtal_ticket_issue_process_next($db,$origin)==='idle', 'repeat does not issue duplicate entries');
+
 // Public origins only.
 try {
     brvtal_ticket_issue_process_next($db, 'https://evil.example');
