@@ -47,6 +47,8 @@ async function setup(browserPage, states, scoped = true) {
       asked.push(url.searchParams.get('t'));
       if (states === 404) return route.fulfill({ status: 404, contentType: 'application/json', body: '{"ok":false,"error":"ORDER_NOT_FOUND"}' });
       const state = states[Math.min(asked.length - 1, states.length - 1)];
+      if (state === 429) return route.fulfill({ status: 429, headers: { 'Retry-After': '2' },
+        contentType: 'application/json', body: '{"ok":false,"error":"RATE_LIMITED"}' });
       return route.fulfill({ contentType: 'application/json', body: JSON.stringify(order(state)) });
     }
     const asset = assets[url.pathname];
@@ -136,3 +138,22 @@ test('otro navegador con el mismo enlace no obtiene pedidos ni sesión', async (
     await expect(page.getByRole('heading', { name: /Entra a tu cuenta/i })).toBeVisible();
   } finally { await separate.close(); }
 });
+
+// Isolated UI contract; real HTTP/provider evidence is separate.
+for (const width of [390, 1440]) {
+  test(`Retry-After conserva el último estado confirmado (${width})`, async ({ page: browserPage }, testInfo) => {
+    await browserPage.setViewportSize({ width, height: 844 });
+    const asked = await setup(browserPage, ['pending', 429, 'approved']);
+    await browserPage.goto(base + '/compra/' + token);
+    await expect(browserPage.locator('#purchase-detail')).toContainText('Volveremos a consultar');
+    await expect(browserPage.locator('#purchase-state')).toHaveAttribute('data-state', 'pending');
+    expect(asked).toHaveLength(2);
+    await capture(browserPage, testInfo, `compra-limitada-${width}`);
+    await browserPage.waitForTimeout(700);
+    expect(asked).toHaveLength(2);
+    await expect(browserPage.locator('#purchase-state')).toHaveAttribute('data-state', 'approved');
+    expect(asked).toHaveLength(3);
+    await browserPage.keyboard.press('Tab');
+    await capture(browserPage, testInfo, `compra-recuperada-${width}`);
+  });
+}

@@ -6,6 +6,83 @@ require_once __DIR__ . '/ticketing_wompi_client.php';
 require_once __DIR__ . '/ticketing_stages.php';
 require_once __DIR__ . '/ticketing_waitlist.php';
 require_once __DIR__ . '/ticketing_promos.php';
+require_once __DIR__ . '/public_contact.php';
+
+/** Shared fixed-window status budget; never keyed by token or buyer identity. */
+function brvtal_ticket_status_budget(array $config, string $scope, ?string $path = null, ?int $now = null): array
+{
+    $unavailable = ['allowed' => false, 'status' => 503, 'retry_after' => 60];
+    $policy = $config['ticketing']['status_rate_limit'] ?? [];
+    if (!is_array($policy) || !in_array($scope, ['order', 'checkout'], true)) return $unavailable;
+    $window = $policy['window_seconds'] ?? 60;
+    $origin = $policy['origin_limit'] ?? 60;
+    $global = $policy['global_limit'] ?? 1200;
+    if (!is_int($window) || $window < 10 || $window > 300
+        || !is_int($origin) || $origin < 1 || $origin > 400
+        || !is_int($global) || $global < $origin || $global > 4000) return $unavailable;
+    $now ??= time();
+    if ($now < 1) return $unavailable;
+    $path ??= dirname(__DIR__) . '/storage/rate_limits/ticket-status.json';
+    try {
+        $key = hash_hmac('sha256', 'ticket-status:' . $scope . ':' .
+            brvtal_contact_resolve_client_ip($config), brvtal_contact_secret($config));
+        $lock = brvtal_rate_limit_store_open_lock($path);
+        if (!$lock) return $unavailable;
+        try {
+            if (!flock($lock, LOCK_EX | LOCK_NB)) return $unavailable;
+            $state = ['start' => $now, 'total' => 0, 'buckets' => []];
+            if (is_file($path)) {
+                $raw = @file_get_contents($path, false, null, 0, 400001);
+                if (!is_string($raw) || strlen($raw) > 400000) return $unavailable;
+                $saved = json_decode($raw, true);
+                if (!is_array($saved) || !is_int($saved['start'] ?? null)
+                    || $saved['start'] < 1 || $saved['start'] > $now
+                    || !is_int($saved['total'] ?? null) || $saved['total'] < 0
+                    || $saved['total'] > 4000 || !is_array($saved['buckets'] ?? null)
+                    || count($saved['buckets']) > 4000) return $unavailable;
+                if ($now - $saved['start'] < $window) {
+                    $sum = 0;
+                    foreach ($saved['buckets'] as $hash => $count) {
+                        if (!is_string($hash) || !preg_match('/^[a-f0-9]{64}$/D', $hash)
+                            || !is_int($count) || $count < 1 || $count > 400) return $unavailable;
+                        $sum += $count;
+                    }
+                    if ($sum !== $saved['total']) return $unavailable;
+                    $state = $saved;
+                }
+            }
+            $count = $state['buckets'][$key] ?? 0;
+            if ($count >= $origin || $state['total'] >= $global) {
+                return ['allowed' => false, 'status' => 429,
+                    'retry_after' => max(1, $state['start'] + $window - $now)];
+            }
+            $state['buckets'][$key] = $count + 1;
+            $state['total']++;
+            $encoded = json_encode($state, JSON_UNESCAPED_SLASHES);
+            if (!is_string($encoded) || !brvtal_rate_limit_store_atomic_replace($path, $encoded)) {
+                return $unavailable;
+            }
+            return ['allowed' => true, 'status' => 200, 'retry_after' => 0];
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
+    } catch (Throwable) {
+        return $unavailable;
+    }
+}
+
+/** Reject before order lookup or reconciliation, independent of login/CAPTCHA. */
+function brvtal_ticket_status_require_budget(string $scope): void
+{
+    global $config;
+    $limit = brvtal_ticket_status_budget($config, $scope);
+    if (!$limit['allowed']) {
+        json_response(['ok' => false, 'error' => $limit['status'] === 429
+            ? 'RATE_LIMITED' : 'ORDER_UNAVAILABLE'], $limit['status'],
+            ['Retry-After' => (string)$limit['retry_after']]);
+    }
+}
 
 /** Monetary snapshots are integer COP. Never trust a DOM/form price. */
 function brvtal_ticket_checkout_price(mixed $price, int $quantity): int
@@ -648,6 +725,9 @@ function brvtal_public_ticket_checkout_http(PDO $db, int $eventId): void
     header('Referrer-Policy: no-referrer');
     if (empty($_SERVER['HTTPS']) || $_SERVER['HTTPS']==='off') {
         json_response(['ok'=>false,'error'=>'HTTPS_REQUIRED'],403);
+    }
+    if ($action === 'status' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'GET') {
+        brvtal_ticket_status_require_budget('checkout');
     }
     require_once __DIR__ . '/buyer_auth.php';
     try {

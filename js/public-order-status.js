@@ -20,6 +20,12 @@
     offline: ['No pudimos consultar tu pedido', 'Revisa tu conexión; lo intentamos de nuevo en unos segundos.'],
   };
   let polls = 0;
+  let confirmed = false;
+  function retryDelay(response) {
+    const raw = response.headers.get('Retry-After') || '';
+    const ms = /^\d+$/.test(raw) ? Number(raw) * 1000 : Date.parse(raw) - Date.now();
+    return Number.isFinite(ms) ? Math.max(1000, ms) : 8000;
+  }
   function show(state, order) {
     const [title, detail] = copy[state] || copy.unverified;
     stateEl.dataset.state = state;
@@ -39,21 +45,29 @@
   }
   async function refresh() {
     if (!token) { show('missing'); return; }
-    let next = 4000;
+    let next = window.BRVTAL_ORDER_POLL_MS || 4000;
     try {
       const response = await fetch('/api/ticketing/order-status.php?t=' + token,
         { credentials: 'same-origin', cache: 'no-store' });
-      if (response.status === 404) { show('missing'); return; }
-      const payload = await response.json();
-      if (!response.ok || !payload.ok || !payload.order) throw new Error('UNAVAILABLE');
-      show(payload.order.state, payload.order);
-      if (payload.order.state !== 'pending') return;
+      if (response.status === 429 || response.status === 503) {
+        if (!confirmed) show('offline');
+        else $('purchase-detail').textContent = 'No pudimos actualizar el estado. Volveremos a consultar.';
+        next = retryDelay(response);
+      } else {
+        if (response.status === 404) { show('missing'); return; }
+        const payload = await response.json();
+        if (!response.ok || !payload.ok || !payload.order) throw new Error('UNAVAILABLE');
+        show(payload.order.state, payload.order);
+        confirmed = true;
+        if (payload.order.state !== 'pending') return;
+      }
     } catch {
-      show('offline');
+      if (!confirmed) show('offline');
+      else $('purchase-detail').textContent = 'No pudimos actualizar el estado. Volveremos a consultar.';
       next = 8000;
     }
     // Poll for about three minutes; after that the buyer can reload or check Mi cuenta.
-    if (++polls < 45) setTimeout(() => { void refresh(); }, window.BRVTAL_ORDER_POLL_MS || next);
+    if (++polls < 45 && next <= 2147483647) setTimeout(() => { void refresh(); }, next);
   }
   void refresh();
 })();

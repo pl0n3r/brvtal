@@ -114,7 +114,9 @@
     if (!response.ok || !payload.ok) throw new Error(payload.error || 'CHECKOUT_UNAVAILABLE');
     return payload;
   }
+  let statusRetries = 0;
   async function refresh(saved) {
+    if (record !== saved) return;
     if (panel) panel.hidden = false;
     const url = new URL(location.pathname, location.origin);
     // #1948: guests have no session; their opaque order_token identifies the order.
@@ -126,7 +128,20 @@
     try {
       const response = await fetch(url, { credentials: 'same-origin', cache: 'no-store',
         headers: { 'X-BRVTAL-TICKET-CHECKOUT': 'status' } });
+      if (record !== saved) return;
+      if (response.status === 429 || response.status === 503) {
+        if (statusRetries === 0) say('No se pudo actualizar el pago. Volveremos a consultar.');
+        const raw = response.headers.get('Retry-After') || '';
+        const ms = /^\d+$/.test(raw) ? Number(raw) * 1000 : Date.parse(raw) - Date.now();
+        const delay = Number.isFinite(ms) ? Math.max(1000, ms) : 8000;
+        if (++statusRetries < 45 && delay <= 2147483647) {
+          setTimeout(() => { if (record === saved) void refresh(saved); }, delay);
+        }
+        return;
+      }
       const payload = await json(response);
+      if (record !== saved) return;
+      statusRetries = 0;
       const states = {
         approved: 'Pago confirmado. Te enviamos las boletas con QR a tu correo.',
         failed: 'El pago no fue aprobado. Puedes volver a intentarlo.',
@@ -150,7 +165,7 @@
         intent = null;
       }
     } catch {
-      say('No se pudo consultar el pago. No se han emitido boletas.');
+      if (record === saved) say('No se pudo consultar el pago. Revisa el estado de tu compra más tarde.');
     }
   }
   if (/^[1-9]\d{0,17}$/.test(String(record?.order_id || ''))) {

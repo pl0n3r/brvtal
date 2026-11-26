@@ -101,6 +101,45 @@ for ($i=0;$i<50;$i++) {
 }
 abuseAssert($contactAllowed===5,'contact endpoint existing cap');
 
+require_once __DIR__ . '/../../config/public_ticket_checkout.php';
+$statusConfig = $config + ['ticketing' => ['status_rate_limit' => [
+    'window_seconds' => 60, 'origin_limit' => 3, 'global_limit' => 5,
+]]];
+$statusPath = $newDir() . '/status.json';
+$budget = static fn(string $scope, int $clock = 1800000000): array =>
+    brvtal_ticket_status_budget($statusConfig, $scope, $statusPath, $clock);
+for ($i = 0; $i < 3; ++$i) abuseAssert($budget('order')['allowed'], 'status per-origin allowance');
+$limited = $budget('order');
+abuseAssert($limited['status'] === 429 && $limited['retry_after'] === 60, 'status origin Retry-After');
+abuseAssert($budget('checkout')['allowed'], 'checkout scope independent');
+$_SERVER['REMOTE_ADDR'] = '203.0.113.78';
+abuseAssert($budget('order')['allowed'], 'other origin allowance');
+abuseAssert($budget('checkout')['status'] === 429, 'shared global ceiling');
+$stored = (string)file_get_contents($statusPath);
+abuseAssert(!str_contains($stored, '203.0.113.') && !str_contains($stored, 'example.test'),
+    'only pseudonymous bounded counters');
+abuseAssert($budget('checkout', $now + 60)['allowed'], 'expiry frees budget');
+$state = json_decode((string)file_get_contents($statusPath), true);
+abuseAssert($state['total'] === 1 && count($state['buckets']) === 1, 'expired buckets cleaned');
+$held = brvtal_rate_limit_store_open_lock($statusPath);
+abuseAssert(is_resource($held) && flock($held, LOCK_EX), 'fixture exclusive lock');
+try {
+    abuseAssert($budget('checkout', $now + 60)['status'] === 503, 'contended store fails closed');
+} finally {
+    flock($held, LOCK_UN);
+    fclose($held);
+}
+abuseAssert(brvtal_ticket_status_budget($statusConfig, 'order', $invalidRoot.'/status.json', $now)['status'] === 503,
+    'unavailable store fails closed');
+file_put_contents($statusPath, '{broken');
+abuseAssert($budget('order')['status'] === 503, 'corrupt store fails closed');
+$_SERVER['REMOTE_ADDR'] = '203.0.113.77';
+$pollPath = $newDir() . '/poll.json';
+for ($i = 0; $i < 45; ++$i) {
+    abuseAssert(brvtal_ticket_status_budget($config, 'order', $pollPath, $now + $i * 4)['allowed'],
+        'legitimate four-second polling remains available');
+}
+
 /** Inventory every syntactically public API POST entrypoint from source. */
 $root = dirname(__DIR__,2);
 $public = [
