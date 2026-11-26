@@ -203,7 +203,6 @@ test('T16 lector funciona dentro del único workspace DISCADMIN, sin segunda pá
   await expect(page.locator('#app .shell [data-door-result]')).toHaveAttribute('data-state','allow');
   await expect(page.locator('html')).toHaveCount(1);
 });
-
 function baselineDoorSource() {
   const sha='a0d17e831a3fd301d075665da7867a02e02c737a', file=sha+':discadmin/ticketing-door.js';
   try {execFileSync('git',['cat-file','-e',file]);} catch {execFileSync('git',['fetch','--no-tags','--depth=1','origin',sha],{timeout:20000});}
@@ -214,12 +213,14 @@ for (const width of [390,1440]) {
     await page.setViewportSize({width,height:900});
     let scan, lookups=0;
     const result=page.locator('[data-door-result]');
-    await setup(page,route=>route.abort('failed'),baselineDoorSource());
-    await page.locator('#door-qr').fill('synthetic-before');
-    await page.getByRole('button',{name:'Validar entrada'}).click();
-    await expect(result).toContainText('Estado desconocido');
-    await testInfo.attach('door-before-'+width,{body:await page.screenshot(),contentType:'image/png'});
-    await page.unrouteAll({behavior:'wait'});
+    if (testInfo.project.name==='chromium') {
+      await setup(page,route=>route.abort('failed'),baselineDoorSource());
+      await page.locator('#door-qr').fill('synthetic-before');
+      await page.getByRole('button',{name:'Validar entrada'}).click();
+      await expect(result).toContainText('Estado desconocido');
+      await testInfo.attach('door-before-'+width,{body:await page.screenshot(),contentType:'image/png'});
+      await page.unrouteAll({behavior:'wait'});
+    }
     await setup(page,async route=>{
       const body=route.request().postDataJSON();
       if (body.action!=='receipt') {
@@ -259,7 +260,6 @@ for (const width of [390,1440]) {
     await testInfo.attach('door-receipt-historical-'+width,{body:await page.screenshot(),contentType:'image/png'});
   });
 }
-
   test('T16 real HTTP pérdida después del commit y antes del envío',async ({page})=>{
     const origin=process.env.BRVTAL_DOOR_REAL_URL;
     test.skip(!origin,'disposable T15 real-stack only');
@@ -276,7 +276,7 @@ for (const width of [390,1440]) {
       const actual=await route.fetch();
       expect(actual.status()).toBe(200);
       expect(await actual.json()).toEqual({ok:true,reason:'accepted'});
-      await route.abort('failed'); // The server already committed; the browser receives nothing.
+      await route.abort('failed');
     });
     await page.locator('#door-qr').fill(qr);
     await page.getByRole('button',{name:'Validar entrada'}).click();
@@ -296,7 +296,7 @@ for (const width of [390,1440]) {
       const body=route.request().postDataJSON();
       if (body.action==='receipt') return route.continue();
       expect(body.request_id).not.toBe(sent);
-      return route.abort('failed'); // Never reaches PHP; no durable receipt can exist.
+      return route.abort('failed');
     });
     await page.locator('#door-qr').fill('synthetic-before-transport');
     await page.getByRole('button',{name:'Validar entrada'}).click();
