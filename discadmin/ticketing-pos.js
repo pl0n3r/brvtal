@@ -93,7 +93,9 @@ export function mount(target) {
   const manualSubmit=el('button','Revisar pedido manual','tk-button is-primary');
   manualSubmit.type='submit';manualForm.append(manualSubmit);
   const manualReceipt=el('output');manualReceipt.dataset.posManualReceipt='1';
-  manual.append(manualHeading,manualInfo,manualForm,manualStatus,manualReceipt);
+  const manualLookup=el('button','Consultar recibo pendiente','tk-button');
+  manualLookup.type='button';manualLookup.hidden=true;
+  manual.append(manualHeading,manualInfo,manualForm,manualStatus,manualReceipt,manualLookup);
   area.append(heading,info,status,form,sale,closeForm,manual);
   target.append(area);
   const active=()=>area.isConnected&&target.isConnected;
@@ -114,14 +116,60 @@ export function mount(target) {
     clearOptions(manualType,'Elige una boleta',picked?.ticket_types||[]);
   };
   manualEvent.addEventListener('change',fillManualTypes);
-  let manualKey=crypto.randomUUID().replaceAll('-','');
+  const storageKey='brvtal.pos.manual.intent.v1';
+  let storedIntent=null,storageAvailable=true;
+  try {storedIntent=sessionStorage.getItem(storageKey);}catch{storageAvailable=false;}
+  if(storedIntent!==null&&!/^[a-f0-9]{32}$/.test(storedIntent))storageAvailable=false;
+  let manualKey=storedIntent||crypto.randomUUID().replaceAll('-','');
   let manualSubmitted=false,manualReviewed=false,reviewSnapshot=null,manualPending=false;
+  let recoveryRequired=!!storedIntent||!storageAvailable;
+  const renderManualReceipt=(data,recovered)=>{
+    manualSubmitted=true;manualSubmit.disabled=true;
+    const issued=data.issuance==='issued';
+    manualStatus.textContent='Pedido #'+data.order_id+(recovered?' recuperado.':' creado.')
+      +' Pago offline confirmado; '+(issued?'QR emitido, entrega por correo no verificada.':recovered?'emisión de QR pendiente, entrega por correo no verificada.':'emisión de QR en cola, correo aún no enviado.');
+    manualReceipt.replaceChildren(el('p','Pedido #'+data.order_id+' · '
+      +data.amount_cop+' COP · '+data.method+'. Consulta Pedidos para verificar el estado.'));
+    const navigate=el('button','Ver en Pedidos','tk-button');navigate.type='button';
+    navigate.addEventListener('click',()=>target.closest('[data-admin-module="ticketing"]')
+      ?.querySelector('[data-ticketing-tab="orders"]')?.click());
+    manualReceipt.append(navigate);
+  };
+  const recoverManual=async()=>{
+    if(!active()||manualPending||busy||!storedIntent||!storageAvailable)return;
+    manualPending=true;recoveryRequired=true;manualSubmit.disabled=true;manualLookup.disabled=true;
+    manualStatus.textContent='Consultando el recibo de la intención original…';
+    try{
+      const data=await transaction({action:'manual_intent',idempotency_key:storedIntent});
+      if(!active())return;
+      if(data.state==='found'&&data.status==='paid'&&['issued','pending'].includes(data.issuance)){
+        recoveryRequired=false;renderManualReceipt(data,true);
+      }else if(data.state==='not_found'){
+        recoveryRequired=false;manualReviewed=false;reviewSnapshot=null;
+        manualPreview.replaceChildren();manualSubmit.textContent='Revisar pedido manual';
+        manualStatus.textContent='No hay recibo verificable todavía. Esto no prueba que el pago no se registró. Si reintentas, revisa y confirma los datos originales con la misma intención.';
+      }else{
+        manualStatus.textContent='Resultado incierto. No registres otra venta; consulta de nuevo el recibo o verifica Pedidos.';
+      }
+    }catch(error){
+      if(active())manualStatus.textContent=error.message==='FORBIDDEN'
+        ?'Solo el propietario puede consultar este recibo.':'No se pudo verificar el recibo. Conservamos la intención; consulta de nuevo antes de registrar otra venta.';
+    }finally{
+      manualPending=false;manualLookup.disabled=false;
+      if(active())manualSubmit.disabled=recoveryRequired||manualSubmitted;
+    }
+  };
+  manualLookup.addEventListener('click',()=>void recoverManual());
   const resetManualReview=()=>{
     if(manualPending)return;
     manualReviewed=false;reviewSnapshot=null;
     manualPreview.replaceChildren();
     manualSubmit.textContent='Revisar pedido manual';
     if(manualSubmitted){
+      try {sessionStorage.removeItem(storageKey);}catch{
+        recoveryRequired=true;manualSubmit.disabled=true;return;
+      }
+      storedIntent=null;manualLookup.hidden=true;
       manualKey=crypto.randomUUID().replaceAll('-','');
       manualSubmitted=false;
       manualSubmit.disabled=false;
@@ -133,7 +181,7 @@ export function mount(target) {
   manualRef.addEventListener('input',()=>manualRef.setCustomValidity(''));
   manualForm.addEventListener('submit',async e=>{
     e.preventDefault();
-    if(!active()||manualSubmitted||manualPending||busy||!manualForm.reportValidity())return;
+    if(!active()||manualSubmitted||manualPending||busy||recoveryRequired||!manualForm.reportValidity())return;
     const reference=manualRef.value.trim();
     if(manualMethod.value!=='cash' && (reference.length<4
         || !/^[A-Za-z0-9][A-Za-z0-9 ._/-]*$/.test(reference))){
@@ -168,6 +216,10 @@ export function mount(target) {
       manualStatus.textContent='Revisa cantidad, correo y referencia. Confirma solo si el pago ya está acreditado.';
       return;
     }
+    try{sessionStorage.setItem(storageKey,manualKey);storedIntent=manualKey;}
+    catch{recoveryRequired=true;manualSubmit.disabled=true;
+      manualStatus.textContent='No se puede conservar la intención. No se envió el pedido.';return;}
+    manualLookup.hidden=false;manualLookup.disabled=true;
     manualPending=true;
     manualSubmit.disabled=true;
     // Prevent editing while a request is in flight; after a timeout the
@@ -179,17 +231,7 @@ export function mount(target) {
     try{
       const data=await transaction(raw);
       if(!active())return;
-      manualSubmitted=true;
-      manualStatus.textContent='Pedido #'+data.order_id+(data.replayed?' recuperado.':' creado.')
-        +' Pago offline confirmado; emisión de QR en cola, correo aún no enviado.';
-      manualReceipt.replaceChildren(el('p','Pedido #'+data.order_id+' · '
-        +data.amount_cop+' COP · '+data.method+'. Consulta Pedidos para verificar el estado.'));
-      const navigate=el('button','Ver en Pedidos','tk-button');navigate.type='button';
-      navigate.addEventListener('click',()=>{
-        target.closest('[data-admin-module="ticketing"]')
-          ?.querySelector('[data-ticketing-tab="orders"]')?.click();
-      });
-      manualReceipt.append(navigate);
+      renderManualReceipt({...data,method:data.method||raw.method},!!data.replayed);
     }catch(error){
       if(!active())return;
       const reasons={
@@ -200,12 +242,16 @@ export function mount(target) {
         POS_TYPE_UNAVAILABLE:'No se encontró la boleta seleccionada.',
         POS_INVALID_MANUAL_ORDER:'El servidor rechazó los datos. Revisa la referencia, el nombre y el medio de pago.'
       };
+      recoveryRequired=!Object.hasOwn(reasons,error.message)||error.message==='POS_IDEMPOTENCY_CONFLICT';
       manualStatus.textContent=reasons[error.message]
-        || 'No se pudo verificar el resultado. Reintenta con los mismos datos para evitar pedidos duplicados.';
+        || 'No se pudo verificar el resultado. Consultando el recibo original…';
     }finally{
       fields.forEach((control,index)=>{control.disabled=disabledBefore[index];});
-      manualPending=false;
-      if(active()&&!manualSubmitted)manualSubmit.disabled=false;
+      manualPending=false;manualLookup.disabled=false;
+      if(active()&&!manualSubmitted){
+        manualSubmit.disabled=recoveryRequired;
+        if(recoveryRequired)void recoverManual();
+      }
     }
   });
   async function loadCatalog() {
@@ -314,4 +360,7 @@ export function mount(target) {
     });
   });
   void loadCatalog();
+  if(!storageAvailable){manualSubmit.disabled=true;
+    manualStatus.textContent='No se puede conservar la intención de forma segura. No registres otro pedido.';
+  }else if(storedIntent){manualLookup.hidden=false;manualSubmit.disabled=true;void recoverManual();}
 }

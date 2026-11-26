@@ -63,6 +63,92 @@ if (getenv('BRVTAL_INTEGRATION_TESTS')!=='1') {
     echo "T24 POS validation/RBAC/CSRF/cash check-in contract OK; disposable MariaDB not configured.\n";
     exit(0);
 }
+
+/** Actual localhost HTTP endpoint, with disposable DB and canonical session/CSRF. */
+function posIntentHttp(array $settings,array $intent,array $expected): void {
+    posAssert((bool)preg_match('/^brvtal_test[a-zA-Z0-9_]*$/D',$settings['name']),'HTTP disposable DB only');
+    $dir=sys_get_temp_dir().'/brvtal-pos-http-'.bin2hex(random_bytes(8));
+    if (!mkdir($dir,0700)) throw new RuntimeException('fixture directory failed');
+    $server=null;
+    try {
+        $root=realpath(__DIR__.'/../..');
+        posAssert(is_string($root),'fixture source root');
+        file_put_contents($dir.'/config.php','<?php return '.var_export([
+            'app'=>['timezone'=>'America/Bogota'],
+            'db'=>$settings,'security'=>['session_name'=>'BRVTAL_POS_FIXTURE']
+        ],true).';');
+        chmod($dir.'/config.php',0600);
+        $router='<?php define("BRVTAL_SENTRY_TESTING",true);'
+            .'$GLOBALS["brvtalBootstrapConfigPath"]='.var_export($dir.'/config.php',true).';'
+            .'ini_set("session.save_path",'.var_export($dir,true).');'
+            .'$root='.var_export($root,true).';'
+            . <<<'ROUTER'
+$path=parse_url($_SERVER['REQUEST_URI'],PHP_URL_PATH);
+if ($path==='/fixture-session') {
+    require $root.'/config/admin_auth.php';
+    $actor=(int)($_GET['actor']??0);
+    if (!in_array($actor,[1,2,3],true)) {http_response_code(404);exit;}
+    brvtal_admin_login_session($actor);
+    json_response(['csrf'=>brvtal_admin_csrf_token()]);
+}
+if ($path==='/api/ticketing/admin-pos.php') {
+    require $root.$path;
+    return true;
+}
+http_response_code(404);
+ROUTER;
+        file_put_contents($dir.'/router.php',$router);
+        $socket=stream_socket_server('tcp://127.0.0.1:0',$errno,$errstr);
+        posAssert(is_resource($socket),'fixture socket');
+        $address=stream_socket_get_name($socket,false);fclose($socket);
+        $server=proc_open([PHP_BINARY,'-S',$address,$dir.'/router.php'],
+            [0=>['pipe','r'],1=>['file',$dir.'/server.log','a'],2=>['file',$dir.'/server.log','a']],$pipes,$root);
+        posAssert(is_resource($server),'HTTP fixture starts');fclose($pipes[0]);
+        $port=(int)substr(strrchr($address,':'),1);
+        $ready=false;
+        for($i=0;$i<40;$i++){
+            $probe=@fsockopen('127.0.0.1',$port,$errno,$errstr,0.2);
+            if(is_resource($probe)){fclose($probe);$ready=true;break;}
+            usleep(50000);
+        }
+        posAssert($ready,'HTTP fixture ready');
+        $request=static function(string $path,array $headers=[],?array $payload=null)use($address):array{
+            $options=['method'=>$payload===null?'GET':'POST','ignore_errors'=>true,
+                'timeout'=>5,'header'=>implode("\r\n",$headers)];
+            if($payload!==null)$options['content']=json_encode($payload,JSON_THROW_ON_ERROR);
+            $body=file_get_contents('http://'.$address.$path,false,stream_context_create(['http'=>$options]));
+            $lines=function_exists('http_get_last_response_headers')?http_get_last_response_headers():($http_response_header??[]);
+            posAssert(is_string($body)&&is_array($lines)&&isset($lines[0]),'HTTP response present');
+            return [(int)substr($lines[0],9,3),json_decode($body,true,8,JSON_THROW_ON_ERROR),$lines];
+        };
+        $path='/api/ticketing/admin-pos.php';
+        [$status]=$request($path,['Content-Type: application/json'],$intent);
+        posAssert($status===401,'HTTP unauthenticated rejected');
+        foreach([1,2,3] as $actor){
+            [$status,$session,$headers]=$request('/fixture-session?actor='.$actor);
+            posAssert($status===200&&isset($session['csrf']),'real session bootstrap');
+            $cookie='';
+            foreach($headers as $header){
+                if(str_starts_with($header,'Set-Cookie: BRVTAL_POS_FIXTURE=')){
+                    $cookie=explode(';',substr($header,12),2)[0];
+                }
+            }
+            posAssert($cookie!=='','session cookie');
+            $base=['Content-Type: application/json','Cookie: '.$cookie];
+            [$status]=$request($path,$base,$intent);
+            posAssert($status===419,'HTTP CSRF required');
+            [$status,$body]=$request($path,[...$base,'X-CSRF-Token: '.$session['csrf']],$intent);
+            if($actor===1)posAssert($status===200&&$body===['ok'=>true,'data'=>$expected],'real HTTP receipt');
+            elseif($actor===2)posAssert($status===200&&$body===['ok'=>true,'data'=>['state'=>'not_found']],'HTTP actor isolation');
+            else posAssert($status===403&&$body['error']==='FORBIDDEN','HTTP role denied');
+        }
+    } finally {
+        if(is_resource($server)){proc_terminate($server);proc_close($server);}
+        foreach(glob($dir.'/*')?:[] as $file)unlink($file);
+        rmdir($dir);
+    }
+}
+
 $prefix=(string)getenv('BRVTAL_TEST_DB_NAME');
 posAssert((bool)preg_match('/^brvtal_test[a-zA-Z0-9_]*$/D',$prefix),'only disposable DB');
 $host=(string)(getenv('BRVTAL_TEST_DB_HOST')?:'127.0.0.1');
@@ -79,7 +165,8 @@ register_shutdown_function(static function() use($server,$name):void {
 });
 $db=new PDO("mysql:host=$host;port=$port;dbname=$name;charset=utf8mb4",$user,$pass,$opts);
 $ddl=[
-  "CREATE TABLE admins (id INT UNSIGNED PRIMARY KEY,is_active TINYINT NOT NULL DEFAULT 1) ENGINE=InnoDB",
+  "CREATE TABLE admins (id INT UNSIGNED PRIMARY KEY,is_active TINYINT NOT NULL DEFAULT 1,
+      credential_epoch INT NOT NULL DEFAULT 1,staff_role VARCHAR(32) NOT NULL DEFAULT 'admin') ENGINE=InnoDB",
   "CREATE TABLE ticket_refund_event_decisions (event_id INT UNSIGNED PRIMARY KEY,
       cause VARCHAR(20) NOT NULL) ENGINE=InnoDB",
   "CREATE TABLE events (id INT UNSIGNED PRIMARY KEY,status VARCHAR(24),event_date DATETIME,
@@ -138,7 +225,7 @@ $when=(new DateTimeImmutable('now',new DateTimeZone('America/Bogota')));
 $date=$when->modify('+8 days')->format('Y-m-d H:i:s');
 $doorClock=new DateTimeImmutable($date,new DateTimeZone('America/Bogota'));
 $published=$when->modify('-1 day')->format('Y-m-d H:i:s');
-$db->exec("INSERT INTO admins VALUES (1,1),(2,1)");
+$db->exec("INSERT INTO admins(id,is_active,staff_role) VALUES (1,1,'superadmin'),(2,1,'superadmin'),(3,1,'admin')");
 $event=$db->prepare("INSERT INTO events VALUES (6,'published',?,?)");
 $event->execute([$date,$published]);
 $db->exec("INSERT INTO event_ticket_types(id,event_id,name,price,status,currency)
@@ -210,6 +297,11 @@ putenv('BRVTAL_INTEGRATION_TESTS=0');
 try {
     posDenies(static fn()=>brvtalPosRun($db,1,'admin',$manual),'FORBIDDEN');
     posDenies(static fn()=>brvtalPosRun($db,1,'door',$manual),'FORBIDDEN');
+    $intent=['action'=>'manual_intent','idempotency_key'=>$manual['idempotency_key']];
+    posDenies(static fn()=>brvtalPosInput($intent+['buyer_email'=>'fake@example.test']),'POS_INVALID_FIELDS');
+    posDenies(static fn()=>brvtalPosInput(array_replace($intent,['idempotency_key'=>'short'])),'POS_INVALID_MANUAL_INTENT');
+    posDenies(static fn()=>brvtalPosRun($db,1,'admin',$intent),'FORBIDDEN');
+    posAssert(brvtalPosRun($db,1,'superadmin',$intent)===['state'=>'not_found'],'absent intention');
     $created=brvtalPosRun($db,1,'superadmin',$manual);
     posAssert($created['status']==='paid' && $created['issuance_queued'] && !$created['replayed'],
         'owner records paid wallet order and queues QR issuance');
@@ -243,7 +335,28 @@ try {
     $job=$outbox->fetch(PDO::FETCH_ASSOC);
     posAssert(is_array($job) && $job['state']==='pending' && $job['payment_attempt_id']===null,
         'offline order durable issue job without Wompi attempt');
+    $snapshot=static function()use($db):array {
+        $counts=[];
+        foreach(['ticket_orders','ticket_order_items','ticket_pos_sales','ticket_pos_shifts',
+            'ticket_order_notes','ticket_issue_outbox','ticket_entries','ticket_inventory_holds'] as $table) {
+            $counts[$table]=(int)$db->query("SELECT COUNT(*) FROM ".$table)->fetchColumn();
+        }
+        return $counts;
+    };
+    $before=$snapshot();
+    $receipt=brvtalPosRun($db,1,'superadmin',$intent);
+    posAssert($receipt===['state'=>'found','order_id'=>$created['order_id'],
+        'amount_cop'=>50000,'method'=>'nequi','status'=>'paid','issuance'=>'pending'],'safe pending receipt');
+    posAssert(brvtalPosRun($db,1,'superadmin',$intent)===$receipt,'read replay');
+    posIntentHttp(['host'=>$host,'port'=>$port,'name'=>$name,'user'=>$user,'pass'=>$pass],$intent,$receipt);
+    posAssert(brvtalPosRun($db,2,'superadmin',$intent)===['state'=>'not_found'],'different actor isolated');
+    $db->prepare("UPDATE ticket_issue_outbox SET state='failed' WHERE id=?")->execute([$job['id']]);
+    posAssert(brvtalPosRun($db,1,'superadmin',$intent)===['state'=>'uncertain'],'unverified issuance fails closed');
+    $db->prepare("UPDATE ticket_issue_outbox SET state='pending' WHERE id=?")->execute([$job['id']]);
+    posAssert($snapshot()===$before,'receipt reads never create rows');
     $issued=brvtal_ticket_issue_consume($db,(int)$job['id']);
+    $receipt['issuance']='issued';
+    posAssert(brvtalPosRun($db,1,'superadmin',$intent)===$receipt,'issued receipt without QR or mail claim');
     posAssert($issued['state']==='issued' && count($issued['tickets'])===2,
         'trusted issuance worker creates exactly two QR credentials');
     $first=$issued['tickets'][0];
