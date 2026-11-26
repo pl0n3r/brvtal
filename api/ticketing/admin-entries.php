@@ -1,8 +1,14 @@
 <?php
 declare(strict_types=1);
-require_once __DIR__ . '/../../config/admin_auth.php';
+// Only the authenticated HTTP entry point needs the production bootstrap.
+// T19's CLI-only library fixture must run on disposable MariaDB even without
+// a private config/config.php; never bypass auth in an HTTP request.
+if (!(defined('BRVTAL_T19_LIBRARY_ONLY') && PHP_SAPI==='cli')) {
+    require_once __DIR__ . '/../../config/admin_auth.php';
+}
 require_once __DIR__ . '/../../config/ticketing_staff_permissions.php';
 require_once __DIR__ . '/../../config/ticketing_checkin.php';
+require_once __DIR__ . '/../../config/ticketing_issue.php';
 require_once __DIR__ . '/../../config/ticketing_mail_outbox.php';
 require_once __DIR__ . '/../../config/ticketing_mail_events.php';
 /** Isolated transactional T19 service, also exercised on disposable MariaDB. */
@@ -60,16 +66,26 @@ function brvtalTicketAdminEntryMutation(PDO $pdo,int $entryId,int $operator,stri
                 || !trim((string)$row['consent_version']) || !$row['consent_recorded_at']) {
                 throw new DomainException('BUYER_CONSENT_REQUIRED');
             }
+            // Never revoke an existing QR until the encrypted replacement is ready.
+            if (!brvtal_ticket_issue_has_encrypted_column($pdo)) {
+                throw new DomainException('ISSUE_ENCRYPTION_UNAVAILABLE');
+            }
+            $entryPublicId=hex2bin((string)$row['public_id']);
+            if (!is_string($entryPublicId) || strlen($entryPublicId)!==16) {
+                throw new DomainException('ISSUE_ENCRYPTION_UNAVAILABLE');
+            }
+            $secret=random_bytes(32);
+            $sealed=brvtal_ticket_issue_seal_token($secret, $entryPublicId);
         }
         $pdo->prepare("UPDATE ticket_entry_credentials SET status='revoked',
           revoked_at_utc=UTC_TIMESTAMP(6) WHERE entry_id=? AND status='active'")->execute([$entryId]);
         $newVersion=(int)$version;
         if ($action==='reissue') {
             $newVersion++;
-            $secret=random_bytes(32);
             $pdo->prepare('INSERT INTO ticket_entry_credentials
-                (entry_id,version,token_hash,created_at_utc) VALUES (?,?,?,UTC_TIMESTAMP(6))')
-                ->execute([$entryId,$newVersion,hash('sha256',$secret,true)]);
+                (entry_id,version,token_hash,token_encrypted,created_at_utc)
+                VALUES (?,?,?,?,UTC_TIMESTAMP(6))')
+                ->execute([$entryId, $newVersion, hash('sha256', $secret, true), $sealed]);
             $qr='BRVTAL:T1:'.$row['public_id'].':'.rtrim(strtr(base64_encode($secret),'+/','-_'),'=');
             // Queue only a generic alert; QR plaintext is never persisted in the mail outbox.
             $keyMail='ticket:reissue:'.$entryId.':'.$newVersion;
