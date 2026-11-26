@@ -243,6 +243,20 @@ t08((int)$db->query('SELECT COUNT(*) FROM ticket_issue_outbox WHERE order_id=54'
     ->fetchColumn()===0, 'missing policy schema cannot emit tickets');
 $db->exec("CREATE TABLE ticket_refund_event_decisions
     (event_id INT UNSIGNED PRIMARY KEY,cause VARCHAR(20) NOT NULL) ENGINE=InnoDB");
+// Editorially historical or draft Events cannot admit even a still-active hold.
+// A genuine charge remains approved and journaled, not declined or fulfilled.
+foreach (['finished','archived','draft','cancelled','postponed'] as $offset=>$eventState) {
+    $id=55+$offset;
+    [$lifecycleSigned,$lifecycleProvider]=$case($id,'pending','valid');
+    $db->prepare('UPDATE events SET status=? WHERE id=1')->execute([$eventState]);
+    t08($process($lifecycleSigned,$lifecycleProvider)==='approved_unfulfilled',
+        "historical or inactive event denies admission: $eventState");
+    t08($db->query("SELECT status FROM ticket_payment_attempts WHERE id=$id")
+        ->fetchColumn()==='approved', 'historical event preserves charge');
+    t08((int)$db->query("SELECT COUNT(*) FROM ticket_issue_outbox WHERE order_id=$id")
+        ->fetchColumn()===0, 'historical event does not emit');
+    $db->exec("UPDATE events SET status='published' WHERE id=1");
+}
 // A signed PENDING event with independently authenticated APPROVED status must
 // keep its original signed provenance and still admit the valid reservation.
 [$s,$p]=$case(48,'pending','valid');

@@ -122,7 +122,10 @@ function brvtal_wompi_hook_reserved(PDO $db, int $orderId, int $eventId, array $
     // Reentrant locking read: the caller already holds this Event mutex.
     $event->execute([$eventId]);
     $state = (string)$event->fetchColumn();
-    if ($state === '' || in_array(strtolower($state), ['cancelled','canceled','postponed'], true)) {
+    // A confirmed charge does not authorize tickets for historical, draft,
+    // or unknown editorial states. sold_out is still eligible for a hold
+    // acquired before the sell-out, subject to the checks below.
+    if (!in_array(strtolower(trim($state)), brvtal_public_event_statuses()['active'], true)) {
         return false;
     }
     // The common owner decision is authoritative, independent of the
