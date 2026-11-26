@@ -13,7 +13,8 @@ header('X-Robots-Tag: noindex, nofollow');
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET') {
     json_response(['ok' => false, 'error' => 'METHOD_NOT_ALLOWED'], 405, ['Allow' => 'GET']);
 }
-$token = (string)($_GET['t'] ?? '');
+brvtalTicketStatusRequireBudget('order');
+$token = is_string($_GET['t'] ?? null) ? $_GET['t'] : '';
 if (!preg_match('/^[a-f0-9]{32}$/D', $token)) {
     json_response(['ok' => false, 'error' => 'ORDER_NOT_FOUND'], 404);
 }
