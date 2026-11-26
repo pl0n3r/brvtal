@@ -359,6 +359,22 @@ try {
     $_SESSION['buyer_checkout_new_order']=95;
     t21Reject(static fn()=>brvtalRefundRequest($pdo,3,$order94),'ORDER_NOT_REFUNDABLE');
     $_SESSION['buyer_checkout_new_order']=94;
+    // Reproduce the stale REPEATABLE READ snapshot from the preliminary order
+    // lookup; a separate connection blocks this buyer before the locking read.
+    // The scope helper must observe the new blocked status, not the old snapshot.
+    $pdo->beginTransaction();
+    try {
+        $pdo->query('SELECT event_id FROM ticket_orders WHERE id=94')->fetchColumn();
+        $writer=new PDO("mysql:host=$host;port=$port;dbname=$dbName;charset=utf8mb4",
+            $user,$pass,$opts);
+        $writer->exec("UPDATE ticket_buyers SET status='blocked' WHERE id=3");
+        t21Reject(static fn()=>brvtalRefundRequestScope($pdo,3,94),'TICKET_UNAVAILABLE');
+        t21((int)$pdo->query('SELECT COUNT(*) FROM ticket_refund_audit')->fetchColumn()
+            ===$auditBefore+1,'blocked buyer cannot create refund audit through stale snapshot');
+    } finally {
+        if($pdo->inTransaction())$pdo->rollBack();
+        if(isset($writer))$writer->exec("UPDATE ticket_buyers SET status='guest' WHERE id=3");
+    }
     $pdo->exec("UPDATE ticket_buyers SET status='active',email_verified_at=UTC_TIMESTAMP(6) WHERE id=3");
     t21(count(brvtalRefundBuyerList($pdo,3))>=3,
         'verified account retains access to own orders regardless of old guest grant');
@@ -487,6 +503,20 @@ try {
         foreach(glob($temporary.'/*')?:[] as $file){if(is_file($file))unlink($file);}
         rmdir($temporary);
     }
+
+    // Direct service replay must remain idempotent after the granted order
+    // is refunded, without creating a *new* refund. The HTTP auth layer still
+    // requires paid checkout for guest login and is intentionally not widened.
+    $_SESSION=['buyer_id'=>3,'buyer_checkout_new_order'=>94];
+    $pdo->exec("UPDATE ticket_orders SET status='refunded' WHERE id=94");
+    $afterRefund=brvtalRefundRequest($pdo,3,$order94);
+    t21($afterRefund['replayed']===true && $afterRefund['status']==='requested',
+        'granted order retains idempotent service replay after full refund');
+    t21Reject(static fn()=>brvtalRefundRequest($pdo,3,array_merge($order94,[
+        'idempotency_key'=>'t31-no-new-after-refunded'
+    ])),'ORDER_NOT_REFUNDABLE');
+    t21((int)$pdo->query('SELECT COUNT(*) FROM ticket_refund_audit')->fetchColumn()
+        ===$auditBefore+1,'no new refund audit after fully refunded order');
 
     putenv('BRVTAL_TICKET_MAIL_TESTING=0');
     putenv('BRVTAL_INTEGRATION_TESTS=0');
