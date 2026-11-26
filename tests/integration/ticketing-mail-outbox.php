@@ -313,5 +313,25 @@ echo "BRVTAL ticket-mail outbox integration OK.\n";
 // T11: run signed webhook and durable history tests in the existing canonical mail integration suite.
 require __DIR__ . '/ticketing-mail-history.php';
 
+// #2063: provider evidence can arrive after a local lease became uncertain.
+// The provider audit is separate from the local work state; do not rewrite the outbox.
+putenv('BRVTAL_TICKET_MAIL_TESTING=1');
+$pdo->exec("INSERT INTO ticket_mail_outbox
+    (message_key,payload_hash,related_ref,recipient_email,subject,body_text,state,provider_message_id)
+    VALUES ('test:late:2063',REPEAT('d',64),'entry:late','late@example.test',
+    'Synthetic','No real delivery','uncertain','late-provider-2063')");
+$lateId = (int)$pdo->lastInsertId();
+$lateHistory = brvtal_mail_history_record($pdo, $lateId, ['order_id' => 2063]);
+brvtal_mail_history_event($pdo, 'late-event-2063', 'late-provider-2063', 'delivered',
+    new DateTimeImmutable('now', new DateTimeZone('UTC')), hash('sha256', 'synthetic-late'));
+$lateRead = $pdo->prepare('SELECT delivery_state FROM ticket_mail_history WHERE id=?');
+$lateRead->execute([$lateHistory]);
+mail_assert($lateRead->fetchColumn() === 'delivered', 'late authentic provider event survives');
+mail_assert((string)$pdo->query("SELECT state FROM ticket_mail_outbox WHERE id=$lateId")
+    ->fetchColumn() === 'uncertain', 'provider status never fabricates a local send');
+mail_assert(brvtal_ticket_mail_reconcile_stale($pdo, 2) === 0,
+    'reconciler cannot rewrite a late delivered event');
+putenv('BRVTAL_TICKET_MAIL_TESTING=0');
+
 // T34: run the buyer-auth synthetic MariaDB contracts in the canonical database gate.
 require __DIR__ . '/buyer-auth-flows.php';
