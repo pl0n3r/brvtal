@@ -528,7 +528,11 @@ function brvtalMigrationNullableColumnMatches(mixed $observed): bool
 
 function brvtalMigrationProbeRequirement(PDO $pdo, string $requirement): bool
 {
-    if (preg_match('/^column-not-null-default:([A-Za-z0-9_]+)\.([A-Za-z0-9_]+)=([A-Za-z0-9_]+)$/', $requirement, $match)) {
+    if (preg_match(
+        '/^column-not-null-default:([A-Za-z0-9_]+)\.([A-Za-z0-9_]+)=([A-Za-z0-9_]+)$/',
+        $requirement,
+        $match
+    )) {
         $statement = $pdo->prepare(
             'SELECT IS_NULLABLE,COLUMN_DEFAULT FROM information_schema.COLUMNS '
             . 'WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?'

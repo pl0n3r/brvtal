@@ -119,10 +119,14 @@ function brvtal_public_event_visibility_select(PDO $pdo, bool $qualified = false
     $available ??= new WeakMap();
     if (!isset($available[$pdo])) {
         $statement = $pdo->query("SHOW COLUMNS FROM events LIKE 'visibility'");
-        if ($statement === false) throw new RuntimeException('EVENT_VISIBILITY_SCHEMA_PROBE_FAILED');
+        if ($statement === false) {
+            throw new RuntimeException('EVENT_VISIBILITY_SCHEMA_PROBE_FAILED');
+        }
         $available[$pdo] = $statement->fetchColumn() !== false;
     }
-    if (!$available[$pdo]) return "'public' AS visibility";
+    if (!$available[$pdo]) {
+        return "'public' AS visibility";
+    }
     return $qualified ? 'e.visibility' : 'visibility';
 }
 

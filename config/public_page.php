@@ -312,7 +312,11 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
         $data['links'] = array_filter(['INSTAGRAM' => $detail['instagram_url'] ?? '', 'SOUNDCLOUD' => $detail['soundcloud_url'] ?? '', 'WEBSITE' => $detail['website_url'] ?? '']);
         $data['related']['EVENTS'] = brvtal_page_public_event_rows(
             $pdo,
-            "SELECT e.title,e.slug,e.cover_image AS image,CONCAT_WS(' / ',DATE_FORMAT(e.event_date,'%d.%m.%Y'),e.city) AS meta,'events' AS route_type,e.status,e.event_date,e.published_at,{$eventVisibilitySelect} FROM event_artists ea JOIN events e ON e.id=ea.event_id WHERE ea.artist_id=? AND e.status IN ({$eventPlaceholders}) ORDER BY e.event_date DESC",
+            "SELECT e.title,e.slug,e.cover_image AS image,"
+            . "CONCAT_WS(' / ',DATE_FORMAT(e.event_date,'%d.%m.%Y'),e.city) AS meta,"
+            . "'events' AS route_type,e.status,e.event_date,e.published_at,{$eventVisibilitySelect}"
+            . " FROM event_artists ea JOIN events e ON e.id=ea.event_id"
+            . " WHERE ea.artist_id=? AND e.status IN ({$eventPlaceholders}) ORDER BY e.event_date DESC",
             array_merge([$id], $eventStatuses)
         );
         $data['related']['SETS'] = brvtal_page_rows($pdo, "SELECT title,slug,cover_image AS image,platform AS meta,'sets' AS route_type FROM sets_media WHERE artist_id=? AND status='published' ORDER BY sort_order,created_at DESC", [$id]);
@@ -349,7 +353,9 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
                 "SELECT `{$title}` AS title,slug,`{$image}` AS image,'{$route}' AS route_type{$lifecycleSelect}{$artistIdSelect} FROM `{$table}` WHERE id=? AND {$where} LIMIT 1",
                 array_merge([(int)$relation['related_id']], $whereParameters)
             );
-            if ($item && ($route !== 'events' || brvtal_public_event_is_listed($item))) $data['related']['RELATED'][] = $item;
+            if ($item && ($route !== 'events' || brvtal_public_event_is_listed($item))) {
+                $data['related']['RELATED'][] = $item;
+            }
         }
     } elseif ($type === 'sets') {
         $detail = brvtal_page_row($pdo, "SELECT platform,external_url,embed_url,artist_id,event_id FROM sets_media WHERE id=? LIMIT 1", [$id], true);
@@ -361,7 +367,9 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
             $eventVisibilitySelect = brvtal_public_event_visibility_select($pdo);
             $data['related']['EVENT'] = brvtal_page_public_event_rows(
                 $pdo,
-                "SELECT title,slug,cover_image AS image,'events' AS route_type,status,event_date,published_at,{$eventVisibilitySelect} FROM events WHERE id=? AND status IN ({$eventPlaceholders})",
+                "SELECT title,slug,cover_image AS image,'events' AS route_type,"
+                . "status,event_date,published_at,{$eventVisibilitySelect}"
+                . " FROM events WHERE id=? AND status IN ({$eventPlaceholders})",
                 array_merge([(int)$detail['event_id']], $eventStatuses)
             );
         }
