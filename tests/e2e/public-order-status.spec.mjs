@@ -28,7 +28,7 @@ const order = state => ({ ok: true, order: { order_number: 6, state, event_title
   event_url: '/events/genesis', total_cop: 50000, items: [{ name: 'Preventa', quantity: 2 }],
   email_hint: 'a***@example.test' } });
 
-async function setup(browserPage, states, scoped = true) {
+async function setup(browserPage, states, scoped = true, baselineScript = null) {
   const asked = [];
   await browserPage.addInitScript(() => { window.BRVTAL_ORDER_POLL_MS = 150; });
   await browserPage.route('**/*', route => {
@@ -47,9 +47,12 @@ async function setup(browserPage, states, scoped = true) {
       asked.push(url.searchParams.get('t'));
       if (states === 404) return route.fulfill({ status: 404, contentType: 'application/json', body: '{"ok":false,"error":"ORDER_NOT_FOUND"}' });
       const state = states[Math.min(asked.length - 1, states.length - 1)];
-      if (state === 429) return route.fulfill({ status: 429, headers: { 'Retry-After': '2' },
-        contentType: 'application/json', body: '{"ok":false,"error":"RATE_LIMITED"}' });
+      if (state === 429 || state === 503) return route.fulfill({ status: state, headers: { 'Retry-After': '2' },
+        contentType: 'application/json', body: JSON.stringify({ok:false,error:state===429?'RATE_LIMITED':'ORDER_UNAVAILABLE'}) });
       return route.fulfill({ contentType: 'application/json', body: JSON.stringify(order(state)) });
+    }
+    if (baselineScript && url.pathname === '/js/public-order-status.js') {
+      return route.fulfill({ contentType: 'text/javascript', body: baselineScript });
     }
     const asset = assets[url.pathname];
     if (asset) return route.fulfill({ contentType: asset[0], body: asset[1] });
@@ -141,19 +144,47 @@ test('otro navegador con el mismo enlace no obtiene pedidos ni sesión', async (
 
 // Isolated UI contract; real HTTP/provider evidence is separate.
 for (const width of [390, 1440]) {
-  test(`Retry-After conserva el último estado confirmado (${width})`, async ({ page: browserPage }, testInfo) => {
-    await browserPage.setViewportSize({ width, height: 844 });
+  test(`Retry-After conserva el último estado confirmado (${width})`, async ({ page: browserPage, browser }, testInfo) => {
+    const viewport = { width, height: width === 390 ? 844 : 900 };
+    await browserPage.setViewportSize(viewport);
+    const baselinePath = process.env.BRVTAL_STATUS_BASELINE_SCRIPT;
+    if (baselinePath) {
+      const before = await browser.newPage({ viewport });
+      try {
+        await setup(before, ['pending', 429], true, readFileSync(baselinePath));
+        await before.goto(base + '/compra/' + token);
+        await expect(before.locator('#purchase-state')).toHaveAttribute('data-state', 'offline');
+        await capture(before, testInfo, `status-budget-before-${width}`);
+      } finally { await before.close(); }
+    } else {
+      testInfo.annotations.push({type:'evidence',description:'Base exacta no suministrada; no acredita captura antes.'});
+    }
     const asked = await setup(browserPage, ['pending', 429, 'approved']);
     await browserPage.goto(base + '/compra/' + token);
     await expect(browserPage.locator('#purchase-detail')).toContainText('Volveremos a consultar');
     await expect(browserPage.locator('#purchase-state')).toHaveAttribute('data-state', 'pending');
     expect(asked).toHaveLength(2);
     await capture(browserPage, testInfo, `compra-limitada-${width}`);
+    await capture(browserPage, testInfo, `status-budget-after-${width}`);
+    expect(await browserPage.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
     await browserPage.waitForTimeout(700);
     expect(asked).toHaveLength(2);
     await expect(browserPage.locator('#purchase-state')).toHaveAttribute('data-state', 'approved');
     expect(asked).toHaveLength(3);
     await browserPage.keyboard.press('Tab');
+    await expect(browserPage.getByRole('link', {name:'BRVTAL · Volver al inicio'})).toBeFocused();
+    await browserPage.keyboard.press('Tab');
+    await expect(browserPage.getByRole('link', {name:'Volver al evento'})).toBeFocused();
     await capture(browserPage, testInfo, `compra-recuperada-${width}`);
   });
 }
+
+test('503 conserva el estado confirmado y respeta Retry-After', async ({page: browserPage}) => {
+  const asked = await setup(browserPage, ['pending', 503, 'approved']);
+  await browserPage.goto(base + '/compra/' + token);
+  await expect(browserPage.locator('#purchase-detail')).toContainText('Volveremos a consultar');
+  await expect(browserPage.locator('#purchase-state')).toHaveAttribute('data-state', 'pending');
+  await browserPage.waitForTimeout(700);
+  expect(asked).toHaveLength(2);
+  await expect(browserPage.locator('#purchase-state')).toHaveAttribute('data-state', 'approved');
+});
