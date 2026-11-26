@@ -96,14 +96,31 @@ try {
         && hash_equals($newSecret,brvtal_ticket_issue_open_token($stored['token_encrypted'],$stored['public_id'])),
         'encrypted QR decrypts to the exact active credential digest');
     $savedCiphertext=$stored['token_encrypted'];
-    t19(brvtalTicketCheckinConsume($pdo,1,7,'door-fixture',$oldTokens[1])['reason']==='credential_revoked','old QR revoked');
-    t19(brvtalTicketCheckinConsume($pdo,1,7,'door-fixture',$r['qr'])['ok'],'new QR accepted');
-    t19(brvtalTicketCheckinConsume($pdo,1,7,'door-fixture',$r['qr'])['reason']==='already_used','new QR one-use');
+    // Authentication binds the reissued secret to this entry, not just the master key.
+    $otherPublicId=$pdo->query('SELECT public_id FROM ticket_entries WHERE id=2')->fetchColumn();
+    t19(is_string($otherPublicId) && strlen($otherPublicId)===16
+        && !hash_equals($stored['public_id'], $otherPublicId), 'distinct entry identity');
+    $tampered=$savedCiphertext;
+    $tampered[29]=chr(ord($tampered[29]) ^ 1);
+    foreach ([[$savedCiphertext, $otherPublicId], [$tampered, $stored['public_id']]] as [$sealed, $publicId]) {
+        try {
+            brvtal_ticket_issue_open_token($sealed, $publicId);
+            throw new RuntimeException('T19: wrong entry or altered ciphertext accepted');
+        } catch (DomainException $error) {
+            t19($error->getMessage()==='TICKET_UNAVAILABLE', 'wrong entry or altered ciphertext denied');
+        }
+    }
+    // Simulate a lost HTTP response before the new credential has ever been scanned.
     $dup=brvtalTicketAdminEntryMutation($pdo,1,7,'superadmin','reissue','lost','t19-fixture-idempotency-aaaa');
     t19($dup['replayed']===true&&$dup['qr']===null,'double click cannot regenerate secret');
     t19($pdo->query("SELECT token_encrypted FROM ticket_entry_credentials WHERE entry_id=1 AND status='active'")->fetchColumn()===$savedCiphertext
         && (int)$pdo->query('SELECT COUNT(*) FROM ticket_entry_credentials WHERE entry_id=1')->fetchColumn()===2,
         'lost HTTP response replay retains exactly the same recoverable secret');
+    t19((int)$pdo->query("SELECT COUNT(*) FROM ticket_checkins WHERE reason_code LIKE 'credential_reissued_%'")->fetchColumn()===1,
+        'lost response replay creates no additional reissue audit');
+    t19(brvtalTicketCheckinConsume($pdo,1,7,'door-fixture',$oldTokens[1])['reason']==='credential_revoked','old QR revoked');
+    t19(brvtalTicketCheckinConsume($pdo,1,7,'door-fixture',$r['qr'])['ok'],'new QR accepted');
+    t19(brvtalTicketCheckinConsume($pdo,1,7,'door-fixture',$r['qr'])['reason']==='already_used','new QR one-use');
     t19((int)$pdo->query('SELECT COUNT(*) FROM ticket_mail_outbox')->fetchColumn()===1,'one notification, no token in outbox');
     $body=(string)$pdo->query('SELECT body_text FROM ticket_mail_outbox')->fetchColumn();
     t19(!str_contains($body,$r['qr']),'QR not persisted in notification');
