@@ -220,27 +220,26 @@ function brvtal_ticket_mail_prepare_dispatch(PDO $pdo, array $job): string
             $pdo->rollBack();
             return 'lease_lost';
         }
-        if ($reason === null) {
-            $pdo->commit();
-            return 'ready';
-        }
-        // An earlier attempt may have reached the provider, even on 5xx.
-        // Do not manufacture proof that no message was sent in that case.
-        $state = (int)$job['attempts'] === 1 ? 'suppressed' : 'uncertain';
+        $receipt = false;
         if ($historyReady) {
             $history = $pdo->prepare('SELECT delivery_state,resend_email_id FROM ticket_mail_history
                 WHERE outbox_id=? AND message_key=? FOR UPDATE');
             $history->execute([$job['id'], $job['message_key']]);
             $receipt = $history->fetch(PDO::FETCH_ASSOC);
-            if ($receipt && ($receipt['resend_email_id'] !== null || $receipt['delivery_state'] !== 'queued')) {
-                $state = 'uncertain';
-            }
-            if ($state === 'suppressed' && $receipt) {
-                $audit = $pdo->prepare("UPDATE ticket_mail_history
-                    SET delivery_state='suppressed',state_at=UTC_TIMESTAMP()
-                    WHERE outbox_id=? AND message_key=? AND delivery_state='queued' AND resend_email_id IS NULL");
-                $audit->execute([$job['id'], $job['message_key']]);
-            }
+        }
+        $hasReceipt = $receipt && ($receipt['resend_email_id'] !== null || $receipt['delivery_state'] !== 'queued');
+        if ($reason === null && !$hasReceipt) {
+            $pdo->commit();
+            return 'ready';
+        }
+        // An earlier attempt may have reached the provider, even on 5xx.
+        // Contradictory history evidence also prevents a new provider call.
+        $state = (int)$job['attempts'] === 1 && !$hasReceipt ? 'suppressed' : 'uncertain';
+        if ($state === 'suppressed' && $receipt) {
+            $audit = $pdo->prepare("UPDATE ticket_mail_history
+                SET delivery_state='suppressed',state_at=UTC_TIMESTAMP()
+                WHERE outbox_id=? AND message_key=? AND delivery_state='queued' AND resend_email_id IS NULL");
+            $audit->execute([$job['id'], $job['message_key']]);
         }
         $update = $pdo->prepare("UPDATE ticket_mail_outbox
             SET state=?,last_error_code=?,locked_until=NULL,updated_at=UTC_TIMESTAMP()

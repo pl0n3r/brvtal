@@ -220,10 +220,26 @@ try {
         104=>['checkout_expired',"UPDATE ticket_orders SET expires_at_utc=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND) WHERE id=104"],
         105=>['outside_window',"UPDATE ticket_orders SET created_at_utc=UTC_TIMESTAMP(6) WHERE id=105"],
     ];
+    require_once __DIR__.'/../../ops/ticketing-mail-worker.php';
     foreach ($cases as $orderId=>[$reason,$change]) {
         $id = $freshOrder($orderId);
+        if ($orderId===101) {
+            brvtal_mail_history_record($db,$id,['order_id'=>101,'buyer_id'=>3,'event_id'=>6,
+                'template_key'=>'reminder','actor_kind'=>'admin']);
+        }
         $db->exec($change);
-        t29(brvtal_ticket_mail_deliver_one($db,$transport)==='suppressed','pre-dispatch '.$reason);
+        if ($orderId===101) {
+            $cycle = brvtal_ticket_mail_worker_cycle(
+                static fn()=>['pdo'=>$db,'gate'=>['mail'=>'ready','issue'=>'ready']],
+                static fn()=> 'idle', static fn()=> 'idle',
+                static fn(PDO $pdo)=>brvtal_ticket_mail_deliver_one($pdo,$transport));
+            t29($cycle['output']['state']==='suppressed' && $cycle['exit_code']===0,
+                'CLI reports local suppression without provider acceptance or false error');
+            t29((string)$db->query("SELECT delivery_state FROM ticket_mail_history WHERE outbox_id=$id")
+                ->fetchColumn()==='suppressed','local history suppression');
+        } else {
+            t29(brvtal_ticket_mail_deliver_one($db,$transport)==='suppressed','pre-dispatch '.$reason);
+        }
         $expectMail($id,'suppressed',$reason);
         t29(!brvtal_ticket_mail_redrive($db,$id) && $calls===1,'suppression terminal, no provider');
     }
@@ -263,6 +279,17 @@ try {
     t29((string)$db->query("SELECT delivery_state FROM ticket_mail_history WHERE outbox_id=$raceId")
         ->fetchColumn()==='delivered','early webhook reconciled after receipt');
     t29(brvtal_ticket_mail_deliver_one($second,$transport)==='idle' && $calls===2,'no second transport');
+
+    // Existing provider evidence is never overridden, even if consent is valid.
+    $receiptId = $freshOrder(108);
+    brvtal_mail_history_record($db,$receiptId,['order_id'=>108,'buyer_id'=>3,'event_id'=>6,
+        'template_key'=>'reminder','actor_kind'=>'admin']);
+    $db->exec("UPDATE ticket_mail_history SET delivery_state='delivered',resend_email_id='fixture-prior'
+        WHERE outbox_id=$receiptId");
+    t29(brvtal_ticket_mail_deliver_one($db,$transport)==='uncertain','contradictory receipt prevents transport');
+    $expectMail($receiptId,'uncertain','receipt_unknown');
+    t29((string)$db->query("SELECT delivery_state FROM ticket_mail_history WHERE outbox_id=$receiptId")
+        ->fetchColumn()==='delivered' && $calls===2,'prior receipt preserved, no duplicate transport');
 
     putenv('BRVTAL_INTEGRATION_TESTS=0');
     try {brvtalRecoveryPlan($db,7,'superadmin',$input);throw new RuntimeException('real mode');}
