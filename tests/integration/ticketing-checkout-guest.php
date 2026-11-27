@@ -404,6 +404,18 @@ try {
     $fullyIssued = $read()[$wompi]['items'];
     guestAssert(array_column($fullyIssued,'quantity')===[1,1,1]
         && !in_array(null,array_column($fullyIssued,'ticket_id'),true), 'complete issuance has exactly three individual tickets');
+    $partial = $createOrder('paid',75000,'account-partial-2052');
+    $partialLine = $createLine($partial,10,3,'General',25000);
+    $createEntry($partialLine,10,1,'issued');
+    $createEntry($partialLine,10,2,'issued');
+    $partialItems = $read()[$partial]['items'];
+    guestAssert(array_column($partialItems,'quantity')===[1,1,1]
+        && array_column($partialItems,'status')===['issued','issued','pending']
+        && is_string($partialItems[0]['ticket_id']) && is_string($partialItems[1]['ticket_id'])
+        && $partialItems[0]['ticket_id']!==$partialItems[1]['ticket_id']
+        && $partialItems[2]['ticket_id']===null && !$partialItems[2]['qr_stored']
+        && !$partialItems[2]['qr_requires_original_token'],
+        'partially issued item retains exactly one residual unit without QR');
     $_SESSION = $guestState;
     guestAssert(array_column(brvtalBuyerAccountOrders($db,$guestId,$filters)['orders'],'order_number')===[$paidOrder],
         'guest grant cannot access verified buyer purchases');

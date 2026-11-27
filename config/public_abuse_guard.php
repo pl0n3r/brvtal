@@ -12,21 +12,22 @@ require_once __DIR__ . '/password_rate_limit.php';
 function brvtal_public_abuse_scopes(): array
 {
     return ['contact', 'login', 'register', 'request-reset', 'resend-verification', 'verify',
-        'confirm-reset', 'waitlist-subscribe', 'waitlist-unsubscribe'];
+        'confirm-reset', 'waitlist-subscribe', 'waitlist-unsubscribe', 'forms'];
 }
 
 function brvtal_public_abuse_challenged(string $scope): bool
 {
     return in_array($scope, ['register', 'request-reset', 'resend-verification',
-        'waitlist-subscribe'], true);
+        'waitlist-subscribe', 'forms'], true);
 }
 
 /** Signed challenge bound to a single action, built from Contact's HMAC CAPTCHA. */
-function brvtal_public_abuse_challenge(array $config, string $scope, ?int $now = null): array
+function brvtal_public_abuse_challenge(array $config, string $scope, ?int $now = null, string $context = ''): array
 {
-    if (!brvtal_public_abuse_challenged($scope)) {
+    if (!brvtal_public_abuse_challenged($scope) || ($scope === 'forms') !== ($context !== '')) {
         throw new InvalidArgumentException('PUBLIC_ABUSE_SCOPE_INVALID');
     }
+    $scope .= $context === '' ? '' : '|' . $context;
     $challenge = brvtal_contact_issue_challenge($config, $now);
     $signature = hash_hmac('sha256', $scope . '|' . $challenge['token'],
         brvtal_contact_secret($config), true);
@@ -39,9 +40,10 @@ function brvtal_public_abuse_challenge(array $config, string $scope, ?int $now =
 }
 
 function brvtal_public_abuse_verify_challenge(
-    array $config, string $scope, array $input, ?int $now = null
+    array $config, string $scope, array $input, ?int $now = null, string $context = ''
 ): bool {
-    if (!brvtal_public_abuse_challenged($scope)) return false;
+    if (!brvtal_public_abuse_challenged($scope) || ($scope === 'forms') !== ($context !== '')) return false;
+    $scope .= $context === '' ? '' : '|' . $context;
     $now ??= time();
     $token = $input['captcha_token'] ?? null;
     $answer = $input['captcha_answer'] ?? null;
@@ -118,4 +120,15 @@ function brvtal_public_abuse_mail_limit(
         $perRecipient, 3600);
     if (!$person['allowed']) return $person;
     return brvtal_contact_consume_rate_limit('global', $path, $now, $global, 3600);
+}
+
+function brvtalFormsRate(array $config, string $id, ?string $path = null, ?int $now = null): array
+{
+    $path ??= __DIR__.'/../storage/rate_limits/forms.json';
+    $ip = hash_hmac('sha256', brvtal_contact_resolve_client_ip($config), brvtal_contact_secret($config));
+    foreach (['forms:global'=>300, 'forms:ip:'.$ip=>30, 'forms:scope:'.$id=>60] as $bucket=>$max) {
+        $result = brvtal_contact_consume_rate_limit($bucket, $path, $now, $max, 900);
+        if (!$result['allowed']) return $result;
+    }
+    return $result;
 }

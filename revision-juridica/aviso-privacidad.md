@@ -32,6 +32,8 @@
 | contact_delivery | contact | name, email, subject, message | contact_delivery | review_required | review_required | ninguno_declarado | external_mailbox_review_required |
 | contact_rate_limit | usage | client_key_hash, timestamps | contact_abuse_prevention | review_required | review_required | ninguno_declarado | review_required |
 | form_entry_management | contact | entry_id, revision, workflow_state, action_kind, actor_admin_id, created_at_utc, note_text | form_entry_management | review_required | review_required | ninguno_declarado | review_required |
+| form_public_capture | contact | payload_json, entry_id, form_key, version_number, definition_sha256, idempotency_digest, created_at_utc, purpose_key, notice_version, retention_policy_key, retention_until_utc, state, redacted_at_utc, action_key | versioned_public_form_capture | review_required | review_required | ninguno_declarado | review_required |
+| form_public_rate_limit | usage | client_key_hash, timestamps, public_id | versioned_public_form_abuse_prevention | review_required | review_required | ninguno_declarado | review_required |
 | internal_analytics_events | usage | event_name, page_url, referrer, locale, user_agent, created_at | internal_usage_analytics | review_required | review_required | ninguno_declarado | review_required |
 | legacy_admin_activity_ip | usage | ip_address | legacy_admin_activity_audit | review_required | review_required | ninguno_declarado | review_required |
 | privacy_controller_contact | contact | phone | privacy_rights_contact_publication | review_required | review_required | ninguno_declarado | review_required |

@@ -4,7 +4,8 @@ require_once __DIR__ . '/../../config/ticketing_admin_orders.php';
 function t18Assert(bool $ok,string $why):void {if(!$ok)throw new RuntimeException('T18: '.$why);}
 foreach ([['kind'=>'other'],['status'=>'approved'],['event_id'=>'1 OR 1=1'],
           ['from'=>'2026-02-30'],['from'=>'2026-11-20','to'=>'2026-11-19'],['q'=>str_repeat('x',121)],
-          ['email'=>['one@example.test']]] as $bad) {
+          ['email'=>['one@example.test']],['format'=>'csv','order_id'=>'91'],
+          ['format'=>'csv','export_scope'=>'all','cursor'=>'91'],['export_scope'=>'all']] as $bad) {
     try { brvtalTicketAdminFilters($bad); throw new RuntimeException('accepted invalid'); }
     catch (InvalidArgumentException) { /* expected */ }
 }
@@ -131,6 +132,45 @@ try {
     $legacy=brvtalTicketAdminPage($pdo,brvtalTicketAdminFilters(
         ['kind'=>'buyers','from'=>'2026-11-01','to'=>'2026-11-01']))['rows'];
     t18Assert(array_map(intval(...),array_column($legacy,'id'))===[4,3],'legacy buyer creation scope preserved');
+
+    // #2043: a filtered synthetic snapshot is larger than one page.
+    $savedConfig = $GLOBALS['config'] ?? null;
+    $GLOBALS['config'] = [];
+    t18Assert(!brvtalTicketAdminFullExportEnabled(),'full export disabled by default');
+    $GLOBALS['config'] = $savedConfig;
+    $insert=$pdo->prepare("INSERT INTO ticket_orders VALUES (?,3,12,'pending','COP',1200,'2026-11-19 05:00:00')");
+    for ($id=200; $id<262; ++$id) $insert->execute([$id]);
+    $filters=['kind'=>'orders','event_id'=>'12','status'=>'pending','from'=>'2026-11-19','to'=>'2026-11-19','email'=>'synthetic@example.test'];
+    $list=brvtalTicketAdminFilters($filters+['limit'=>'50']);
+    $first=brvtalTicketAdminPage($pdo,$list,false);
+    $list['cursor']=$first['next_cursor'];
+    $second=brvtalTicketAdminPage($pdo,$list,false);
+    $expected=array_map(intval(...),array_column(array_merge($first['rows'],$second['rows']),'id'));
+    $audit=[];
+    $record=static function(array $meta) use (&$audit):void {$audit[]=$meta;};
+    $full=brvtalTicketAdminFilters($filters+['format'=>'csv','export_scope'=>'all']);
+    $export=brvtalTicketAdminExport($pdo,$full,$record);
+    $lines=explode("\n",trim($export['csv']));
+    $ids=array_map(static fn($line)=>(int)str_getcsv($line,escape:'')[0],array_slice($lines,1));
+    t18Assert($export['count']===62 && $ids===$expected && count(array_unique($ids))===62,'full export equals filtered pages');
+    t18Assert($audit[0]['count']===62 && $audit[0]['event_id']===12
+        && !isset($audit[0]['email'],$audit[0]['q']) && !str_contains(json_encode($audit),'example.test'),'minimal audit');
+    t18Assert(!str_contains($export['csv'],'example.test') && !str_contains($export['csv'],'tx-91'),'CSV allowlist');
+    $pageExport=brvtalTicketAdminExport($pdo,brvtalTicketAdminFilters($filters+['format'=>'csv','limit'=>'50','cursor'=>(string)$first['next_cursor']]),$record);
+    t18Assert($pageExport['count']===12,'explicit page cursor');
+    $buyer=brvtalTicketAdminExport($pdo,brvtalTicketAdminFilters(['kind'=>'buyers','event_id'=>'12','format'=>'csv','export_scope'=>'all']),$record);
+    t18Assert($buyer['count']===1 && str_starts_with($buyer['csv'],"id,status,order_count,paid_total_cop\n"),'buyer event scope');
+    foreach (['=1+1',' +1','-1','@SUM(1)',"\ttext",'＝1'] as $hostile) {
+        t18Assert(brvtalTicketAdminCsvCell($hostile)==="'".$hostile,'formula neutralized');
+    }
+    $before=count($audit);
+    for ($id=262; $id<=1200; ++$id) $insert->execute([$id]);
+    try {brvtalTicketAdminExport($pdo,$full,$record);throw new RuntimeException('truncated CSV');}
+    catch (LengthException) {t18Assert(count($audit)===$before&&!$pdo->inTransaction(),'limit fails before audit or CSV');}
+    try {
+        brvtalTicketAdminExport($pdo,brvtalTicketAdminFilters($filters+['format'=>'csv']),static function():void {throw new DomainException('audit unavailable');});
+        throw new RuntimeException('unaudited CSV');
+    } catch (DomainException) {t18Assert(!$pdo->inTransaction(),'audit failure prevents delivery');}
 } finally { $root->exec('DROP DATABASE IF EXISTS '.$name); }
 echo "T18 MariaDB synthetic joins, filters, pagination and degraded mail OK.\n";
 
