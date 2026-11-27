@@ -3,7 +3,8 @@
  * The server enforces permissions, CSRF and the usage floors; this UI only explains them. */
 const ERRORS = {
   INVENTORY_BELOW_USAGE: 'El cupo no puede ser menor que lo ya vendido o reservado.',
-  INVENTORY_BELOW_COURTESY: 'El cupo de una boleta no puede ser menor que sus cortesías asignadas.',
+  INVENTORY_BELOW_COURTESY: 'El cupo de cortesías no puede superar el cupo de la boleta.',
+  INVENTORY_COURTESY_BELOW_USAGE: 'El cupo de cortesías no puede ser menor que las cortesías consumidas.',
   INVENTORY_TYPE_NOT_IN_EVENT: 'Una boleta ya no pertenece a este evento. Vuelve a abrir el editor.',
   INVENTORY_INVALID_INPUT: 'Usa números enteros entre 0 y 100.000.',
   INVENTORY_EVENT_NOT_FOUND: 'El evento ya no existe.',
@@ -69,11 +70,11 @@ async function request(eventId, body = null) {
 }
 
 /** Mounts (or remounts) the capacity block for one saved event. */
-export async function mount(host, { eventId } = {}) {
+export async function mount(host, { eventId, snapshot = null, saved = false } = {}) {
   host.replaceChildren();
   const id = Number(eventId);
   const heading = el('h3', { id: 'ticket-inventory-title', text: 'Cupo para venta en línea' });
-  const help = el('p', { class: 'helper', text: 'Una boleta sin cupo se muestra en la página pero no se vende en línea. El cupo nunca puede bajar de lo ya vendido o reservado.' });
+  const help = el('p', { class: 'helper', text: 'Una boleta sin cupo se muestra en la página pero no se vende en línea. El cupo incluye las cortesías. El saldo de cortesías no sustituye el aforo disponible.' });
   const section = el('section', { class: 'ticket-inventory', 'aria-labelledby': 'ticket-inventory-title', 'data-ticket-inventory': true }, heading, help);
   host.append(section);
   if (!Number.isSafeInteger(id) || id < 1) {
@@ -84,7 +85,7 @@ export async function mount(host, { eventId } = {}) {
   section.append(status);
   let data;
   try {
-    data = await request(id);
+    data = snapshot ?? await request(id);
   } catch (error) {
     if (!section.isConnected) return;
     status.textContent = ERRORS[error.message] || ERRORS.INVENTORY_UNAVAILABLE;
@@ -96,7 +97,7 @@ export async function mount(host, { eventId } = {}) {
     return;
   }
   if (!section.isConnected) return;
-  status.textContent = '';
+  status.textContent = saved ? 'Cupo guardado.' : '';
 
   const sale = data.sale && typeof data.sale === 'object' ? data.sale : null;
   if (sale) {
@@ -127,39 +128,42 @@ export async function mount(host, { eventId } = {}) {
       const inputId = 'ticket-inventory-type-' + type.ticket_type_id;
       const input = el('input', { id: inputId, type: 'number', min: 0, max: 100000, step: 1, inputmode: 'numeric',
         value: type.capacity ?? '', placeholder: 'Sin cupo' });
-      inputs.set(type.ticket_type_id, input);
+      const courtesyId = inputId + '-courtesy';
+      const courtesy = el('input', { id: courtesyId, type: 'number', min: 0, max: 100000, step: 1,
+        inputmode: 'numeric', value: type.courtesy_capacity, 'aria-label': `Cupo de cortesías de ${type.name || 'Boleta'}` });
+      inputs.set(type.ticket_type_id, { input, courtesy });
       const usage = [`Vendidas ${number.format(type.sold)}`, `Reservadas ${number.format(type.held)}`];
-      if (type.courtesy_capacity > 0) usage.push(`Cortesías ${number.format(type.courtesy_capacity)}`);
+      const courtesyUsage = `Cortesías: presupuesto ${number.format(type.courtesy_capacity)} · consumidas ${number.format(type.courtesy_used)} · saldo ${number.format(Math.max(0, type.courtesy_capacity - type.courtesy_used))}`;
       const sale = el('span', { class: 'ticket-inventory-state' });
       const verdict = saleByType.get(type.ticket_type_id);
       const original = input.value;
+      const originalCourtesy = courtesy.value;
       const refresh = () => {
-        // Until the capacity is edited, show the server's verdict (same rules as the checkout).
-        if (verdict && input.value === original) {
+        if (input.value !== original || courtesy.value !== originalCourtesy) {
+          sale.textContent = 'Cupo sin guardar';
+          sale.classList.remove('is-open');
+          return;
+        }
+        // Show the server's verdict, never an optimistic sale readiness.
+        if (verdict) {
           const codes = Array.isArray(verdict.reasons) ? verdict.reasons : [];
           sale.textContent = verdict.offered ? 'Se vende en línea'
             : (codes.map(code => TYPE_REASONS[code] || code).join(' · ') || 'No se vende en línea');
           sale.classList.toggle('is-open', verdict.offered === true);
           return;
         }
-        const value = Number(input.value);
-        const open = input.value !== '' && value > 0 && type.status === 'active';
-        if (open) {
-          sale.textContent = 'Se vende en línea';
-        } else if (type.status !== 'active') {
-          sale.textContent = 'Boleta no activa';
-        } else {
-          sale.textContent = 'No se vende en línea';
-        }
-        sale.classList.toggle('is-open', open);
+        sale.textContent = 'Disponibilidad no confirmada';
+        sale.classList.remove('is-open');
       };
       input.addEventListener('input', refresh);
+      courtesy.addEventListener('input', refresh);
       refresh();
       list.append(el('li', { class: 'ticket-inventory-row', 'data-ticket-type': type.ticket_type_id },
         el('div', { class: 'ticket-inventory-name' },
           el('label', { for: inputId, text: type.name || 'Boleta' }),
-          el('small', { text: usage.join(' · ') })),
-        input, sale));
+          el('small', { text: usage.join(' · ') }), el('small', { text: courtesyUsage })),
+        el('div', { class: 'ticket-inventory-name' }, input,
+          el('label', { for: courtesyId, text: 'Cupo de cortesías' }), courtesy), sale));
     }
     status.before(list);
   }
@@ -168,9 +172,10 @@ export async function mount(host, { eventId } = {}) {
   section.append(el('div', { class: 'ticket-inventory-actions' }, save));
   const whole = value => value === '' ? 0 : Number(value);
   save.addEventListener('click', async () => {
-    const body = { capacity: whole(totalInput.value), types: [...inputs].map(([typeId, input]) => ({
-      ticket_type_id: typeId, capacity: whole(input.value) })) };
-    const values = [body.capacity, ...body.types.map(row => row.capacity)];
+    const body = { capacity: whole(totalInput.value), types: [...inputs].map(([typeId, fields]) => ({
+      ticket_type_id: typeId, capacity: whole(fields.input.value),
+      courtesy_capacity: fields.courtesy.value === '' ? NaN : Number(fields.courtesy.value) })) };
+    const values = [body.capacity, ...body.types.flatMap(row => [row.capacity, row.courtesy_capacity])];
     if (!values.every(value => Number.isSafeInteger(value) && value >= 0 && value <= 100000)) {
       status.textContent = ERRORS.INVENTORY_INVALID_INPUT;
       return;
@@ -178,11 +183,10 @@ export async function mount(host, { eventId } = {}) {
     save.disabled = true;
     status.textContent = 'Guardando cupo…';
     try {
-      await request(id, body);
+      const confirmed = await request(id, body);
       if (!section.isConnected) return;
-      await mount(host, { eventId: id });
-      const fresh = host.querySelector('.ticket-inventory-status');
-      if (fresh) fresh.textContent = 'Cupo guardado.';
+      if (confirmed.event_id !== id || !Array.isArray(confirmed.types)) throw new Error('INVENTORY_UNAVAILABLE');
+      await mount(host, { eventId: id, snapshot: confirmed, saved: true });
     } catch (error) {
       if (!section.isConnected) return;
       status.textContent = ERRORS[error.message] || ERRORS.INVENTORY_UNAVAILABLE;

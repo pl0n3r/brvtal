@@ -8,6 +8,8 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') !== '1') {
         ['capacity'=>10,'types'=>[['ticket_type_id'=>1,'capacity'=>'5']]],
         ['capacity'=>10,'types'=>[['ticket_type_id'=>1,'capacity'=>5],['ticket_type_id'=>1,'capacity'=>6]]],
         ['capacity'=>10,'types'=>[['ticket_type_id'=>1,'capacity'=>5,'price'=>1]]],
+        ...array_map(static fn($v) => ['capacity'=>10,'types'=>[['ticket_type_id'=>1,'capacity'=>5,'courtesy_capacity'=>$v]]],
+            [-1, 100001, null, '1', 1.5, true]),
         ['capacity'=>10,'types'=>[],'extra'=>1]] as $bad) {
         try {
             brvtal_ticket_inventory_admin_input($bad);
@@ -70,7 +72,9 @@ foreach ([
     "CREATE TABLE ticket_orders (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,event_id INT UNSIGNED,buyer_id BIGINT UNSIGNED,
         status VARCHAR(20),public_id BINARY(16),checkout_key_hash CHAR(64) UNIQUE,currency CHAR(3),total_cop BIGINT UNSIGNED,
         expires_at_utc DATETIME(6),updated_at_utc DATETIME(6),UNIQUE KEY uq_order_event(id,event_id)) ENGINE=InnoDB",
-    "CREATE TABLE ticket_order_items (order_id BIGINT UNSIGNED,ticket_type_id INT UNSIGNED,quantity INT,event_id INT UNSIGNED,
+    "CREATE TABLE ticket_buyers (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, public_id BINARY(16),
+        email VARCHAR(190) UNIQUE, status VARCHAR(20)) ENGINE=InnoDB",
+    "CREATE TABLE ticket_order_items (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, order_id BIGINT UNSIGNED,ticket_type_id INT UNSIGNED,quantity INT,event_id INT UNSIGNED,
         ticket_name_snapshot VARCHAR(120),unit_price_cop BIGINT UNSIGNED,subtotal_cop BIGINT UNSIGNED,currency CHAR(3)) ENGINE=InnoDB",
 ] as $ddl) $db->exec($ddl);
 $db->exec((string)file_get_contents(__DIR__ . '/../../database/migration_admin_activity_01.sql'));
@@ -80,7 +84,7 @@ $db->exec("INSERT INTO admins(email,password_hash,name) VALUES('owner@synthetic.
 $cfg = ['app'=>['timezone'=>'America/Bogota'],
     'db'=>['host'=>$dbSettings['host'],'port'=>$dbSettings['port'],'name'=>$name,
         'user'=>$dbSettings['user'],'pass'=>$dbSettings['pass'],'charset'=>'utf8mb4'],
-    'security'=>['session_name'=>'BRVTAL_INVENTORY_ADMIN_TEST']];
+    'security'=>['session_name'=>'BRVTAL_INVENTORY_ADMIN_TEST','encryption_key'=>str_repeat('T',64)]];
 $tmp = tempnam(sys_get_temp_dir(), 'brvtal_inventory_admin_');
 file_put_contents($tmp, '<?php return ' . var_export($cfg, true) . ';');
 register_shutdown_function(static fn() => @unlink($tmp));
@@ -181,6 +185,47 @@ putenv('BRVTAL_TICKET_WOMPI_MODE=off');
 $off = brvtal_ticket_inventory_admin_read($db, 1)['sale'];
 invAssert($off['ready'] === false && in_array('WOMPI_DISABLED', $off['reasons'], true), 'Wompi off is named and blocks the sale');
 putenv('BRVTAL_TICKET_WOMPI_MODE=mock');
+// #2221: the same admin service configures the budget consumed by actual synthetic issuance.
+require_once __DIR__ . '/../../config/ticketing_courtesy.php';
+foreach (['migration_ticketing_entries_01.sql','migration_ticket_entry_secret_01.sql',
+    'migration_ticketing_courtesy_01.sql','migration_ticketing_mail_outbox_01.sql'] as $file) {
+    $sql = (string)file_get_contents(__DIR__ . '/../../database/' . $file);
+    $sql = (string)preg_replace('/^\s*--[^\r\n]*$/m', '', $sql);
+    foreach (array_filter(array_map(trim(...), explode(';', $sql))) as $statement) $db->exec($statement);
+}
+putenv('BRVTAL_TICKET_MAIL_TESTING=1');
+$GLOBALS['config']['security']['encryption_key'] = str_repeat('T',64);
+$set = static fn(array $types) => brvtal_ticket_inventory_admin_save($db, 1, ['capacity'=>50,'types'=>$types]);
+$vip = static fn(int $budget) => ['ticket_type_id'=>11,'capacity'=>20,'courtesy_capacity'=>$budget];
+$changed = $set([$vip(1)]);
+invAssert($changed['types'][1]['courtesy_capacity'] === 1 && $changed['types'][1]['courtesy_used'] === 0,
+    'explicit courtesy budget saved');
+$meta = json_decode((string)$db->query('SELECT meta_json FROM admin_activity_log ORDER BY id DESC LIMIT 1')->fetchColumn(), true);
+invAssert($meta['before']['courtesy_capacity'][11] === 0 && $meta['after']['courtesy_capacity'][11] === 1,
+    'courtesy budget before and after audited');
+$omitted = $set([['ticket_type_id'=>11,'capacity'=>20]]);
+invAssert($omitted['types'][1]['courtesy_capacity'] === 1 && $omitted['types'][2]['courtesy_capacity'] === 0,
+    'legacy omission preserves budget and new type defaults to zero');
+$invitation = ['action'=>'issue','event_id'=>1,'ticket_type_id'=>11,'recipient'=>'guest@example.test',
+    'category'=>'staff','reason'=>'Invitación sintética','idempotency_key'=>str_repeat('a',24)];
+$result = brvtalCourtesyIssue($db, 1, 'superadmin', brvtalCourtesyValidate($invitation));
+invAssert($result['queued'] === true && $result['sent'] === false, 'positive budget permits synthetic issue only');
+invRejects(fn() => brvtalCourtesyIssue($db, 1, 'superadmin', brvtalCourtesyValidate(array_replace($invitation,
+    ['recipient'=>'second@example.test','idempotency_key'=>str_repeat('b',24)]))), 'COURTESY_CAPACITY', 'budget exhausted');
+$before = brvtal_ticket_inventory_admin_read($db, 1);
+$audits = (int)$db->query('SELECT COUNT(*) FROM admin_activity_log')->fetchColumn();
+invAssert($before['types'][1]['courtesy_used'] === 1 && $before['types'][1]['courtesy_capacity'] === 1, 'usage counted');
+invRejects(fn() => $set([$vip(21)]), 'INVENTORY_BELOW_COURTESY', 'budget exceeds capacity');
+invRejects(fn() => $set([$vip(0)]), 'INVENTORY_COURTESY_BELOW_USAGE', 'budget below consumed');
+invRejects(fn() => $set([$vip(-1)]), 'INVENTORY_INVALID_INPUT', 'negative budget');
+invRejects(fn() => $set([$vip(2),['ticket_type_id'=>20,'capacity'=>5,'courtesy_capacity'=>1]]),
+    'INVENTORY_TYPE_NOT_IN_EVENT', 'other event cannot alter budget');
+$after = brvtal_ticket_inventory_admin_read($db, 1);
+invAssert($after === $before && (int)$db->query('SELECT COUNT(*) FROM admin_activity_log')->fetchColumn() === $audits,
+    'failed budget saves are atomic and not audited');
+invAssert((int)$db->query("SELECT COUNT(*) FROM ticket_mail_outbox WHERE state='queued'")->fetchColumn() === 1,
+    'only one synthetic mail queued; no transport');
+
 $db->exec("UPDATE events SET event_date=DATE_SUB(NOW(), INTERVAL 1 DAY) WHERE id=1");
 $past = brvtal_ticket_inventory_admin_read($db, 1)['sale'];
 invAssert($past['ready'] === false && in_array('EVENT_DATE_PAST', $past['reasons'], true), 'past event date is named');

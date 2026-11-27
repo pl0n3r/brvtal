@@ -145,7 +145,7 @@ function brvtal_ticket_inventory_sale_readiness(PDO $db, int $eventId): array
     return ['ready'=>$ready, 'reasons'=>$ready ? [] : array_values(array_unique($reasons)), 'types'=>$types];
 }
 
-/** Strict input: {capacity:int, types:[{ticket_type_id:int, capacity:int}]}. */
+/** Strict input; courtesy_capacity is optional, not interchangeable with zero. */
 function brvtal_ticket_inventory_admin_input(mixed $input): array
 {
     $valid = static fn(mixed $value): bool => is_int($value) && $value >= 0 && $value <= BRVTAL_TICKET_INVENTORY_MAX;
@@ -155,15 +155,21 @@ function brvtal_ticket_inventory_admin_input(mixed $input): array
         throw new InvalidArgumentException('INVENTORY_INVALID_INPUT');
     }
     $types = [];
+    $courtesies = [];
     foreach ($input['types'] as $row) {
-        if (!is_array($row) || array_is_list($row) || count($row) !== 2
+        if (!is_array($row) || array_is_list($row)
+            || array_diff(array_keys($row), ['ticket_type_id','capacity','courtesy_capacity'])
+            || (array_key_exists('courtesy_capacity', $row) && !$valid($row['courtesy_capacity']))
             || !is_int($row['ticket_type_id'] ?? null) || $row['ticket_type_id'] < 1
             || !$valid($row['capacity'] ?? null) || isset($types[$row['ticket_type_id']])) {
             throw new InvalidArgumentException('INVENTORY_INVALID_INPUT');
         }
         $types[$row['ticket_type_id']] = $row['capacity'];
+        if (array_key_exists('courtesy_capacity', $row)) {
+            $courtesies[$row['ticket_type_id']] = $row['courtesy_capacity'];
+        }
     }
-    return ['capacity'=>$input['capacity'], 'types'=>$types];
+    return ['capacity'=>$input['capacity'], 'types'=>$types, 'courtesies'=>$courtesies];
 }
 
 /** Saves event and type capacity atomically, with the event row as mutex. */
@@ -181,16 +187,22 @@ function brvtal_ticket_inventory_admin_save(PDO $db, int $eventId, mixed $input)
         $typeQuery = $db->prepare('SELECT t.id,l.capacity,COALESCE(l.courtesy_capacity,0) AS courtesy_capacity
             FROM event_ticket_types t LEFT JOIN ticket_inventory_types l ON l.ticket_type_id=t.id
             WHERE t.id=? AND t.event_id=? FOR UPDATE');
-        $before = ['capacity'=>$event['capacity'] === null ? null : (int)$event['capacity'], 'types'=>[]];
+        $before = ['capacity'=>$event['capacity'] === null ? null : (int)$event['capacity'], 'types'=>[], 'courtesy_capacity'=>[]];
+        $courtesies = [];
         foreach ($data['types'] as $typeId => $capacity) {
             $typeQuery->execute([$typeId, $eventId]);
             $type = $typeQuery->fetch(PDO::FETCH_ASSOC);
             if (!$type) throw new DomainException('INVENTORY_TYPE_NOT_IN_EVENT');
-            if ($capacity < (int)$type['courtesy_capacity']) throw new DomainException('INVENTORY_BELOW_COURTESY');
-            if ($capacity < array_sum(brvtal_ticket_inventory_usage($db, $eventId, $typeId, $utc))) {
+            $courtesy = $data['courtesies'][$typeId] ?? (int)$type['courtesy_capacity'];
+            $usage = brvtal_ticket_inventory_usage($db, $eventId, $typeId, $utc);
+            if ($capacity < $courtesy) throw new DomainException('INVENTORY_BELOW_COURTESY');
+            if ($courtesy < $usage['courtesy']) throw new DomainException('INVENTORY_COURTESY_BELOW_USAGE');
+            if ($capacity < array_sum($usage)) {
                 throw new DomainException('INVENTORY_BELOW_USAGE');
             }
             $before['types'][$typeId] = $type['capacity'] === null ? null : (int)$type['capacity'];
+            $before['courtesy_capacity'][$typeId] = (int)$type['courtesy_capacity'];
+            $courtesies[$typeId] = $courtesy;
         }
         if ($data['capacity'] < array_sum(brvtal_ticket_inventory_usage($db, $eventId, 0, $utc))) {
             throw new DomainException('INVENTORY_BELOW_USAGE');
@@ -198,10 +210,13 @@ function brvtal_ticket_inventory_admin_save(PDO $db, int $eventId, mixed $input)
         $db->prepare('INSERT INTO ticket_inventory_events(event_id,capacity) VALUES(?,?)
             ON DUPLICATE KEY UPDATE capacity=VALUES(capacity)')->execute([$eventId, $data['capacity']]);
         $upsert = $db->prepare('INSERT INTO ticket_inventory_types(ticket_type_id,event_id,capacity,courtesy_capacity)
-            VALUES(?,?,?,0) ON DUPLICATE KEY UPDATE capacity=VALUES(capacity)');
-        foreach ($data['types'] as $typeId => $capacity) $upsert->execute([$typeId, $eventId, $capacity]);
+            VALUES(?,?,?,?) ON DUPLICATE KEY UPDATE capacity=VALUES(capacity),courtesy_capacity=VALUES(courtesy_capacity)');
+        foreach ($data['types'] as $typeId => $capacity) {
+            $upsert->execute([$typeId, $eventId, $capacity, $courtesies[$typeId]]);
+        }
         brvtal_activity_record($db, 'inventory_update', 'ticket_inventory', $eventId, null, null,
-            ['before'=>$before, 'after'=>['capacity'=>$data['capacity'], 'types'=>$data['types']]], 'Cupo de boletas');
+            ['before'=>$before, 'after'=>['capacity'=>$data['capacity'], 'types'=>$data['types'],
+                'courtesy_capacity'=>$courtesies]], 'Cupo de boletas');
         $db->commit();
     } catch (Throwable $e) {
         if ($db->inTransaction()) $db->rollBack();
