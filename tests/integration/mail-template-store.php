@@ -10,7 +10,19 @@ function mail_store_reject(callable $test, string $reason): void {
     throw new RuntimeException('MAIL STORE TEST FAILED: '.$reason);
 }
 $catalog = brvtal_mail_template_catalog();
-mail_store_assert(count($catalog) === 13, '10 ticketing + 2 staff + global theme');
+mail_store_assert(count($catalog) === 14, '10 legacy ticketing + recovery + 2 staff + global theme');
+$recovery = $catalog['ticket_recovery']['defaults'];
+mail_store_assert($catalog['ticket_recovery']['scope'] === 'ticketing'
+    && $recovery['subject'] !== $catalog['payment_approved']['defaults']['subject']
+    && $recovery['subject'] !== $catalog['reminder']['defaults']['subject']
+    && brvtal_mail_template_validate('ticket_recovery','ticketing',$recovery) === $recovery,
+    'independent valid recovery copy');
+foreach (['token', 'qr', 'ticket_id', 'guest_password_link'] as $variable) {
+    $badRecovery = $recovery;
+    $badRecovery['message'] = '{{'.$variable.'}}';
+    mail_store_reject(static fn()=>brvtal_mail_template_validate(
+        'ticket_recovery','ticketing',$badRecovery),'recovery credential variable');
+}
 $ticketingDefaults = require __DIR__ . '/../../templates/ticketing/transactional.php';
 mail_store_assert(array_keys($ticketingDefaults) ===
     array_slice(array_keys($catalog),0,10), 'only 10 allowlisted ticketing events');
