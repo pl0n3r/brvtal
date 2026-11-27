@@ -53,6 +53,11 @@ try {
             'fixture','fixture-v1','fixture-only','2026-12-01 00:00:00',$state,$state==='redacted'?'2026-11-12 00:00:00':null]);
         $intent->execute([$id,$i===3?'suppressed':($i%2===0?'enqueued':'pending'),$date]);
     }
+    $snapshot=static fn()=>[
+        $pdo->query('SELECT * FROM form_entries ORDER BY entry_id')->fetchAll(PDO::FETCH_ASSOC),
+        $pdo->query('SELECT * FROM form_notification_intents ORDER BY entry_id,action_key')->fetchAll(PDO::FETCH_ASSOC),
+    ];
+    $before=$snapshot();
     formsAdminCheck(!brvtalFormsAdminEnabled([])&&!brvtalFormsAdminEnabled(['forms'=>['admin_read_enabled'=>true]]),'privacy default closed');
     // Use canonical PHP session login/revalidation in an isolated loopback root, never production credentials.
     formsAdminCheck(mkdir($root,0700),'create fixture root');
@@ -81,7 +86,7 @@ try {
     $socket=stream_socket_server('tcp://127.0.0.1:0');
     formsAdminCheck(is_resource($socket),'loopback socket');
     $address=stream_socket_get_name($socket,false); fclose($socket);
-    $process=proc_open([PHP_BINARY,'-d','session.save_path='.$root.'/sessions','-d','sendmail_path=/bin/false','-S',$address,'-t',$root],
+    $process=proc_open([PHP_BINARY,'-d','session.save_path='.$root.'/sessions','-d','sendmail_path=/bin/false','-d','session.cache_limiter=private','-S',$address,'-t',$root],
         [0=>['pipe','r'],1=>['file',$root.'/http.log','a'],2=>['file',$root.'/http.log','a']],$pipes);
     formsAdminCheck(is_resource($process),'HTTP fixture');
     fclose($pipes[0]);
@@ -104,6 +109,7 @@ try {
     do {
         $page=$get($query)['data'];
         formsAdminCheck($page['total']===60,'scope total');
+        formsAdminCheck(count($page['items'])<=7 && (!$page['has_more'] || count($page['items'])===7),'requested page size');
         foreach($page['items'] as $item){
             formsAdminCheck($item['form_key']==='contact'&&!array_key_exists('payload_json',$item)&&!array_key_exists('fields',$item)&&!isset($seen[$item['entry_id']]),'minimal unique list');
             $seen[$item['entry_id']]=true;
@@ -111,6 +117,18 @@ try {
         $query['cursor']=$page['next_cursor'];
     } while($page['has_more']);
     formsAdminCheck(count($seen)===60,'stable cursor with tied timestamps');
+    $received=['view'=>'list','form_key'=>'contact','state'=>'received','limit'=>'2'];
+    $first=$get($received)['data'];
+    $anchor=$first['next_cursor'];
+    formsAdminCheck(is_string($anchor),'received cursor');
+    $change=$pdo->prepare('UPDATE form_entries SET state=? WHERE entry_id=UNHEX(?)');
+    $change->execute(['reviewed',$anchor]);
+    try {
+        $next=$get($received+['cursor'=>$anchor])['data'];
+        formsAdminCheck(count($next['items'])===2 && $next['total']===28,'cursor survives reviewed anchor');
+    } finally {
+        $change->execute(['received',$anchor]);
+    }
     $filtered=$get(['view'=>'list','form_key'=>'contact','from'=>'2026-11-10','to'=>'2026-11-10','state'=>'reviewed'])['data'];
     formsAdminCheck($filtered['total']===29,'Bogota half-open UTC range plus state');
     $result=$get($detail)['data'];
@@ -118,7 +136,7 @@ try {
         && $result['fields'][0]['value']==='<script>synthetic fixture</script>' && count($result['fields'])===1
         && $result['notifications'][0]['state']==='pending' && !array_key_exists('payload_json',$result)&&!array_key_exists('definition_json',$result),'historical projected detail and durable intent');
     $result=$get(array_replace($detail,['entry_id'=>$id(4)]))['data'];
-    formsAdminCheck($result['notifications'][0]['state']==='enqueued','actual enqueued state');
+    formsAdminCheck($result['notifications'][0]['state']==='enqueued','persisted synthetic enqueued intent; handoff belongs to #2066');
     $result=$get(array_replace($detail,['entry_id'=>$id(3)]))['data'];
     formsAdminCheck($result['fields'][0]['value']===null && $result['notifications'][0]['state']==='suppressed','redacted detail');
     $get(array_replace($detail,['form_key'=>'feedback']),404);
@@ -133,6 +151,7 @@ try {
     $config['forms']['privacy_approved']=false;
     file_put_contents($configFile,'<?php return '.var_export($config,true).';',LOCK_EX);
     $get($detail,503);
+    formsAdminCheck($snapshot()===$before,'all stored rows unchanged by API reads');
     formsAdminCheck((int)$pdo->query('SELECT COUNT(*) FROM form_entries')->fetchColumn()===64
         && (int)$pdo->query('SELECT COUNT(*) FROM form_notification_intents')->fetchColumn()===64,'read-only fixture');
     echo "BRVTAL forms admin synthetic MariaDB and canonical HTTP auth passed.\n";

@@ -4,9 +4,9 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/admin_auth.php';
 require_once __DIR__ . '/../config/forms_admin.php';
 
+brvtal_admin_require();
 header('Cache-Control: no-store, private');
 header('X-Content-Type-Options: nosniff');
-brvtal_admin_require();
 try {
     $pdo = db();
     brvtalFormsAdminRequire($pdo, (int)($_SESSION['admin_id'] ?? 0));

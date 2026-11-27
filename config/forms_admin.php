@@ -101,6 +101,25 @@ function brvtalFormsAdminHistorical(array $row): array
 
 function brvtalFormsAdminRead(PDO $pdo, array $input): array
 {
+    if ($pdo->inTransaction()) {
+        throw new RuntimeException('FORMS_ADMIN_UNAVAILABLE');
+    }
+    $pdo->exec('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
+    $pdo->beginTransaction();
+    try {
+        $result = brvtalFormsAdminReadSnapshot($pdo, $input);
+        $pdo->commit();
+        return $result;
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $error;
+    }
+}
+
+function brvtalFormsAdminReadSnapshot(PDO $pdo, array $input): array
+{
     [$view, $where, $args, $limit]=brvtalFormsAdminFilters($input);
     if ($view === 'catalog') {
         $rows=$pdo->query("SELECT v.form_key,v.latest_version,COALESCE(c.total,0) AS total,COALESCE(c.new_count,0) AS new_count
@@ -126,8 +145,8 @@ function brvtalFormsAdminRead(PDO $pdo, array $input): array
     $q->execute($args);
     $total=(int)$q->fetchColumn();
     if (isset($input['cursor'])) {
-        $q=$pdo->prepare("SELECT e.created_at_utc FROM form_entries e WHERE $predicate AND e.entry_id=UNHEX(?)");
-        $q->execute([...$args, $input['cursor']]);
+        $q=$pdo->prepare('SELECT created_at_utc FROM form_entries WHERE form_key=? AND entry_id=UNHEX(?)');
+        $q->execute([$input['form_key'], $input['cursor']]);
         $date=$q->fetchColumn();
         if (!is_string($date)) throw new InvalidArgumentException('INVALID_FILTER');
         $predicate.=' AND (e.created_at_utc<? OR (e.created_at_utc=? AND e.entry_id<UNHEX(?)))';
