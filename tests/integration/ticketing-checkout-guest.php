@@ -48,9 +48,9 @@ foreach ([
 $historical = brvtalBuyerAccountFilters(['from'=>'1992-05-03','to'=>'1992-05-03']);
 $bogota = new DateTimeZone('America/Bogota');
 $utc = new DateTimeZone('UTC');
-$expectedHistoricalStart = (new DateTimeImmutable('1992-05-03 00:00:00', $bogota))
+$expectedHistoricalStart = new DateTimeImmutable('1992-05-03 00:00:00', $bogota)
     ->setTimezone($utc)->format('Y-m-d H:i:s');
-$expectedHistoricalEnd = (new DateTimeImmutable('1992-05-04 00:00:00', $bogota))
+$expectedHistoricalEnd = new DateTimeImmutable('1992-05-04 00:00:00', $bogota)
     ->setTimezone($utc)->format('Y-m-d H:i:s');
 $historicalStart = brvtalBuyerAccountCalendarBound($historical['from'],false);
 $historicalEnd = brvtalBuyerAccountCalendarBound($historical['to'],true);
