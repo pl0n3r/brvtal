@@ -195,6 +195,8 @@ try {
     $config['forms']['admin_manage_enabled']=false;
     file_put_contents($configFile,'<?php return '.var_export($config,true).';',LOCK_EX);
     $post($action,503);
+    $post(['action'=>'unknown'],422);
+    formsAdminHttp($url.'?id=2147483647',422,$cookies[1],'POST',$action,$tokens[1]);
     $get($detail);
     $pdo->exec("UPDATE admins SET staff_role='admin' WHERE id=1");
     $get($detail,403);
