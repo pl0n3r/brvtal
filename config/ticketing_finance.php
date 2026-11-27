@@ -423,3 +423,117 @@ function brvtalFinanceReportSnapshot(PDO $db, ?int $eventId, ?string $from, ?str
     }
     return $report;
 }
+
+/** #2190: internal ledger only; no projection, payment or HTTP side effects. */
+function brvtalFinanceLedgerText(mixed $value, int $max): string
+{
+    if (!is_string($value) || !mb_check_encoding($value, 'UTF-8')
+        || trim($value) === '' || mb_strlen(trim($value), 'UTF-8') > $max
+        || preg_match('/[\x00-\x1f\x7f]/', $value)) {
+        throw new InvalidArgumentException('INVALID_LEDGER_TEXT');
+    }
+    return trim($value);
+}
+
+/** Values are full snapshots, not signed cash movements. A void copies the prior snapshot. */
+function brvtalFinanceLedgerValues(string $kind, array $input): array
+{
+    if (!in_array($kind, ['expense','budget'], true)) {
+        throw new InvalidArgumentException('INVALID_LEDGER_KIND');
+    }
+    $expense = $kind === 'expense';
+    $category = $input['category'] ?? null;
+    $amount = $input['amount_cop'] ?? null;
+    $date = $input['entry_date'] ?? null;
+    $status = $input['status'] ?? null;
+    if (!in_array($category, ['artistas','lugar','produccion','publicidad','logistica','otros'], true)
+        || !is_int($amount) || $amount < ($expense ? 1 : 0)
+        || !is_string($date) || !preg_match('/^[1-9][0-9]{3}-[0-9]{2}-[0-9]{2}$/D', $date)
+        || !in_array($status, $expense ? ['committed','paid'] : ['active'], true)) {
+        throw new InvalidArgumentException('INVALID_LEDGER_VALUES');
+    }
+    brvtalFinanceCalendarBound($date, false);
+    $result = ['category'=>$category,'amount_cop'=>$amount,'entry_date'=>$date,'status'=>$status];
+    if ($expense) $result['concept'] = brvtalFinanceLedgerText($input['concept'] ?? null, 180);
+    return $result;
+}
+
+/**
+ * Actor comes from the trusted admin caller, not a public payload.
+ * New revisions and the existing admin audit journal commit atomically.
+ * The event lock serializes budget creation and competing corrections.
+ */
+function brvtalFinanceLedgerWrite(PDO $db, string $kind, int $eventId, int $actorId,
+    string $action, ?int $previousId, array $input, string $reason): int
+{
+    require_once __DIR__ . '/ticketing_staff_permissions.php';
+    if (!in_array($kind, ['expense','budget'], true)
+        || !in_array($action, ['create','adjust','void'], true)
+        || $eventId < 1 || $actorId < 1
+        || ($action === 'create' ? $previousId !== null : ($previousId ?? 0) < 1)
+        || ($action === 'void' && $input !== [])) {
+        throw new InvalidArgumentException('INVALID_LEDGER_ACTION');
+    }
+    $reason = brvtalFinanceLedgerText($reason, 320);
+    $values = $action === 'void' ? [] : brvtalFinanceLedgerValues($kind, $input);
+    $table = $kind === 'expense' ? 'event_expenses' : 'event_budgets';
+    if ($db->inTransaction()) throw new LogicException('LEDGER_REQUIRES_OWN_TRANSACTION');
+    $db->beginTransaction();
+    try {
+        $q = $db->prepare('SELECT staff_role FROM admins WHERE id=? AND is_active=1 FOR UPDATE');
+        $q->execute([$actorId]);
+        $role = $q->fetchColumn();
+        if (!is_string($role) || !brvtalTicketingCan($role, 'finance')) {
+            throw new DomainException('LEDGER_FORBIDDEN');
+        }
+        $q = $db->prepare('SELECT id FROM events WHERE id=? FOR UPDATE');
+        $q->execute([$eventId]);
+        if (!$q->fetchColumn()) throw new DomainException('LEDGER_EVENT_NOT_FOUND');
+        $old = null;
+        if ($previousId !== null) {
+            $q = $db->prepare("SELECT * FROM $table WHERE id=? AND event_id=? FOR UPDATE");
+            $q->execute([$previousId,$eventId]);
+            $old = $q->fetch(PDO::FETCH_ASSOC);
+            $q = $db->prepare("SELECT id FROM $table WHERE supersedes_id=? FOR UPDATE");
+            $q->execute([$previousId]);
+            if (!$old || $old['status'] === 'void' || $q->fetchColumn()) {
+                throw new DomainException('LEDGER_STALE_REVISION');
+            }
+            if ($action === 'void') {
+                $values = array_intersect_key($old, array_flip(['category','amount_cop','entry_date','status','concept']));
+                $values['status'] = 'void';
+            } elseif ($kind === 'budget' && $old['category'] !== $values['category']) {
+                throw new DomainException('LEDGER_BUDGET_CATEGORY_IMMUTABLE');
+            }
+        } elseif ($kind === 'budget') {
+            $q = $db->prepare("SELECT b.id FROM event_budgets b
+                WHERE b.event_id=? AND b.category=? AND b.status='active'
+                AND NOT EXISTS (SELECT 1 FROM event_budgets n WHERE n.supersedes_id=b.id)
+                FOR UPDATE");
+            $q->execute([$eventId,$values['category']]);
+            if ($q->fetchColumn()) throw new DomainException('LEDGER_BUDGET_EXISTS');
+        }
+        $columns = ['event_id','category','amount_cop','entry_date','status','supersedes_id'];
+        $params = [$eventId,$values['category'],$values['amount_cop'],$values['entry_date'],$values['status'],$previousId];
+        if ($kind === 'expense') {
+            $columns[] = 'concept';
+            $params[] = $values['concept'];
+        }
+        $q = $db->prepare("INSERT INTO $table (".implode(',',$columns).",created_at_utc) VALUES ("
+            .implode(',',array_fill(0,count($params),'?')).",UTC_TIMESTAMP(6))");
+        $q->execute($params);
+        $id = (int)$db->lastInsertId();
+        // Reuse the existing admin audit treatment; no duplicate identity columns in the ledger.
+        $q = $db->prepare('INSERT INTO admin_activity_log
+            (admin_id,action,resource,resource_id,meta_json,request_id,created_at)
+            VALUES (?,?,?,?,?,?,UTC_TIMESTAMP())');
+        $q->execute([$actorId,$action,$table,$id,
+            json_encode(['reason'=>$reason,'previous_id'=>$previousId], JSON_THROW_ON_ERROR),
+            bin2hex(random_bytes(16))]);
+        $db->commit();
+        return $id;
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        throw $e;
+    }
+}
