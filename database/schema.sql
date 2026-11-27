@@ -230,6 +230,8 @@ CREATE TABLE analytics_events (
 -- events.max_per_buyer; NULL preserves the legacy web checkout policy.
 -- migration_ticketing_finance_expenses_01.sql creates event_expenses and
 -- event_budgets as append-only revision ledgers; apply through the runner.
+-- migration_ticketing_promoters_01.sql adds dormant promoters, promoter_codes and
+-- nullable ticket_orders.promoter_code_id; apply through the runner after T03.
 -- migration_ticketing_settlements_01.sql adds synthetic settlement evidence and
 -- immutable lines with logical rollback; apply through the runner.
 INSERT INTO settings(setting_key, setting_value, is_json) VALUES
