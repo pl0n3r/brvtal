@@ -72,6 +72,8 @@ $expectedIds = [
     'contact_delivery',
     'contact_rate_limit',
     'form_entry_management',
+    'form_public_capture',
+    'form_public_rate_limit',
     'internal_analytics_events',
     'legacy_admin_activity_ip',
     'privacy_controller_contact',
