@@ -14,6 +14,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   event-visibility-visual:
@@ -24,19 +25,51 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
-      BASE_SHA: ${{ github.head_ref == 'work/issue-2243' && '943b26e7a9b34b45c8db434a348e8ff4fc2091f6' || github.event.pull_request.base.sha }}
-      CANDIDATE_SHA: ${{ github.head_ref == 'work/issue-2243' && '5842aeb6178bc3e685eea79dc50feb1a1a3434f3' || github.event.pull_request.head.sha }}
       WIRING_HEAD: ${{ github.event.pull_request.head.sha }}
       TRIGGER_PR: ${{ github.event.pull_request.number }}
+      TRIGGER_BASE: ${{ github.event.pull_request.base.sha }}
+      TRIGGER_REF: ${{ github.head_ref }}
     steps:
+      - name: Resolve authenticated exact target PR identities
+        id: sources
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api repos/pl0n3r/brvtal/pulls/2240 > "$RUNNER_TEMP/target-pr.json"
+          python3 - <<'PY'
+          import json, os, re
+          from pathlib import Path
+          pr = json.loads((Path(os.environ["RUNNER_TEMP"]) / "target-pr.json").read_text())
+          if not (pr["number"] == 2240 and pr["state"] == "open"
+                  and pr["base"]["ref"] == "main"
+                  and pr["head"]["ref"] == "work/issue-2169"
+                  and pr["head"]["repo"]["full_name"] == "pl0n3r/brvtal"
+                  and pr["base"]["repo"]["full_name"] == "pl0n3r/brvtal"):
+              raise SystemExit("Unexpected target PR identity")
+          base, head = pr["base"]["sha"], pr["head"]["sha"]
+          if base == head or not all(re.fullmatch(r"[0-9a-f]{40}", sha) for sha in (base, head)):
+              raise SystemExit("Invalid target SHA pair")
+          if os.environ["TRIGGER_REF"] == "work/issue-2169":
+              if (os.environ["TRIGGER_PR"], os.environ["TRIGGER_BASE"], os.environ["WIRING_HEAD"]) != ("2240", base, head):
+                  raise SystemExit("Target PR changed since event")
+          elif os.environ["TRIGGER_REF"] != "work/issue-2243":
+              raise SystemExit("Unexpected wiring branch")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
+              out.write(f"base_sha={base}\nhead_sha={head}\n")
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as out:
+              out.write(f"BASE_SHA={base}\nCANDIDATE_SHA={head}\n")
+          print(f"Exact target source pair: {base} / {head}")
+          PY
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ env.BASE_SHA }}
+          ref: ${{ steps.sources.outputs.base_sha }}
           path: base-source
           persist-credentials: false
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ env.CANDIDATE_SHA }}
+          ref: ${{ steps.sources.outputs.head_sha }}
           path: candidate-source
           persist-credentials: false
       - name: Verify immutable source identities
@@ -62,26 +95,24 @@ jobs:
           export BRVTAL_VISUAL_OUTPUT_DIR="$GITHUB_WORKSPACE/event-visibility-evidence"
           mkdir "$BRVTAL_VISUAL_OUTPUT_DIR"
           npx --no-install playwright test tests/e2e/discadmin-event-visibility.spec.mjs --project=chromium --grep 'exact-source before/after evidence' --workers=1 --reporter=list
-      - name: Verify public Git references still match exact evidence identities
+      - name: Verify authenticated target PR still matches evidence identities
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          git ls-remote --exit-code https://github.com/pl0n3r/brvtal.git \
-            refs/heads/main refs/heads/work/issue-2169 refs/pull/2240/head \
-            > "$RUNNER_TEMP/target-refs.txt"
+          gh api repos/pl0n3r/brvtal/pulls/2240 > "$RUNNER_TEMP/target-pr.json"
           python3 - <<'PY'
-          import os, re
+          import json, os
           from pathlib import Path
-          refs = {}
-          for line in (Path(os.environ["RUNNER_TEMP"]) / "target-refs.txt").read_text().splitlines():
-              sha, ref = line.split("\t")
-              if ref in refs or not re.fullmatch(r"[0-9a-f]{40}", sha):
-                  raise SystemExit("Ambiguous target Git references")
-              refs[ref] = sha
-          expected = {"refs/heads/main": os.environ["BASE_SHA"],
-                      "refs/heads/work/issue-2169": os.environ["CANDIDATE_SHA"],
-                      "refs/pull/2240/head": os.environ["CANDIDATE_SHA"]}
-          if refs != expected:
+          pr = json.loads((Path(os.environ["RUNNER_TEMP"]) / "target-pr.json").read_text())
+          if not (pr["number"] == 2240 and pr["state"] == "open"
+                  and pr["base"]["ref"] == "main"
+                  and pr["head"]["ref"] == "work/issue-2169"
+                  and pr["head"]["repo"]["full_name"] == "pl0n3r/brvtal"
+                  and pr["base"]["repo"]["full_name"] == "pl0n3r/brvtal"
+                  and pr["base"]["sha"] == os.environ["BASE_SHA"]
+                  and pr["head"]["sha"] == os.environ["CANDIDATE_SHA"]):
               raise SystemExit("Target PR identity changed; do not publish stale evidence")
           PY
       - name: Verify four PNGs and write manifest and receipt
