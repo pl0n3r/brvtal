@@ -580,13 +580,95 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
             'logical rollback preserves all evidence including split payout');
         $reject(fn()=>brvtalSettlementImport($ledger,1,$csv),'SETTLEMENT_DUPLICATE');
         $reject(fn()=>brvtalSettlementRollback($ledger,1,$id),'SETTLEMENT_NOT_ACTIVE');
+
+        // #2198: actual MariaDB projection over disposable, minimal source tables.
+        $ledger->exec("CREATE TABLE ticket_orders (id INT PRIMARY KEY,event_id INT,status VARCHAR(16),
+            total_cop BIGINT UNSIGNED,currency CHAR(3)) ENGINE=InnoDB");
+        $ledger->exec("CREATE TABLE ticket_payment_attempts (id INT PRIMARY KEY,order_id INT,
+            provider VARCHAR(24),provider_transaction_id VARCHAR(190),status VARCHAR(16),
+            gross_amount_cop BIGINT UNSIGNED,fee_amount_cop BIGINT UNSIGNED NULL,
+            fee_vat_cop BIGINT UNSIGNED NULL,withheld_amount_cop BIGINT UNSIGNED NULL,
+            net_amount_cop BIGINT UNSIGNED NULL) ENGINE=InnoDB");
+        $ledger->exec("CREATE TABLE ticket_payment_webhook_events (attempt_id INT,
+            provider_transaction_id VARCHAR(190),signed_status VARCHAR(16)) ENGINE=InnoDB");
+        $ledger->exec("CREATE TABLE ticket_refunds (id INT PRIMARY KEY,order_id INT,event_id INT,
+            provider_refund_id VARCHAR(190),status VARCHAR(16),amount_cop BIGINT UNSIGNED) ENGINE=InnoDB");
+        $ledger->exec("CREATE TABLE ticket_refund_adjustments (refund_id INT PRIMARY KEY,
+            order_id INT,event_id INT,amount_cop BIGINT UNSIGNED) ENGINE=InnoDB");
+        $ledger->exec("INSERT INTO ticket_orders VALUES
+            (10,1,'paid',10000,'COP'),(11,1,'paid',20000,'COP'),(12,1,'paid',10000,'COP'),
+            (13,1,'paid',10000,'COP'),(14,1,'paid',10000,'COP'),(15,1,'paid',10000,'COP')");
+        $ledger->exec("INSERT INTO ticket_payment_attempts VALUES
+            (10,10,'wompi','PAY-A','approved',10000,300,57,10,9633),
+            (11,11,'wompi','PAY-B','approved',20000,200,38,20,19742),
+            (12,12,'wompi','PAY-C','approved',10000,NULL,57,10,NULL),
+            (13,13,'wompi','PAY-D','approved',10000,300,57,10,9633),
+            (14,14,'wompi','PAY-E','approved',10000,300,57,10,9633),
+            (15,15,'wompi','PAY-F','approved',10000,300,57,10,9633)");
+        $ledger->exec("INSERT INTO ticket_payment_webhook_events VALUES
+            (10,'PAY-A','APPROVED'),(10,'PAY-A','APPROVED'),(11,'PAY-B','APPROVED'),
+            (12,'PAY-C','APPROVED'),(13,'PAY-D','APPROVED'),(14,'PAY-E','DECLINED'),(15,'PAY-F','APPROVED')");
+        $ledger->exec("INSERT INTO ticket_refunds VALUES
+            (20,11,1,'REF-A','refunded',1000),(21,11,1,'REF-B','refunded',2000)");
+        $ledger->exec("INSERT INTO ticket_refund_adjustments VALUES (20,11,1,1000)");
+        $beforeOrders = $ledger->query('SELECT * FROM ticket_orders ORDER BY id')->fetchAll();
+        $beforePayments = $ledger->query('SELECT * FROM ticket_payment_attempts ORDER BY id')->fetchAll();
+        $p4 = $header
+            . "P4,2026-11-27,L1,PAY-A,5000,150,28,5,0,4817\n"
+            . "P4,2026-11-27,L2,PAY-B,20000,200,38,20,0,19742\n"
+            . "P4,2026-11-27,L3,PAY-C,10000,,57,10,0,9633\n"
+            . "P4,2026-11-27,L4,PAY-D,10000,300,57,10,0,9632\n"
+            . "P4,2026-11-27,L5,REF-A,-1000,0,0,0,0,-1000\n"
+            . "P4,2026-11-27,L6,PAY-E,10000,300,57,10,0,9633\n"
+            . "P4,2026-11-27,L7,PAY-a,10000,300,57,10,0,9633\n"
+            . "P4,2026-11-27,L8,PAY-F,10000,300,57,10,1,9634\n"
+            . "P4,2026-11-27,L9,REF-B,-2000,0,0,0,0,-2000\n";
+        brvtalSettlementImport($ledger,1,$p4);
+        $project = static fn()=>array_column(brvtalSettlementReconcile($ledger,1),null,'reference');
+        $matched = $project();
+        t20($matched['PAY-A']['status']==='partial' && $matched['PAY-A']['difference_cop']===-4816
+            && $matched['PAY-B']['status']==='reconciled' && $matched['PAY-B']['expected']['credited_cop']===19742,
+            'multiple payments per payout and partial settlement');
+        t20($matched['PAY-C']['status']==='pending' && $matched['PAY-C']['difference_cop']===null
+            && $matched['PAY-C']['observed']['fee_cop']===null,'unknown amount is never zero');
+        t20($matched['PAY-D']['status']==='discrepancy' && $matched['PAY-D']['difference_cop']===-1,
+            'difference retained in integer COP');
+        t20($matched['REF-A']['status']==='reconciled' && $matched['REF-A']['kind']==='refund'
+            && (int)$matched['REF-A']['source_id']===20 && $matched['REF-A']['observed']['credited_cop']===-1000
+            && $matched['REF-B']['status']==='pending','only confirmed refund adjustment matches');
+        t20($matched['PAY-E']['status']==='pending' && $matched['PAY-a']['status']==='pending',
+            'signed approval and exact case-sensitive reference required');
+        t20($matched['PAY-F']['status']==='discrepancy' && $matched['PAY-F']['observed']['adjustment_cop']===1
+            && (int)$matched['PAY-F']['lines'][0]['imported_by']===1
+            && $matched['PAY-F']['lines'][0]['file_sha256']===hash('sha256',$p4),
+            'unverified adjustment remains separately auditable');
+        $p5 = $header . "P5,2026-11-28,L1,PAY-A,5000,150,29,5,0,4816\n";
+        brvtalSettlementImport($ledger,1,$p5);
+        $matched = $project();
+        t20($matched['PAY-A']['status']==='reconciled' && count($matched['PAY-A']['lines'])===2
+            && $matched['PAY-A']['expected']['credited_cop']===9633
+            && $matched['PAY-A']['observed']['credited_cop']===9633
+            && $matched['PAY-A']['observed']['fee_cop']===300
+            && $matched['PAY-A']['observed']['fee_vat_cop']===57
+            && $matched['PAY-A']['observed']['withheld_cop']===10,'split payout recognized once, separate costs');
+        $extra = brvtalSettlementImport($ledger,1,str_replace('P5','P6',$p5));
+        $matched = $project();
+        t20($matched['PAY-A']['status']==='discrepancy' && $matched['PAY-A']['difference_cop']===4816,
+            'duplicate amount across batches cannot be reconciled twice');
+        brvtalSettlementRollback($ledger,1,$extra);
+        t20($project()['PAY-A']['status']==='reconciled','rolled-back payout excluded from projection');
+        foreach ([2,3] as $actor) $reject(fn()=>brvtalSettlementReconcile($ledger,$actor),'SETTLEMENT_FORBIDDEN');
+        t20($beforeOrders===$ledger->query('SELECT * FROM ticket_orders ORDER BY id')->fetchAll()
+            && $beforePayments===$ledger->query('SELECT * FROM ticket_payment_attempts ORDER BY id')->fetchAll(),
+            'reconciliation never rewrites orders or payments');
+        $settlementCount = (int)$ledger->query('SELECT COUNT(*) FROM ticket_settlements')->fetchColumn();
         $ledger->exec('RENAME TABLE ticket_settlement_lines TO settlement_lines_unavailable');
         try {
             brvtalSettlementImport($ledger,1,str_replace('P1','P3',$csv));
             throw new RuntimeException('T20: incomplete settlement committed');
         } catch (PDOException $e) {
             t20($e->getCode()==='42S02' && !$ledger->inTransaction()
-                && (int)$ledger->query('SELECT COUNT(*) FROM ticket_settlements')->fetchColumn()===2,
+                && (int)$ledger->query('SELECT COUNT(*) FROM ticket_settlements')->fetchColumn()===$settlementCount,
                 'line insert failure rolls back entire batch');
         }
     } finally {
