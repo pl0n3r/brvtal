@@ -90,6 +90,7 @@ export function mount(panel) {
   const listTitle = make('h3', { text: 'Cupones del evento', class: 'tk-promos-list-title' });
   root.append(make('h3', { id: 'tk-promos-new', text: 'Nuevo cupón' }), form, status, listTitle, table);
   panel.append(root);
+  mountPromoters(root);
 
   let catalog = [];
   let eventRevision = 0;
@@ -234,4 +235,142 @@ export function mount(panel) {
   }
   void loadCatalog();
   return () => root.remove();
+}
+
+/* #2204: a section of the existing promotions workspace, not another shell. */
+function mountPromoters(root) {
+  const title = make('h3', { text: 'Promotores', class: 'tk-promos-list-title' });
+  const open = make('button', { type: 'button', class: 'tk-button', text: 'Gestionar promotores',
+    'aria-expanded': 'false' });
+  const section = make('section', { 'aria-label': 'Promotores', 'data-promoters': '', hidden: '' });
+  root.append(title, open, section);
+  open.addEventListener('click', () => {
+    section.hidden = !section.hidden;
+    open.setAttribute('aria-expanded', String(!section.hidden));
+    if (!section.hidden && !section.hasChildNodes()) init();
+  });
+  function init() {
+    const status = make('p', { class: 'tk-status', 'aria-live': 'polite', 'data-promoter-status': '' });
+    const say = (text, tone = '') => { status.textContent = text; status.dataset.tone = tone; };
+    const key = make('input', { required: '', minlength: 8, maxlength: 32, autocomplete: 'off' });
+    const code = make('input', { required: '', minlength: 8, maxlength: 32, autocomplete: 'off' });
+    const create = make('button', { type: 'submit', class: 'tk-button is-primary', text: 'Crear promotor' });
+    const form = make('form', { class: 'tk-form' }, [step('Nuevo promotor', [
+      field('Alias del promotor', key, 'Usa un alias sin datos personales, de 8 a 32 caracteres.'),
+      field('Código de referencia', code, 'Letras, números, guion o guion bajo.'), create])]);
+    const picker = make('select');
+    const events = make('select');
+    const detail = make('div', { 'data-promoter-detail': '' });
+    const refreshButton = make('button', { type: 'button', class: 'tk-button', text: 'Actualizar promotores' });
+    section.append(make('p', { text: 'Solo pruebas sintéticas. Ventas netas después de reembolsos, sin datos de compradores ni comisiones. La atribución en checkout aún no está activa.' }),
+      form, field('Promotor', picker), field('Evento para el enlace', events), refreshButton, status, detail);
+    let current = null;
+    let generation = 0;
+    let busy = false;
+    async function request(query, body) {
+      const response = await fetch('/api/ticketing/admin-promos.php' + query, {
+        method: body ? 'POST' : 'GET', credentials: 'same-origin', cache: 'no-store',
+        headers: body ? { 'Content-Type': 'application/json', 'X-CSRF-Token': String(window.csrf || '') } : {},
+        ...(body ? { body: JSON.stringify(body) } : {})
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.ok) throw new Error(({403:'No tienes permiso para gestionar promotores.',
+        409:'El alias o código ya existe.', 422:'Revisa el alias y el código.',
+        423:'Promotores disponibles únicamente en pruebas sintéticas.'})[response.status] ||
+        'No se pudieron consultar o guardar los promotores.');
+      return data;
+    }
+    function setBusy(value) {
+      busy = value;
+      for (const control of [create, picker, events, refreshButton, ...detail.querySelectorAll('button')]) control.disabled = value;
+    }
+    function render() {
+      detail.replaceChildren();
+      if (!current) return;
+      const promoter = current.promoter;
+      const active = Number(promoter.active) === 1;
+      const toggle = make('button', { type: 'button', class: 'tk-button', text: active ? 'Desactivar promotor' : 'Activar promotor' });
+      toggle.addEventListener('click', () => void mutate({action:'set_promoter_active', id:Number(promoter.id), active:!active}));
+      detail.append(make('p', { text: active ? 'Promotor activo' : 'Promotor inactivo' }), toggle);
+      for (const row of current.codes) {
+        const enabled = Number(row.active) === 1;
+        const slug = events.value;
+        const link = slug ? 'https://www.brvtal.com.co/events/' + encodeURIComponent(slug) + '?ref=' + encodeURIComponent(row.code) : '';
+        const copy = make('button', { type: 'button', class: 'tk-button', text: 'Copiar enlace de ' + row.code });
+        copy.disabled = !link || !active || !enabled || busy;
+        const linkInput = make('input', { readonly:'', value:link });
+        copy.addEventListener('click', async () => {
+          try {
+            await navigator.clipboard.writeText(link);
+            say('Enlace copiado.', 'ok');
+          } catch {
+            linkInput.focus(); linkInput.select();
+            say('Selecciona y copia el enlace manualmente.');
+          }
+        });
+        const change = make('button', { type:'button', class:'tk-button', text:(enabled?'Desactivar código ':'Activar código ')+row.code });
+        change.disabled = busy;
+        change.addEventListener('click', () => void mutate({action:'set_referral_active',id:Number(promoter.id),code_id:Number(row.id),active:!enabled}));
+        detail.append(step(row.code, [make('p', {text:(enabled?'Código activo':'Código inactivo')+' · '+row.paid_orders+' pedidos pagados'}),
+          make('p',{text:'Ventas netas: '+money(row.net_cop)}),
+          field('Enlace de referencia de '+row.code,linkInput), make('div',{class:'tk-actions'},[copy,change])]));
+      }
+      if (!current.codes.length) detail.append(make('p',{text:'Este promotor todavía no tiene códigos.'}));
+    }
+    async function loadDetail() {
+      const revision = ++generation;
+      current = null;
+      detail.replaceChildren();
+      if (!picker.value) return;
+      const data = await request('?promoters=1&promoter_id='+encodeURIComponent(picker.value));
+      if (revision !== generation || !section.isConnected) return;
+      if (!data.promoter || !Array.isArray(data.codes)) throw new Error('Respuesta de ventas incompleta.');
+      current = data;
+      render();
+    }
+    async function refresh(selected = picker.value) {
+      const data = await request('?promoters=1');
+      if (!Array.isArray(data.promoters)) throw new Error('Respuesta de promotores incompleta.');
+      picker.replaceChildren(make('option',{value:'',text:'Elige un promotor'}),
+        ...data.promoters.map(row=>make('option',{value:String(row.id),text:row.promoter_key})));
+      if (data.promoters.some(row=>String(row.id)===String(selected))) picker.value=String(selected);
+      await loadDetail();
+      if (!data.promoters.length) say('Todavía no hay promotores.');
+    }
+    async function mutate(body) {
+      if (busy) return;
+      setBusy(true); say('Guardando…');
+      try {
+        const data = await request('',body);
+        await refresh(data.id ?? picker.value);
+        say('Cambios guardados.', 'ok');
+        return true;
+      } catch (error) { say(error.message,'error'); }
+      finally { setBusy(false); render(); }
+      return false;
+    }
+    form.addEventListener('submit',async event=>{
+      event.preventDefault();
+      if (await mutate({action:'create_promoter',promoter_key:key.value.trim().toUpperCase(),code:code.value.trim().toUpperCase()})) form.reset();
+    });
+    picker.addEventListener('change',()=>{ say('Cargando ventas…'); void loadDetail().then(()=>say('')).catch(error=>say(error.message,'error')); });
+    events.addEventListener('change',render);
+    refreshButton.addEventListener('click',()=>void reload());
+    async function reload() {
+      if (busy) return;
+      setBusy(true); say('Cargando promotores…');
+      try {
+        const catalog = await request('?catalog=1');
+        const old = events.value;
+        events.replaceChildren(make('option',{value:'',text:'Elige un evento'}),
+          ...(catalog.events||[]).filter(item=>typeof item.slug==='string' && /^[a-zA-Z0-9_-]+$/.test(item.slug))
+            .map(item=>make('option',{value:item.slug,text:item.title})));
+        events.value=old;
+        await refresh();
+        if (picker.options.length>1) say('');
+      } catch(error) { current=null; detail.replaceChildren(); say(error.message,'error'); }
+      finally { setBusy(false); render(); }
+    }
+    void reload();
+  }
 }
