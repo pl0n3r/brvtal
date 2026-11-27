@@ -1,0 +1,1 @@
+Nuevas migraciones `database/migration_nombre.sql`: reclamar solo `database/proofs/migration_nombre.sql.php`, PHP versionado que retorna una lista no vacía de requisitos de los probes existentes; no duplicar entradas centrales.

@@ -120,6 +120,96 @@ try {
     $pdo->exec('DROP TEMPORARY TABLE events');
 }
 
+/** #2246: same real information_schema probes for a file proof and a central entry. */
+function migrations_it_file_proofs(PDO $pdo, string $directory): void
+{
+    $proofs = $directory . '/proofs';
+    $name = 'migration_file_probe_01.sql';
+    $table = 'brvtal_file_probe_' . bin2hex(random_bytes(6));
+    $sql = "CREATE TABLE $table (id INT PRIMARY KEY)";
+    $requirements = brvtalMigrationObjectRequirements($table, ['id'], [], true);
+    $path = $proofs . '/' . $name . '.php';
+    $source = '<?php return ' . var_export($requirements, true) . ';';
+    $reject = static function (array $central, string $error) use ($directory): void {
+        try {
+            brvtalMigrationLoadProofFiles($central, $directory);
+        } catch (RuntimeException $exception) {
+            migrations_it_assert($exception->getMessage() === $error, 'file proof failure code');
+            return;
+        }
+        migrations_it_assert(false, 'invalid file proof accepted');
+    };
+    $central = ['migration_central_fixture.sql' => ['table:central_fixture']];
+    migrations_it_assert(brvtalMigrationLoadProofFiles($central, $directory) === $central, 'missing proof directory preserves central map');
+    migrations_it_assert(mkdir($proofs, 0700), 'create disposable proof directory');
+    try {
+        migrations_it_assert(file_put_contents($proofs . '/README.md', 'fixture') !== false, 'write fixture README');
+        migrations_it_assert(file_put_contents($directory . '/' . $name, $sql) !== false, 'write fixture SQL');
+        migrations_it_assert(file_put_contents($path, $source) !== false, 'write fixture proof');
+        $loaded = brvtalMigrationLoadProofFiles($central, $directory);
+        migrations_it_assert($loaded === $central + [$name => $requirements], 'file adds only its own entry');
+        $probe = static fn(string $requirement): bool => brvtalMigrationProbeRequirement($pdo, $requirement);
+        $evaluate = static fn(): array => brvtalMigrationEvaluateRequirements($loaded[$name], $probe);
+        $absent = $evaluate();
+        migrations_it_assert($absent === brvtalMigrationEvaluateRequirements($requirements, $probe), 'absent proof equals central proof');
+        migrations_it_assert(brvtalMigrationProofDisposition($name, $absent) === 'apply', 'file proof permits absent additive schema');
+        brvtalMigrationAssertReconciliationSql($name, $sql, $absent);
+        $pdo->exec("CREATE TABLE $table (other_id INT PRIMARY KEY)");
+        migrations_it_assert(brvtalMigrationProofDisposition($name, $evaluate()) === 'blocked', 'partial file proof blocks reconciliation');
+        $pdo->exec("DROP TABLE $table");
+        $pdo->exec($sql);
+        $complete = $evaluate();
+        migrations_it_assert($complete === brvtalMigrationEvaluateRequirements($requirements, $probe), 'complete proof equals central proof');
+        migrations_it_assert(brvtalMigrationProofDisposition($name, $complete) === 'baseline', 'file proof baselines complete schema');
+        $reject($central + [$name => $requirements], 'MIGRATION_SCHEMA_PROOF_DUPLICATE:' . $name);
+
+        $earlier = 'migration_a_fixture.sql';
+        file_put_contents($directory . '/' . $earlier, $sql);
+        file_put_contents($proofs . '/' . $earlier . '.php', $source);
+        migrations_it_assert(array_keys(brvtalMigrationLoadProofFiles($central, $directory))
+            === ['migration_central_fixture.sql', $earlier, $name], 'file order is deterministic');
+        unlink($proofs . '/' . $earlier . '.php');
+        unlink($directory . '/' . $earlier);
+
+        unlink($directory . '/' . $name);
+        $reject($central, 'MIGRATION_SCHEMA_PROOF_ORPHAN:' . $name);
+        migrations_it_assert(symlink($path, $directory . '/' . $name), 'create synthetic SQL symlink');
+        $reject($central, 'MIGRATION_SCHEMA_PROOF_ORPHAN:' . $name);
+        unlink($directory . '/' . $name);
+        file_put_contents($directory . '/' . $name, $sql);
+
+        foreach (['false', '[]', "['key' => 'table:x']", '[1]', "['column:x']", "['table:x.y']",
+            "['unknown:x']", "['table:x', 'table:x']", 'array_fill(0, 201, "table:x")',
+            "['table:' . str_repeat('x', 180)]"] as $invalid) {
+            file_put_contents($path, '<?php return ' . $invalid . ';');
+            $reject($central, 'MIGRATION_SCHEMA_PROOF_FILE_INVALID');
+        }
+        file_put_contents($path, '<?php return [;');
+        $reject($central, 'MIGRATION_SCHEMA_PROOF_FILE_INVALID');
+        unlink($path);
+        migrations_it_assert(symlink($directory . '/' . $name, $path), 'create synthetic proof symlink');
+        $reject($central, 'MIGRATION_SCHEMA_PROOF_FILE_INVALID');
+        unlink($path);
+        file_put_contents($proofs . '/unexpected.php', $source);
+        $reject($central, 'MIGRATION_SCHEMA_PROOF_FILE_INVALID');
+    } finally {
+        $pdo->exec("DROP TABLE IF EXISTS $table");
+        foreach (glob($proofs . '/*') ?: [] as $fixture) {
+            unlink($fixture);
+        }
+        rmdir($proofs);
+        if (is_file($directory . '/' . $name)) {
+            unlink($directory . '/' . $name);
+        }
+        if (isset($earlier) && is_file($directory . '/' . $earlier)) {
+            unlink($directory . '/' . $earlier);
+        }
+    }
+}
+
+migrations_it_file_proofs($pdo, $tempDir);
+echo "BRVTAL migration proof-file MariaDB integration passed.\n";
+
 $cleanup();
 echo "BRVTAL migration-state MariaDB integration passed.\n";
 

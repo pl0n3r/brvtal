@@ -313,6 +313,20 @@ try {
 mail_assert((string)$pdo->query('SELECT status FROM synthetic_paid_ticket')->fetchColumn() === 'paid',
     'reconciliation does not change paid tickets');
 
+
+// #2134: an ambiguous legacy reminder on an outbox-only schema fails closed,
+// and a stale claimed generation cannot write a suppression or authorize delivery.
+$pdo->beginTransaction();
+$legacy = brvtal_ticket_mail_enqueue($pdo, 'order:2134:reminder', 'order:2134',
+    'legacy@example.test', 'Synthetic', 'Unknown purpose');
+$pdo->commit();
+$legacyJob = brvtal_ticket_mail_claim($pdo);
+mail_assert($legacyJob !== null && (int)$legacyJob['id'] === $legacy, 'legacy claimed');
+$pdo->exec("UPDATE ticket_mail_outbox SET locked_until=DATE_SUB(UTC_TIMESTAMP(),INTERVAL 1 SECOND) WHERE id=$legacy");
+mail_assert(brvtal_ticket_mail_prepare_dispatch($pdo, $legacyJob)==='lease_lost', 'expired lease cannot suppress or dispatch');
+mail_assert(brvtal_ticket_mail_reconcile_stale($second, 2)===1, 'other worker reconciles stale legacy');
+mail_assert(!brvtal_ticket_mail_redrive($pdo,$legacy), 'stale legacy cannot redrive');
+
 echo "BRVTAL ticket-mail outbox integration OK.\n";
 
 // T11: run signed webhook and durable history tests in the existing canonical mail integration suite.
