@@ -134,6 +134,16 @@ $runMigration=static function() use($db,$migration):void {
     }
 };
 $runMigration();
+$incidentMigration=file_get_contents(__DIR__.'/../../database/migration_zz_ticketing_payment_incidents_01.sql');
+t08(is_string($incidentMigration) && $incidentMigration !== '', 'incident migration available');
+$runIncidentMigration=static function() use($db,$incidentMigration):void {
+    $ddl=preg_replace('/^\\h*--[^\\r\\n]*$/m','',$incidentMigration);
+    foreach(explode(';',(string)$ddl) as $statement) {
+        if(trim($statement)!=='') $db->exec($statement);
+    }
+};
+$runIncidentMigration();
+$runIncidentMigration();
 $db->exec("INSERT INTO ticket_orders(id,event_id,status,currency,total_cop) VALUES
  (42,1,'pending','COP',50000)");
 $db->exec("INSERT INTO ticket_order_items(order_id,event_id,ticket_type_id,quantity,currency)
@@ -175,15 +185,62 @@ $db->exec("UPDATE ticket_orders SET status='pending' WHERE id=42");
 $db->exec("UPDATE ticket_inventory_holds SET status='active',
  expires_at_utc=UTC_TIMESTAMP(6)+INTERVAL 15 MINUTE WHERE order_id=42");
 $db->exec("UPDATE ticket_payment_attempts SET status='created',provider_transaction_id=NULL WHERE id=1");
+$db->exec("DROP TABLE ticket_payment_incidents");
 $db->exec("DROP TABLE ticket_payment_webhook_events");
 try { $process($signed,$provider); throw new RuntimeException('expected DB failure'); }
 catch(PDOException) { /* retry must not acknowledge as applied */ }
 t08($db->query("SELECT status FROM ticket_payment_attempts WHERE id=1")->fetchColumn()==='created',
     'DB outage rolled back event');
 $runMigration();
+$runIncidentMigration();
+$runIncidentMigration();
 t08($process($signed,$provider)==='approved','retry after DB recovery');
 t08((int)$db->query('SELECT COUNT(*) FROM ticket_issue_outbox')->fetchColumn()===1,
     'retry never duplicates issuance');
+// A distinct authenticated approval for the paid order is recorded, never fulfilled.
+$duplicateRef='BW7-42-CARD-'.str_repeat('c',24);
+$db->prepare("INSERT INTO ticket_payment_attempts VALUES
+ (1001,42,'wompi',?,NULL,50000,'created',NULL)")->execute([$duplicateRef]);
+$duplicateTx=array_replace($tx,['id'=>'test-transaction-duplicate','reference'=>$duplicateRef]);
+[$duplicateRaw,$duplicateHash]=$sign($duplicateTx,$now);
+$duplicateSigned=brvtal_wompi_hook_verify($duplicateRaw,$duplicateHash,$settings,$now);
+// Inject failure on the incident write, after both journal and attempt writes.
+$db->exec("CREATE TRIGGER reject_incident BEFORE INSERT ON ticket_payment_incidents
+ FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='fixture incident failure'");
+try {
+    $process($duplicateSigned,$duplicateTx);
+    throw new RuntimeException('expected incident persistence failure');
+} catch(PDOException) { /* the caller rolls back all financial evidence for redelivery */ }
+$db->exec('DROP TRIGGER reject_incident');
+t08($db->query("SELECT status FROM ticket_payment_attempts WHERE id=1001")->fetchColumn()==='created',
+    'incident failure rolls back attempt');
+t08((int)$db->query("SELECT COUNT(*) FROM ticket_payment_webhook_events WHERE attempt_id=1001")
+    ->fetchColumn()===0,'incident failure rolls back journal');
+t08((int)$db->query("SELECT COUNT(*) FROM ticket_payment_incidents")->fetchColumn()===0,
+    'failed incident is not acknowledged');
+t08($process($duplicateSigned,$duplicateTx)==='approved_unfulfilled','duplicate payment recorded on redelivery');
+t08($process($duplicateSigned,$duplicateTx)==='duplicate','exact replay does not duplicate incident');
+$lateDuplicate=array_replace($duplicateTx,['status'=>'PENDING']);
+[$lateRaw,$lateHash]=$sign($lateDuplicate,$now-1);
+$lateSigned=brvtal_wompi_hook_verify($lateRaw,$lateHash,$settings,$now);
+t08($process($lateSigned,$lateDuplicate)==='duplicate','late pending does not downgrade duplicate approval');
+t08($db->query("SELECT status FROM ticket_payment_attempts WHERE id=1001")->fetchColumn()==='approved',
+    'duplicate charge remains approved');
+t08($db->query("SELECT status FROM ticket_orders WHERE id=42")->fetchColumn()==='paid',
+    'duplicate charge never changes paid order');
+t08((int)$db->query("SELECT COUNT(*) FROM ticket_payment_incidents")->fetchColumn()===1,
+    'only one incident for duplicate attempt');
+$incidentEvidence=$db->query("SELECT e.event_checksum FROM ticket_payment_incidents i
+ JOIN ticket_payment_webhook_events e ON e.id=i.evidence_event_id AND e.attempt_id=i.attempt_id
+ WHERE i.attempt_id=1001 AND i.kind='duplicate_payment'")->fetchColumn();
+t08($incidentEvidence===$duplicateHash,'incident references authenticated original evidence');
+t08((int)$db->query("SELECT COUNT(*) FROM ticket_issue_outbox WHERE order_id=42")->fetchColumn()===1,
+    'no extra ticket issuance request');
+t08((int)$db->query("SELECT payment_attempt_id FROM ticket_issue_outbox WHERE order_id=42")->fetchColumn()===1,
+    'original fulfillment identity unchanged');
+$runIncidentMigration();
+t08((int)$db->query("SELECT COUNT(*) FROM ticket_payment_incidents")->fetchColumn()===1,
+    'migration replay preserves evidence');
 // Authenticated approval after expiry, terminal state, incident or missing holds
 // retains the original journal/approved attempt but never creates tickets.
 $case = static function(int $id,string $orderState,string $holdState,bool $incident=false,

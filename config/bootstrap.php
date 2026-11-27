@@ -40,6 +40,10 @@ if (!is_file($configPath)) {
 try {
     $config = require $configPath;
     if (!is_array($config)) throw new RuntimeException('Invalid configuration.');
+    if (is_file(__DIR__ . '/owner_policies.php')) {
+        require_once __DIR__ . '/owner_policies.php';
+        $config = brvtal_apply_owner_policies($config);
+    }
     date_default_timezone_set((string)($config['app']['timezone'] ?? 'America/Bogota'));
 } catch (Throwable $e) {
     brvtal_log('EXCEPTION', 'Configuration loading failed.', ['message' => $e->getMessage()]);

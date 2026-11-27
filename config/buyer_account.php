@@ -145,7 +145,8 @@ function brvtalBuyerAccountOrders(PDO $db, int $buyerId, array $f): array
     // EXISTS avoids multiplying entries by credential history.
     $activeSql = "EXISTS (SELECT 1 FROM ticket_entry_credentials c WHERE c.entry_id=t.id AND c.status='active')";
     $storedSql = $encryptedAvailable
-        ? "EXISTS (SELECT 1 FROM ticket_entry_credentials c WHERE c.entry_id=t.id AND c.status='active' AND c.token_encrypted IS NOT NULL)"
+        ? "EXISTS (SELECT 1 FROM ticket_entry_credentials c WHERE c.entry_id=t.id "
+            . "AND c.status='active' AND c.token_encrypted IS NOT NULL)"
         : '0';
     $items = $db->prepare('SELECT i.id AS item_id,i.order_id,i.ticket_name_snapshot,i.quantity,
         LOWER(HEX(t.public_id)) AS ticket_id,t.status AS ticket_status,
@@ -159,7 +160,9 @@ function brvtalBuyerAccountOrders(PDO $db, int $buyerId, array $f): array
         $key = (int)$row['item_id'];
         $lines[$key] ??= ['order_id'=>(int)$row['order_id'], 'name'=>$row['ticket_name_snapshot'],
             'quantity'=>(int)$row['quantity'], 'entries'=>[]];
-        if ($row['ticket_id'] === null) continue;
+        if ($row['ticket_id'] === null) {
+            continue;
+        }
         $active = $row['ticket_status'] === 'issued' && (bool)$row['credential_active'];
         $lines[$key]['entries'][] = [
             'name'=>$row['ticket_name_snapshot'], 'quantity'=>1,
@@ -170,7 +173,9 @@ function brvtalBuyerAccountOrders(PDO $db, int $buyerId, array $f): array
     $byOrder = [];
     foreach ($lines as $line) {
         $orderId = $line['order_id'];
-        foreach ($line['entries'] as $entry) $byOrder[$orderId][] = $entry;
+        foreach ($line['entries'] as $entry) {
+            $byOrder[$orderId][] = $entry;
+        }
         $remaining = $line['quantity'] - count($line['entries']);
         if ($remaining > 0) {
             $byOrder[$orderId][] = ['name'=>$line['name'], 'quantity'=>$remaining,
@@ -184,7 +189,9 @@ function brvtalBuyerAccountOrders(PDO $db, int $buyerId, array $f): array
         try {
             $proof = brvtalTicketAdminPaymentEvidence($db, $order, $paymentSchema);
         } catch (PDOException $e) {
-            if (!in_array($e->getCode(), ['42S02','42S22'], true)) throw $e;
+            if (!in_array($e->getCode(), ['42S02','42S22'], true)) {
+                throw $e;
+            }
             $proof = ['channel'=>'unknown','state'=>'unavailable'];
         }
         $order['payment_channel'] = $proof['channel'];

@@ -1403,3 +1403,38 @@ test('Cromo failed public API does not treat data as an empty published catalog'
   await expect(page.locator('#cromo-home')).toHaveCount(0);
   await expect(page.locator('#legacy')).toBeVisible();
 });
+
+test('Contacto del home manda una Idempotency-Key por intento (#2321)', async ({ page }) => {
+  await mount(page);
+  const keys = [];
+  await page.route('**/api/contact.php', route => {
+    if (route.request().method() === 'GET') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, data: { token: 'key-fixture', question: '2 + 3 = ?' } }) });
+    }
+    keys.push(route.request().headers()['idempotency-key'] || '');
+    const failed = keys.length < 3;
+    return route.fulfill({ status: failed ? 503 : 200, contentType: 'application/json', body: JSON.stringify(failed ? { ok: false } : { ok: true }) });
+  });
+  const form = page.locator('#contacto form');
+  await form.getByRole('button', { name: 'Reintentar verificación' }).click();
+  await form.locator('[name="name"]').fill('Persona');
+  await form.locator('[name="email"]').fill('persona@example.org');
+  await form.locator('[name="message"]').fill('Mensaje de prueba');
+  await form.locator('[name="captcha_answer"]').fill('5');
+  const submit = form.getByRole('button', { name: 'Enviar mensaje' });
+
+  await submit.click();
+  await expect.poll(() => keys.length).toBe(1);
+  await expect(submit).toBeEnabled();
+  await submit.click();
+  await expect.poll(() => keys.length).toBe(2);
+  expect(keys[0]).toMatch(/^[a-f0-9]{32}$/);
+  expect(keys[1]).toBe(keys[0]);
+
+  await expect(submit).toBeEnabled();
+  await form.locator('[name="message"]').fill('Mensaje de prueba editado');
+  await submit.click();
+  await expect.poll(() => keys.length).toBe(3);
+  expect(keys[2]).not.toBe(keys[0]);
+  await expect(form.locator('.cr-form-status')).toContainText('Mensaje enviado');
+});

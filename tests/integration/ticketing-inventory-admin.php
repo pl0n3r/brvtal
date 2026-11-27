@@ -17,6 +17,20 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') !== '1') {
         } catch (InvalidArgumentException) {
         }
     }
+    foreach ([-1, 0, 10000001, '', '1000', 1.5, true, [], ['amount'=>1000]] as $price) {
+        try {
+            brvtal_ticket_inventory_admin_input(['capacity'=>10,'types'=>[['ticket_type_id'=>1,'capacity'=>5,'door_price_cop'=>$price]]]);
+            throw new RuntimeException('INVENTORY_ADMIN: accepted invalid door price');
+        } catch (InvalidArgumentException $error) {
+            if ($error->getMessage() !== 'INVENTORY_INVALID_DOOR_PRICE') throw $error;
+        }
+    }
+    foreach ([null, 1, 10000000] as $price) {
+        $parsed = brvtal_ticket_inventory_admin_input(['capacity'=>10,'types'=>[['ticket_type_id'=>1,'capacity'=>5,'door_price_cop'=>$price]]]);
+        if (!array_key_exists(1, $parsed['door_prices']) || $parsed['door_prices'][1] !== $price) {
+            throw new RuntimeException('INVENTORY_ADMIN: valid door price was lost');
+        }
+    }
     echo "Ticket inventory admin input validation passed; MariaDB checks need BRVTAL_INTEGRATION_TESTS=1.\n";
     exit(0);
 }
@@ -79,6 +93,7 @@ foreach ([
 ] as $ddl) $db->exec($ddl);
 $db->exec((string)file_get_contents(__DIR__ . '/../../database/migration_admin_activity_01.sql'));
 $db->exec((string)file_get_contents(__DIR__ . '/../../database/migration_ticketing_reservations_01.sql'));
+$db->exec((string)file_get_contents(__DIR__ . '/../../database/migration_ticketing_door_price_01.sql'));
 $db->exec("INSERT INTO admins(email,password_hash,name) VALUES('owner@synthetic.invalid','synthetic','Owner')");
 
 $cfg = ['app'=>['timezone'=>'America/Bogota'],
@@ -225,6 +240,31 @@ invAssert($after === $before && (int)$db->query('SELECT COUNT(*) FROM admin_acti
     'failed budget saves are atomic and not audited');
 invAssert((int)$db->query("SELECT COUNT(*) FROM ticket_mail_outbox WHERE state='queued'")->fetchColumn() === 1,
     'only one synthetic mail queued; no transport');
+
+// #2178: door price is independent of base price and courtesy budget; omission is not a clear.
+$priceRow = static fn(mixed $price) => ['ticket_type_id'=>11,'capacity'=>20,'door_price_cop'=>$price];
+invAssert($before['types'][1]['door_price_cop'] === null, 'unconfigured tariff defaults to null');
+$priced = $set([$priceRow(75000)]);
+invAssert($priced['types'][1]['door_price_cop'] === 75000 && $priced['types'][1]['courtesy_capacity'] === 1,
+    'tariff saved without altering courtesy budget');
+invAssert((int)$db->query('SELECT price FROM event_ticket_types WHERE id=11')->fetchColumn() === 60000,
+    'base price unchanged');
+$meta = json_decode((string)$db->query('SELECT meta_json FROM admin_activity_log ORDER BY id DESC LIMIT 1')->fetchColumn(), true);
+invAssert(array_key_exists(11, $meta['before']['door_price_cop']) && $meta['before']['door_price_cop'][11] === null
+    && $meta['after']['door_price_cop'][11] === 75000, 'door tariff audited');
+invAssert($set([['ticket_type_id'=>11,'capacity'=>20]])['types'][1]['door_price_cop'] === 75000,
+    'legacy omission preserves configured tariff');
+foreach ([-1,0,10000001,'75000','',1.5,true,[]] as $bad) {
+    invRejects(fn() => $set([$priceRow($bad)]), 'INVENTORY_INVALID_DOOR_PRICE', 'invalid door tariff');
+}
+invRejects(fn() => $set([$priceRow(80000),['ticket_type_id'=>20,'capacity'=>5,'door_price_cop'=>90000]]),
+    'INVENTORY_TYPE_NOT_IN_EVENT', 'another event cannot change price');
+invAssert(brvtal_ticket_inventory_admin_read($db, 1)['types'][1]['door_price_cop'] === 75000,
+    'invalid and cross-event saves preserve tariff');
+$cleared = $set([$priceRow(null)]);
+invAssert($cleared['types'][1]['door_price_cop'] === null, 'explicit null restores stage fallback');
+invAssert($set([$priceRow(10000000)])['types'][1]['door_price_cop'] === 10000000, 'upper price bound accepted');
+$set([$priceRow(null)]);
 
 $db->exec("UPDATE events SET event_date=DATE_SUB(NOW(), INTERVAL 1 DAY) WHERE id=1");
 $past = brvtal_ticket_inventory_admin_read($db, 1)['sale'];

@@ -41,7 +41,7 @@ const beforeHtml = '<!doctype html><html lang="es"><meta name="viewport" content
   +'</tr></tbody></table></body></html>';
 
 async function setup(page, handler, rows=[], openCash=true, catalogMode='api',
-    financeSource=finance,posSource=pos) {
+    financeSource=finance,posSource=pos,receiptConfig={enabled:false,destinations:{}}) {
   await page.route('**/discadmin/pos-test.html',route=>route.fulfill({
     contentType:'text/html',body:'<!doctype html><html lang="es"><meta name="viewport" content="width=device-width,initial-scale=1">'
       +'<body style="margin:0;background:#050505;color:#f4f5f6;font-family:system-ui">'
@@ -63,6 +63,9 @@ async function setup(page, handler, rows=[], openCash=true, catalogMode='api',
   await page.route('**/api/ticketing/admin-finances.php?*',route=>route.fulfill({
     contentType:'application/json',body:JSON.stringify({ok:true,rows})}));
   await page.route('**/api/ticketing/admin-pos.php',handler);
+  await page.route('**/api/ticketing/admin-pos.php?receipt_identity=1',route=>route.fulfill({
+    status:receiptConfig===null?403:200,contentType:'application/json',body:JSON.stringify(receiptConfig===null
+      ?{ok:false,error:'FORBIDDEN'}:{ok:true,data:receiptConfig})}));
   await page.goto('https://www.brvtal.com.co/discadmin/pos-test.html');
   await page.addStyleTag({content:css});
   await page.evaluate(async()=>{
@@ -585,4 +588,76 @@ test('2286 respuesta inválida no habilita confirmación; tarifa base explícita
   await form.getByRole('button',{name:'Revisar pedido manual'}).click();
   await expect(form.locator('[data-pos-manual-preview]')).toContainText('Precio base');
   expect(calls).toEqual(Array(4).fill('manual_quote'));
+});
+
+for(const width of [390,1440]){
+  test('2100 comprobante por destino, recarga y capturas '+width+' px',async({page},testInfo)=>{
+    await page.setViewportSize({width,height:900});
+    const ref='5c846e75418a57142f41fb3ac2cf4ed515ec3cbc:discadmin/ticketing-pos.js';
+    try{execFileSync('git',['cat-file','-e',ref]);}
+    catch{execFileSync('git',['fetch','--no-tags','--depth=1','origin','5c846e75418a57142f41fb3ac2cf4ed515ec3cbc'],{timeout:60000});}
+    const baseline=await page.context().newPage();
+    await baseline.setViewportSize({width,height:900});
+    await setup(baseline,route=>route.abort('failed'),[],true,'api',finance,
+      execFileSync('git',['show',ref],{encoding:'utf8'}));
+    const dir='artifacts/issue-2017/issue-2100';
+    mkdirSync(dir,{recursive:true});
+    const capture=async(p,phase)=>{
+      const png=await p.screenshot({fullPage:true});
+      expect(png.readUInt32BE(16)).toBe(width);
+      const name='2100-'+phase+'-'+width+'.png';
+      writeFileSync(dir+'/'+name,png);
+      await testInfo.attach(name,{body:png,contentType:'image/png'});
+    };
+    await fillManualQuote(baseline.locator('[data-pos-manual-form]'),'1');
+    await capture(baseline,'before');await baseline.close();
+    const calls=[];let committed=false,available=false,orders=0;
+    const config={enabled:true,destinations:{nequi:[{id:1,method:'nequi',alias:'Billetera A'}]}};
+    await setup(page,async route=>{
+      const body=route.request().postDataJSON();calls.push(body);
+      if(body.action==='manual_quote')return quoteFixture(route,body);
+      if(body.action==='manual_intent')return route.fulfill({status:available?200:503,contentType:'application/json',
+        body:JSON.stringify(available?{ok:true,data:{state:'found',order_id:123,status:'paid',
+          method:'nequi',amount_cop:25000,issuance:'pending'}}:{ok:false,error:'POS_UNAVAILABLE'})});
+      expect(body.action).toBe('manual_order');expect(body.destination_id).toBe('1');
+      if(++orders===1){committed=true;return route.abort('failed');}
+      return route.fulfill({status:409,contentType:'application/json',body:'{"ok":false,"error":"POS_RECEIPT_DUPLICATE"}'});
+    },[],true,'api',finance,pos,config);
+    const manual=page.locator('[data-pos-manual]'),form=manual.locator('form');
+    await fillManualQuote(form,'1');
+    const dest=form.locator('[name="manual_destination_id"]');
+    await expect(dest).toBeVisible();await expect(dest).toBeEnabled();
+    await dest.focus();await expect(dest).toBeFocused();await dest.selectOption('1');
+    await capture(page,'after');
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    await form.getByRole('button',{name:'Revisar pedido manual'}).click();
+    await expect(form.locator('[data-pos-manual-preview]')).toContainText('Destino: Billetera A');
+    await form.getByRole('button',{name:'Confirmar y crear pedido'}).click();
+    await expect(manual).toContainText('No se pudo verificar el recibo');expect(committed).toBeTruthy();
+    const intent=calls.find(x=>x.action==='manual_order').idempotency_key;
+    expect(await page.evaluate(()=>Object.entries(sessionStorage).filter(([k])=>k.startsWith('brvtal.pos.'))))
+      .toEqual([['brvtal.pos.manual.intent.v1',intent]]);
+    available=true;await page.reload();await page.addStyleTag({content:css});
+    await page.evaluate(async()=>{const m=await import('/discadmin/ticketing-finance.js');await m.mount(document.querySelector('#panel'));});
+    await page.getByRole('button',{name:'Caja',exact:true}).click();
+    await expect(manual).toContainText('Pedido #123 recuperado');expect(orders).toBe(1);
+    await fillManualQuote(form,'1');await dest.selectOption('1');
+    await form.getByRole('button',{name:'Revisar pedido manual'}).click();
+    await form.getByRole('button',{name:'Confirmar y crear pedido'}).click();
+    await expect(manual).toContainText('No se creó otro pedido');
+    expect(orders).toBe(2);expect(calls.filter(x=>x.action==='manual_order')[1].idempotency_key).not.toBe(intent);
+    await capture(page,'conflict');
+    writeFileSync(dir+'/manifest-'+width+'.json',JSON.stringify({issue:2100,before_sha:'5c846e75418a57142f41fb3ac2cf4ed515ec3cbc',
+      after_head_sha:process.env.ISSUE_2017_PR_HEAD_SHA??null,viewport_width:width,synthetic_fixture:true},null,2));
+  });
+}
+test('2100 configuración sin permiso impide confirmar comprobante no efectivo',async({page})=>{
+  const calls=[];
+  await setup(page,route=>{calls.push(route.request().postDataJSON());return route.abort('failed');},
+    [],true,'api',finance,pos,null);
+  const form=page.locator('[data-pos-manual-form]');
+  await fillManualQuote(form,'1');
+  await form.getByRole('button',{name:'Revisar pedido manual'}).click();
+  await expect(page.locator('[data-pos-manual]')).toContainText('No se pudo verificar la configuración');
+  expect(calls).toHaveLength(0);
 });

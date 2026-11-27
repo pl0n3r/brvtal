@@ -29,10 +29,17 @@
   const clamp = value => Math.max(0, Math.min(100, Number(value || 0)));
 
   function isSystemStatus() {
-    const activeNav = document.querySelector('.nav button.active')?.textContent?.trim().toUpperCase();
-    if (activeNav === 'SYSTEM STATUS') return true;
+    // The committed shell section is independent of translated menu labels.
+    const section = typeof state === 'object' ? state?.section : undefined;
+    if (typeof section === 'string' && section) return section === 'system';
+    const activeNav = document.querySelector('.nav button.active');
+    const navKey = activeNav?.dataset.adminNav || activeNav?.dataset.iaKey;
+    if (navKey) return navKey === 'system';
+    // Older shells expose only the visible labels.
+    const label = activeNav?.textContent?.trim().toUpperCase();
+    if (label === 'SYSTEM STATUS' || label === 'ESTADO DEL SISTEMA') return true;
     const title = document.querySelector('.main .top h1')?.textContent?.trim().toUpperCase();
-    return title === 'SYSTEM' || title === 'SYSTEM STATUS';
+    return ['SYSTEM', 'SYSTEM STATUS', 'ESTADO DEL SISTEMA'].includes(title);
   }
 
   function relativeTime(value) {

@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 
 test.use({locale:'es-CO',timezoneId:'America/Bogota'});
 
@@ -369,6 +370,20 @@ test('#2188 courtesy-only pagination, filtering and empty state',async ({page})=
 
 
 // #2052: same synthetic purchase, pre-fix markup and corrected projection.
+// Preserve synthetic captures in the downloadable job log: the existing
+// Chromium artifact exporter does not include these account attachments.
+// Do not emit screenshots from other branches or authenticated production.
+function logAccount2052Capture(stage, width, png) {
+  if (process.env.GITHUB_ACTIONS !== 'true' || process.env.GITHUB_HEAD_REF !== 'work/issue-2052') return;
+  if (png.readUInt32BE(16) !== width || png.length > 2 * 1024 * 1024) {
+    throw new Error('Unexpected account evidence dimensions or size');
+  }
+  const sha = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+  const hash = createHash('sha256').update(png).digest('hex');
+  const chunks = png.toString('base64').match(/.{1,960}/g);
+  console.log(`ACCOUNT2052-PNG ${sha} ${stage} ${width} ${png.readUInt32BE(20)} ${hash} ${chunks.length}`);
+  chunks.forEach((chunk, i) => console.log(`ACCOUNT2052-DATA ${stage} ${width} ${i} ${chunk}`));
+}
 for(const width of [390,1440]){
   test(`account quantities and channel evidence at ${width}px`,async ({page,browser},testInfo)=>{
     const partial={...paid,order_number:77,items:[
@@ -378,6 +393,7 @@ for(const width of [390,1440]){
     const pending={...base,order_number:79,status:'pending',payment_channel:'none',payment_status:'no_payment',
       items:[{name:'General',quantity:3,ticket_id:null,status:'pending',qr_requires_original_token:false}]};
     const uncertain={...base,order_number:80,status:'paid',payment_channel:'unknown',payment_status:'unavailable',items:[]};
+    let beforePng;
     if(process.env.GITHUB_HEAD_REF==='work/issue-2052'){
       const before=await browser.newPage({viewport:{width,height:900},locale:'es-CO',timezoneId:'America/Bogota'});
       try{
@@ -386,7 +402,8 @@ for(const width of [390,1440]){
         await fakeAccount(before,[old,{...offline,payment_status:null},pending,uncertain],200,baseline);
         await before.goto(url);
         await expect(before.getByText('Cantidad: 2 · Entrada: Disponible')).toBeVisible();
-        await testInfo.attach('account-2052-before-'+width,{body:await before.screenshot({fullPage:true,animations:'disabled'}),contentType:'image/png'});
+        beforePng = await before.screenshot({fullPage:true,animations:'disabled'});
+        await testInfo.attach('account-2052-before-'+width,{body:beforePng,contentType:'image/png'});
       }finally{await before.close();}
     }
     await page.setViewportSize({width,height:900});
@@ -408,6 +425,11 @@ for(const width of [390,1440]){
     await page.getByRole('button',{name:'Ver QR'}).focus();
     await expect(page.getByRole('button',{name:'Ver QR'})).toBeFocused();
     expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
-    await testInfo.attach('account-2052-after-'+width,{body:await page.screenshot({fullPage:true,animations:'disabled'}),contentType:'image/png'});
+    const afterPng = await page.screenshot({fullPage:true,animations:'disabled'});
+    await testInfo.attach('account-2052-after-'+width,{body:afterPng,contentType:'image/png'});
+    if (beforePng) {
+      logAccount2052Capture('before', width, beforePng);
+      logAccount2052Capture('after', width, afterPng);
+    }
   });
 }

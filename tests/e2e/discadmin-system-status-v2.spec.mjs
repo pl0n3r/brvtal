@@ -64,6 +64,52 @@ async function routeStatusSources(page, currentOverview=overview, currentHealth=
 
 const shellMarkup = extraScripts => `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>${styles}</style></head><body><nav class="nav"><button class="active">SYSTEM STATUS</button></nav><main class="main"><div class="top"><div><h1>SYSTEM</h1></div></div><div id="legacy">legacy</div></main><script>${script}</script>${extraScripts || ''}</body></html>`;
 
+test('System Status follows the localized canonical route and ignores a misleading title on another section', async ({ page }) => {
+  const localized = shellMarkup('')
+    .replace('<button class="active">SYSTEM STATUS</button>',
+      '<button class="active" data-admin-nav="system" data-ia-key="system" aria-current="page">ESTADO DEL SISTEMA</button>')
+    .replace('<h1>SYSTEM</h1>', '<h1>ESTADO DEL SISTEMA</h1>')
+    .replace('<div id="legacy">legacy</div>', '<div id="system-status" class="system-status-shell">legacy</div>')
+    .replace('<script>' + script, '<script>let state = {authed:true,section:"system"};</script><script>' + script);
+  await page.route(harness, route => route.fulfill({contentType:'text/html; charset=utf-8',body:localized}));
+  await routeStatusSources(page);
+  await page.goto(harness);
+  await expect(page.locator('#system-status-v2')).toBeVisible();
+  await expect(page.locator('#system-status')).toHaveCount(0);
+  await expect(page.locator('.ssv2-health-summary')).toContainText('88%');
+  await page.evaluate(async () => {
+    // A stale localized title or nav key must not replace another committed section.
+    state.section = 'settings';
+    const main = document.querySelector('.main');
+    main.querySelector('#system-status-v2').remove();
+    main.insertAdjacentHTML('beforeend','<div id="settings-content">Settings</div>');
+    await new Promise(resolve => setTimeout(resolve, 150));
+  });
+  await expect(page.locator('#settings-content')).toBeVisible();
+  await expect(page.locator('#system-status-v2')).toHaveCount(0);
+});
+
+test('System Status uses the canonical active navigation key without shell state', async ({ page }) => {
+  const markup = shellMarkup('')
+    .replace('<button class="active">SYSTEM STATUS</button>',
+      '<button class="active" data-admin-nav="settings">CONFIGURACIÓN</button>')
+    .replace('<h1>SYSTEM</h1>', '<h1>ESTADO DEL SISTEMA</h1>');
+  await page.route(harness, route => route.fulfill({contentType:'text/html; charset=utf-8',body:markup}));
+  await routeStatusSources(page);
+  await page.goto(harness);
+  await page.evaluate(() => new Promise(resolve => setTimeout(resolve, 150)));
+  await expect(page.locator('#legacy')).toBeVisible();
+  await expect(page.locator('#system-status-v2')).toHaveCount(0);
+  await page.evaluate(() => {
+    const nav = document.querySelector('.nav button');
+    nav.dataset.adminNav = 'system';
+    nav.textContent = 'ESTADO DEL SISTEMA';
+    document.querySelector('.main .top h1').textContent = 'ESTADO DEL SISTEMA';
+  });
+  await expect(page.locator('#system-status-v2')).toBeVisible();
+  await expect(page.locator('#legacy')).toHaveCount(0);
+});
+
 test('System Status v2 mounts on production markup, shows GitHub backlog and replaces host disk with BRVTAL managed storage', async ({ page }) => {
   await page.route(harness, route => route.fulfill({
     contentType:'text/html; charset=utf-8',
