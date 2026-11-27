@@ -7,7 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync, renameSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { checkinIssued } from './ticketing-checkin-real-stack.spec.mjs';
+import { checkinIssued } from './ticketing-checkin-real-stack.mjs';
 
 const check = (condition, label) => assert.ok(Boolean(condition), label);
 const sha = value => createHash('sha256').update(value).digest('hex');
