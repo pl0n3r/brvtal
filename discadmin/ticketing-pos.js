@@ -88,6 +88,11 @@ export function mount(target) {
     'manual_confirm',manualConfirmInput);
   const manualPreview=el('div',undefined,'ticketing-empty');
   manualPreview.dataset.posManualPreview='1';
+  // Keep the quote above the action instead of stretching a neighboring grid cell.
+  manualPreview.style.gridColumn='1 / -1';
+  manualPreview.style.color='var(--text,#f4f5f6)';
+  manualPreview.style.overflowWrap='anywhere';
+  setVisible(manualPreview,false);
   manualPreview.setAttribute('aria-live','polite');
   manualForm.append(manualPreview);
   const manualSubmit=el('button','Revisar pedido manual','tk-button is-primary');
@@ -135,12 +140,13 @@ export function mount(target) {
     &&Date.parse(q.expires_at_utc)>Date.now();
   const clearManualReview=()=>{
     manualReviewed=false;reviewSnapshot=null;manualQuote=null;
-    manualPreview.replaceChildren();manualSubmit.textContent='Revisar pedido manual';
+    manualPreview.replaceChildren();setVisible(manualPreview,false);
+    manualSubmit.textContent='Revisar pedido manual';
   };
   let recoveryRequired=!!storedIntent||!storageAvailable;
   const renderManualReceipt=(data,recovered)=>{
     manualSubmitted=true;manualSubmit.disabled=true;manualQuote=null;
-    if(recovered){manualPreview.replaceChildren();manualReviewed=false;reviewSnapshot=null;}
+    if(recovered){manualPreview.replaceChildren();setVisible(manualPreview,false);manualReviewed=false;reviewSnapshot=null;}
     let delivery='emisión de QR en cola, entrega por correo no verificada.';
     if(data.issuance==='issued')delivery='QR emitido, entrega por correo no verificada.';
     else if(recovered)delivery='emisión de QR pendiente, entrega por correo no verificada.';
@@ -244,6 +250,7 @@ export function mount(target) {
           el('p','Medio: '+methodLabel+' · referencia: '+(reference||'no aplica')),
           el('p','Confirma únicamente si el importe coincide con el pago offline verificado.')
         );
+        setVisible(manualPreview,true);
         manualQuote=q;reviewSnapshot=snapshot;manualReviewed=true;
         manualSubmit.textContent='Confirmar y crear pedido';
         manualStatus.textContent='Revisa el total, la tarifa y los datos antes de confirmar.';

@@ -272,6 +272,12 @@ for (const width of [390,1440]) {
     expect(calls[0].body).toEqual({action:'manual_quote',event_id:'6',ticket_type_id:'10',quantity:'2',
       idempotency_key:expect.stringMatching(/^[a-f0-9]{32}$/)});
     expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    const summaryBox=await form.locator('[data-pos-manual-preview]').boundingBox();
+    const confirmBox=await form.getByRole('button',{name:'Confirmar y crear pedido'}).boundingBox();
+    expect(summaryBox).not.toBeNull();expect(confirmBox).not.toBeNull();
+    expect(confirmBox.y).toBeGreaterThanOrEqual(summaryBox.y+summaryBox.height);
+    expect(confirmBox.height).toBeGreaterThanOrEqual(44);
+    expect(confirmBox.height).toBeLessThanOrEqual(80);
     await quoteCapture(page,testInfo,'after',width);
     writeFileSync('artifacts/issue-2017/issue-2286/manifest-'+width+'.json',JSON.stringify({
       issue:2286,before_sha:beforeRef,after_head_sha:process.env.ISSUE_2017_PR_HEAD_SHA??null,
