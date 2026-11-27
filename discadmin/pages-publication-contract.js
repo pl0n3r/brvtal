@@ -24,7 +24,7 @@
       content.placeholder = '{"blocks":[{"type":"heading","content":"Title"},{"type":"paragraph","content":"Body"}]}';
       const section = content.closest('.section');
       const helper = section?.querySelector('.sectionhead .helper');
-      if (helper) helper.textContent = 'JSON: text/body/content or text · paragraph · heading blocks';
+      if (helper) helper.textContent = 'JSON: text/body/content or text · paragraph · heading blocks · form_ref: {"type":"form_ref","public_id":"32 lowercase hex"} · reception disabled';
     }
 
     return result;

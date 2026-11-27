@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/event_lifecycle.php';
 require_once __DIR__ . '/../config/set_publication.php';
 require_once __DIR__ . '/content-validation.php';
+require_once __DIR__ . '/pages-contract.php';
 
 function brvtal_bulk_resource_specs(): array
 {
@@ -401,6 +402,17 @@ function brvtal_bulk_apply(PDO $pdo, array $request, ?callable $audit = null): a
         $rows = $select->fetchAll(PDO::FETCH_ASSOC);
         if (count($rows) !== count($ids)) {
             throw new RuntimeException('BULK_ITEMS_NOT_FOUND');
+        }
+
+        if ($resource === 'pages' && $status === 'published') {
+            $pages = $pdo->prepare("SELECT locale,content_json FROM pages WHERE id IN ({$placeholders}) ORDER BY id FOR UPDATE");
+            $pages->execute($ids);
+            foreach ($pages->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                $error = brvtal_page_publication_error(array_replace($row, ['status'=>'published']), $pdo);
+                if ($error !== null) {
+                    throw new InvalidArgumentException($error);
+                }
+            }
         }
 
         if ($resource === 'sets' && $status === 'published') {

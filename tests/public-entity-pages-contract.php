@@ -61,6 +61,14 @@ public_pages_expect(brvtal_page_publication_error(['status'=>'published','locale
 public_pages_expect(str_contains($seo, "require_once __DIR__ . '/page_content.php';"), 'public SEO resolution must load the canonical Page content contract');
 public_pages_expect(str_contains($seo, "if (\$type === 'pages')") && str_contains($seo, 'brvtal_page_content_plain_text'), 'Page SEO/entity descriptions must normalize content_json before public delivery');
 public_pages_expect(str_contains($pageContractUi, 'text · paragraph · heading blocks'), 'DISCADMIN must document the supported Page block types instead of promising an undefined builder');
+$ref = ['type'=>'form_ref','public_id'=>str_repeat('a',32)];
+$blocks = json_encode(['blocks'=>[['type'=>'heading','content'=>'Before'],$ref,['type'=>'text','content'=>'After']]], JSON_THROW_ON_ERROR);
+public_pages_expect(brvtal_page_content_plain_text($blocks) === "Before\n\nAfter", 'form IDs excluded from SEO');
+public_pages_expect(brvtal_page_content_structure_error($blocks) === 'PAGE_FORM_REF_UNAVAILABLE', 'no DB authority, no publication');
+public_pages_expect(brvtal_page_form_id($ref + ['html'=>'<iframe>']) === null, 'strict reference fields');
+public_pages_expect(brvtal_page_form_id(array_replace($ref,['public_id'=>str_repeat('A',32)])) === null, 'canonical lowercase opaque identity');
+$markup = brvtal_page_content_html($blocks, static fn(string $id): ?array => null);
+public_pages_expect(strpos($markup,'Before') < strpos($markup,'Formulario no disponible') && strpos($markup,'Formulario no disponible') < strpos($markup,'After'), 'block order and unavailable state');
 
 public_pages_expect(str_contains($pages, 'bool $required = false'), 'public entity query helper must distinguish required from optional reads');
 public_pages_expect(str_contains($pages, 'catch (Throwable $e)'), 'public entity query helper must retain query exceptions');

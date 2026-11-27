@@ -9,6 +9,7 @@ require_once __DIR__ . '/public_time_format.php';
 require_once __DIR__ . '/artist_hero_framing.php';
 require_once __DIR__ . '/blog_html.php';
 require_once __DIR__ . '/public_text_format.php';
+require_once __DIR__ . '/page_content.php';
 require_once __DIR__ . '/public_ticket_checkout.php';
 
 function brvtal_public_media_variant(string $image, string $context): string
@@ -375,13 +376,10 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
         }
     } elseif ($type === 'pages') {
         $detail = brvtal_page_row($pdo, "SELECT content_json FROM pages WHERE id=? LIMIT 1", [$id], true);
-        $decoded = json_decode((string)($detail['content_json'] ?? ''), true);
-        if (is_array($decoded)) {
-            $text = $decoded['body'] ?? $decoded['content'] ?? $decoded['text'] ?? '';
-            if (is_string($text)) {
-                $data['entity']['description'] = $text;
-            }
-        }
+        $raw = $detail['content_json'] ?? '';
+        $data['entity']['description'] = brvtal_page_content_plain_text($raw);
+        $data['record']['body_html'] = brvtal_page_content_html($raw,
+            static fn(string $id): ?array => brvtal_page_form_resolve($pdo, $id));
     }
 
     if (in_array($type, ['events','artists','sets','releases'], true)) {
@@ -786,7 +784,7 @@ JS;
     }
     $body = brvtalPublicTextFormat((string)($entity['description'] ?? ''));
     $statementBody = '<div class="entity-rich-body">' . ($body !== '' ? $body : '<p>BRVTAL / RAVE TILL GRAVE</p>') . '</div>';
-    if ($routeTypeRaw === 'blog') {
+    if (in_array($routeTypeRaw, ['blog','pages'], true)) {
         $richBody = trim((string)($page['record']['body_html'] ?? ''));
         if ($richBody !== '') {
             $statementBody = '<div class="entity-rich-body">' . $richBody . '</div>';

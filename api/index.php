@@ -933,12 +933,6 @@ try {
                     422
                 );
             }
-            $pageStateError = brvtal_page_publication_error(
-                array_replace(['status' => 'draft', 'locale' => 'en'], $p)
-            );
-            if ($pageStateError !== null) {
-                json_response(['ok' => false, 'error' => $pageStateError, 'field' => 'locale'], 422);
-            }
         }
         if ($resource === 'ticket_types') {
             $ticketWindowError = brvtal_ticket_window_error($p);
@@ -990,6 +984,14 @@ try {
         $audited=brvtal_activity_audited_resource($resource);if($audited)$pdo->beginTransaction();
         $setCreateLocked = false;
         try {
+            if ($resource === 'pages') {
+                $pageStateError = brvtal_page_publication_error(array_replace(['status'=>'draft','locale'=>'en'], $p), $pdo);
+                if ($pageStateError !== null) {
+                    $pdo->rollBack();
+                    $field = $pageStateError === 'PAGE_PUBLIC_LOCALE_MUST_BE_EN' ? 'locale' : 'content_json';
+                    json_response(['ok'=>false,'error'=>$pageStateError,'field'=>$field],422);
+                }
+            }
             if ($resource === 'sets') {
                 $mutex = $pdo->prepare('SELECT GET_LOCK(?, 5)');
                 $mutex->execute(['brvtal.sets.create']);
@@ -1088,7 +1090,7 @@ try {
             }
             if($resource==='events'){$scheduleError=brvtal_event_publish_at_error($before,$p);if($scheduleError!==null){$pdo->rollBack();json_response(['ok'=>false,'error'=>$scheduleError['error'],'field'=>$scheduleError['field']],422);}}
             if($resource==='events')$p=brvtal_event_lifecycle_patch($before,$p);if($resource==='events'){$eventStateError=brvtal_event_publication_error(array_replace($before,$p));if($eventStateError!==null){$pdo->rollBack();json_response(['ok'=>false,'error'=>$eventStateError['error'],'field'=>$eventStateError['field']],422);}}
-            if($resource==='pages'){$pageState=array_replace($before,$p);if(array_key_exists('slug',$p)&&$p['slug']===''){$p['slug']=slugify((string)($pageState['title']??''));$pageState=array_replace($before,$p);}$pageIdentityError=brvtal_page_identity_error($pageState);if($pageIdentityError!==null){$pdo->rollBack();json_response(['ok'=>false,'error'=>$pageIdentityError['error'],'field'=>$pageIdentityError['field']],422);}$pageStateError=brvtal_page_publication_error($pageState);if($pageStateError!==null){$pdo->rollBack();json_response(['ok'=>false,'error'=>$pageStateError,'field'=>'locale'],422);}}
+            if($resource==='pages'){$pageState=array_replace($before,$p);if(array_key_exists('slug',$p)&&$p['slug']===''){$p['slug']=slugify((string)($pageState['title']??''));$pageState=array_replace($before,$p);}$pageIdentityError=brvtal_page_identity_error($pageState);if($pageIdentityError!==null){$pdo->rollBack();json_response(['ok'=>false,'error'=>$pageIdentityError['error'],'field'=>$pageIdentityError['field']],422);}$pageStateError=brvtal_page_publication_error($pageState, $pdo);if($pageStateError!==null){$pdo->rollBack();json_response(['ok'=>false,'error'=>$pageStateError,'field'=>$pageStateError==='PAGE_PUBLIC_LOCALE_MUST_BE_EN'?'locale':'content_json'],422);}}
             if($resource==='ticket_types'){$ticketWindowError=brvtal_ticket_window_error(array_replace($before,$p));if($ticketWindowError!==null){$pdo->rollBack();json_response(['ok'=>false,'error'=>$ticketWindowError['error'],'field'=>$ticketWindowError['field']],422);}}
             if($resource==='sets'){$setPublicationError=brvtal_set_publication_error(array_replace($before,$p));if($setPublicationError!==null){$pdo->rollBack();json_response(['ok'=>false,'error'=>$setPublicationError,'field'=>'external_url'],422);}}
             $visualPublicationError=brvtalContentVisualPublicationError($resource,array_replace($before,$p));if($visualPublicationError!==null){$pdo->rollBack();json_response(['ok'=>false,'error'=>$visualPublicationError['error'],'field'=>$visualPublicationError['field']],422);}

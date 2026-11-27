@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../config/page_content.php';
 
-function brvtal_page_publication_error(array $state): ?string
+function brvtal_page_publication_error(array $state, ?PDO $pdo = null): ?string
 {
     if (($state['status'] ?? 'draft') !== 'published') {
         return null;
@@ -13,5 +13,5 @@ function brvtal_page_publication_error(array $state): ?string
         return 'PAGE_PUBLIC_LOCALE_MUST_BE_EN';
     }
 
-    return brvtal_page_content_structure_error($state['content_json'] ?? '');
+    return brvtal_page_content_structure_error($state['content_json'] ?? '', $pdo);
 }
