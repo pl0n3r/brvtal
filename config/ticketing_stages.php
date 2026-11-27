@@ -92,6 +92,50 @@ function brvtalTicketStageQuote(array $stages, int $used, int $quantity,
     ];
 }
 
+/** Pure integer-COP quote. Caller supplies authoritative usage and free inventory.
+ * The active stage still governs availability when a separate door price is set.
+ * No channel may bypass the existing sale window or cumulative allocation.
+ */
+function brvtalTicketChannelQuote(
+    string $channel,
+    array $stages,
+    ?int $basePriceCop,
+    ?int $doorPriceCop,
+    int $used,
+    int $quantity,
+    int $inventoryFree,
+    ?DateTimeImmutable $clock = null
+): array {
+    if (!in_array($channel, ['web', 'door', 'manual'], true) || $used < 0
+        || $quantity < 1 || $quantity > 20 || $inventoryFree < 0) {
+        throw new InvalidArgumentException('INVALID_CHANNEL_QUOTE');
+    }
+    $door = $channel === 'door' && $doorPriceCop !== null;
+    if ($stages !== [] && !$door) {
+        return brvtalTicketStageQuote($stages, $used, $quantity, $inventoryFree, $clock)
+            + ['source' => 'stage'];
+    }
+    $stage = null;
+    $free = $inventoryFree;
+    if ($stages !== []) {
+        $stage = brvtalTicketStageCurrent($stages, $used, $clock);
+        if ($stage === null) {
+            throw new DomainException('STAGE_NOT_SALEABLE');
+        }
+        $free = min($free, $stage['cumulative_capacity'] - $used);
+    }
+    if ($free < $quantity) {
+        throw new DomainException('STAGE_SOLD_OUT');
+    }
+    $price = $door ? $doorPriceCop : $basePriceCop;
+    if ($price === null || $price < 1 || $price > intdiv(10000000, $quantity)) {
+        throw new DomainException('STAGE_PRICE_LIMIT');
+    }
+    return ['code' => $stage['code'] ?? null, 'unit_price_cop' => $price,
+        'subtotal_cop' => $price * $quantity, 'available' => min(20, $free),
+        'source' => $door ? 'door' : 'base'];
+}
+
 /** Serialize with T05 holds on the Event row. Never mutate paid order snapshots. */
 function brvtalTicketStageSave(PDO $pdo,int $eventId,int $typeId,array $rows): void
 {
