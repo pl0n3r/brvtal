@@ -477,6 +477,8 @@ jobs:
 
       - name: Run canonical MariaDB integration suite
         run: npm run test:integration
+      - name: Contact capture (MariaDB, synthetic)
+        run: php tests/integration/forms-contact-capture.php
 
       - name: Verify buyer registration diagnostic with missing mail key (synthetic MariaDB)
         run: php tests/integration/buyer-auth-flows.php
