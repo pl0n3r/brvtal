@@ -22,7 +22,11 @@ function brvtalBuyerAccountFilters(array $input): array
         if (!is_string($value) || ($value !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/D', $value))) {
             throw new InvalidArgumentException('FILTER_INVALID');
         }
-        $date = $value === '' ? null : DateTimeImmutable::createFromFormat('!Y-m-d', $value, new DateTimeZone('UTC'));
+        $date = $value === '' ? null : DateTimeImmutable::createFromFormat(
+            '!Y-m-d',
+            $value,
+            new DateTimeZone('America/Bogota')
+        );
         if ($value !== '' && (!$date || $date->format('Y-m-d') !== $value)) {
             throw new InvalidArgumentException('FILTER_INVALID');
         }
@@ -110,8 +114,14 @@ function brvtalBuyerAccountOrders(PDO $db, int $buyerId, array $f): array
         : ['courtesies'=>[], 'courtesies_has_more'=>false];
     if ($scope !== null) { $where[] = 'o.id=?'; $args[] = $scope; }
     if ($f['event_id'] !== null) { $where[] = 'o.event_id=?'; $args[] = $f['event_id']; }
-    if ($f['from']) { $where[] = 'o.created_at_utc>=?'; $args[] = $f['from']->format('Y-m-d 00:00:00'); }
-    if ($f['to']) { $where[] = 'o.created_at_utc<?'; $args[] = $f['to']->modify('+1 day')->format('Y-m-d 00:00:00'); }
+    if ($f['from']) {
+        $where[] = 'o.created_at_utc>=?';
+        $args[] = brvtalBuyerAccountCalendarBound($f['from'], false);
+    }
+    if ($f['to']) {
+        $where[] = 'o.created_at_utc<?';
+        $args[] = brvtalBuyerAccountCalendarBound($f['to'], true);
+    }
     // Only expose a server-owned incident, never trust client cancellation flags.
     // No dependency on unapplied migration on ordinary production installations.
     $causeColumn=(getenv('BRVTAL_TICKET_REFUNDS_POLICY_ENABLED')==='1')

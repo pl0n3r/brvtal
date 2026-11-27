@@ -205,3 +205,43 @@ test('Contact stays readable and touch-safe on mobile', async ({ page }) => {
   ).toBeGreaterThanOrEqual(16);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
+
+test('Contact sends one Idempotency-Key per message attempt (#2321)', async ({ page }) => {
+  await installContactRoutes(page);
+  const keys = [];
+  await page.route('**/api/contact.php', async route => {
+    const request = route.request();
+    if (request.method() === 'GET') {
+      await route.fulfill({ status:200, contentType:'application/json',
+        body:JSON.stringify({ ok:true, data:{ question:'4 + 5 = ?', token:'signed.test' } }) });
+      return;
+    }
+    keys.push(request.headers()['idempotency-key'] || '');
+    const failed = keys.length < 3;
+    await route.fulfill({ status: failed ? 503 : 200, contentType:'application/json',
+      body:JSON.stringify(failed ? { ok:false, error:'CONTACT_UNAVAILABLE' } : { ok:true, message:'MESSAGE_RECEIVED' }) });
+  });
+  await openContactFixture(page);
+  await expect(page.locator('[data-contact-captcha-token]')).toHaveValue('signed.test');
+  await page.locator('#contactName').fill('Persona');
+  await page.locator('#contactEmail').fill('persona@example.org');
+  await page.locator('#contactSubject').fill('Prueba');
+  await page.locator('#contactMessage').fill('Mensaje sintético de prueba');
+  await page.locator('[name="captcha_answer"]').fill('9');
+  const submit = page.locator('#brvtalContactForm [type="submit"]');
+
+  await submit.click();
+  await expect.poll(() => keys.length).toBe(1);
+  await expect(submit).toBeEnabled();
+  await submit.click();
+  await expect.poll(() => keys.length).toBe(2);
+  expect(keys[0]).toMatch(/^[a-f0-9]{32}$/);
+  expect(keys[1]).toBe(keys[0]);
+
+  await expect(submit).toBeEnabled();
+  await page.locator('#contactMessage').fill('Mensaje sintético editado');
+  await submit.click();
+  await expect.poll(() => keys.length).toBe(3);
+  expect(keys[2]).toMatch(/^[a-f0-9]{32}$/);
+  expect(keys[2]).not.toBe(keys[0]);
+});

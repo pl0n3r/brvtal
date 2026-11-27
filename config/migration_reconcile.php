@@ -1117,6 +1117,18 @@ function brvtalMigrationOrderDependencyActions(array $actions): array
             array_column($actions, 'migration'), true);
         array_splice($actions, $entriesIndex + 1, 0, [$secretAction]);
     }
+    // T04 owns the entry referenced by the future holder tables. Move only
+    // the child after the last prerequisite, preserving unrelated actions.
+    $names = array_column($actions, 'migration');
+    $holderIndex = array_search('migration_ticketing_entry_holders_01.sql', $names, true);
+    $ordersIndex = array_search($parent, $names, true);
+    $entriesIndex = array_search('migration_ticketing_entries_01.sql', $names, true);
+    $lastPrerequisite = max($ordersIndex === false ? -1 : $ordersIndex, $entriesIndex === false ? -1 : $entriesIndex);
+    if ($holderIndex !== false && $holderIndex < $lastPrerequisite) {
+        $holderAction = $actions[$holderIndex];
+        array_splice($actions, $holderIndex, 1);
+        array_splice($actions, $lastPrerequisite, 0, [$holderAction]);
+    }
     return $actions;
 }
 

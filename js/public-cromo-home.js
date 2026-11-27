@@ -470,6 +470,17 @@
       }
     };
     retry.addEventListener('click', loadChallenge);
+    // One random intent per message attempt (#2321); editing starts a new one.
+    let intentKey = '';
+    const nextIntentKey = () => {
+      if (!intentKey) {
+        const bytes = new Uint8Array(16);
+        crypto.getRandomValues(bytes);
+        intentKey = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+      }
+      return intentKey;
+    };
+    form.addEventListener('input', () => { intentKey = ''; });
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       form.querySelectorAll('[aria-invalid]').forEach((n) => n.removeAttribute('aria-invalid'));
@@ -479,9 +490,9 @@
       submit.disabled = true;
       setStatus('Enviando…', 'idle');
       try {
-        const res = await fetch('/api/contact.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(body) });
+        const res = await fetch('/api/contact.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'Idempotency-Key': nextIntentKey() }, body: JSON.stringify(body) });
         const payload = await res.json().catch(() => ({}));
-        if (res.ok && payload.ok !== false) { form.reset(); setStatus('Mensaje enviado. Gracias, te respondemos pronto.', 'success'); await loadChallenge(); return; }
+        if (res.ok && payload.ok !== false) { intentKey = ''; form.reset(); setStatus('Mensaje enviado. Gracias, te respondemos pronto.', 'success'); await loadChallenge(); return; }
         if (res.status === 422) {
           Object.keys(payload.fields || {}).forEach((name) => {
             const key = ['form', 'captcha_answer', 'captcha'].includes(name) ? 'captcha' : name;
@@ -496,6 +507,7 @@
           firstInvalid?.focus();
           return;
         }
+        if (res.status === 409) intentKey = '';
         setStatus(res.status === 429 ? 'Demasiados intentos. Espera un momento e inténtalo de nuevo.' : 'No pudimos enviar el mensaje. Inténtalo de nuevo.', 'error');
       } catch (error) {
         setStatus('No pudimos enviar el mensaje. Revisa tu conexión.', 'error');

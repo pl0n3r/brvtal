@@ -357,3 +357,232 @@ echo "BRVTAL door tariff migration and channel quote MariaDB integration passed.
 
 // #1886: synthetic, isolated mail-template schema and transactional store tests.
 require __DIR__ . '/mail-template-store.php';
+
+/**
+ * Dedicated, versioned fixture files are named migration_*.sql.php and must
+ * have matching SQL and a validated file proof. Return a Closure accepting
+ * (PDO $server, string $dsn, string $user, string $pass), with no result.
+ * The server DSN has no default database: create a unique brvtal_test_* DB
+ * inside the fixture and drop only that DB in finally. Never use real data.
+ * Discover/validate all files before executing any fixture.
+ * @return array<string, Closure>
+ */
+function migrations_it_load_fixtures(string $directory, string $databaseDirectory): array
+{
+    if (is_link($directory)) {
+        throw new RuntimeException('MIGRATION_FIXTURE_DIRECTORY_INVALID');
+    }
+    if (!file_exists($directory)) {
+        return [];
+    }
+    if (!is_dir($directory) || !is_readable($directory)) {
+        throw new RuntimeException('MIGRATION_FIXTURE_DIRECTORY_INVALID');
+    }
+    $files = scandir($directory, SCANDIR_SORT_ASCENDING);
+    if ($files === false) {
+        throw new RuntimeException('MIGRATION_FIXTURE_DIRECTORY_INVALID');
+    }
+    $proofs = brvtalMigrationLoadProofFiles([], $databaseDirectory);
+    $fixtures = [];
+    foreach ($files as $file) {
+        if (in_array($file, ['.', '..'], true)) {
+            continue;
+        }
+        $path = $directory . '/' . $file;
+        if (preg_match('/^(migration_[a-z0-9_]+[.]sql)[.]php$/D', $file, $match) !== 1
+            || !is_file($path) || is_link($path) || !is_readable($path)) {
+            throw new RuntimeException('MIGRATION_FIXTURE_FILE_INVALID');
+        }
+        $name = $match[1];
+        $sql = $databaseDirectory . '/' . $name;
+        if (!is_file($sql) || is_link($sql) || !is_readable($sql) || !array_key_exists($name, $proofs)) {
+            throw new RuntimeException('MIGRATION_FIXTURE_ORPHAN:' . $name);
+        }
+        try {
+            $fixture = (static fn(string $path): mixed => require $path)($path);
+        } catch (Throwable) {
+            throw new RuntimeException('MIGRATION_FIXTURE_FILE_INVALID');
+        }
+        if (!$fixture instanceof Closure) {
+            throw new RuntimeException('MIGRATION_FIXTURE_FILE_INVALID');
+        }
+        $fixtures[$name] = $fixture;
+    }
+    return $fixtures;
+}
+
+/** @param array<string, Closure> $fixtures */
+function migrations_it_run_fixtures(array $fixtures, PDO $server, string $dsn, string $user, string $pass): void
+{
+    foreach ($fixtures as $name => $fixture) {
+        if ($fixture($server, $dsn, $user, $pass) !== null) {
+            throw new RuntimeException('MIGRATION_FIXTURE_RESULT_INVALID:' . $name);
+        }
+    }
+}
+
+/** #2272: exercise the actual production ordering function without new DDL. */
+function migrations_it_holder_order(): void
+{
+    $orders = 'migration_ticketing_orders_01.sql';
+    $entries = 'migration_ticketing_entries_01.sql';
+    $holder = 'migration_ticketing_entry_holders_01.sql';
+    $other = 'migration_unrelated_fixture.sql';
+    $cases = [
+        [[$holder, $other, $entries, $orders], [$other, $orders, $entries, $holder]],
+        [[$orders, $holder, $other, $entries], [$orders, $other, $entries, $holder]],
+        [[$orders, $entries, $other, $holder], [$orders, $entries, $other, $holder]],
+        [[$holder, $other, $orders], [$other, $orders, $holder]],
+        [[$holder, $entries], [$entries, $holder]],
+        [[$holder, $other], [$holder, $other]],
+        [[$entries, $other, $orders], [$orders, $entries, $other]],
+    ];
+    $actions = static fn(array $names): array => array_map(
+        static fn(string $name): array => ['migration' => $name, 'action' => 'apply'],
+        $names
+    );
+    foreach ($cases as [$before, $after]) {
+        migrations_it_assert(brvtalMigrationOrderDependencyActions($actions($before)) === $actions($after),
+            'T03/T04 precede titularity, preserving action metadata and unrelated order');
+    }
+}
+
+/** Exercise the real loader and actual disposable MariaDB server connection. */
+function migrations_it_fixture_discovery(PDO $server, string $dsn, string $user, string $pass): void
+{
+    $root = sys_get_temp_dir() . '/brvtal-fixtures-' . bin2hex(random_bytes(6));
+    $directory = $root . '/fixtures';
+    $proofDirectory = $root . '/proofs';
+    migrations_it_assert(mkdir($root, 0700), 'create isolated fixture root');
+    $reject = static function (Closure $action, string $error): void {
+        try {
+            $action();
+        } catch (RuntimeException $exception) {
+            migrations_it_assert($exception->getMessage() === $error, 'fixture failure code');
+            return;
+        }
+        migrations_it_assert(false, 'invalid migration fixture accepted');
+    };
+    try {
+        migrations_it_assert(migrations_it_load_fixtures($directory, $root) === [], 'missing fixture directory allowed');
+        migrations_it_assert(mkdir($directory, 0700) && mkdir($proofDirectory, 0700), 'create fixture directories');
+        $names = ['migration_b_fixture.sql', 'migration_a_fixture.sql'];
+        $source = <<<'FIXTURE'
+<?php
+return static function (PDO $server, string $dsn, string $user, string $pass): void {
+    if ((int)$server->query('SELECT 1')->fetchColumn() !== 1) {
+        throw new RuntimeException('disposable server probe failed');
+    }
+    $db = 'brvtal_test_fixture_' . bin2hex(random_bytes(6));
+    $server->exec('CREATE DATABASE ' . $db);
+    try {
+        $connection = new PDO($dsn . ';dbname=' . $db, $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+        if ($connection->query('SELECT DATABASE()')->fetchColumn() !== $db) {
+            throw new RuntimeException('fixture database mismatch');
+        }
+        if (file_put_contents(__DIR__ . '/../execution.log', basename(__FILE__) . "\n", FILE_APPEND) === false) {
+            throw new RuntimeException('fixture receipt unavailable');
+        }
+    } finally {
+        $server->exec('DROP DATABASE ' . $db);
+    }
+};
+FIXTURE;
+        foreach ($names as $name) {
+            migrations_it_assert(file_put_contents($root . '/' . $name, 'SELECT 1;') !== false, 'fixture SQL');
+            migrations_it_assert(file_put_contents($proofDirectory . '/' . $name . '.php',
+                "<?php return ['table:fixture_probe'];") !== false, 'fixture proof');
+            migrations_it_assert(file_put_contents($directory . '/' . $name . '.php', $source) !== false, 'fixture file');
+        }
+        $load = static fn(): array => migrations_it_load_fixtures($directory, $root);
+        $fixtures = $load();
+        $sorted = array_reverse($names);
+        migrations_it_assert(array_keys($fixtures) === $sorted, 'fixture names sorted deterministically');
+        migrations_it_assert(!file_exists($root . '/execution.log'), 'discovery must not run callable');
+        migrations_it_run_fixtures($fixtures, $server, $dsn, $user, $pass);
+        $expected = implode("\n", array_map(static fn(string $name): string => $name . '.php', $sorted)) . "\n";
+        migrations_it_assert(file_get_contents($root . '/execution.log') === $expected, 'actual isolated execution order');
+
+        $name = $names[0];
+        $path = $directory . '/' . $name . '.php';
+        $sqlPath = $root . '/' . $name;
+        $proofPath = $proofDirectory . '/' . $name . '.php';
+        unlink($proofPath);
+        $reject($load, 'MIGRATION_FIXTURE_ORPHAN:' . $name);
+        file_put_contents($proofPath, "<?php return ['table:fixture_probe'];");
+        unlink($sqlPath);
+        // Remove the proof too so the proof loader does not fail first.
+        unlink($proofPath);
+        $reject($load, 'MIGRATION_FIXTURE_ORPHAN:' . $name);
+        file_put_contents($sqlPath, 'SELECT 1;');
+        file_put_contents($proofPath, "<?php return ['table:fixture_probe'];");
+
+        file_put_contents($path, '<?php return false;');
+        $reject($load, 'MIGRATION_FIXTURE_FILE_INVALID');
+        file_put_contents($path, '<?php return static fn() => 1;');
+        $bad = $load();
+        $reject(static fn() => migrations_it_run_fixtures([$name => $bad[$name]], $server, $dsn, $user, $pass),
+            'MIGRATION_FIXTURE_RESULT_INVALID:' . $name);
+        unlink($path);
+        migrations_it_assert(symlink($directory . '/' . $names[1] . '.php', $path), 'fixture symlink');
+        $reject($load, 'MIGRATION_FIXTURE_FILE_INVALID');
+        unlink($path);
+        file_put_contents($path, $source);
+        file_put_contents($directory . '/unexpected.php', $source);
+        $reject($load, 'MIGRATION_FIXTURE_FILE_INVALID');
+        migrations_it_assert(file_get_contents($root . '/execution.log') === $expected, 'invalid discovery does not execute fixtures');
+    } finally {
+        foreach ([$directory, $proofDirectory] as $subdirectory) {
+            if (is_dir($subdirectory)) {
+                foreach (glob($subdirectory . '/*') ?: [] as $path) {
+                    unlink($path);
+                }
+                rmdir($subdirectory);
+            }
+        }
+        foreach (glob($root . '/*') ?: [] as $path) {
+            unlink($path);
+        }
+        rmdir($root);
+    }
+}
+
+migrations_it_holder_order();
+migrations_it_fixture_discovery($formsServer, $formsDsn, $formsUser, $formsPass);
+migrations_it_run_fixtures(
+    migrations_it_load_fixtures(__DIR__ . '/migration-fixtures', __DIR__ . '/../../database'),
+    $formsServer,
+    $formsDsn,
+    $formsUser,
+    $formsPass
+);
+echo "BRVTAL migration fixture order and discovery MariaDB integration passed.\n";
+
+// #2190: structural proof, repeated additive DDL and preservation in isolation.
+$ledgerDb = 'brvtal_test_expense_migration_' . bin2hex(random_bytes(5));
+$formsServer->exec('CREATE DATABASE ' . $ledgerDb);
+try {
+    $ledgerPdo = new PDO($formsDsn.';dbname='.$ledgerDb, $formsUser, $formsPass,
+        [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
+    $ledgerPdo->exec('CREATE TABLE events (id INT UNSIGNED PRIMARY KEY) ENGINE=InnoDB');
+    $ledgerPdo->exec('INSERT INTO events VALUES (7)');
+    $ledgerMigration = 'migration_ticketing_finance_expenses_01.sql';
+    $ledgerSql = (string)file_get_contents(__DIR__.'/../../database/'.$ledgerMigration);
+    $ledgerProof = brvtalMigrationSchemaProof($ledgerPdo,$ledgerMigration);
+    migrations_it_assert(brvtalMigrationProofDisposition($ledgerMigration,$ledgerProof)==='apply','ledger absent');
+    brvtalMigrationAssertReconciliationSql($ledgerMigration,$ledgerSql,$ledgerProof);
+    $ledgerPdo->exec($ledgerSql);
+    migrations_it_assert(brvtalMigrationSchemaProof($ledgerPdo,$ledgerMigration)['complete'],'ledger structural proof');
+    $ledgerPdo->exec("INSERT INTO event_expenses(event_id,category,concept,amount_cop,entry_date,status,created_at_utc)
+        VALUES(7,'artistas','Synthetic',25000,'2026-11-27','paid',UTC_TIMESTAMP(6))");
+    $ledgerPdo->exec("INSERT INTO event_budgets(event_id,category,amount_cop,entry_date,status,created_at_utc)
+        VALUES(7,'artistas',30000,'2026-11-27','active',UTC_TIMESTAMP(6))");
+    $ledgerPdo->exec($ledgerSql);
+    migrations_it_assert((int)$ledgerPdo->query('SELECT amount_cop FROM event_expenses')->fetchColumn()===25000
+        && (int)$ledgerPdo->query('SELECT amount_cop FROM event_budgets')->fetchColumn()===30000
+        && (int)$ledgerPdo->query('SELECT COUNT(*) FROM events')->fetchColumn()===1,'ledger reapply preserves records');
+    migrations_it_assert(brvtalMigrationProofDisposition($ledgerMigration,
+        brvtalMigrationSchemaProof($ledgerPdo,$ledgerMigration))==='baseline','complete ledger after reapply');
+} finally {
+    $formsServer->exec('DROP DATABASE '.$ledgerDb);
+}
