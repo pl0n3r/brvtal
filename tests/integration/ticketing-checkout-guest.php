@@ -90,8 +90,9 @@ foreach ([
     "CREATE TABLE ticket_order_items (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,order_id BIGINT UNSIGNED,ticket_type_id INT UNSIGNED,quantity INT,event_id INT UNSIGNED,
         ticket_name_snapshot VARCHAR(120),unit_price_cop BIGINT UNSIGNED,subtotal_cop BIGINT UNSIGNED,currency CHAR(3))",
     "CREATE TABLE ticket_entries (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,order_item_id BIGINT UNSIGNED,
-        public_id BINARY(16),status VARCHAR(20),unit_number INT)",
-    "CREATE TABLE ticket_entry_credentials (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,entry_id BIGINT UNSIGNED,status VARCHAR(20))",
+        public_id BINARY(16),status VARCHAR(20),unit_number INT,event_id INT UNSIGNED,ticket_type_id INT UNSIGNED)",
+    "CREATE TABLE ticket_entry_credentials (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,entry_id BIGINT UNSIGNED,status VARCHAR(20),version INT,token_hash BINARY(32),token_encrypted VARBINARY(61))",
+    "CREATE TABLE ticket_issue_outbox (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,order_id BIGINT UNSIGNED,state VARCHAR(20),payment_attempt_id BIGINT UNSIGNED)",
     "CREATE TABLE ticket_inventory_holds (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,order_id BIGINT UNSIGNED,event_id INT UNSIGNED,
         ticket_type_id INT UNSIGNED,quantity INT,kind VARCHAR(20),status VARCHAR(20),expires_at_utc DATETIME(6),
         UNIQUE KEY uq_hold(order_id,ticket_type_id))",
@@ -320,6 +321,104 @@ session_id('');
 brvtalBuyerSessionStart();
 $memberEpoch = (int)$db->query("SELECT security_epoch FROM ticket_buyers WHERE id=$memberId")->fetchColumn();
 brvtalBuyerLoginSession($memberId, $db, null, $memberEpoch);
+// #2187: receipts are not financial orders, and require a real verified session.
+$db->exec("CREATE TABLE ticket_courtesy_invites (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,event_id INT UNSIGNED,ticket_type_id INT UNSIGNED,
+    order_id BIGINT UNSIGNED,entry_id BIGINT UNSIGNED UNIQUE,origin VARCHAR(20) DEFAULT 'courtesy',
+    recipient_digest CHAR(64),status VARCHAR(20),resend_requests INT DEFAULT 0)");
+$GLOBALS['config']['security']['encryption_key'] = bin2hex(random_bytes(32));
+$makeCourtesy = static function(int $buyer, string $email) use ($db): array {
+    $db->prepare("INSERT INTO ticket_orders(event_id,buyer_id,status,public_id,checkout_key_hash,currency,total_cop)
+        VALUES(1,?,'draft',RANDOM_BYTES(16),?,'COP',0)")->execute([$buyer,hash('sha256',random_bytes(32))]);
+    $order=(int)$db->lastInsertId();
+    $db->exec("INSERT INTO ticket_order_items(order_id,event_id,ticket_type_id,quantity,ticket_name_snapshot,unit_price_cop,subtotal_cop,currency)
+        VALUES($order,1,10,1,'Cortesía',0,0,'COP')");
+    $item=(int)$db->lastInsertId();
+    $public=random_bytes(16); $raw=random_bytes(32);
+    $db->prepare("INSERT INTO ticket_entries(order_item_id,public_id,status,unit_number,event_id,ticket_type_id)
+        VALUES(?,?,'issued',1,1,10)")->execute([$item,$public]);
+    $entry=(int)$db->lastInsertId();
+    $db->prepare("INSERT INTO ticket_entry_credentials(entry_id,status,version,token_hash,token_encrypted)
+        VALUES(?,'active',1,?,?)")->execute([$entry,hash('sha256',$raw,true),brvtal_ticket_issue_seal_token($raw,$public)]);
+    $db->exec("INSERT INTO ticket_inventory_holds(order_id,event_id,ticket_type_id,quantity,kind,status,expires_at_utc)
+        VALUES($order,1,10,1,'courtesy','consumed',UTC_TIMESTAMP(6))");
+    $db->prepare("INSERT INTO ticket_courtesy_invites(event_id,ticket_type_id,order_id,entry_id,recipient_digest,status)
+        VALUES(1,10,?,?,?,'issued')")->execute([$order,$entry,hash('sha256',$email)]);
+    return [$order,$entry,bin2hex($public),rtrim(strtr(base64_encode($raw),'+/','-_'),'=')];
+};
+[$courtesyOrder,$courtesyEntry,$courtesyTicket,$courtesyToken]=$makeCourtesy($memberId,'socia@example.test');
+[$foreignOrder,$foreignEntry,$foreignTicket,$foreignToken]=$makeCourtesy($guestId,'nueva@example.test');
+$view=brvtalBuyerAccountOrders($db,$memberId,$filters);
+guestAssert(array_column($view['orders'],'order_number')===[$existingOrder]
+    && count($view['courtesies'])===1 && !$view['courtesies_has_more'], 'courtesy separate from purchase ledger');
+$c=$view['courtesies'][0];
+guestAssert($c['origin']==='courtesy' && $c['ticket_id']===$courtesyTicket && $c['status']==='issued'
+    && $c['qr_stored'] && !$c['refundable'] && !isset($c['payment_status'],$c['total_cop'],$c['token_hash'],$c['token_encrypted']),
+    'authorized receipt has safe projection, no payment or secret');
+$expected='BRVTAL:T1:'.$courtesyTicket.':'.$courtesyToken;
+guestAssert(brvtalBuyerAccountStoredQr($db,$memberId,$courtesyTicket)['content']===$expected
+    && brvtalBuyerAccountQr($db,$memberId,$courtesyTicket,$courtesyToken)['content']===$expected,
+    'stored and original recovery return the same credential');
+guestRejects(fn()=>brvtalBuyerAccountStoredQr($db,$memberId,$foreignTicket),'TICKET_UNAVAILABLE','foreign courtesy');
+guestRejects(fn()=>brvtalBuyerAccountQr($db,$memberId,$foreignTicket,$foreignToken),'TICKET_UNAVAILABLE','foreign token');
+guestAssert(brvtalBuyerAccountOrders($db,$memberId,brvtalBuyerAccountFilters(['event_id'=>'2']))['courtesies']===[],
+    'courtesy event filter');
+$memberState=$_SESSION;
+$_SESSION=$guestState;
+guestAssert(brvtalBuyerAccountOrders($db,$guestId,$filters)['courtesies']===[], 'guest paid grant cannot list courtesies');
+guestRejects(fn()=>brvtalBuyerAccountStoredQr($db,$guestId,$foreignTicket),'TICKET_UNAVAILABLE','guest own courtesy');
+$_SESSION=$memberState;
+$db->exec("UPDATE ticket_courtesy_invites SET recipient_digest=SHA2('other@example.test',256) WHERE entry_id=$courtesyEntry");
+guestAssert(brvtalBuyerAccountOrders($db,$memberId,$filters)['courtesies']===[], 'recipient digest mismatch');
+guestRejects(fn()=>brvtalBuyerAccountStoredQr($db,$memberId,$courtesyTicket),'TICKET_UNAVAILABLE','wrong recipient digest');
+$db->exec("UPDATE ticket_courtesy_invites SET recipient_digest=SHA2('socia@example.test',256) WHERE entry_id=$courtesyEntry");
+$db->exec("UPDATE ticket_inventory_holds SET status='released' WHERE order_id=$courtesyOrder");
+guestRejects(fn()=>brvtalBuyerAccountStoredQr($db,$memberId,$courtesyTicket),'TICKET_UNAVAILABLE','missing consumed hold');
+$db->exec("UPDATE ticket_inventory_holds SET status='consumed' WHERE order_id=$courtesyOrder");
+$db->exec("UPDATE ticket_entry_credentials SET status='revoked' WHERE entry_id=$courtesyEntry");
+$newRaw=random_bytes(32);
+$db->prepare("INSERT INTO ticket_entry_credentials(entry_id,status,version,token_hash,token_encrypted)
+    VALUES(?,'active',2,?,?)")->execute([$courtesyEntry,hash('sha256',$newRaw,true),
+        brvtal_ticket_issue_seal_token($newRaw,hex2bin($courtesyTicket))]);
+$db->exec("UPDATE ticket_courtesy_invites SET resend_requests=1 WHERE entry_id=$courtesyEntry");
+guestRejects(fn()=>brvtalBuyerAccountQr($db,$memberId,$courtesyTicket,$courtesyToken),'TICKET_UNAVAILABLE','rotated token');
+$newToken=rtrim(strtr(base64_encode($newRaw),'+/','-_'),'=');
+guestAssert(brvtalBuyerAccountStoredQr($db,$memberId,$courtesyTicket)['content']==='BRVTAL:T1:'.$courtesyTicket.':'.$newToken,
+    'recovery follows active rotated credential');
+$db->exec("UPDATE ticket_entry_credentials SET token_hash=RANDOM_BYTES(32) WHERE entry_id=$courtesyEntry AND version=2");
+guestRejects(fn()=>brvtalBuyerAccountStoredQr($db,$memberId,$courtesyTicket),'TICKET_UNAVAILABLE','ciphertext hash mismatch');
+$db->prepare("UPDATE ticket_entry_credentials SET token_hash=? WHERE entry_id=? AND version=2")
+    ->execute([hash('sha256',$newRaw,true),$courtesyEntry]);
+$db->exec("UPDATE ticket_entries SET status='used' WHERE id=$courtesyEntry");
+$db->exec("UPDATE ticket_courtesy_invites SET status='used' WHERE entry_id=$courtesyEntry");
+$c=brvtalBuyerAccountOrders($db,$memberId,$filters)['courtesies'][0];
+guestAssert($c['status']==='used' && !$c['qr_stored'] && !$c['qr_requires_original_token'], 'used receipt has no QR');
+guestRejects(fn()=>brvtalBuyerAccountStoredQr($db,$memberId,$courtesyTicket),'TICKET_UNAVAILABLE','used courtesy');
+$db->exec("UPDATE ticket_entries SET status='revoked' WHERE id=$courtesyEntry");
+$db->exec("UPDATE ticket_courtesy_invites SET status='revoked' WHERE entry_id=$courtesyEntry");
+$db->exec("UPDATE ticket_inventory_holds SET status='released' WHERE order_id=$courtesyOrder");
+$c=brvtalBuyerAccountOrders($db,$memberId,$filters)['courtesies'][0];
+guestAssert($c['status']==='revoked' && !$c['qr_stored'] && !$c['qr_requires_original_token'], 'revoked receipt has no QR');
+guestRejects(fn()=>brvtalBuyerAccountStoredQr($db,$memberId,$courtesyTicket),'TICKET_UNAVAILABLE','revoked courtesy');
+$db->exec("UPDATE ticket_entries SET status='issued' WHERE id=$courtesyEntry");
+$db->exec("UPDATE ticket_courtesy_invites SET status='issued' WHERE entry_id=$courtesyEntry");
+$db->exec("UPDATE ticket_inventory_holds SET status='consumed' WHERE order_id=$courtesyOrder");
+$originalDate=$db->query("SELECT event_date FROM events WHERE id=1")->fetchColumn();
+$db->exec("UPDATE events SET event_date=UTC_TIMESTAMP()-INTERVAL 3 DAY WHERE id=1");
+guestRejects(fn()=>brvtalBuyerAccountStoredQr($db,$memberId,$courtesyTicket),'TICKET_UNAVAILABLE','expired courtesy');
+guestAssert(brvtalBuyerAccountOrders($db,$memberId,$filters)['courtesies'][0]['status']==='expired','expired projection');
+$db->prepare("UPDATE events SET event_date=? WHERE id=1")->execute([$originalDate]);
+$db->prepare("UPDATE ticket_buyer_sessions SET expires_at_utc=UTC_TIMESTAMP(6)-INTERVAL 1 SECOND WHERE session_hash=?")
+    ->execute([hash('sha256',session_id())]);
+guestAssert(brvtalBuyerAccountOrders($db,$memberId,$filters)['courtesies']===[], 'expired persisted session cannot list');
+guestRejects(fn()=>brvtalBuyerAccountStoredQr($db,$memberId,$courtesyTicket),'TICKET_UNAVAILABLE','expired persisted session');
+$db->prepare("UPDATE ticket_buyer_sessions SET expires_at_utc=UTC_TIMESTAMP(6)+INTERVAL 1 HOUR WHERE session_hash=?")
+    ->execute([hash('sha256',session_id())]);
+guestAssert((int)$db->query("SELECT COUNT(*) FROM ticket_payment_attempts WHERE order_id=$courtesyOrder")->fetchColumn()===0
+    && (int)$db->query("SELECT COUNT(*) FROM ticket_entry_credentials WHERE entry_id=$courtesyEntry")->fetchColumn()===2,
+    'recovery never pays, emits or rotates');
+echo "BRVTAL #2187 courtesy account scope, rotation and read-only recovery passed.\n";
+
 $memberCookie = session_id();
 session_write_close();
 guestAssert($memberCookie !== $guestCookie, 'independent verified and guest cookies');
