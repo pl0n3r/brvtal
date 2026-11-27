@@ -476,7 +476,8 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
             brvtalFinanceLedgerWrite($ledger,'expense',1,1,'create',null,$expense,'must roll back');
             throw new RuntimeException('T20: audit missing but write committed');
         } catch (PDOException $e) {
-            t20(!$ledger->inTransaction() && (int)$ledger->query('SELECT COUNT(*) FROM event_expenses')->fetchColumn()===3,
+            t20($e->getCode()==='42S02' && !$ledger->inTransaction()
+                && (int)$ledger->query('SELECT COUNT(*) FROM event_expenses')->fetchColumn()===3,
                 'missing audit rolls back ledger write');
         }
     } finally {
