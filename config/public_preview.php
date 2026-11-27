@@ -561,9 +561,10 @@ function brvtalPublicPreviewPage(PDO $pdo, array $snapshot): array
             );
         }
     } elseif ($type === 'pages') {
-        $page['entity']['description'] = brvtal_page_content_plain_text(
-            $payload['content_json'] ?? ''
-        );
+        $raw = $payload['content_json'] ?? '';
+        $page['entity']['description'] = brvtal_page_content_plain_text($raw);
+        $page['record']['body_html'] = brvtal_page_content_html($raw,
+            static fn(string $id): ?array => brvtal_page_form_resolve($pdo, $id));
     }
 
     return $page;
