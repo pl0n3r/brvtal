@@ -2,6 +2,8 @@
 declare(strict_types=1);
 require_once __DIR__.'/../../config/ticketing_pos.php';
 require_once __DIR__.'/../../config/ticketing_checkin.php';
+require_once __DIR__.'/../../config/migrations.php';
+require_once __DIR__.'/../../config/migration_reconcile.php';
 function posAssert(bool $v,string $why): void {
     if (!$v) throw new RuntimeException('T24 POS: '.$why);
 }
@@ -417,3 +419,55 @@ try {
 }
 finally {putenv('BRVTAL_INTEGRATION_TESTS=1');}
 echo "T24 disposable POS cash, inventory, QR/check-in, audit, cancellation, RBAC OK.\n";
+
+// #2260: prove the actual additive DDL on the disposable T24 schema.
+$quoteMigration='migration_ticketing_pos_03.sql';
+$quoteSql=(string)file_get_contents(__DIR__.'/../../database/'.$quoteMigration);
+$quoteProof=static fn():array => brvtalMigrationSchemaProof($db,$quoteMigration);
+$quoteRows=static fn():array => $db->query('SELECT * FROM ticket_pos_sales ORDER BY id')->fetchAll(PDO::FETCH_ASSOC);
+$legacy=$quoteRows();
+posAssert(count($legacy)>=3,'quote migration has historical paid and cancelled sales');
+$absent=$quoteProof();
+posAssert(brvtalMigrationProofIsFullyAbsent($absent),'quote proof absent before DDL');
+brvtalMigrationAssertReconciliationSql($quoteMigration,$quoteSql,$absent);
+$db->exec($quoteSql);
+posAssert($quoteProof()['complete'],'quote proof complete after actual DDL');
+$columns=['quote_source'=>null,'quote_stage_code'=>null,'quote_channel'=>null];
+$after=$quoteRows();
+posAssert(count($after)===count($legacy),'quote DDL preserves historical row count');
+foreach($after as $index=>$row) {
+    posAssert(array_intersect_key($row,$columns)===$columns,'legacy quote provenance is unknown');
+    posAssert(array_diff_key($row,$columns)===$legacy[$index],'legacy sale unchanged');
+}
+$db->prepare("INSERT INTO ticket_pos_sales
+    (shift_id,event_id,operator_admin_id,ticket_type_id,quantity,unit_price_cop,amount_cop,method,
+     request_key_hash,request_hash,confirmation_hash,expires_at_utc,quote_source,quote_stage_code,quote_channel)
+    VALUES (?,?,?, ?,2,25000,50000,'cash',?,?,?,DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 120 SECOND),
+        'stage','preventa','door')")
+    ->execute([$shift['shift_id'],6,1,10,hash('sha256','quote-fixture-key'),
+        hash('sha256','quote-fixture-request'),hash('sha256','quote-fixture-confirmation')]);
+$beforeRepeat=$quoteRows();
+$synthetic=array_last($beforeRepeat);
+posAssert(array_intersect_key($synthetic,$columns)===['quote_source'=>'stage','quote_stage_code'=>'preventa',
+    'quote_channel'=>'door'] && (int)$synthetic['amount_cop']===50000,'synthetic quote snapshot persisted');
+$db->exec($quoteSql);
+posAssert($quoteRows()===$beforeRepeat && $quoteProof()['complete'],'second DDL preserves all rows and proof');
+
+// Negative proof against an empty, isolated schema; never modify the historical fixture rows.
+$negativeName=$name.'_quote';
+$server->exec("CREATE DATABASE `$negativeName` CHARACTER SET utf8mb4");
+try {
+    $server->exec("USE `$negativeName`");
+    $server->exec("CREATE TABLE ticket_pos_sales (
+        quote_source ENUM('door','stage','base') NOT NULL,
+        quote_stage_code VARCHAR(32) NULL,
+        quote_channel ENUM('door','manual') NULL) ENGINE=InnoDB");
+    $negative=brvtalMigrationSchemaProof($server,$quoteMigration);
+    posAssert(!$negative['complete'] && !$negative['checks']['column-nullable:ticket_pos_sales.quote_source']
+        && !$negative['checks']["column-type:ticket_pos_sales.quote_stage_code=enum('early_bird','preventa','general','puerta')"],
+        'quote proof rejects wrong nullability and column type');
+    posAssert(brvtalMigrationProofDisposition($quoteMigration,$negative)==='blocked','schema drift is fail-closed');
+} finally {
+    $server->exec("DROP DATABASE `$negativeName`");
+}
+echo "T24 POS quote snapshot DDL twice, historical NULLs, proof and negative drift OK.\n";
