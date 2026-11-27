@@ -10,7 +10,7 @@ if [[ "${1:-}" != --inside ]]; then
   trap 'docker image rm "$image" >/dev/null 2>&1 || true; rm -rf "$scratch"' EXIT
   # Export only tracked source, not local config, .env, Git credentials or uploads.
   mkdir "$scratch/source"
-  git archive HEAD config api database ops templates partials scripts index.php tests/e2e \
+  git archive HEAD config api database ops templates partials scripts index.php tests/e2e js/public-ticket-checkout.js css/public-ticket-checkout.css \
     discadmin/ticketing-door.php discadmin/ticketing-door.js discadmin/ticketing-door.css | tar -x -C "$scratch/source"
   [[ ! -e "$scratch/source/config/config.php" ]] || exit 1
   promo_path=tests/e2e/ticketing-promos-real-stack.spec.mjs
@@ -180,11 +180,13 @@ mount(document.querySelector('[data-door]'));
 HTML;
     exit;
 }
-$assets=['/discadmin/ticketing-door.js'=>'text/javascript','/discadmin/ticketing-door.css'=>'text/css'];
+$assets=['/discadmin/ticketing-door.js'=>'text/javascript','/discadmin/ticketing-door.css'=>'text/css',
+    '/js/public-ticket-checkout.js'=>'text/javascript','/css/public-ticket-checkout.css'=>'text/css'];
 if (isset($assets[$path])) {
     header('Content-Type: '.$assets[$path]);
     readfile('/tmp/app'.$path); exit;
 }
+if ($path === '/events/t31-fixture') { $_GET['type']='events'; $_GET['slug']='t31-fixture'; $path='/index.php'; }
 $routes=['/index.php','/api/buyer/auth.php','/api/buyer/account.php','/api/ticketing/webhook-wompi.php',
     '/api/index.php/auth','/api/ticketing/checkin.php','/discadmin/ticketing-door.php','/api/ticketing/order-status.php'];
 if (getenv('BRVTAL_T31_RECOVERY') === '1') $routes=array_merge($routes,
@@ -233,6 +235,12 @@ fi
 if ! grep -Fxq "ok 1 - $test_name" /fixture/test.tap; then
   echo "T31_SCENARIO_RECEIPT_MISSING: $2" >&2
   exit 1
+fi
+if [[ "$2" == checkout || "$2" == resend ]]; then
+  grep -Fxq '# T31_RESERVATION_RECOVERY_STACK_PASS: real browser, lost response, immutable snapshot and single attempt' /fixture/test.tap || {
+    echo 'T31_RESERVATION_RECOVERY_RECEIPT_MISSING' >&2; exit 1;
+  }
+  echo 'T31_RESERVATION_RECOVERY_STACK_PASS: real browser, lost response, immutable snapshot and single attempt'
 fi
 if [[ "$2" == checkout ]]; then
   grep -Fxq '# T31_CHECKIN_STACK_PASS: issued QR, real door, concurrent audit, mobile negatives' /fixture/test.tap || {
