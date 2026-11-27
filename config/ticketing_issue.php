@@ -336,6 +336,13 @@ function brvtal_ticket_issue_has_courtesy_table(PDO $db): bool
         ->fetchColumn() !== false;
 }
 
+/** Convert a Bogotá calendar boundary to a UTC SQL bound after adding the local day. */
+function brvtal_ticket_issue_account_calendar_bound(DateTimeImmutable $date, bool $exclusiveEnd): string
+{
+    return ($exclusiveEnd ? $date->modify('+1 day') : $date)
+        ->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s');
+}
+
 /**
  * A separate, read-only courtesy proof. The recipient digest is compared to
  * the verified account's current email, never a supplied email or guest grant.
@@ -364,8 +371,8 @@ function brvtal_ticket_issue_courtesy_rows(PDO $db, int $buyerId, ?string $ticke
         $args[] = $ticketId;
     } else {
         if ($filters['event_id'] !== null) { $extra .= ' AND o.event_id=?'; $args[] = $filters['event_id']; }
-        if ($filters['from']) { $extra .= ' AND o.created_at_utc>=?'; $args[] = $filters['from']->format('Y-m-d 00:00:00'); }
-        if ($filters['to']) { $extra .= ' AND o.created_at_utc<?'; $args[] = $filters['to']->modify('+1 day')->format('Y-m-d 00:00:00'); }
+        if ($filters['from']) { $extra .= ' AND o.created_at_utc>=?'; $args[] = brvtal_ticket_issue_account_calendar_bound($filters['from'], false); }
+        if ($filters['to']) { $extra .= ' AND o.created_at_utc<?'; $args[] = brvtal_ticket_issue_account_calendar_bound($filters['to'], true); }
     }
     try {
         $q = $db->prepare("SELECT LOWER(HEX(t.public_id)) AS ticket_id,t.public_id,

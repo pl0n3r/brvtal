@@ -35,6 +35,14 @@ foreach ([
 ] as [$input, $code]) {
     guestRejects(fn() => brvtal_public_ticket_checkout_guest_input($input), $code, 'guest input ' . json_encode($input));
 }
+// #2231: reject invalid dates and inverted civil ranges before SQL.
+foreach ([
+    ['from'=>'2026-02-29'], ['to'=>'2026-04-31'], ['from'=>'2026-8-05'],
+    ['from'=>['2026-08-05']], ['from'=>'2026-08-06','to'=>'2026-08-05'],
+] as $invalidPeriod) {
+    guestRejects(fn()=>brvtalBuyerAccountFilters($invalidPeriod),'FILTER_INVALID','invalid calendar filter');
+}
+
 // Same-origin rule (no session, no CSRF token).
 $_SERVER['HTTP_HOST'] = 'www.brvtal.com.co';
 $_SERVER['HTTP_SEC_FETCH_SITE'] = 'same-origin';
@@ -370,6 +378,47 @@ guestRejects(fn()=>brvtalBuyerAccountStoredQr($db,$memberId,$foreignTicket),'TIC
 guestRejects(fn()=>brvtalBuyerAccountQr($db,$memberId,$foreignTicket,$foreignToken),'TICKET_UNAVAILABLE','foreign token');
 guestAssert(brvtalBuyerAccountOrders($db,$memberId,brvtalBuyerAccountFilters(['event_id'=>'2']))['courtesies']===[],
     'courtesy event filter');
+// #2231: calendar dates are Bogotá civil days, never UTC calendar days.
+$day = ['from'=>'2026-08-05','to'=>'2026-08-05'];
+$range = ['from'=>'2026-08-05','to'=>'2026-08-06'];
+$calendarSession = $_SESSION;
+$db->beginTransaction();
+try {
+    $stamp = $db->prepare('UPDATE ticket_orders SET created_at_utc=? WHERE id=?');
+    // Other buyer and same-guest ungranted order also satisfy the date filter.
+    foreach ([$foreignOrder,$otherGuestOrder] as $id) $stamp->execute(['2026-08-05 05:00:00.000000',$id]);
+    foreach ([
+        ['2026-08-05 04:59:59.999999',false,false],
+        ['2026-08-05 05:00:00.000000',true,true],
+        ['2026-08-06 04:59:59.999999',true,true],
+        ['2026-08-06 05:00:00.000000',false,true],
+        ['2026-08-07 04:59:59.999999',false,true],
+        ['2026-08-07 05:00:00.000000',false,false],
+    ] as [$at,$inDay,$inRange]) {
+        foreach ([$existingOrder,$courtesyOrder,$paidOrder] as $id) $stamp->execute([$at,$id]);
+        foreach ([[$day,$inDay],[$range,$inRange]] as [$period,$included]) {
+            $periodFilters = brvtalBuyerAccountFilters($period + ['event_id'=>'1']);
+            $_SESSION = $calendarSession;
+            $calendarResult = brvtalBuyerAccountOrders($db,$memberId,$periodFilters);
+            guestAssert(array_column($calendarResult['orders'],'order_number') === ($included ? [$existingOrder] : [])
+                && array_column($calendarResult['courtesies'],'ticket_id') === ($included ? [$courtesyTicket] : [])
+                && !$calendarResult['has_more'] && !$calendarResult['courtesies_has_more'], 'Bogota member purchase and courtesy ' . $at);
+            $_SESSION = $guestState;
+            $calendarResult = brvtalBuyerAccountOrders($db,$guestId,$periodFilters);
+            guestAssert(array_column($calendarResult['orders'],'order_number') === ($included ? [$paidOrder] : [])
+                && $calendarResult['courtesies'] === [] && !$calendarResult['courtesies_has_more'], 'Bogota guest grant ' . $at);
+        }
+    }
+    $_SESSION = $calendarSession;
+    $calendarResult = brvtalBuyerAccountOrders($db,$memberId,brvtalBuyerAccountFilters(['from'=>'2026-08-07']));
+    guestAssert(array_column($calendarResult['orders'],'order_number') === [$existingOrder]
+        && array_column($calendarResult['courtesies'],'ticket_id') === [$courtesyTicket], 'Bogota lower bound only');
+    $calendarResult = brvtalBuyerAccountOrders($db,$memberId,brvtalBuyerAccountFilters(['to'=>'2026-08-06']));
+    guestAssert($calendarResult['orders'] === [] && $calendarResult['courtesies'] === [], 'Bogota upper bound only');
+} finally {
+    $_SESSION = $calendarSession;
+    $db->rollBack();
+}
 $memberState=$_SESSION;
 $_SESSION=$guestState;
 guestAssert(brvtalBuyerAccountOrders($db,$guestId,$filters)['courtesies']===[], 'guest paid grant cannot list courtesies');
@@ -436,6 +485,7 @@ guestAssert((int)$db->query("SELECT COUNT(*) FROM ticket_payment_attempts WHERE 
     'recovery never pays, emits or rotates');
 putenv('BRVTAL_TICKET_COURTESY_ACCOUNT_ENABLED');
 echo "BRVTAL #2187 courtesy account scope, activation guard, rotation and read-only recovery passed.\n";
+echo "BRVTAL #2231 Bogota calendar purchase/courtesy boundaries and guest isolation passed.\n";
 
 $memberCookie = session_id();
 session_write_close();
