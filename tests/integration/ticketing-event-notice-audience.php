@@ -114,6 +114,15 @@ try {
     noticeAssert(brvtalNoticePreview($db,8,'owner')['counts']['groups']['ambiguous_review']===1,'discount without redemption');
     $db->exec('INSERT INTO ticket_promo_redemptions VALUES(14,2,8,2,1,120,20,100)');
     noticeAssert(brvtalNoticePreview($db,8,'owner')['counts']['candidate_recipients']===1,'verified discounted Wompi order');
+    // A second unresolved Wompi attempt can still settle after a verified charge.
+    $db->exec("INSERT INTO ticket_payment_attempts VALUES(15,14,'pending','wompi',120,'pending-14','tx-pending-14')");
+    $db->exec("INSERT INTO ticket_payment_webhook_events VALUES(15,'tx-pending-14','PENDING')");
+    $mixedPayment=brvtalNoticePreview($db,8,'owner');
+    noticeAssert($mixedPayment['counts']['candidate_recipients']===0
+        && $mixedPayment['counts']['groups']['ambiguous_review']===1,
+        'pending mismatched attempt alongside verified approval requires review');
+    $db->exec('DELETE FROM ticket_payment_webhook_events WHERE attempt_id=15');
+    $db->exec('DELETE FROM ticket_payment_attempts WHERE id=15');
     $db->exec('UPDATE ticket_promo_redemptions SET buyer_id=1');
     noticeAssert(brvtalNoticePreview($db,8,'owner')['counts']['groups']['ambiguous_review']===1,'foreign redemption');
     $db->exec('UPDATE ticket_promo_redemptions SET buyer_id=2,discount_cop=19');

@@ -95,7 +95,7 @@ WITH target AS (
  SELECT 1 FROM ticket_payment_webhook_events w WHERE w.attempt_id=a.id
  AND w.provider_transaction_id=a.provider_transaction_id AND w.signed_status IN ('VOIDED','DECLINED','ERROR'))
  THEN 1 ELSE 0 END) AS verified_approvals,
- SUM(CASE WHEN a.status IN ('created','pending') AND a.provider='wompi' AND a.gross_amount_cop=t.total_cop THEN 1 ELSE 0 END) AS pending_attempts
+ SUM(CASE WHEN a.status IN ('created','pending') AND a.provider='wompi' THEN 1 ELSE 0 END) AS pending_attempts
  FROM target t JOIN ticket_payment_attempts a ON a.order_id=t.id GROUP BY a.order_id
 ), courtesy AS (
  SELECT c.order_id,COUNT(*) AS courtesy_count,
@@ -140,7 +140,8 @@ SQL);
                 && $r['currency']==='COP' && !$r['bad_items'] && !$r['bad_entries'] && $r['entry_count']<=$r['units']
                 && $r['entry_count']===$r['issued']+$r['used']+$r['terminal_entries']
                 && $r['approval_count']<=1 && $r['courtesy_count']<=1 && $r['pos_count']<=1
-                && !(($r['courtesy_count']||$r['pos_count'])&&$r['attempt_count']) && !($r['courtesy_count']&&$r['pos_count']);
+                && !(($r['courtesy_count']||$r['pos_count'])&&$r['attempt_count']) && !($r['courtesy_count']&&$r['pos_count'])
+                && !($r['pending_attempts']>0 && $r['verified_approvals']>0);
             $r['channel']=$r['courtesy_count']?'courtesy':($r['pos_count']?'pos':($r['approval_count']?'wompi':'none'));
             $r['verified']=match($r['channel']) {
                 'courtesy'=>$r['courtesy_verified']===1 && (int)$r['total_cop']===0 && $r['units']===1,
