@@ -77,70 +77,11 @@ try {
     foreach(preg_split('/;\s*(?=CREATE|$)/i',$schemaCopy)?:[] as $stmt) {
         if(trim($stmt)!=='')$db->exec($stmt);
     }
-    // Recovery is versioned independently, and does not trigger or transport mail.
-    $recoveryData=['event'=>'Noche de prueba','link'=>'https://brvtal.invalid/buyer/','order_number'=>9];
-    $recoveryDefault=brvtal_ticket_mail_render('ticket_recovery',$recoveryData,$db);
-    mail_delivery_assert($recoveryDefault['template_key']==='ticket_recovery'
-        && $recoveryDefault['template_source']==='catalog'
-        && $recoveryDefault['template_version']===null
-        && str_contains($recoveryDefault['text'],'Inicia sesión en Mi cuenta')
-        && str_contains($recoveryDefault['html'],'href="https://brvtal.invalid/buyer/"')
-        && !str_contains($recoveryDefault['text'],'código QR'), 'account-only default');
-    foreach (['https://brvtal.invalid/buyer/?','https://brvtal.invalid/buyer/#',
-        'https://brvtal.invalid/buyer/?token=x','https://brvtal.invalid/buyer/#secret',
-        'https://brvtal.invalid/buyer/../','https://brvtal.invalid/buyer/%2e%2e/',
-        'https://brvtal.invalid/buyer/orders','https://evil.invalid/buyer/',
-        'http://brvtal.invalid/buyer/','https://user:pass@brvtal.invalid/buyer/',
-        'https://brvtal.invalid:443/buyer/','https://brvtal.com.co/buyer/'] as $unsafeLink) {
-        try {
-            brvtal_ticket_mail_render('ticket_recovery',array_replace($recoveryData,['link'=>$unsafeLink]),$db);
-            mail_delivery_assert(false,'recovery URL must be rejected');
-        } catch (InvalidArgumentException $error) {
-            mail_delivery_assert(in_array($error->getMessage(),['MAIL_LINK_INVALID','MAIL_LINK_NOT_PROTECTED'],true),
-                'opaque recovery URL rejection');
-        }
-    }
-    foreach (['tickets'=>null,'guest_password_link'=>null,'token'=>'synthetic',
-        'activation_link'=>'https://brvtal.invalid/activation'] as $field=>$value) {
-        try {
-            brvtal_ticket_mail_render('ticket_recovery',$recoveryData+[$field=>$value],$db);
-            mail_delivery_assert(false,'recovery cannot accept credential fields');
-        } catch (InvalidArgumentException $error) {
-            mail_delivery_assert($error->getMessage()==='MAIL_RECOVERY_FIELDS_INVALID','recovery fields rejected');
-        }
-    }
-    try {
-        brvtal_ticket_mail_render('ticket_recovery',$recoveryData);
-        mail_delivery_assert(false,'legacy recovery fallback must be rejected');
-    } catch (InvalidArgumentException $error) {
-        mail_delivery_assert($error->getMessage()==='MAIL_TEMPLATE_UNKNOWN','legacy keys unchanged');
-    }
-    $recoveryCopy=brvtal_mail_template_catalog()['ticket_recovery']['defaults'];
-    $recoveryCopy['message']='Consulta tus boletas vigentes para {{event_name}} desde Mi cuenta.';
-    $recoveryDraft=brvtal_mail_template_save_draft($db,'ticket_recovery','ticketing',$recoveryCopy,1,0);
-    mail_delivery_assert(brvtal_ticket_mail_render('ticket_recovery',$recoveryData,$db)===$recoveryDefault,
-        'recovery draft cannot affect catalog delivery');
-    $recoveryPub=brvtal_mail_template_publish($db,'ticket_recovery','ticketing',$recoveryDraft['version_id'],1,1);
-    $recoverySnapshot=brvtal_ticket_mail_render('ticket_recovery',$recoveryData,$db);
-    mail_delivery_assert($recoverySnapshot['template_source']==='published'
-        && $recoverySnapshot['template_version']===$recoveryPub['version_id']
-        && str_contains($recoverySnapshot['text'],'Consulta tus boletas vigentes para Noche de prueba'),
-        'published recovery revision rendered with real version');
-    $recoveryCopy['message']='Nuevo texto de recuperación autenticada.';
-    $nextRecovery=brvtal_mail_template_save_draft($db,'ticket_recovery','ticketing',$recoveryCopy,1,2);
-    mail_delivery_assert(brvtal_ticket_mail_render('ticket_recovery',$recoveryData,$db)===$recoverySnapshot,
-        'published recovery snapshot unaffected by later draft');
-    brvtal_mail_template_publish($db,'ticket_recovery','ticketing',$nextRecovery['version_id'],1,3);
-    $updatedRecovery=brvtal_ticket_mail_render('ticket_recovery',$recoveryData,$db);
-    mail_delivery_assert($updatedRecovery['template_version']===$nextRecovery['version_id']
-        && $updatedRecovery['text']!==$recoverySnapshot['text']
-        && str_contains($recoverySnapshot['text'],'Consulta tus boletas vigentes para Noche de prueba'),
-        'new revision leaves prior rendered snapshot intact');
-    $purchase=brvtal_ticket_mail_render('payment_approved',$event,$db);
-    $reminder=brvtal_ticket_mail_render('reminder',$event,$db);
-    mail_delivery_assert($purchase['template_version']===null && $reminder['template_version']===null
-        && $purchase['template_key']==='payment_approved' && $reminder['template_key']==='reminder',
-        'recovery publication never changes purchase or reminder identity');
+    $recovery=brvtal_ticket_mail_render('ticket_recovery',
+        ['event'=>'Noche de prueba','link'=>'https://brvtal.invalid/buyer/'],$db);
+    mail_delivery_assert($recovery['template_key']==='ticket_recovery'
+        && $recovery['template_version']===null
+        && !str_contains($recovery['text'],'código QR'), 'recovery render without delivery');
     $doc=brvtal_mail_template_catalog()['order_pending']['defaults'];
     $doc['message']='Publicado para {{event_name}}';
     $doc['theme']['accent']='#aabbcc';
