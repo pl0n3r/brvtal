@@ -102,7 +102,11 @@ $server->exec("CREATE DATABASE ".$db." CHARACTER SET utf8mb4 COLLATE utf8mb4_uni
 try {
     $pdo = new PDO($dsn . ';dbname=' . $db,$user,$pass,$options);
     $sql = file_get_contents(__DIR__ . '/../../database/migration_forms_entries_01.sql');
-    foreach (array_filter(array_map(trim(...),explode(';',(string)$sql))) as $statement) $pdo->exec($statement);
+    // Split at DDL boundaries, not semicolons in the migration's explanatory comments.
+    contactCaptureExpect(is_string($sql) && $sql !== '', 'migration source present');
+    $parts = preg_split('/;\s*(?=CREATE TABLE|$)/i', $sql);
+    contactCaptureExpect(is_array($parts) && count(array_filter(array_map(trim(...), $parts))) === 3, 'three schema statements');
+    foreach (array_filter(array_map(trim(...), $parts)) as $statement) $pdo->exec($statement);
     $count = static fn(string $table): int => (int)$pdo->query('SELECT COUNT(*) FROM ' . $table)->fetchColumn();
     $key = str_repeat('a',32);
     contactCaptureExpect(brvtal_contact_capture_policy([]) === null,'default off');
