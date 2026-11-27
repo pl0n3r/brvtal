@@ -43,6 +43,13 @@ foreach ([
     guestRejects(fn()=>brvtalBuyerAccountFilters($invalidPeriod),'FILTER_INVALID','invalid calendar filter');
 }
 
+// Bogotá advanced its clock at midnight in 1992: the next day must
+// start at local midnight, not carry the normalized 01:00 forward.
+$historical = brvtalBuyerAccountFilters(['from'=>'1992-05-03','to'=>'1992-05-03']);
+guestAssert(brvtalBuyerAccountCalendarBound($historical['from'],false)==='1992-05-03 05:00:00'
+    && brvtalBuyerAccountCalendarBound($historical['to'],true)==='1992-05-04 04:00:00',
+    'historical civil-day offset transition');
+
 // Same-origin rule (no session, no CSRF token).
 $_SERVER['HTTP_HOST'] = 'www.brvtal.com.co';
 $_SERVER['HTTP_SEC_FETCH_SITE'] = 'same-origin';
