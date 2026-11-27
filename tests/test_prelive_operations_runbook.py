@@ -168,5 +168,62 @@ class PreliveOperationsRunbookTests(unittest.TestCase):
         self.assertEqual([], effects, "El simulacro no puede mutar recursos")
 
 
+    def test_golive_runbook_secciones_responsables_y_no_activacion(self):
+        content = DOC.read_text(encoding="utf-8")
+        section = content.split("## Go-live de boletería (#2193)", 1)[1]
+        section = section.split("\n## Validacion, evidencia y reversibilidad", 1)[0]
+        for heading in ("Entornos, credenciales y flags",
+                        "Monitoreo, respaldo y retorno",
+                        "Ensayos de contingencia sintéticos",
+                        "Puerta humana de encendido"):
+            self.assertIn("### " + heading, section)
+        for token in ("BRVTAL_TICKET_WOMPI_MODE=off",
+                      "BRVTAL_TICKET_WOMPI_PROD_*", "BRVTAL_TICKET_WOMPI_*",
+                      "BRVTAL_TICKET_MAIL_MODE=disabled",
+                      "BRVTAL_TICKET_MAIL_ALLOW_LIVE=0",
+                      "BRVTAL_TICKET_MAIL_DNS_VERIFIED",
+                      "BRVTAL_TICKET_MAIL_PRIVACY_APPROVED", "SPF/DKIM/DMARC",
+                      "HEALTH", "DEPLOY", "SMOKE", "CRITICAL/UNKNOWN",
+                      "backup", "restore", "SHA-256", "RPO/RTO",
+                      "D-059", "sin dinero", "no certificar"):
+            with self.subTest(token=token):
+                self.assertIn(token, section)
+        def rows(fragment):
+            return [tuple(cell.strip() for cell in line.strip("|").split("|"))
+                    for line in fragment.splitlines() if line.startswith("|")]
+        drills = section.split("### Ensayos de contingencia sintéticos", 1)[1]
+        drills, gates = drills.split("### Puerta humana de encendido", 1)
+        expected_drills = {"Proveedor caído": "SRE + QA",
+                           "Webhook duplicado": "SRE + QA",
+                           "Correo fallido": "OPERADOR + QA",
+                           "BD a medio migrar": "SRE + OWNER",
+                           "Puerta sin red": "OPERADOR + QA"}
+        drill_rows = rows(drills)[2:]
+        self.assertEqual(set(expected_drills), {row[0] for row in drill_rows})
+        self.assertEqual(len(expected_drills), len(drill_rows))
+        for scenario, signal, recovery, role in drill_rows:
+            with self.subTest(scenario=scenario):
+                self.assertTrue(signal and recovery)
+                self.assertEqual(expected_drills[scenario], role)
+        expected_gates = {"Titularidad", "Impuestos", "Datos personales #1671",
+                          "Medios de pago", "Reembolsos", "Encendido"}
+        def assert_closed_gates(fragment):
+            gate_rows = rows(fragment)[2:]
+            self.assertEqual(expected_gates, {row[0] for row in gate_rows})
+            self.assertEqual(len(expected_gates), len(gate_rows))
+            for gate, evidence, role, status in gate_rows:
+                self.assertTrue(evidence, gate)
+                self.assertIn("OWNER", role, gate)
+                self.assertEqual("NO ACTIVAR", status, gate)
+        assert_closed_gates(gates)
+        for gate in expected_gates:
+            with self.subTest(unsafe_gate=gate):
+                changed = re.sub(r"(?m)^(\| " + re.escape(gate) +
+                                 r" \|.*\| )NO ACTIVAR( \|)$", r"\1ACTIVAR\2", gates)
+                self.assertNotEqual(gates, changed)
+                with self.assertRaises(AssertionError):
+                    assert_closed_gates(changed)
+
+
 if __name__ == "__main__":
     unittest.main()
