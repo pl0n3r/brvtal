@@ -108,6 +108,22 @@ async function run() {
     check((await prepare(other, 't31-checkout-fixture-002')).status === 409, 'capacity cannot be double reserved');
     check(worker().issue === 'idle' && db('SELECT COUNT(*) FROM ticket_entries') === '0', 'no unpaid issuance');
     const tx = { id: 'tx-dynamic', reference: checkout.reference, status: 'APPROVED', currency: 'COP', amount_in_cents: checkout.amount_in_cents };
+    // Real confirmation endpoint under concurrent pending requests, before signed notification.
+    writeFileSync('/fixture/dynamic-record.tmp', JSON.stringify({...tx,status:'PENDING'}), { mode: 0o600 });
+    renameSync('/fixture/dynamic-record.tmp', '/fixture/dynamic-record.json');
+    db("UPDATE ticket_payment_attempts SET updated_at_utc=UTC_TIMESTAMP(6)-INTERVAL 2 MINUTE");
+    const financialTime=db('SELECT updated_at_utc FROM ticket_payment_attempts');
+    const confirm='/api/ticketing/order-status.php?t='+token;
+    const referenceQueries=()=>existsSync('/fixture/audit.jsonl') ? readFileSync('/fixture/audit.jsonl','utf8').split('\n').filter(x=>x.includes('"id":"reference-query"')).length : 0;
+    const burst=await Promise.all(Array.from({length:4},()=>request(confirm)));
+    check(burst.some(r=>r.status===200&&r.body.order?.state==='pending')&&burst.every(r=>r.status===503||r.status===200&&r.body.order?.state==='pending'),'concurrent status returns persisted pending or neutral unavailable');
+    check(referenceQueries()===1&&db('SELECT request_count FROM ticket_wompi_reconcile_budget')==='1','one provider query under shared synthetic budget');
+    check(db('SELECT updated_at_utc FROM ticket_payment_attempts')===financialTime&&db('SELECT COUNT(*) FROM ticket_issue_outbox')==='0','query preserves finance and issuance');
+    db("UPDATE ticket_wompi_reconcile_claims SET last_started_at_utc=UTC_TIMESTAMP(6)-INTERVAL 2 MINUTE,claim_id=UNHEX(REPEAT('aa',16)),expires_at_utc=UTC_TIMESTAMP(6)-INTERVAL 1 SECOND");
+    check((await request(confirm)).body.order?.state==='pending'&&referenceQueries()===1,'exhausted budget returns persisted state');
+    db("UPDATE ticket_wompi_reconcile_budget SET window_started_at_utc=UTC_TIMESTAMP(6)-INTERVAL 61 SECOND");
+    check((await request(confirm)).body.order?.state==='pending'&&referenceQueries()===2&&db('SELECT COUNT(*) FROM ticket_wompi_reconcile_claims WHERE claim_id IS NOT NULL')==='0','abandoned claim recovers after window without extra admission');
+    check((await request('/api/ticketing/order-status.php?t='+'0'.repeat(32))).status===404&&referenceQueries()===2,'unknown token never queries provider');
     // Independent fixture record established before notification; provider accepts no writes.
     writeFileSync('/fixture/dynamic-record.tmp', JSON.stringify(tx), { mode: 0o600 });
     renameSync('/fixture/dynamic-record.tmp', '/fixture/dynamic-record.json');
