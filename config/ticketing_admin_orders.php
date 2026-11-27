@@ -6,7 +6,8 @@ require_once __DIR__ . '/ticketing_issue.php';
 function brvtalTicketAdminFilters(array $raw): array
 {
     foreach ($raw as $key => $value) {
-        if (!in_array($key, ['kind','event_id','status','from','to','email','q','cursor','limit','order_id','format','export_scope'], true)
+        if (!in_array($key, ['kind','event_id','status','from','to','email','q','cursor','limit',
+            'order_id','format','export_scope'], true)
             || !is_string($value)) throw new InvalidArgumentException('INVALID_FILTER');
     }
     $kind = $raw['kind'] ?? 'orders';
@@ -250,19 +251,30 @@ function brvtalTicketAdminCsvCell(mixed $value): string
 function brvtalTicketAdminCsv(array $rows, string $kind): string
 {
     $columns = $kind === 'orders'
-        ? ['id','buyer_id','event_id','status','currency','total_cop','units','approvals','last_payment_state','mail_state']
+        ? ['id','buyer_id','event_id','status','currency','total_cop','units',
+            'approvals','last_payment_state','mail_state']
         : ['id','status','order_count','paid_total_cop'];
     $out = fopen('php://memory', 'w+b');
-    if ($out === false) throw new RuntimeException('EXPORT_BUFFER');
+    if ($out === false) {
+        throw new RuntimeException('EXPORT_BUFFER');
+    }
     try {
-        if (fputcsv($out, $columns, escape: '') === false) throw new RuntimeException('EXPORT_BUFFER');
+        if (fputcsv($out, $columns, escape: '') === false) {
+            throw new RuntimeException('EXPORT_BUFFER');
+        }
         foreach ($rows as $row) {
-            $cells = array_map(static fn(string $key): string => brvtalTicketAdminCsvCell($row[$key] ?? null), $columns);
-            if (fputcsv($out, $cells, escape: '') === false) throw new RuntimeException('EXPORT_BUFFER');
+            $cells = array_map(
+                static fn(string $key): string => brvtalTicketAdminCsvCell($row[$key] ?? null), $columns
+            );
+            if (fputcsv($out, $cells, escape: '') === false) {
+                throw new RuntimeException('EXPORT_BUFFER');
+            }
         }
         rewind($out);
         $csv = stream_get_contents($out);
-        if ($csv === false) throw new RuntimeException('EXPORT_BUFFER');
+        if ($csv === false) {
+            throw new RuntimeException('EXPORT_BUFFER');
+        }
         return $csv;
     } finally {
         fclose($out);
@@ -280,14 +292,18 @@ function brvtalTicketAdminExport(PDO $pdo, array $filter, callable $audit): arra
     $pdo->exec('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
     $pdo->beginTransaction();
     try {
-        $snapshot = (new DateTimeImmutable('now', new DateTimeZone('America/Bogota')))->format(DATE_ATOM);
+        $snapshot = new DateTimeImmutable('now', new DateTimeZone('America/Bogota'))->format(DATE_ATOM);
         $page = brvtalTicketAdminPage($pdo, $filter, false);
-        if ($all && $page['has_more']) throw new LengthException('EXPORT_LIMIT');
+        if ($all && $page['has_more']) {
+            throw new LengthException('EXPORT_LIMIT');
+        }
         $count = count($page['rows']);
         $csv = brvtalTicketAdminCsv($page['rows'], $filter['kind']);
         $pdo->commit();
     } catch (Throwable $error) {
-        if ($pdo->inTransaction()) $pdo->rollBack();
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
         throw $error;
     }
     $audit([

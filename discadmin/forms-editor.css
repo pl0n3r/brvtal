@@ -1,0 +1,15 @@
+.forms-editor{min-width:0;max-width:960px}
+.forms-editor-draft,.forms-editor-fields,.forms-editor-draft>div:first-child{display:grid;gap:12px}
+.forms-editor fieldset,.forms-editor [data-preview]{min-width:0;margin:12px 0;padding:16px;border:1px solid var(--admin-border,#34393e)}
+.forms-editor legend{padding:0 6px;font-weight:700;overflow-wrap:anywhere}
+.forms-editor fieldset>label,.forms-editor [data-preview] label{margin:10px 0}
+.forms-editor fieldset>button{margin:4px 4px 4px 0}
+.forms-editor input[type=checkbox],.forms-editor input[type=radio]{width:24px;min-height:44px;justify-self:start}
+.forms-editor textarea{min-height:84px;width:100%;box-sizing:border-box;color:inherit;background:var(--admin-surface,#111);border:1px solid var(--admin-border,#34393e)}
+.forms-editor .forms-actions{display:flex;flex-wrap:wrap;gap:8px}
+.forms-editor button:disabled{opacity:.5;cursor:not-allowed}
+.forms-editor button[draggable=true]{cursor:grab}
+.forms-editor [data-preview]{display:grid;gap:8px}
+@media(max-width:650px){.forms-editor fieldset{padding:10px}.forms-editor .forms-actions button{flex:1 1 100%}}
+.forms-editor [data-save]{font-weight:700}
+.forms-editor .forms-actions button:focus-visible,.forms-editor fieldset button:focus-visible{outline:2px solid currentColor;outline-offset:3px}

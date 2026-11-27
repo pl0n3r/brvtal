@@ -205,13 +205,15 @@ const BEFORE_ORDERS_CSS = [
 ].join('');
 const beforeFixture = fixture.replace('<input type="hidden" name="kind" value="orders">',
   '<label>Vista<select name="kind"><option value="orders">Pedidos</option><option value="buyers">Compradores</option></select></label>');
-async function start(page, reply, kind = 'orders', source = js, stylesheet = css, html = fixture) {
+async function start(page, reply, kind = 'orders', source = js, stylesheet = css, html = fixture, themed = false) {
   await page.route('**/discadmin/t18-fixture.html', route => route.fulfill({
     contentType:'text/html',
-    body:'<!doctype html><html lang="es"><meta name="viewport" content="width=device-width,initial-scale=1">'
-      + '<style>' + stylesheet + '</style><section data-admin-module="ticketing">'
+    body:'<!doctype html><html lang="es"'+(themed?' data-discadmin-appearance="dark"':'')+'><meta name="viewport" content="width=device-width,initial-scale=1">'
+      + '<style>' + stylesheet + '</style><section data-admin-module="ticketing"'+(themed?' class="ticketing"':'')+'>'
+      + (themed?'<div class="ticketing-tabs">':'')
       + '<button type="button" data-ticketing-tab="orders" aria-selected="' + String(kind==='orders') + '">Pedidos</button>'
       + '<button type="button" data-ticketing-tab="buyers" aria-selected="' + String(kind==='buyers') + '">Compradores</button>'
+      + (themed?'</div>':'')
       + '<div id="ticketing-panel"></div></section></html>'
   }));
   await page.route('**/discadmin/ticketing-orders.js', route => route.fulfill({contentType:'text/javascript',body:source}));
@@ -603,14 +605,23 @@ test('#2043: filtro aplicado, cursor de página, snapshot completo, límite y pe
 });
 test('#2043: capturas exactas del cambio de exportación 390/1440',async({page},info)=>{
   const baseline=execFileSync('git',['show','42c595501d5be92211ba944b4912c420a48d1bb6:discadmin/ticketing-orders.js'],{encoding:'utf8'});
-  const html=fixture.replace('data-ticketing-records-form>','data-ticketing-records-form class="ticketing-records-form tk-form">')
-    .replace('data-ticketing-export>Exportar CSV','data-ticketing-export class="tk-button">Exportar CSV de esta página');
+  // Use the actual role-authorized fragment, with only PHP interpolations replaced by synthetic values.
+  const html=php.slice(php.indexOf('<section data-ticketing-records'))
+    .replace(/<\?= htmlspecialchars\(brvtal_admin_csrf_token\(\), ENT_QUOTES, 'UTF-8'\) \?>/,'synthetic-csrf')
+    .replace(/<\?= \$kind === 'buyers' \? 'Compradores' : 'Pedidos' \?>/,'Pedidos')
+    .replace(/<\?= htmlspecialchars\(\$kind, ENT_QUOTES, 'UTF-8'\) \?>/,'orders')
+    .replace(/<\?php[\s\S]*?\?>/g,'');
+  expect(html).not.toContain('<?');
+  const styles=['discadmin/admin-appearance.css','discadmin/admin-design-system.css','discadmin/ticketing.css']
+    .map(path=>readFileSync(path,'utf8')).join('\n')
+    + '\nbody{margin:16px;background:var(--admin-bg);color:var(--admin-text)}'
+    + '.ticketing{--text:var(--admin-text);--bg:var(--admin-bg);--line:var(--admin-border);--muted:var(--admin-muted-strong)}';
   const mock=route=>route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:{
     rows:[order],has_more:false,next_cursor:null,export_all_enabled:true,export_max:1000}})});
   for(const width of [390,1440]){
     await page.setViewportSize({width,height:900});
     for(const [stage,source] of [['antes',baseline],['despues',js]]){
-      await start(page,mock,'orders',source,css,html);
+      await start(page,mock,'orders',source,styles,html,true);
       await expect(page.locator('table tbody tr')).toHaveCount(1);
       await expect(page.getByRole('button',{name:'Exportar todos (máx. 1000)'})).toHaveCount(stage==='antes'?0:1);
       const png=await page.screenshot({fullPage:true});

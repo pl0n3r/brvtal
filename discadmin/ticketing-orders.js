@@ -542,8 +542,23 @@ export async function mount(panel, initialKind = 'orders') {
   }
   form.addEventListener('input', syncExport);
   form.addEventListener('change', syncExport);
+  async function exportResponse(res) {
+    if (!res.ok) {
+      const data = await res.json().catch(()=>({}));
+      if (data.error === 'EXPORT_LIMIT') throw new Error('Acota los filtros: el máximo es '+exportMax+' resultados.');
+      if (res.status === 403 || res.status === 419) throw new Error('Exportación no autorizada.');
+      throw new Error('No se pudo exportar CSV. Reintenta.');
+    }
+    const count = res.headers.get('X-BRVTAL-Export-Count');
+    const snapshot = res.headers.get('X-BRVTAL-Export-Snapshot');
+    if (!res.headers.get('Content-Type')?.startsWith('text/csv') || count === null || !snapshot) {
+      throw new Error('No se pudo verificar el archivo CSV.');
+    }
+    return {count,snapshot,blob:await res.blob()};
+  }
   async function download(scope) {
-    if (loading || exporting || applied === null || params().toString() !== applied) return;
+    if (loading || exporting || applied === null || params().toString() !== applied
+      || (scope === 'all' && !exportAllowed)) return;
     exporting = true; syncExport();
     status.textContent = 'Preparando CSV privado…';
     try {
@@ -554,18 +569,7 @@ export async function mount(panel, initialKind = 'orders') {
       const res = await fetch('/api/ticketing/admin-orders.php?' + p, {
         credentials:'same-origin',cache:'no-store',headers:{'X-CSRF-Token':csrf}
       });
-      if (!res.ok) {
-        const data = await res.json().catch(()=>({}));
-        if (data.error === 'EXPORT_LIMIT') throw new Error('Acota los filtros: el máximo es '+exportMax+' resultados.');
-        if (res.status === 403 || res.status === 419) throw new Error('Exportación no autorizada.');
-        throw new Error('No se pudo exportar CSV. Reintenta.');
-      }
-      const count = res.headers.get('X-BRVTAL-Export-Count');
-      const snapshot = res.headers.get('X-BRVTAL-Export-Snapshot');
-      if (!res.headers.get('Content-Type')?.startsWith('text/csv') || count === null || !snapshot) {
-        throw new Error('No se pudo verificar el archivo CSV.');
-      }
-      const blob = await res.blob();
+      const {count,snapshot,blob} = await exportResponse(res);
       if (!active()) return;
       const url = URL.createObjectURL(blob), link = document.createElement('a');
       link.href = url; link.download = 'brvtal-ticketing-'+scope+'.csv'; link.click();
