@@ -708,7 +708,7 @@ try {
     foreach ([0,1] as $index) {
         $claim=brvtalRefundRequest($pdo,3,[
             'order_id'=>$mailOrderRef,'entry_ids'=>[$mailEntryRefs[$index]],
-            'reason'=>'Devolución parcial sintética','idempotency_key'=>'t2074-partial-'.$index,
+            'reason'=>'Devolución parcial sintética','idempotency_key'=>'t2074-partial-refund-'.$index,
         ]);
         $rid=(int)$claim['id']; $mailIds[]=$rid;
         t21($claim['amount_cop']===300,'partial refund amount unchanged');

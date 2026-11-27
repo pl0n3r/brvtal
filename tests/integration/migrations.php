@@ -586,3 +586,31 @@ try {
 } finally {
     $formsServer->exec('DROP DATABASE '.$ledgerDb);
 }
+
+// #2197: verify exact structural proof and additive DDL preserve imported evidence.
+$settlementDb = 'brvtal_test_settlement_migration_' . bin2hex(random_bytes(5));
+$formsServer->exec('CREATE DATABASE ' . $settlementDb);
+try {
+    $settlementPdo = new PDO($formsDsn.';dbname='.$settlementDb, $formsUser, $formsPass,
+        [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
+    $migration = 'migration_ticketing_settlements_01.sql';
+    $sql = (string)file_get_contents(__DIR__.'/../../database/'.$migration);
+    $proof = brvtalMigrationSchemaProof($settlementPdo,$migration);
+    migrations_it_assert(brvtalMigrationProofDisposition($migration,$proof)==='apply','settlements absent');
+    brvtalMigrationAssertReconciliationSql($migration,$sql,$proof);
+    $settlementPdo->exec($sql);
+    migrations_it_assert(brvtalMigrationSchemaProof($settlementPdo,$migration)['complete'],'settlement structural proof');
+    $settlementPdo->exec("INSERT INTO ticket_settlements
+        (id,payout_reference,payout_date,file_sha256,imported_by,imported_at_utc)
+        VALUES(1,'S1','2026-11-27',REPEAT('a',64),7,UTC_TIMESTAMP(6))");
+    $settlementPdo->exec("INSERT INTO ticket_settlement_lines
+        (settlement_id,line_reference,transaction_reference,credited_cop) VALUES(1,'L1','TX-1',-123)");
+    $settlementPdo->exec($sql);
+    migrations_it_assert((int)$settlementPdo->query('SELECT credited_cop FROM ticket_settlement_lines')->fetchColumn()===-123
+        && (int)$settlementPdo->query('SELECT COUNT(*) FROM ticket_settlements')->fetchColumn()===1,
+        'settlement migration reapply preserves evidence');
+    migrations_it_assert(brvtalMigrationProofDisposition($migration,
+        brvtalMigrationSchemaProof($settlementPdo,$migration))==='baseline','complete settlement after reapply');
+} finally {
+    $formsServer->exec('DROP DATABASE '.$settlementDb);
+}

@@ -114,7 +114,9 @@ try {
     $detail=['view'=>'detail','form_key'=>'contact','entry_id'=>$id(1)];
     $get($detail,401,0); $get($detail,401,6);
     foreach([3,4,5] as $role) $get($detail,403,$role);
-    $catalog=$get([],200,2)['data']['items'];
+    $catalogResult=$get([],200,2)['data'];
+    formsAdminCheck($catalogResult['management_enabled']===true,'authorized management capability');
+    $catalog=$catalogResult['items'];
     formsAdminCheck(count($catalog)===3 && (int)$catalog[0]['total']===60 && (int)$catalog[0]['new_count']===29
         && (int)$catalog[0]['latest_version']===2 && (int)$catalog[1]['total']===0 && (int)$catalog[2]['total']===4,'actual catalog counts and empty form');
     $query=['view'=>'list','form_key'=>'contact','limit'=>'7'];
@@ -242,6 +244,7 @@ try {
     file_put_contents($configFile,'<?php return '.var_export($config,true).';',LOCK_EX);
     $post($action,503);
     $post($export,503);
+    formsAdminCheck($get($detail)['data']['management_enabled']===false,'read-only capability');
     $post(['action'=>'unknown'],422);
     formsAdminHttp($url.'?id=2147483647',422,$cookies[1],'POST',$action,$tokens[1]);
     $get($detail);

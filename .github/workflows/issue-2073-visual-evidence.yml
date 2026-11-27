@@ -1,0 +1,50 @@
+name: BRVTAL 2073 visual evidence
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [main]
+    paths:
+      - 'discadmin/forms.js'
+      - 'tests/e2e/discadmin-forms.spec.mjs'
+      - '.github/workflows/issue-2073-visual-evidence.yml'
+permissions:
+  contents: read
+jobs:
+  forms-2073-visual:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'work/issue-2073'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      BRVTAL_FORMS_MANAGEMENT_BASE: ${{ github.event.pull_request.base.sha }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install Chromium
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Capture exact sources
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          git cat-file -e "$BRVTAL_FORMS_MANAGEMENT_BASE^{commit}"
+          npx playwright test tests/e2e/discadmin-forms.spec.mjs --project=chromium --workers=1
+          cd artifacts/forms-2073
+          printf 'base=%s\nhead=%s\n' "$BRVTAL_FORMS_MANAGEMENT_BASE" "$HEAD_SHA" > manifest.txt
+          for stage in before after; do
+            for width in 390 1440; do
+              test -s "$stage-$width.png"
+              base64 -w 1200 "$stage-$width.jpg" | sed "s/^/VISUAL-$stage-$width:/"
+            done
+          done
+          sha256sum *.png >> manifest.txt
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: brvtal-2073-visual-${{ env.HEAD_SHA }}
+          path: artifacts/forms-2073/
+          if-no-files-found: error
+          retention-days: 14

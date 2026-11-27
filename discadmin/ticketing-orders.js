@@ -192,7 +192,7 @@ export async function mount(panel, initialKind = 'orders') {
     let request=null;
     const descriptions={
       note:['Agregar nota','Se guardará con tu identidad y fecha en el historial del pedido.'],
-      resend:['Reenviar boletas','Se pondrá en cola otro correo con los mismos QR, sin emitir boletas nuevas.'],
+      resend:['Reenviar boletas','Se pondrá en cola un correo con acceso a Mi cuenta. Solo allí se podrán recuperar las boletas vigentes; no se emitirán nuevas.'],
       cancel_pending:['Cancelar pedido pendiente','Se liberará su inventario. No se puede cancelar una compra pagada.']
     };
     function open(action) {
@@ -249,7 +249,7 @@ export async function mount(panel, initialKind = 'orders') {
         if(response.ok && payload?.ok) {
           dialog.close();
           status.textContent=action==='note'?'Nota guardada en el historial.'
-            :action==='resend'?'Reenvío en cola; la entrega depende del servicio de correo.'
+            :action==='resend'?'Acceso a Mi cuenta en cola; la entrega depende del servicio de correo.'
             :'Pedido cancelado e inventario liberado.';
           await loadDetail(orderId);
           return;
@@ -260,7 +260,10 @@ export async function mount(panel, initialKind = 'orders') {
           PAYMENT_RECONCILIATION_REQUIRED:'Hay un pago en curso o aprobado. Requiere conciliación.',
           ORDER_NOT_PAID:'Solo se pueden reenviar boletas de compras pagadas.',
           TICKETS_NOT_ISSUED:'Las boletas aún no se han emitido.',
-          MAIL_PAYLOAD_NOT_RECOVERABLE:'No se puede reenviar el correo cifrado original.',
+          MAIL_PAYLOAD_NOT_RECOVERABLE:'No hay acceso recuperable a boletas vigentes. Solicita recuperación autorizada; no se envió un correo.',
+          RECOVERY_ORDER_UNAVAILABLE:'No hay acceso autorizado a este pedido.',
+          RECOVERY_PAYMENT_UNVERIFIED:'No se pudo verificar el pago y la emisión.',
+          RECOVERY_INCONSISTENT:'No se pudieron verificar las boletas vigentes.',
           MAIL_NOT_ENABLED:'El modo de correo actual no permite reenviar.',
           MAIL_RATE_LIMITED:'Se alcanzó el límite de correos. Reintenta más adelante.',
           IDEMPOTENCY_CONFLICT:'La solicitud cambió. Cierra el diálogo y vuelve a intentarlo.'
@@ -314,9 +317,13 @@ export async function mount(panel, initialKind = 'orders') {
       const alert=document.createElement('div');
       alert.className='tk-order-stalled';alert.setAttribute('role','alert');
       const p=document.createElement('p');
-      p.textContent=stalled===2?'La emisión de boletas falló. Programa un nuevo intento.'
-        :stalled===3?'El último correo no se entregó. Puedes reenviar las mismas boletas.'
-        :'El pago no se completó. Comprueba su estado antes de actuar.';
+      if(stalled===2) {
+        p.textContent='La emisión de boletas falló. Programa un nuevo intento.';
+      } else if(stalled===3) {
+        p.textContent='El último correo no se entregó. Puedes solicitar acceso a Mi cuenta para recuperar las boletas vigentes.';
+      } else {
+        p.textContent='El pago no se completó. Comprueba su estado antes de actuar.';
+      }
       alert.append(p);
       if(stalled===2) addIssueRetry(alert,id,issue);
       if(stalled===3 && paid){

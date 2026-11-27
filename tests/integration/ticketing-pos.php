@@ -89,7 +89,7 @@ if (getenv('BRVTAL_INTEGRATION_TESTS')!=='1') {
 }
 
 /** Actual localhost HTTP endpoint, with disposable DB and canonical session/CSRF. */
-function posIntentHttp(array $settings,array $intent,array $expected): void {
+function posIntentHttp(array $settings,array $intent,array $expected,bool $receiptEnabled=false): void {
     posAssert((bool)preg_match('/^brvtal_test[a-zA-Z0-9_]*$/D',$settings['name']),'HTTP disposable DB only');
     $dir=sys_get_temp_dir().'/brvtal-pos-http-'.bin2hex(random_bytes(8));
     if (!mkdir($dir,0700)) throw new RuntimeException('fixture directory failed');
@@ -148,6 +148,8 @@ ROUTER;
         $path='/api/ticketing/admin-pos.php';
         [$status]=$request($path,['Content-Type: application/json'],$intent);
         posAssert($status===401,'HTTP unauthenticated rejected');
+        [$status]=$request($path.'?receipt_identity=1');
+        posAssert($status===401,'HTTP destination catalog requires authentication');
         foreach([1,2,3] as $actor){
             [$status,$session,$headers]=$request('/fixture-session?actor='.$actor);
             posAssert($status===200&&isset($session['csrf']),'real session bootstrap');
@@ -159,6 +161,11 @@ ROUTER;
             }
             posAssert($cookie!=='','session cookie');
             $base=['Content-Type: application/json','Cookie: '.$cookie];
+            [$status,$catalog]=$request($path.'?receipt_identity=1',$base);
+            if($actor===3)posAssert($status===403&&$catalog['error']==='FORBIDDEN','HTTP destination catalog owner only');
+            else posAssert($status===200&&$catalog['data']['enabled']===$receiptEnabled
+                && ($receiptEnabled?count($catalog['data']['destinations']['nequi'])===2:
+                    $catalog['data']['destinations']===[]),'HTTP destination catalog state');
             [$status]=$request($path,$base,$intent);
             posAssert($status===419,'HTTP CSRF required');
             [$status,$body]=$request($path,[...$base,'X-CSRF-Token: '.$session['csrf']],$intent);
@@ -198,6 +205,8 @@ register_shutdown_function(static function() use($server,$name):void {
 });
 $db=new PDO("mysql:host=$host;port=$port;dbname=$name;charset=utf8mb4",$user,$pass,$opts);
 $ddl=[
+  "CREATE TABLE settings (setting_key VARCHAR(120) PRIMARY KEY,setting_value LONGTEXT NULL,
+      is_json TINYINT NOT NULL DEFAULT 0) ENGINE=InnoDB",
   "CREATE TABLE admins (id INT UNSIGNED PRIMARY KEY,is_active TINYINT NOT NULL DEFAULT 1,
       credential_epoch INT NOT NULL DEFAULT 1,staff_role VARCHAR(32) NOT NULL DEFAULT 'admin') ENGINE=InnoDB",
   "CREATE TABLE ticket_refund_event_decisions (event_id INT UNSIGNED PRIMARY KEY,
@@ -250,11 +259,18 @@ $ddl=[
       attempted_at_utc DATETIME(6)) ENGINE=InnoDB",
 ];
 foreach($ddl as $sql) $db->exec($sql);
-foreach(['migration_ticketing_reservations_01.sql','migration_ticketing_pos_01.sql'] as $path) {
+foreach(['migration_ticketing_reservations_01.sql','migration_ticketing_pos_01.sql','migration_ticketing_pos_receipts_01.sql'] as $path) {
     $sql=(string)file_get_contents(__DIR__.'/../../database/'.$path);
     $sql=preg_replace('/^\s*--[^\n]*$/m','',$sql);
     foreach(array_filter(array_map(trim(...),explode(';',$sql))) as $statement) $db->exec($statement);
 }
+// POS 02 already has nullable outbox in this fixture; apply its exact terminal enum DDL.
+$pos02=(string)file_get_contents(__DIR__.'/../../database/migration_ticketing_pos_02.sql');
+$pos02=preg_replace('/^\s*--[^\n]*$/m','',$pos02);
+$terminalDdl=array_values(array_filter(array_map(trim(...),explode(';',$pos02)),
+    static fn(string $sql):bool=>str_starts_with($sql,'ALTER TABLE ticket_pos_sales')));
+posAssert(count($terminalDdl)===1,'canonical terminal migration available');
+$db->exec($terminalDdl[0]);
 $when=(new DateTimeImmutable('now',new DateTimeZone('America/Bogota')));
 $date=$when->modify('+8 days')->format('Y-m-d H:i:s');
 $doorClock=new DateTimeImmutable($date,new DateTimeZone('America/Bogota'));
@@ -609,6 +625,92 @@ $beforeRepeat=$quoteRows();
 $db->exec($quoteSql);
 posAssert($quoteRows()===$beforeRepeat && $quoteProof()['complete'],'second DDL preserves all rows and proof');
 echo "T24 POS channel quote, conflict, snapshot and replay integration passed.\n";
+
+// #2100: flag off by default; scope by method/destination, not global reference.
+posAssert(brvtalPosReceiptCatalog($db,1,'superadmin')===['enabled'=>false,'destinations'=>[]],
+    'receipt identity disabled by default');
+posDenies(static fn()=>brvtalPosReceiptCatalog($db,3,'admin'),'FORBIDDEN');
+$db->exec("INSERT INTO settings(setting_key,setting_value) VALUES ('pos.receipt_identity.enabled','1')");
+$db->exec("INSERT INTO ticket_pos_payment_destinations(id,method,alias,created_by_admin_id)
+    VALUES (1,'nequi','Billetera A',1),(2,'nequi','Billetera B',1),(3,'terminal','Terminal A',1)");
+$catalog=brvtalPosReceiptCatalog($db,1,'superadmin');
+posAssert($catalog['enabled'] && count($catalog['destinations']['nequi'])===2,'authorized destination aliases');
+$make=static function(string $id,string $ref,?string $destination,string $method='nequi',
+    int $actor=1,string $event='7',string $type='11')use($db,$order,$key):array {
+    $raw=array_replace($order,['event_id'=>$event,'ticket_type_id'=>$type,'quantity'=>'1',
+        'idempotency_key'=>str_repeat($id,32),'payment_reference'=>$ref,'method'=>$method]);
+    if ($destination!==null) $raw['destination_id']=$destination;
+    $quote=['action'=>'manual_quote','event_id'=>$event,'ticket_type_id'=>$type,'quantity'=>'1',
+        'idempotency_key'=>$raw['idempotency_key']];
+    $raw['quote_token']=brvtalPosRun($db,$actor,'superadmin',$quote,$key)['quote_token'];
+    return $raw;
+};
+$counts=static fn()=>[$snapshot(),(int)$db->query('SELECT COUNT(*) FROM ticket_pos_payment_receipts')->fetchColumn()];
+$first=$make('u','BANK-0001','1');
+$paid=brvtalPosRun($db,1,'superadmin',$first,$key);
+$before=$counts();
+posAssert(brvtalPosRun($db,1,'superadmin',$first)['order_id']===$paid['order_id'],'original intent replay');
+posAssert(brvtalPosRun($db,1,'superadmin',['action'=>'manual_intent','idempotency_key'=>$first['idempotency_key']])['state']==='found',
+    'registered receipt recoverable without credentials');
+foreach ([
+    [$make('v','bank-0001','1'),'POS_RECEIPT_DUPLICATE'],
+    [$make('w','BANK-0002',null),'POS_RECEIPT_REVIEW_REQUIRED'],
+    [$make('x','BANK-0002','3'),'POS_RECEIPT_REVIEW_REQUIRED'],
+    [$make('y','REF-2026-001','1'),'POS_RECEIPT_REVIEW_REQUIRED'],
+    [$make('z','BANK-0002','1')+$received,'POS_RECEIPT_REVIEW_REQUIRED'],
+] as [$raw,$error]) {
+    posDenies(static fn()=>brvtalPosRun($db,1,'superadmin',$raw,$key),$error);
+    posAssert($counts()===$before,'duplicate or ambiguous evidence has no order, aforo or outbox');
+}
+foreach ([['j','BANK-0001','2'],['k','BANK-0001','3','terminal'],
+    ['l','BANK-0002','1'],['p','',null,'cash'],['q','',null,'cash']] as $args) {
+    posAssert(!brvtalPosRun($db,1,'superadmin',$make(...$args),$key)['replayed'],'different scope/reference or cash is independent');
+}
+$intent=['action'=>'manual_intent','idempotency_key'=>$first['idempotency_key']];
+posIntentHttp(['host'=>$host,'port'=>$port,'name'=>$name,'user'=>$user,'pass'=>$pass],$intent,
+    brvtalPosRun($db,1,'superadmin',$intent),true);
+$rollback=$make('s','BANK-ROLLBACK','1');
+$before=$counts();
+$db->exec("CREATE TRIGGER pos_fixture_reject_outbox BEFORE INSERT ON ticket_issue_outbox
+    FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='synthetic rollback'");
+try {
+    try {brvtalPosRun($db,1,'superadmin',$rollback,$key);posAssert(false,'expected rollback');}
+    catch (PDOException $error) {posAssert($error->getCode()==='45000','fixture failure');}
+    posAssert($counts()===$before,'registration and sale roll back together');
+} finally {$db->exec('DROP TRIGGER pos_fixture_reject_outbox');}
+posAssert(!brvtalPosRun($db,1,'superadmin',$rollback,$key)['replayed'],'rollback frees receipt scope');
+
+// Two distinct owners and events contend on the same destination, with a real open transaction.
+$db->prepare("INSERT INTO events VALUES (8,'published',?,?)")->execute([$date,$published]);
+$db->exec("INSERT INTO event_ticket_types(id,event_id,name,price,status,currency) VALUES(12,8,'Concurrencia',25000,'active','COP')");
+$db->exec("INSERT INTO ticket_inventory_events(event_id,capacity) VALUES(8,10)");
+$db->exec("INSERT INTO ticket_inventory_types(ticket_type_id,event_id,capacity,courtesy_capacity) VALUES(12,8,10,0)");
+$winner=$make('t','BANK-RACE','1');
+$contender=$make('i','BANK-RACE','1','nequi',2,'8','12');
+$worker='require $argv[1]; $x=json_decode(stream_get_contents(STDIN),true,512,JSON_THROW_ON_ERROR);'
+    .'$db=new PDO($x["dsn"],$x["user"],$x["pass"],[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_EMULATE_PREPARES=>false]);'
+    .'echo "ready\\n"; flush(); try {brvtalPosRun($db,2,"superadmin",$x["raw"],hex2bin($x["key"])); echo "unexpected";}'
+    .'catch (DomainException $e) {echo $e->getMessage();}';
+$db->beginTransaction();
+$process=null;$pipes=[];
+try {
+    brvtalPosManualOrder($db,1,brvtalPosInput($winner),$key);
+    $process=proc_open([PHP_BINARY,'-r',$worker,__DIR__.'/../../config/ticketing_pos.php'],
+        [['pipe','r'],['pipe','w'],['pipe','w']],$pipes);
+    posAssert(is_resource($process),'concurrent process');
+    fwrite($pipes[0],json_encode(['dsn'=>"mysql:host=$host;port=$port;dbname=$name;charset=utf8mb4",
+        'user'=>$user,'pass'=>$pass,'raw'=>$contender,'key'=>bin2hex($key)],JSON_THROW_ON_ERROR));
+    fclose($pipes[0]);stream_set_timeout($pipes[1],10);
+    posAssert(trim((string)fgets($pipes[1]))==='ready','concurrent contender started');
+    $db->commit();
+    posAssert(stream_get_contents($pipes[1])==='POS_RECEIPT_DUPLICATE','second actor receives opaque conflict');
+    posAssert((int)$db->query('SELECT COUNT(*) FROM ticket_orders WHERE event_id=8')->fetchColumn()===0,'no second event order');
+} finally {
+    if($db->inTransaction())$db->rollBack();
+    foreach($pipes as $pipe)if(is_resource($pipe))fclose($pipe);
+    if(is_resource($process))proc_close($process);
+}
+echo "T24 scoped offline receipts, legacy ambiguity, rollback and concurrency passed.\n";
 
 // Negative proof against an empty, isolated schema; never modify the historical fixture rows.
 $negativeName=$name.'_quote';
