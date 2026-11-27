@@ -28,10 +28,24 @@ try {
         if (!is_array($input)) {
             throw new InvalidArgumentException('INVALID_ACTION');
         }
-        brvtalFormsManagementInput($input);
+        $export = ($input['action'] ?? null) === 'export';
+        if ($export) {
+            unset($input['action']);
+            brvtalFormsAdminExportFilters($input);
+        } else {
+            brvtalFormsManagementInput($input);
+        }
         if (!is_array($settings) || !brvtalFormsAdminEnabled($settings)
             || ($settings['forms']['admin_manage_enabled'] ?? null) !== true) {
             json_response(['ok' => false, 'error' => 'FORMS_ADMIN_UNAVAILABLE'], 503);
+        }
+        if ($export) {
+            $csv = brvtalFormsAdminExport($pdo, $input);
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="forms-responses.csv"');
+            fpassthru($csv);
+            fclose($csv);
+            exit;
         }
         json_response(['ok' => true, 'data' => brvtalFormsAdminAction($pdo, (int)$_SESSION['admin_id'], $input)]);
     }
@@ -47,6 +61,7 @@ try {
         'STALE_REVISION' => ['STALE_REVISION', 409],
         'INVALID_TRANSITION' => ['INVALID_TRANSITION', 409],
         'ENTRY_UNAVAILABLE' => ['ENTRY_UNAVAILABLE', 409],
+        'EXPORT_LIMIT_EXCEEDED' => ['EXPORT_LIMIT_EXCEEDED', 422],
         default => ['ENTRY_NOT_FOUND', 404],
     };
     json_response(['ok' => false, 'error' => $error], $status);

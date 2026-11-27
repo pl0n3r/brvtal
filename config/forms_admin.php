@@ -308,3 +308,76 @@ function brvtalFormsAdminAction(PDO $pdo, int $actor, array $input): array
         throw $error;
     }
 }
+
+/** POST export uses exactly the list filter vocabulary, never pagination. */
+function brvtalFormsAdminExportFilters(array $input): array
+{
+    if (array_diff(array_keys($input), ['form_key','state','management_state','from','to'])) {
+        throw new InvalidArgumentException('INVALID_FILTER');
+    }
+    [, $where, $args] = brvtalFormsAdminFilters(['view'=>'list'] + $input);
+    return [$where, $args];
+}
+
+function brvtalFormsAdminCsvCell(mixed $value): string
+{
+    $cell = is_array($value) || is_bool($value)
+        ? json_encode($value, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE)
+        : (string)$value;
+    // Spreadsheet programs can ignore leading spaces, controls or invisible Unicode.
+    if (preg_match('/\A(?:[\p{Z}\p{C}]*[=+\-@＝＋－＠]|[\x00-\x1f\x7f])/u', $cell) === 1) {
+        return "'".$cell;
+    }
+    return $cell;
+}
+
+/** @return resource Completed CSV; no HTTP bytes emitted on rejection or query failure. */
+function brvtalFormsAdminExport(PDO $pdo, array $input)
+{
+    [$where, $args] = brvtalFormsAdminExportFilters($input);
+    if ($pdo->inTransaction()) {
+        throw new RuntimeException('FORMS_ADMIN_UNAVAILABLE');
+    }
+    $csv = fopen('php://memory', 'w+b');
+    if ($csv === false) throw new RuntimeException('FORMS_ADMIN_UNAVAILABLE');
+    try {
+        $pdo->exec('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
+        $pdo->beginTransaction();
+        // One bounded, consistent query; expiry is evaluated by the database.
+        $where[] = brvtalFormsManagementLiveSql();
+        $predicate = implode(' AND ', $where);
+        $join = brvtalFormsManagementJoin();
+        $management = brvtalFormsManagementStateSql();
+        $q = $pdo->prepare("SELECT LOWER(HEX(e.entry_id)) AS entry_id,e.form_key,e.version_number,
+            e.state,$management AS management_state,e.created_at_utc,e.payload_json,v.definition_json
+            FROM form_entries e $join JOIN form_definition_versions v ON v.form_key=e.form_key
+            AND v.version_number=e.version_number AND v.definition_sha256=e.definition_sha256
+            WHERE $predicate ORDER BY e.created_at_utc DESC,e.entry_id DESC LIMIT 1001");
+        $q->execute($args);
+        $write = static function(array $row) use ($csv): void {
+            if (fputcsv($csv, array_map(brvtalFormsAdminCsvCell(...), $row), ',', '"', '', "\r\n") === false) {
+                throw new RuntimeException('FORMS_ADMIN_UNAVAILABLE');
+            }
+        };
+        $write(['entry_id','form_key','version_number','state','management_state','created_at_utc',
+            'field_id','field_label','field_type','value']);
+        $count = 0;
+        while ($row = $q->fetch(PDO::FETCH_ASSOC)) {
+            if (++$count > 1000) throw new DomainException('EXPORT_LIMIT_EXCEEDED');
+            $entry = brvtalFormsAdminHistorical($row);
+            $identity = [$entry['entry_id'],$entry['form_key'],$entry['version_number'],$entry['state'],
+                $entry['management_state'],$entry['created_at_utc']];
+            // Long format preserves the label and type from each exact historical version.
+            foreach ($entry['fields'] ?: [['id'=>'','label'=>'','type'=>'','value'=>null]] as $field) {
+                $write([...$identity,$field['id'],$field['label'],$field['type'],$field['value']]);
+            }
+        }
+        $pdo->commit();
+        rewind($csv);
+        return $csv;
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        fclose($csv);
+        throw $error;
+    }
+}
