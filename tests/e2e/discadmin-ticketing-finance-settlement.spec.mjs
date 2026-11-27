@@ -18,7 +18,7 @@ async function mount(page,old,handler) {
   const php=source('discadmin/ticketing-finance.php');
   const fragment=php.slice(php.indexOf('<section data-finance-module'))
     .replace(/<script type="application\/json" data-finance-catalog>[\s\S]*?<\/script>/,
-      '<script type="application/json" data-finance-catalog>{"ok":true,"events":[{"id":1,"title":"Evento sintético"}]}</script>')
+      '<script type="application/json" data-finance-catalog>{"ok":true,"events":[{"id":1,"title":"Evento de ejemplo"}]}</script>')
     .replace(/data-(ledger|settlement)-csrf="[^"]*"/g,'data-$1-csrf="fixture"');
   await page.unrouteAll({behavior:'wait'});
   await page.route('**/*',route=>route.abort());
