@@ -23,6 +23,9 @@ try {
             ORDER BY r.id DESC LIMIT 100');
         $rows=$q->fetchAll(PDO::FETCH_ASSOC);
         $schema=brvtalTicketAdminPaymentSchema($db);
+        $manualEnabled=getenv('BRVTAL_TICKET_REFUNDS_MANUAL_ENABLED')==='1'
+            ||(getenv('BRVTAL_INTEGRATION_TESTS')==='1'
+                &&preg_match('/^brvtal_test[a-zA-Z0-9_]*$/D',(string)$db->query('SELECT DATABASE()')->fetchColumn())===1);
         $unknown=['channel'=>'unknown','state'=>'unavailable','reason'=>'payment_evidence_unavailable','anomaly'=>false];
         foreach($rows as &$row) {
             $reference=null;
@@ -34,7 +37,7 @@ try {
                 ],$schema);
                 if($evidence['channel']==='wompi'&&$evidence['state']==='verified') {
                     // The order label alone is insufficient for the manual Wompi action.
-                    $proof=$db->prepare("SELECT DISTINCT a.id,a.provider_transaction_id,a.gross_amount_cop
+                    $proof=$db->prepare("SELECT DISTINCT a.id,a.provider_transaction_id,a.gross_amount_cop,a.status
                         FROM ticket_payment_attempts a
                         JOIN ticket_payment_webhook_events w ON w.attempt_id=a.id
                           AND w.provider_transaction_id=a.provider_transaction_id
@@ -45,7 +48,7 @@ try {
                     $matches=$proof->fetchAll(PDO::FETCH_ASSOC);
                     if(count($matches)>1) {
                         $evidence=['channel'=>'conflict','state'=>'discrepancy','reason'=>'duplicate_wompi','anomaly'=>true];
-                    } elseif(count($matches)===1
+                    } elseif(count($matches)===1&&$matches[0]['status']==='approved'
                         && (int)$matches[0]['gross_amount_cop']===(int)$row['total_cop']
                         && preg_match('/^[A-Za-z0-9._:-]{1,190}$/D',(string)$matches[0]['provider_transaction_id'])) {
                         $reference=(string)$matches[0]['provider_transaction_id'];
@@ -58,7 +61,7 @@ try {
                 $evidence=$unknown;
             }
             $row['payment_evidence']=$evidence;
-            $row['can_manual_confirm']=$owner&&$reference!==null
+            $row['can_manual_confirm']=$owner&&$manualEnabled&&$reference!==null
                 &&in_array($row['status'],['approved','manual_pending'],true);
             $row['wompi_payment_ref']=$row['can_manual_confirm']?$reference:null;
             unset($row['order_id'],$row['order_status'],$row['total_cop'],$row['currency']);

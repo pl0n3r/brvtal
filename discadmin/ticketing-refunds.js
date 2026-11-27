@@ -95,7 +95,7 @@ export async function mount(panel, csrf = '') {
       item.append(el('p','Revisión con el dueño o soporte. No aplica confirmación Wompi.'));
     if(!canDecide)return item;
     if(state!=='requested'&&!actionable){
-      if(pending&&verified)item.append(el('p','Revisa la referencia con soporte antes de confirmar.'));
+      if(pending&&verified)item.append(el('p','La confirmación Wompi no está disponible. Revisa con soporte.'));
       return item;
     }
     const message=el('p');message.setAttribute('role','status');

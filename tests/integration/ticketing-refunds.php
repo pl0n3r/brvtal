@@ -580,12 +580,10 @@ try {
             preg_match('~^HTTP/\S+ ([0-9]{3})~',(string)($http_response_header[0]??''),$m);
             return [(int)($m[1]??0),is_string($response)?json_decode($response,true):null];
         };
-        $readOnlySnapshot=static function()use($pdo,$snapshot):array{
-            return [$snapshot(),$pdo->query('SELECT * FROM ticket_orders ORDER BY id')->fetchAll(),
-                $pdo->query('SELECT * FROM ticket_entry_credentials ORDER BY entry_id')->fetchAll(),
-                $pdo->query('SELECT * FROM ticket_payment_attempts ORDER BY id')->fetchAll(),
-                $pdo->query('SELECT * FROM ticket_pos_sales ORDER BY order_id')->fetchAll()];
-        };
+        $readOnlySnapshot=(static fn(): array => [$snapshot(),$pdo->query('SELECT * FROM ticket_orders ORDER BY id')->fetchAll(),
+            $pdo->query('SELECT * FROM ticket_entry_credentials ORDER BY entry_id')->fetchAll(),
+            $pdo->query('SELECT * FROM ticket_payment_attempts ORDER BY id')->fetchAll(),
+            $pdo->query('SELECT * FROM ticket_pos_sales ORDER BY order_id')->fetchAll()]);
         $beforeGet=$readOnlySnapshot();
         [$code,$body]=$adminGet(7);
         t21($code===200&&$body['can_decide']===true,'real owner GET');
@@ -597,7 +595,7 @@ try {
             &&$rows[$ids[1]]['can_manual_confirm']===false,'POS is not Wompi');
         t21($rows[$ids[2]]['payment_evidence']['reason']==='paid_without_proof'
             &&$rows[$ids[2]]['can_manual_confirm']===false,'missing payment proof');
-        t21(!isset($rows[$ids[0]]['order_id'],$rows[$ids[0]]['buyer_id'])
+        t21(!array_key_exists('order_id',$rows[$ids[0]])&&!array_key_exists('buyer_id',$rows[$ids[0]])
             &&!array_key_exists('total_cop',$rows[$ids[0]]),'only necessary refund fields');
         [$code,$finance]=$adminGet(8);
         $financeRows=array_column($finance['data']??[],null,'id');
@@ -615,6 +613,14 @@ try {
             &&$rows[$ids[0]]['wompi_payment_ref']===null
             &&$rows[$ids[0]]['can_manual_confirm']===false,'never choose among multiple signed attempts');
         t21($beforeGet===$readOnlySnapshot(),'conflict GET does not mutate ledger');
+        $pdo->exec("DELETE FROM ticket_payment_webhook_events WHERE attempt_id=604");
+        $pdo->exec("DELETE FROM ticket_payment_attempts WHERE id=604");
+        $pdo->exec("UPDATE ticket_payment_attempts SET provider_transaction_id='invalid ref' WHERE id=603");
+        $pdo->exec("UPDATE ticket_payment_webhook_events SET provider_transaction_id='invalid ref' WHERE attempt_id=603");
+        [$code,$body]=$adminGet(7); $rows=array_column($body['data']??[],null,'id');
+        t21($code===200&&$rows[$ids[0]]['payment_evidence']['reason']==='wompi_reference_unverified'
+            &&$rows[$ids[0]]['wompi_payment_ref']===null
+            &&$rows[$ids[0]]['can_manual_confirm']===false,'malformed reference cannot unlock Wompi action');
         $pdo->exec("DELETE FROM ticket_payment_webhook_events WHERE attempt_id IN (603,604)");
         $pdo->exec("DELETE FROM ticket_payment_attempts WHERE id IN (603,604)");
         $pdo->exec("UPDATE ticket_refunds SET status='requested' WHERE id IN (".implode(',',$ids).")");

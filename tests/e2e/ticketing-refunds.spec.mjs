@@ -188,7 +188,7 @@ const refundCases=[
   {id:4,event_title:'Evento sin evidencia',amount_cop:30000,status:'approved',
     payment_evidence:{channel:'unknown',state:'unavailable'},wompi_payment_ref:null,can_manual_confirm:false}
 ];
-async function visualRefunds(page,source,rows=refundCases,owner=true,code=200){
+async function visualRefunds(page,source,rows=refundCases,owner=true,code=200,pending=null){
   const endpoint='http://127.0.0.1:4173/discadmin/refunds-visual.html';
   await page.unrouteAll({behavior:'wait'});
   await page.route(endpoint,r=>r.fulfill({contentType:'text/html',
@@ -199,8 +199,11 @@ async function visualRefunds(page,source,rows=refundCases,owner=true,code=200){
       +'</script></body></html>'}));
   await page.route('**/discadmin/ticketing-refunds.js',r=>r.fulfill({
     contentType:'text/javascript',body:readFileSync(join(source,'discadmin/ticketing-refunds.js'),'utf8')}));
-  await page.route('**/api/ticketing/admin-refunds.php',r=>r.fulfill({status:code,
-    contentType:'application/json',body:JSON.stringify({ok:code===200,can_decide:owner,events:[],data:rows})}));
+  await page.route('**/api/ticketing/admin-refunds.php',async r=>{
+    if(pending)await pending;
+    return r.fulfill({status:code,contentType:'application/json',
+      body:JSON.stringify({ok:code===200,can_decide:owner,events:[],data:rows})});
+  });
   await page.goto(endpoint);
   await page.addStyleTag({content:readFileSync(join(source,'discadmin/ticketing.css'),'utf8')});
   return page.getByRole('region',{name:'Gestión de devoluciones'});
@@ -234,7 +237,13 @@ for (const width of [390,1440]) {
   });
 }
 test('AC-02 devolución: consulta, vacío, permiso y error',async({page})=>{
-  let region=await visualRefunds(page,process.cwd(),refundCases,false);
+  let release;
+  const pending=new Promise(resolve=>{release=resolve;});
+  let region=await visualRefunds(page,process.cwd(),refundCases,false,200,pending);
+  try{
+    await expect(region.getByText('Cargando solicitudes…')).toBeVisible();
+    await expect(region.locator('article')).toHaveCount(0);
+  }finally{release();}
   await expect(region.locator('article.tk-step')).toHaveCount(4);
   await expect(region.getByRole('button',{name:/Confirmar reembolso|Aprobar|Rechazar/})).toHaveCount(0);
   region=await visualRefunds(page,process.cwd(),[]);
