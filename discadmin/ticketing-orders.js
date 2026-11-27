@@ -92,7 +92,8 @@ export async function mount(panel, initialKind = 'orders') {
   }
   kind.value = initialKind === 'buyers' ? 'buyers' : 'orders';
   options();
-  let cursor = null, generation = 0;
+  let cursor = null, pageCursor = null, generation = 0, applied = null;
+  let loading = false, exporting = false, exportAllowed = false, exportMax = 0;
   const params = () => new URLSearchParams(new FormData(form));
   const cell = (tr, value, label = '') => {
     const td = tr.insertCell();
@@ -481,11 +482,15 @@ export async function mount(panel, initialKind = 'orders') {
     }
   }
   async function refresh(append = false) {
+    if (append && (loading || !applied || cursor === null)) return;
     const token = ++generation;
-    if (!append) { cursor = null; results.replaceChildren(); detail.replaceChildren(); }
+    if (!append) { cursor = null; pageCursor = null; applied = null; results.replaceChildren(); detail.replaceChildren(); }
+    loading = true;
+    syncExport();
     status.textContent = 'Consultando registros…';
-    const p = params();
-    if (cursor !== null) p.set('cursor', String(cursor));
+    const p = append ? new URLSearchParams(applied) : params();
+    const selectedCursor = cursor;
+    if (selectedCursor !== null) p.set('cursor', String(selectedCursor));
     try {
       const response = await fetch('/api/ticketing/admin-orders.php?' + p,
         {credentials:'same-origin',cache:'no-store'});
@@ -494,6 +499,11 @@ export async function mount(panel, initialKind = 'orders') {
       const data = await response.json();
       if (!data.ok || !active() || token !== generation) return;
       rowsTable(data.data.rows, append);
+      p.delete('cursor');
+      applied = p.toString();
+      pageCursor = selectedCursor;
+      exportAllowed = data.data.export_all_enabled === true;
+      exportMax = Number(data.data.export_max) || 0;
       cursor = data.data.next_cursor;
       more.hidden = !data.data.has_more;
       status.textContent = 'Resultados de consulta privada. Pagos, boletas y entregas se verifican por separado.';
@@ -502,6 +512,8 @@ export async function mount(panel, initialKind = 'orders') {
       more.hidden = true;
       status.textContent = e.message === 'FORBIDDEN' ? 'Acceso no autorizado.' :
         'No se pudo consultar. Reintenta sin cambiar datos.';
+    } finally {
+      if (active() && token === generation) { loading = false; syncExport(); }
     }
   }
   // The workspace (Pedidos or Compradores) comes from the shell tab, not a duplicate selector.
@@ -511,16 +523,63 @@ export async function mount(panel, initialKind = 'orders') {
   form.addEventListener('submit', event => { event.preventDefault(); void refresh(); });
   more.addEventListener('click', () => void refresh(true));
   const exportButton = panel.querySelector('[data-ticketing-export]');
-  if (exportButton) exportButton.addEventListener('click', async () => {
+  const allButton = exportButton && document.createElement('button');
+  if (allButton) {
+    allButton.type = 'button'; allButton.className = 'tk-button';
+    allButton.textContent = 'Exportar todos los resultados';
+    allButton.hidden = true; exportButton.after(allButton);
+    exportButton.textContent = 'Exportar CSV de esta página';
+  }
+  function syncExport() {
+    const dirty = applied === null || params().toString() !== applied;
+    if (exportButton) exportButton.disabled = loading || exporting || dirty;
+    if (allButton) {
+      allButton.hidden = !exportAllowed;
+      allButton.disabled = loading || exporting || dirty;
+      allButton.textContent = 'Exportar todos (máx. ' + exportMax + ')';
+    }
+    more.disabled = loading || dirty;
+  }
+  form.addEventListener('input', syncExport);
+  form.addEventListener('change', syncExport);
+  async function exportResponse(res) {
+    if (!res.ok) {
+      const data = await res.json().catch(()=>({}));
+      if (data.error === 'EXPORT_LIMIT') throw new Error('Acota los filtros: el máximo es '+exportMax+' resultados.');
+      if (res.status === 403 || res.status === 419) throw new Error('Exportación no autorizada.');
+      throw new Error('No se pudo exportar CSV. Reintenta.');
+    }
+    const count = res.headers.get('X-BRVTAL-Export-Count');
+    const snapshot = res.headers.get('X-BRVTAL-Export-Snapshot');
+    if (!res.headers.get('Content-Type')?.startsWith('text/csv') || count === null || !snapshot) {
+      throw new Error('No se pudo verificar el archivo CSV.');
+    }
+    return {count,snapshot,blob:await res.blob()};
+  }
+  async function download(scope) {
+    if (loading || exporting || applied === null || params().toString() !== applied
+      || (scope === 'all' && !exportAllowed)) return;
+    exporting = true; syncExport();
+    status.textContent = 'Preparando CSV privado…';
     try {
-      const p = params(); p.set('format','csv'); if (cursor) p.set('cursor',String(cursor));
-      const res = await fetch('/api/ticketing/admin-orders.php?' + p, {credentials:'same-origin',cache:'no-store'});
-      if (!res.ok) throw Error('EXPORT');
-      const url = URL.createObjectURL(await res.blob()), a = document.createElement('a');
-      a.href = url; a.download = 'brvtal-ticketing-page.csv'; a.click();
+      const p = new URLSearchParams(applied);
+      p.set('format','csv'); p.set('export_scope',scope);
+      if (scope === 'page' && pageCursor !== null) p.set('cursor',String(pageCursor));
+      const csrf = panel.querySelector('[data-ticketing-records]')?.dataset.ticketingCsrf || '';
+      const res = await fetch('/api/ticketing/admin-orders.php?' + p, {
+        credentials:'same-origin',cache:'no-store',headers:{'X-CSRF-Token':csrf}
+      });
+      const {count,snapshot,blob} = await exportResponse(res);
+      if (!active()) return;
+      const url = URL.createObjectURL(blob), link = document.createElement('a');
+      link.href = url; link.download = 'brvtal-ticketing-'+scope+'.csv'; link.click();
       URL.revokeObjectURL(url);
-      status.textContent = 'CSV privado generado de una página, sin datos de tarjetas ni secretos.';
-    } catch { status.textContent = 'No se pudo exportar CSV.'; }
-  });
+      status.textContent = 'CSV privado: '+count+' resultados · corte '+bogotaDate(snapshot)+' (Bogotá).';
+    } catch (err) {
+      if (active()) status.textContent = err instanceof Error ? err.message : 'No se pudo exportar CSV.';
+    } finally { exporting = false; if (active()) syncExport(); }
+  }
+  exportButton?.addEventListener('click', () => void download('page'));
+  allButton?.addEventListener('click', () => void download('all'));
   void refresh();
 }
