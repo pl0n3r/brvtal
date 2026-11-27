@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { execFileSync } from 'node:child_process';
 
 const iaJs = readFileSync(join(process.cwd(), 'discadmin/admin-information-architecture.js'), 'utf8');
 const iaCss = readFileSync(join(process.cwd(), 'discadmin/admin-information-architecture.css'), 'utf8');
@@ -993,3 +994,100 @@ test('DISCADMIN wrapper loads the IA layer after existing enhancements', async (
   expect(wrapper.indexOf('dashboard-v2.js')).toBeLessThan(wrapper.indexOf('data-admin-session-restore="1"'));
   expect(wrapper).toContain("str_replace($legacyRestoreBootstrap, '', $html, $restoreBootstrapCount)");
 });
+const finance2054Base='79c0fef07ec2d7e9dee9ad31daed087679591591';
+function finance2054Read(path,baseline=false) {
+  if(!baseline)return readFileSync(path,'utf8');
+  const baselineRoot=process.env.BRVTAL_FINANCE_VISUAL_BASE_DIR;
+  if(baselineRoot)return readFileSync(join(baselineRoot,path),'utf8');
+  const ref=finance2054Base+':'+path;
+  try { return execFileSync('git',['show',ref],{encoding:'utf8',timeout:20000}); }
+  catch {
+    execFileSync('git',['fetch','--no-tags','--depth=1','origin',finance2054Base],{timeout:60000});
+    return execFileSync('git',['show',ref],{encoding:'utf8',timeout:20000});
+  }
+}
+for(const width of [390,1440]){
+  test('#2054 real Finance mount, channel filters, history names, CSV and A/B '+width,async({page},testInfo)=>{
+    const calls=[];
+    let mode='ok';
+    const common={event_id:6,gross_cop:65000,discount_cop:0,approved_cop:35000,
+      pos_cop:30000,pos_orders:1,paid_orders:4,refund_cop:null,refund_in_period_cop:null,
+      net_after_refunds_cop:null,payout_cop:35000,tickets:7,unverified_orders:1,
+      types:[{ticket_type_id:8,quantity:4,gross_cop:35000,ticket_names:['General','Preventa'],unnamed_quantity:1},
+        {ticket_type_id:9,quantity:3,gross_cop:30000,ticket_names:['VIP'],unnamed_quantity:0}]};
+    const pos={...common,gross_cop:30000,approved_cop:0,pos_cop:30000,paid_orders:1,
+      tickets:3,payout_cop:0,types:[common.types[1]]};
+    const wompi={...common,gross_cop:35000,approved_cop:35000,pos_cop:0,pos_orders:0,
+      paid_orders:3,tickets:4,types:[common.types[0]]};
+    async function setup(target,baseline){
+      await target.setViewportSize({width,height:900});
+      const php=finance2054Read('discadmin/ticketing-finance.php',baseline);
+      const catalog={ok:true,events:[{id:6,title:'Evento sintético',ticket_types:[]}]};
+      const fragment=php.slice(php.indexOf('<section data-finance-module')).replace(
+        /<script type="application\/json" data-finance-catalog>[\s\S]*?<\/script>/,
+        '<script type="application/json" data-finance-catalog>'+JSON.stringify(catalog)+'</script>');
+      const rootUrl='http://127.0.0.1:4173/discadmin/finance2054.html';
+      await target.route(rootUrl,route=>route.fulfill({contentType:'text/html; charset=utf-8',
+        body:'<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><body style="margin:0;padding:16px;background:#050505;color:#f4f5f6;font:14px system-ui"><div id="admin-module-host"></div></body></html>'}));
+      await target.route('**/discadmin/ticketing.php',route=>route.fulfill({contentType:'text/html; charset=utf-8',
+        body:'<section class="ticketing" data-admin-module="ticketing" data-ticketing-role="admin"><div role="tablist"><button role="tab" id="finance" data-ticketing-tab="finance" aria-selected="true">Finanzas</button></div><div data-ticketing-panel></div></section>'}));
+      await target.route('**/discadmin/ticketing-finance.php',route=>route.fulfill({contentType:'text/html; charset=utf-8',body:fragment}));
+      await target.route('**/discadmin/ticketing-finance.js*',route=>route.fulfill({contentType:'text/javascript; charset=utf-8',
+        body:finance2054Read('discadmin/ticketing-finance.js',baseline)}));
+      await target.route('**/api/ticketing/admin-finances.php?*',route=>{
+        const params=new URL(route.request().url()).searchParams;
+        calls.push({channel:params.get('channel'),format:params.get('format')});
+        if(mode==='denied')return route.fulfill({status:403,json:{ok:false}});
+        if(mode==='error')return route.fulfill({status:503,json:{ok:false}});
+        if(params.get('format')==='csv')return route.fulfill({contentType:'text/csv; charset=utf-8',body:'event_id,pos_cop\n6,30000\n'});
+        return route.fulfill({json:{ok:true,rows:mode==='empty'?[]:[params.get('channel')==='pos'?pos:params.get('channel')==='wompi'?wompi:common]}});
+      });
+      await target.goto(rootUrl);
+      await target.addStyleTag({content:finance2054Read('discadmin/ticketing.css',baseline)});
+      await target.evaluate(()=>{window.state={authed:true,section:'ticketing'};});
+      await target.addScriptTag({content:finance2054Read('discadmin/ticketing.js',baseline)});
+      await target.evaluate(()=>window.BRVTALTicketing.mount());
+      const root=target.locator('[data-finance-module]');
+      await expect(root.locator('.tk-table tbody tr')).toHaveCount(1);
+      await root.getByText('Ver desglose',{exact:true}).click();
+      expect(await target.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+      return root;
+    }
+    const before=await page.context().newPage();
+    try{
+      const old=await setup(before,true);
+      await expect(old.locator('#tk-finance-channel option[value="pos"]')).toHaveCount(0);
+      await expect(old.getByText(/Boletas vendidas por tipo: Evento sintético/)).toBeVisible();
+      await testInfo.attach('2054-before-'+width+'.png',{body:await before.screenshot({fullPage:true}),contentType:'image/png'});
+    }finally{await before.close();}
+    const root=await setup(page,false);
+    await expect(root.getByText(/Boletas vendidas por tipo: General \/ Preventa/)).toBeVisible();
+    await expect(root.getByText(/Tipo #8 \(sin nombre histórico\)/)).toBeVisible();
+    await expect(root.getByText(/VIP · 3 boletas/)).toBeVisible();
+    await expect(root.getByText('Pedidos sin verificar: 1')).toBeVisible();
+    await testInfo.attach('2054-after-'+width+'.png',{body:await page.screenshot({fullPage:true}),contentType:'image/png'});
+    await root.locator('#tk-finance-channel').selectOption('pos');
+    await root.getByRole('button',{name:'Consultar',exact:true}).click();
+    await expect(root.locator('td[data-label="Ingresos verificados"]')).toContainText(/POS:.*30\.000/);
+    await root.getByText('Ver desglose',{exact:true}).click();
+    await expect(root.getByText(/Boletas vendidas por tipo:/)).not.toContainText('General');
+    const download=page.waitForEvent('download');
+    await root.getByRole('button',{name:'Exportar CSV'}).click();
+    expect((await download).suggestedFilename()).toBe('brvtal-finanzas.csv');
+    expect(calls.at(-1)).toEqual({channel:'pos',format:'csv'});
+    await root.locator('#tk-finance-channel').selectOption('wompi');
+    await root.getByRole('button',{name:'Consultar',exact:true}).click();
+    await expect(root.locator('td[data-label="Ingresos verificados"]')).toContainText(/Wompi:.*35\.000/);
+    mode='empty';
+    await root.getByRole('button',{name:'Consultar',exact:true}).click();
+    await expect(root.getByText('No hay movimientos para los filtros seleccionados.')).toBeVisible();
+    mode='denied';
+    await root.getByRole('button',{name:'Consultar',exact:true}).click();
+    await expect(root.locator('[data-finance-status]')).toHaveText('No tienes permiso para consultar finanzas.');
+    await expect(root.locator('.tk-table')).toHaveCount(0);
+    mode='error';
+    await root.getByRole('button',{name:'Consultar',exact:true}).click();
+    await expect(root.locator('[data-finance-status]')).toHaveText('No fue posible consultar finanzas.');
+    await expect(root.locator('.tk-table')).toHaveCount(0);
+  });
+}
