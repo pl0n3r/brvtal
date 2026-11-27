@@ -122,6 +122,7 @@ $catalogJson=json_encode(['ok'=>true,'events'=>$catalog],
   </section>
   <section id="tk-finance-settlements" hidden aria-labelledby="tk-settlements-title"
     data-settlement-csrf="<?= htmlspecialchars(brvtal_admin_csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
+    <template data-settlement-template>
     <h3 id="tk-settlements-title">Conciliación de abonos</h3>
     <p>Importa un reporte CSV de prueba (máximo 1 MB). No uses datos reales. Los estados se calculan por referencia de transacción entre todos los abonos activos; no acreditan saldo bancario.</p>
     <form data-settlement-form class="tk-form">
@@ -135,5 +136,6 @@ $catalogJson=json_encode(['ok'=>true,'events'=>$catalog],
     <div class="tk-actions"><button class="tk-button" type="button" data-settlement-refresh>Actualizar abonos</button></div>
     <p class="tk-status" role="status" aria-live="polite" data-settlement-status></p>
     <div data-settlement-results></div>
+    </template>
   </section>
 </section>

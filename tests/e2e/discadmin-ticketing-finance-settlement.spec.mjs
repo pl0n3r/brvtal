@@ -68,6 +68,8 @@ for(const width of [390,1440]){
     await expect(page.getByRole('button',{name:'Conciliación',exact:true})).toHaveCount(0);
     await capture(page,info,'before',width);
     await mount(page,false,handler);
+    await expect(page.locator('[data-finance-module] .tk-form')).toHaveCount(1);
+    await expect(page.locator('[data-finance-module]')).not.toContainText(/sintético|pruebas|UTC/i);
     await page.getByRole('button',{name:'Conciliación',exact:true}).click();
     await expect(page.getByText('No hay abonos importados.',{exact:false})).toBeVisible();
     const input=page.getByLabel('Archivo CSV');

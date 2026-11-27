@@ -155,6 +155,7 @@ function mountLedger(root, live) {
 const settlementLabels = {pending:'Por conciliar',partial:'Parcial',reconciled:'Conciliado',discrepancy:'Discrepancia'};
 const settlementMoney = value => value == null ? 'Sin dato' : peso.format(BigInt(value));
 function mountSettlements(root, live) {
+  root.append(root.querySelector('[data-settlement-template]').content.cloneNode(true));
   const form=root.querySelector('form'), fields=form.querySelector('fieldset');
   const file=form.elements.file, refresh=root.querySelector('[data-settlement-refresh]');
   const status=root.querySelector('[data-settlement-status]'), results=root.querySelector('[data-settlement-results]');
