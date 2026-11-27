@@ -138,7 +138,8 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
                 gross_amount_cop BIGINT,fee_amount_cop BIGINT,fee_vat_cop BIGINT,
                 withheld_amount_cop BIGINT,net_amount_cop BIGINT,provider_reference VARCHAR(40)) ENGINE=InnoDB',
             'CREATE TABLE ticket_payment_webhook_events (
-                attempt_id INT PRIMARY KEY,provider_transaction_id VARCHAR(30)) ENGINE=InnoDB',
+                id INT AUTO_INCREMENT PRIMARY KEY,attempt_id INT NOT NULL,provider_transaction_id VARCHAR(30),
+                event_checksum VARCHAR(64),UNIQUE KEY proof(attempt_id,provider_transaction_id,event_checksum)) ENGINE=InnoDB',
             'CREATE TABLE ticket_courtesy_invites (order_id INT NOT NULL) ENGINE=InnoDB',
             'CREATE TABLE ticket_pos_shifts (
                 id INT PRIMARY KEY,event_id INT NOT NULL,operator_admin_id INT NOT NULL
@@ -162,8 +163,8 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
         // Synthetic journal and line/price proof expected by the canonical classifier.
         $completeProof=static function () use ($db): void {
             $db->exec("UPDATE ticket_payment_attempts SET provider_reference=CONCAT('FIXTURE-',id)");
-            $db->exec("INSERT IGNORE INTO ticket_payment_webhook_events
-                SELECT id,provider_transaction_id FROM ticket_payment_attempts WHERE status='approved'");
+            $db->exec("INSERT IGNORE INTO ticket_payment_webhook_events (attempt_id,provider_transaction_id,event_checksum)
+                SELECT id,provider_transaction_id,'fixture' FROM ticket_payment_attempts WHERE status='approved'");
             $db->exec("UPDATE ticket_order_items i JOIN ticket_orders o ON o.id=i.order_id
                 SET i.event_id=o.event_id,i.unit_price_cop=i.subtotal_cop DIV i.quantity");
             $db->exec("UPDATE ticket_pos_sales SET unit_price_cop=amount_cop DIV quantity");
@@ -202,7 +203,21 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
             && $aprilCut['refund_in_period_cop']===10000,'later full refund changes only adjustment date');
         $posCut=brvtalFinanceReport($db,2,null,null,'pos')[0];
         t20($posCut['pos_cop']===20000 && $posCut['refund_cop']===0
-            && $posCut['net_after_refunds_cop']===20000,'POS stays separate without Wompi refund');
+            && $posCut['net_after_refunds_cop']===20000 && $posCut['discrepancies']===[],
+            'POS stays separate without Wompi refund');
+        $db->exec("ALTER TABLE ticket_pos_sales ADD request_hash CHAR(64)");
+        $db->exec("CREATE TABLE ticket_order_notes (id INT AUTO_INCREMENT PRIMARY KEY,
+            order_id INT,actor_admin_id INT,note_text VARCHAR(255)) ENGINE=InnoDB");
+        $db->exec("UPDATE ticket_pos_sales SET method='transfer',request_hash=REPEAT('a',64) WHERE order_id=42");
+        $transfer=brvtalFinanceReport($db,2,null,null,'pos')[0];
+        t20($transfer['paid_orders']===0 && $transfer['pos_cop']===0
+            && $transfer['discrepancies'][0]['reason']==='invalid_pos'
+            && $transfer['discrepancies'][0]['authenticated_cop']===null,'transfer without audited note is not a sale');
+        $db->exec("INSERT INTO ticket_order_notes (order_id,actor_admin_id,note_text)
+            VALUES (42,7,CONCAT('manual-payment|transfer|FIXTURE|',REPEAT('a',64)))");
+        $transfer=brvtalFinanceReport($db,2,null,null,'pos')[0];
+        t20($transfer['paid_orders']===1 && $transfer['pos_cop']===20000
+            && $transfer['discrepancies']===[],'transfer with canonical audited note is a sale');
         t20(brvtalFinanceReport($db,1,'2026-04-01','2026-04-30','wompi')===[],
             'refund in different month does not rewrite sale date');
         // #2044: exact same creation-date cohort as T18, independent refund cut.
@@ -266,6 +281,15 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
             t20($cohort['unverified_orders']===2 && $cohort['refund_cop']===null
                 && $cohort['net_after_refunds_cop']===null,'both filters preserve conflicting evidence as UNKNOWN');
         }
+        $incidents=array_column($all['discrepancies'],null,'order_id');
+        t20(count($incidents)===2 && $incidents[48]['authenticated_cop']===null
+            && $incidents[50]['authenticated_cop']===40000
+            && $incidents[50]['wompi_receipts']===[['transaction_id'=>'W-50','gross_cop'=>40000]],
+            'pending POS conflict and authenticated conflicting payment remain separate from income');
+        foreach ([$wompi,$cash] as $cohort) {
+            t20(array_column($cohort['discrepancies'],null,'order_id')===$incidents,
+                'same incident evidence independent of display filter');
+        }
         t20($all['types'][0]===['ticket_type_id'=>8,'quantity'=>4,'gross_cop'=>35000,
             'ticket_names'=>['General','Preventa'],'unnamed_quantity'=>1]
             && $all['types'][1]===['ticket_type_id'=>9,'quantity'=>3,'gross_cop'=>30000,
@@ -299,6 +323,24 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
             && $evidence[52]['attempts'][0]['provider']==='other','all providers retained');
         t20($evidence[49]['classification']['reason']==='channel_conflict'
             && count($evidence[49]['pos_sales'])===1,'incomplete POS not erased by join');
+        $db->exec("INSERT INTO ticket_payment_webhook_events (attempt_id,provider_transaction_id,event_checksum)
+            VALUES (57,'W-47','replay')");
+        $mixed=brvtalFinanceReport($db,4,null,null,'wompi')[0];
+        $incidents=array_column($mixed['discrepancies'],null,'order_id');
+        t20($incidents[47]['reason']==='duplicate_wompi'
+            && $incidents[47]['authenticated_cop']===40000
+            && $incidents[47]['wompi_receipts']===[
+                ['transaction_id'=>'W-47','gross_cop'=>20000],
+                ['transaction_id'=>'W-47-SECOND','gross_cop'=>20000]]
+            && $mixed['paid_orders']===1 && $mixed['approved_cop']===5000,
+            'distinct authentic payments reported separately; journal replay never counts twice');
+        $db->exec("INSERT INTO ticket_payment_attempts
+            (id,order_id,provider,provider_transaction_id,status,gross_amount_cop,provider_reference)
+            VALUES (64,47,'wompi','W-47-UNPROVEN','approved',20000,'FIXTURE-64')");
+        $unproven=array_column(brvtalFinanceReport($db,4,null,null,'all')[0]['discrepancies'],null,'order_id')[47];
+        t20($unproven['authenticated_cop']===null && $unproven['unproven_attempts']===1
+            && count($unproven['wompi_receipts'])===2,'unknown total with two known receipts and unproven attempt');
+        $db->exec("DELETE FROM ticket_payment_attempts WHERE id=64");
         $db->exec('RENAME TABLE ticket_payment_webhook_events TO journal_unavailable');
         $unknown=brvtalFinanceChannelEvidence($db,$candidates)['by_order'][51];
         t20(!$unknown['availability']['wompi_events']
@@ -307,9 +349,17 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
             $unavailable=brvtalFinanceReport($db,4,null,null,$channel)[0];
             t20($unavailable['paid_orders']===0 && $unavailable['net_after_refunds_cop']===null,
                 'missing proof never becomes verified zero');
+            $incidents=array_column($unavailable['discrepancies'],null,'order_id');
+            t20($incidents[51]['authenticated_cop']===null && $incidents[51]['wompi_receipts']===[],
+                'journal unavailable does not create an authenticated receipt');
         }
         $db->exec('RENAME TABLE journal_unavailable TO ticket_payment_webhook_events');
-        t20(brvtalFinanceReport($db,999,null,null,'all')===[],'empty universe');
+        t20(brvtalFinanceReport($db,999,null,null,'all')===[] && !$db->inTransaction(),
+            'empty universe releases report transaction');
+        $db->beginTransaction();
+        t20(brvtalFinanceReport($db,999,null,null,'all')===[] && $db->inTransaction(),
+            'report never commits a caller-owned transaction');
+        $db->rollBack();
         // The 5000-order cap is applied to the universe, not only selected rows.
         $oversized=[];
         for ($id=1000; $id<6001; $id++) {
@@ -338,7 +388,8 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
                 brvtalFinanceReport($db,4,null,null,$channel);
                 throw new RuntimeException('T20: finance accepted missing POS evidence');
             } catch (PDOException $e) {
-                t20($e->getCode()==='42S02','missing POS table must fail closed for every channel');
+                t20($e->getCode()==='42S02' && !$db->inTransaction(),
+                    'missing POS table fails closed and rolls back report snapshot');
             }
         }
     } finally {
