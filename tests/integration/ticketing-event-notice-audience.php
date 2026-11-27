@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+// @brvtal-ci database
 require_once __DIR__.'/../../config/ticketing_event_notice_audience.php';
 function noticeAssert(bool $ok,string $why): void {if (!$ok) throw new RuntimeException('T2090: '.$why);}
 foreach ([[],['event_id'=>'0'],['event_id'=>'01'],['event_id'=>['1']],['event_id'=>'1 OR 1=1'],
@@ -21,7 +22,7 @@ noticeAssert(brvtalNoticeCounts([$sample,$other],7,'cancelled')['counts']['group
 noticeAssert(brvtalNoticeCounts([['units'=>2]+$sample],7,'cancelled')['counts']['groups']['mixed_review']===1,'partial issuance needs review');
 noticeAssert(brvtalNoticeCounts([$sample,$sample],7,'cancelled')['counts']===null,'duplicate order snapshot unknown');
 noticeAssert(brvtalNoticeCounts([['event_id'=>8]+$sample],7,'cancelled')['counts']===null,'foreign event snapshot unknown');
-if (getenv('BRVTAL_INTEGRATION_TESTS')!=='1') {echo "T2090 typed scope and empty projection OK; MariaDB requires integration environment.\n";exit(0);}
+noticeAssert(getenv('BRVTAL_INTEGRATION_TESTS')==='1' && getenv('BRVTAL_TEST_DB_HOST')==='127.0.0.1','disposable loopback integration required');
 $base=(string)getenv('BRVTAL_TEST_DB_NAME');
 noticeAssert((bool)preg_match('/^brvtal_test[a-zA-Z0-9_]*$/D',$base),'disposable DB only');
 $host=(string)(getenv('BRVTAL_TEST_DB_HOST')?:'127.0.0.1'); $port=(int)(getenv('BRVTAL_TEST_DB_PORT')?:3306);
@@ -131,4 +132,4 @@ try {
     $db->exec('DROP TABLE ticket_courtesy_invites');
     noticeAssert(brvtalNoticePreview($db,7,'owner')['counts']===null,'missing schema unknown');
 } finally {$root->exec('DROP DATABASE IF EXISTS '.$name);}
-echo "BRVTAL #2090 audience synthetic MariaDB integration passed.\n";
+echo "BRVTAL_MARKED_DATABASE_PASS: ticketing-event-notice-audience.php\n";
