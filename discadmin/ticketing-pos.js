@@ -88,6 +88,11 @@ export function mount(target) {
     'manual_confirm',manualConfirmInput);
   const manualPreview=el('div',undefined,'ticketing-empty');
   manualPreview.dataset.posManualPreview='1';
+  // Keep the quote above the action instead of stretching a neighboring grid cell.
+  manualPreview.style.gridColumn='1 / -1';
+  manualPreview.style.color='var(--text,#f4f5f6)';
+  manualPreview.style.overflowWrap='anywhere';
+  setVisible(manualPreview,false);
   manualPreview.setAttribute('aria-live','polite');
   manualForm.append(manualPreview);
   const manualSubmit=el('button','Revisar pedido manual','tk-button is-primary');
@@ -122,14 +127,31 @@ export function mount(target) {
   if(storedIntent!==null&&!/^[a-f0-9]{32}$/.test(storedIntent))storageAvailable=false;
   let manualKey=storedIntent||crypto.randomUUID().replaceAll('-','');
   let manualSubmitted=false,manualReviewed=false,reviewSnapshot=null,manualPending=false;
+  let manualQuote=null,reviewGeneration=0;
+  const stageLabels={early_bird:'Early bird',preventa:'Preventa',general:'General',puerta:'Puerta'};
+  const cop=new Intl.NumberFormat('es-CO');
+  const quoteTime=new Intl.DateTimeFormat('es-CO',{timeZone:'America/Bogota',dateStyle:'short',timeStyle:'medium'});
+  const quoteValid=(q,quantity)=>q?.channel==='manual'&&Number.isSafeInteger(q.unit_price_cop)
+    &&q.unit_price_cop>0&&Number.isSafeInteger(q.amount_cop)&&q.amount_cop===q.unit_price_cop*Number(quantity)
+    &&q.amount_cop<=10000000&&((q.source==='base'&&q.stage_code===null)
+      ||(q.source==='stage'&&Object.hasOwn(stageLabels,q.stage_code)))
+    &&typeof q.quote_token==='string'&&q.quote_token.length>0&&q.quote_token.length<=256
+    &&typeof q.expires_at_utc==='string'&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(q.expires_at_utc)
+    &&Date.parse(q.expires_at_utc)>Date.now();
+  const clearManualReview=()=>{
+    manualReviewed=false;reviewSnapshot=null;manualQuote=null;
+    manualPreview.replaceChildren();setVisible(manualPreview,false);
+    manualSubmit.textContent='Revisar pedido manual';
+  };
   let recoveryRequired=!!storedIntent||!storageAvailable;
   const renderManualReceipt=(data,recovered)=>{
-    manualSubmitted=true;manualSubmit.disabled=true;
+    manualSubmitted=true;manualSubmit.disabled=true;manualQuote=null;
+    if(recovered){manualPreview.replaceChildren();setVisible(manualPreview,false);manualReviewed=false;reviewSnapshot=null;}
     let delivery='emisión de QR en cola, entrega por correo no verificada.';
     if(data.issuance==='issued')delivery='QR emitido, entrega por correo no verificada.';
     else if(recovered)delivery='emisión de QR pendiente, entrega por correo no verificada.';
     manualStatus.textContent='Pedido #'+data.order_id+(recovered?' recuperado.':' creado.')
-      +' Pago offline confirmado; '+delivery;
+      +' Pago offline confirmado; '+delivery+(recovered?' Se conserva el importe del recibo original.':'');
     manualReceipt.replaceChildren(el('p','Pedido #'+data.order_id+' · '
       +data.amount_cop+' COP · '+data.method+'. Consulta Pedidos para verificar el estado.'));
     const navigate=el('button','Ver en Pedidos','tk-button');navigate.type='button';
@@ -147,8 +169,7 @@ export function mount(target) {
       if(data.state==='found'&&data.status==='paid'&&['issued','pending'].includes(data.issuance)){
         recoveryRequired=false;renderManualReceipt(data,true);
       }else if(data.state==='not_found'){
-        recoveryRequired=false;manualReviewed=false;reviewSnapshot=null;
-        manualPreview.replaceChildren();manualSubmit.textContent='Revisar pedido manual';
+        recoveryRequired=false;clearManualReview();
         manualStatus.textContent='No hay recibo verificable todavía. Esto no prueba que el pago no se registró. Si reintentas, revisa y confirma los datos originales con la misma intención.';
       }else{
         manualStatus.textContent='Resultado incierto. No registres otra venta; consulta de nuevo el recibo o verifica Pedidos.';
@@ -163,10 +184,10 @@ export function mount(target) {
   };
   manualLookup.addEventListener('click',()=>void recoverManual());
   const resetManualReview=()=>{
+    reviewGeneration++;
     if(manualPending)return;
-    manualReviewed=false;reviewSnapshot=null;
-    manualPreview.replaceChildren();
-    manualSubmit.textContent='Revisar pedido manual';
+    if(manualReviewed)manualStatus.textContent='Los datos cambiaron. Revisa una cotización nueva.';
+    clearManualReview();
     if(manualSubmitted){
       try {sessionStorage.removeItem(storageKey);}catch{
         recoveryRequired=true;manualSubmit.disabled=true;return;
@@ -181,43 +202,68 @@ export function mount(target) {
   manualForm.addEventListener('input',resetManualReview);
   manualForm.addEventListener('change',resetManualReview);
   manualRef.addEventListener('input',()=>manualRef.setCustomValidity(''));
-  manualForm.addEventListener('submit',async e=>{
-    e.preventDefault();
-    if(!active()||manualSubmitted||manualPending||busy||recoveryRequired||!manualForm.reportValidity())return;
+  const validManualReference=()=>{
     const reference=manualRef.value.trim();
     if(manualMethod.value!=='cash' && (reference.length<4
         || !/^[A-Za-z0-9][A-Za-z0-9 ._/-]*$/.test(reference))){
       manualStatus.textContent='La referencia debe tener entre 4 y 80 caracteres válidos.';
       manualRef.setCustomValidity('Ingresa la referencia completa del pago verificado.');
-      manualRef.reportValidity();return;
+      manualRef.reportValidity();return false;
     }
     manualRef.setCustomValidity('');
-    const raw={
-      action:'manual_order',event_id:manualEvent.value,
-      ticket_type_id:manualType.value,quantity:manualQty.value,
-      buyer_name:manualName.value.trim(),buyer_email:manualEmail.value.trim(),
-      method:manualMethod.value,payment_reference:reference,
-      idempotency_key:manualKey,confirm:manualConfirm.checked
-    };
-    // Changes to a field, even if scripted without an input event, must
-    // force a fresh operator review before any paid-order request.
-    const snapshot=JSON.stringify(raw);
-    if(!manualReviewed||reviewSnapshot!==snapshot){
-      const eventLabel=manualEvent.selectedOptions[0]?.textContent||'Evento';
-      const ticketLabel=manualType.selectedOptions[0]?.textContent||'Boleta';
-      const methodLabel=manualMethod.selectedOptions[0]?.textContent||raw.method;
-      manualPreview.replaceChildren(
-        el('strong','Resumen antes de crear el pedido pagado'),
-        el('p',eventLabel+' · '+ticketLabel+' · '+raw.quantity+' boleta(s)'),
-        el('p','Comprador y destinatario: '+raw.buyer_name+' · '+raw.buyer_email),
-        el('p','Medio: '+methodLabel+' · referencia: '+(reference||'no aplica')),
-        el('p','El servidor validará el precio y el cupo; confirmar registra el pago offline como recibido.')
-      );
-      reviewSnapshot=snapshot;manualReviewed=true;
-      manualSubmit.textContent='Confirmar y crear pedido';
-      manualStatus.textContent='Revisa cantidad, correo y referencia. Confirma solo si el pago ya está acreditado.';
-      return;
+    return true;
+  };
+  const readManualOrder=()=>({
+    action:'manual_order',event_id:manualEvent.value,
+    ticket_type_id:manualType.value,quantity:manualQty.value,
+    buyer_name:manualName.value.trim(),buyer_email:manualEmail.value.trim(),
+    method:manualMethod.value,payment_reference:manualRef.value.trim(),
+    idempotency_key:manualKey,confirm:manualConfirm.checked
+  });
+  const renderManualQuote=(q,raw,snapshot)=>{
+    const eventLabel=manualEvent.selectedOptions[0]?.textContent||'Evento';
+    const ticketLabel=manualType.selectedOptions[0]?.textContent||'Boleta';
+    const methodLabel=manualMethod.selectedOptions[0]?.textContent||raw.method;
+    manualPreview.replaceChildren(
+      el('strong','Total a registrar: '+cop.format(q.amount_cop)+' COP'),
+      el('p',eventLabel+' · '+ticketLabel+' · '+raw.quantity+' boleta(s)'),
+      el('p','Precio unitario: '+cop.format(q.unit_price_cop)+' COP'),
+      el('p','Tarifa: '+(q.source==='stage'?'Etapa '+stageLabels[q.stage_code]:'Precio base')),
+      el('p','Válida hasta '+quoteTime.format(new Date(q.expires_at_utc))+' (Bogotá)'),
+      el('p','Comprador y destinatario: '+raw.buyer_name+' · '+raw.buyer_email),
+      el('p','Medio: '+methodLabel+' · referencia: '+(raw.payment_reference||'no aplica')),
+      el('p','Confirma únicamente si el importe coincide con el pago offline verificado.')
+    );
+    setVisible(manualPreview,true);
+    manualQuote=q;reviewSnapshot=snapshot;manualReviewed=true;
+    manualSubmit.textContent='Confirmar y crear pedido';
+    manualStatus.textContent='Revisa el total, la tarifa y los datos antes de confirmar.';
+  };
+  const requestManualQuote=async(raw,snapshot)=>{
+    clearManualReview();
+    const generation=reviewGeneration;
+    manualPending=true;manualSubmit.disabled=true;
+    manualStatus.textContent='Consultando tarifa y cupo…';
+    try{
+      const q=await transaction({action:'manual_quote',event_id:raw.event_id,
+        ticket_type_id:raw.ticket_type_id,quantity:raw.quantity,idempotency_key:raw.idempotency_key});
+      if(!active())return;
+      if(generation!==reviewGeneration||JSON.stringify(readManualOrder())!==snapshot){
+        manualStatus.textContent='Los datos cambiaron. Revisa una cotización nueva.';return;
+      }
+      if(!quoteValid(q,raw.quantity))throw new Error('POS_QUOTE_INVALID');
+      renderManualQuote(q,raw,snapshot);
+    }catch(error){
+      if(active())manualStatus.textContent=error.message==='FORBIDDEN'
+        ?'Solo el propietario puede cotizar pedidos manuales.'
+        :'No hay cotización válida. Revisa los datos y vuelve a cotizar; no se envió el pedido.';
+    }finally{
+      manualPending=false;
+      if(active())manualSubmit.disabled=recoveryRequired||manualSubmitted;
     }
+  };
+  const submitManualOrder=async raw=>{
+    raw.quote_token=manualQuote.quote_token;
     try{sessionStorage.setItem(storageKey,manualKey);storedIntent=manualKey;}
     catch{recoveryRequired=true;manualSubmit.disabled=true;
       manualStatus.textContent='No se puede conservar la intención. No se envió el pedido.';return;}
@@ -242,8 +288,11 @@ export function mount(target) {
         INVENTORY_NOT_SALEABLE:'El evento o la boleta ya no están disponibles.',
         POS_IDEMPOTENCY_CONFLICT:'La misma solicitud ya se usó con datos diferentes.',
         POS_TYPE_UNAVAILABLE:'No se encontró la boleta seleccionada.',
+        POS_QUOTE_CHANGED:'La tarifa o el cupo cambiaron, o la cotización venció. Revisa una cotización nueva.',
+        POS_QUOTE_REQUIRED:'Se necesita una cotización nueva antes de confirmar.',
         POS_INVALID_MANUAL_ORDER:'El servidor rechazó los datos. Revisa la referencia, el nombre y el medio de pago.'
       };
+      if(error.status===409||error.status===403)clearManualReview();
       recoveryRequired=!Object.hasOwn(reasons,error.message)||error.message==='POS_IDEMPOTENCY_CONFLICT';
       manualStatus.textContent=reasons[error.message]
         || 'No se pudo verificar el resultado. Consultando el recibo original…';
@@ -255,6 +304,24 @@ export function mount(target) {
         if(recoveryRequired)void recoverManual();
       }
     }
+  };
+  manualForm.addEventListener('submit',async e=>{
+    e.preventDefault();
+    if(!active()||manualSubmitted||manualPending||busy||recoveryRequired||!manualForm.reportValidity())return;
+    if(!validManualReference())return;
+    const raw=readManualOrder();
+    // Changes to a field, even if scripted without an input event, must
+    // force a fresh operator review before any paid-order request.
+    const snapshot=JSON.stringify(raw);
+    if(!manualReviewed||reviewSnapshot!==snapshot){
+      await requestManualQuote(raw,snapshot);return;
+    }
+    if(!quoteValid(manualQuote,raw.quantity)){
+      clearManualReview();
+      manualStatus.textContent='La cotización venció. Revisa una cotización nueva antes de confirmar.';
+      return;
+    }
+    await submitManualOrder(raw);
   });
   async function loadCatalog() {
     try {
@@ -309,7 +376,8 @@ export function mount(target) {
         body:JSON.stringify(raw)
       });
       const payload=await response.json();
-      if(!response.ok||payload.ok!==true||!payload.data)throw Error(payload.error||'DENIED');
+      if(!response.ok||payload.ok!==true||!payload.data)
+        throw Object.assign(new Error(payload.error||'DENIED'),{status:response.status});
       return payload.data;
     }finally{busy=false;}
   };
