@@ -2,6 +2,12 @@
 const peso = new Intl.NumberFormat('es-CO', {style:'currency',currency:'COP',maximumFractionDigits:0});
 const cash = value => value == null ? 'Sin dato' : peso.format(Number(value));
 const quantity = value => value == null ? 'Sin dato' : String(value);
+function payoutLabel(row) {
+  if (row.approved_cop == null) return 'Sin dato';
+  const hasWompi=Array.isArray(row.transactions)&&row.transactions.some(x=>x.provider==='wompi');
+  if (Number(row.approved_cop)>0 || hasWompi) return cash(row.payout_cop);
+  return Number(row.unverified_orders)>0?'Sin dato':'No aplica';
+}
 const make = (tag, text) => { const el=document.createElement(tag); if(text!==undefined) el.textContent=String(text); return el; };
 
 export async function mount(panel) {
@@ -30,6 +36,13 @@ export async function mount(panel) {
     function eventLabel(id) {
       return catalog.find(row=>String(row.id)===String(id))?.title || 'Evento ' + id;
     }
+    function typeLabel(type) {
+      const names=Array.isArray(type.ticket_names)?type.ticket_names.filter(name=>typeof name==='string'&&name.trim()):[];
+      const fallback='Tipo #'+String(type.ticket_type_id)+' (sin nombre histórico)';
+      if (!names.length) return fallback;
+      const label=names.join(' / ')+(names.length>1?' (nombres históricos)':'');
+      return Number(type.unnamed_quantity)>0?label+' / '+fallback:label;
+    }
     function fillEventOptions() {
       const selected=event.value;
       const options=new Map();
@@ -47,7 +60,7 @@ export async function mount(panel) {
       if (!rows.length) { results.append(make('p','No hay movimientos para los filtros seleccionados.')); return; }
       const table=make('table');table.className='tk-table';
       const header=table.createTHead().insertRow();
-      for (const name of ['Evento','Aprobado','Pagos','Devuelto','Neto tras devolución','Abono informado','Detalle']) {
+      for (const name of ['Evento','Ingresos verificados','Pagos','Devuelto','Neto tras devolución','Abono Wompi informado','Detalle']) {
         const th=make('th',name);th.scope='col';header.append(th);
       }
       const body=table.createTBody();
@@ -55,11 +68,11 @@ export async function mount(panel) {
         const tr=body.insertRow();
         const fields=[
           ['Evento',eventLabel(row.event_id)],
-          ['Aprobado',cash(row.approved_cop)],
+          ['Ingresos verificados','Wompi: '+cash(row.approved_cop)+' · POS: '+cash(row.pos_cop)],
           ['Pagos',quantity(row.paid_orders)],
           ['Devuelto',cash(row.refund_cop)],
           ['Neto tras devolución',cash(row.net_after_refunds_cop)],
-          ['Abono informado',cash(row.payout_cop)],
+          ['Abono Wompi informado',payoutLabel(row)],
         ];
         for (const [label,value] of fields) {
           const td=make('td',value);td.dataset.label=label;tr.append(td);
@@ -73,14 +86,15 @@ export async function mount(panel) {
           ['Pendientes',quantity(row.pending_orders)],['Rechazados',quantity(row.declined_orders)],
           ['Reembolsados',quantity(row.refunded_orders)],['Boletas',quantity(row.tickets)],
           ['Cupos',quantity(row.capacity)],['Ingresos a puerta',quantity(row.checkins)],
-          ['Caja presencial',cash(row.pos_cop)],['Ventas de caja',quantity(row.pos_orders)],
+          ['Caja presencial (POS)',cash(row.pos_cop)],['Ventas de caja',quantity(row.pos_orders)],
+          ['Pedidos sin verificar',quantity(row.unverified_orders)],
           ['Comisión Wompi',cash(row.fee_cop)],['IVA',cash(row.fee_vat_cop)],
           ['Retenciones',cash(row.withheld_cop)],['Diferencia estimada',cash(row.difference_cop)]
         ]) list.append(make('li',label+': '+value));
         const types=Array.isArray(row.types)?row.types:[];
         const transactions=Array.isArray(row.transactions)?row.transactions:[];
         list.append(make('li','Boletas vendidas por tipo: '+(types.length
-          ? types.map(x=>eventLabel(row.event_id)+' · '+x.quantity+' boletas · '+cash(x.gross_cop)).join('; ')
+          ? types.map(x=>typeLabel(x)+' · '+quantity(x.quantity)+' boletas · '+cash(x.gross_cop)).join('; ')
           : 'Sin ventas registradas')));
         list.append(make('li','Referencias de transacciones: '+(transactions.length
           ? transactions.map(x=>String(x.transaction_id||'Sin referencia')).join('; ')

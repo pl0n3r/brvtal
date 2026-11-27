@@ -1,21 +1,8 @@
 <?php
 declare(strict_types=1);
 // Isolated MariaDB fixture: never contact the provider or store a real recipient.
-function brvtal_ticket_mail_enqueue(PDO $db, string $key, string $reference,
-    string $recipient, string $subject, string $body, ?string $html = null,
-    ?string $templateKey = null, ?int $templateVersion = null): int
-{
-    if (!$db->inTransaction()) throw new RuntimeException('fixture transaction required');
-    if ($templateKey !== 'reminder' || !str_contains($body,'/compra/')
-        || !str_contains((string)$html,'solicitar la baja')) {
-        throw new RuntimeException('fixture reminder template invalid');
-    }
-    $q = $db->prepare('INSERT INTO ticket_mail_outbox (message_key,related_ref,state)
-        VALUES (?,?,"queued")');
-    $q->execute([$key,$reference]);
-    return (int)$db->lastInsertId();
-}
 require_once __DIR__ . '/../../config/ticketing_recovery.php';
+require_once __DIR__ . '/../../config/ticketing_mail_templates.php';
 function t29(bool $ok,string $why):void {if(!$ok)throw new RuntimeException('T29 '.$why);}
 foreach ([['order_id'=>-1,'campaign'=>'checkout','idempotency_key'=>str_repeat('a',32)],
           ['order_id'=>1,'campaign'=>'email@buyer','idempotency_key'=>str_repeat('a',32)],
@@ -73,9 +60,20 @@ try {
         ADD created_at_utc DATETIME(6) NOT NULL DEFAULT (UTC_TIMESTAMP(6))');
     $db->exec("UPDATE ticket_orders SET public_id=UNHEX(LPAD(HEX(id),32,'0')),
         created_at_utc=DATE_SUB(UTC_TIMESTAMP(6), INTERVAL 60 MINUTE)");
-    $db->exec('CREATE TABLE ticket_mail_outbox (id BIGINT AUTO_INCREMENT PRIMARY KEY,
-        message_key VARCHAR(128) NOT NULL UNIQUE,related_ref VARCHAR(128) NOT NULL,
-        state VARCHAR(20) NOT NULL)');
+    foreach (['ticketing_mail_outbox_01','ticket_mail_html_01','ticketing_mail_history_01'] as $migration) {
+        $db->exec((string)file_get_contents(__DIR__.'/../../database/migration_'.$migration.'.sql'));
+    }
+    // Real enqueue and history, never delivery. Synthetic configuration only.
+    $GLOBALS['config'] = ['ticketing'=>['mail'=>['testing'=>'1','mode'=>'mock']]];
+    putenv('BRVTAL_TICKET_MAIL_TESTING=1');
+    $db->exec("ALTER TABLE ticket_payment_attempts ADD provider VARCHAR(24) NULL,
+        ADD provider_transaction_id VARCHAR(190) NULL");
+    $db->exec('CREATE TABLE ticket_payment_webhook_events (attempt_id BIGINT,
+        provider_transaction_id VARCHAR(190),signed_status VARCHAR(16))');
+    $db->exec('CREATE TABLE ticket_issue_outbox (order_id BIGINT PRIMARY KEY,
+        payment_attempt_id BIGINT,state VARCHAR(16))');
+    $db->exec('CREATE TABLE ticket_entries (id BIGINT PRIMARY KEY,
+        order_item_id BIGINT,status VARCHAR(16))');
     // Real checkout holds expire in 10 minutes. A reminder must fit inside that hold.
     $db->exec("UPDATE ticket_orders SET
         created_at_utc=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 6 MINUTE),
@@ -122,8 +120,21 @@ try {
             array_merge($input,['order_id'=>$id]),$ready);
         t29($once['reason']===$reason,"suppression $id");
     }
-    t29((int)$db->query('SELECT COUNT(*) FROM ticket_mail_outbox')->fetchColumn()===1,
-        'only one durable reminder exists');
+    t29((int)$db->query("SELECT COUNT(*) FROM ticket_mail_outbox
+        WHERE message_key='order:91:abandoned_checkout' AND template_key='reminder'
+          AND body_text LIKE '%/compra/%'")->fetchColumn()===1, 'one durable abandonment snapshot');
+    // An unrelated old shared key is deliberately not classified from current status.
+    $db->exec("UPDATE ticket_orders SET created_at_utc=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 6 MINUTE)
+        WHERE id=96");
+    $db->beginTransaction();
+    $legacyId=brvtal_ticket_mail_enqueue($db,'order:96:reminder','order:96',
+        'fixture3@brvtal.invalid','Legacy fixture','Unknown historical purpose');
+    $db->commit();
+    t29(brvtalRecoverySend($db,7,'superadmin',array_merge($input,['order_id'=>96]),$ready)
+        ['reason']==='legacy_reminder_undetermined','legacy suppresses automatic recovery');
+    $metrics=brvtalRecoveryLiveMetrics($db)[0];
+    t29((int)$metrics['reminders']===1 && (int)$metrics['legacy_undetermined']===1,
+        'legacy is not counted as abandonment');
     t29(brvtalRecoverySend($db,7,'superadmin',$input,['mode'=>'disabled','ready'=>false])
         ['reason']==='mail_unavailable','mail mode fail closed');
     try { brvtalRecoveryReminder('Rave','not-a-token'); throw new RuntimeException('token accepted'); }
@@ -135,6 +146,174 @@ try {
     t29(count(brvtalRecoveryMetrics($db))===1,'future checkout remains eligible');
     t29(brvtalRecoveryOptOut($db,3,6),'optout');
     t29(brvtalRecoveryMetrics($db)===[],'optout removes dashboard count');
+    t29(brvtalRecoverySend($db,7,'superadmin',$input,$ready)['reason']==='consent_unavailable',
+        'optout blocks marketing');
+    // Same order becomes paid, with independent signed payment and issuance proof.
+    $db->exec("UPDATE ticket_orders SET status='paid' WHERE id IN (91,96)");
+    $db->exec("UPDATE ticket_payment_attempts SET status='approved',provider='wompi',
+        provider_transaction_id='fixture-91' WHERE id=1");
+    $db->exec("INSERT INTO ticket_payment_attempts VALUES (4,96,'approved','wompi','fixture-96')");
+    $db->exec("INSERT INTO ticket_payment_webhook_events VALUES
+        (1,'fixture-91','APPROVED'),(4,'fixture-96','APPROVED')");
+    $db->exec("INSERT INTO ticket_issue_outbox VALUES (91,1,'done'),(96,4,'done')");
+    $db->exec("INSERT INTO ticket_order_items VALUES (6,96,7,1)");
+    $db->exec("INSERT INTO ticket_entries VALUES (1,1,'issued'),(2,1,'issued'),(3,6,'issued')");
+    $event=['event'=>'Rave test','link'=>'https://brvtal.invalid/buyer/orders'];
+    $db->beginTransaction();
+    $eventId=brvtal_ticket_mail_queue_order($db,91,'reminder','fixture3@brvtal.invalid',$event);
+    t29($eventId!==$send['mail_id'] &&
+        $eventId===brvtal_ticket_mail_queue_order($db,91,'reminder','fixture3@brvtal.invalid',$event),
+        'paid event reminder distinct and idempotent');
+    $db->commit();
+    $db->beginTransaction();
+    try {
+        brvtal_ticket_mail_queue_order($db,96,'reminder','fixture3@brvtal.invalid',$event);
+        throw new RuntimeException('legacy event replay accepted');
+    } catch (DomainException $error) {
+        t29($error->getMessage()==='MAIL_LEGACY_REMINDER_UNDETERMINED','legacy event suppressed');
+    } finally { $db->rollBack(); }
+    $metrics=brvtalRecoveryLiveMetrics($db)[0];
+    t29((int)$metrics['reminders']===1 && (int)$metrics['queued']===1
+        && (int)$metrics['legacy_undetermined']===1,'paid event excluded from recovery metrics');
+    t29((int)$db->query('SELECT COUNT(*) FROM ticket_mail_outbox')->fetchColumn()===3
+        && (int)$db->query("SELECT COUNT(*) FROM ticket_mail_outbox WHERE id=".$legacyId."
+            AND body_text='Unknown historical purpose'")->fetchColumn()===1,'legacy row immutable');
+    t29(brvtalRecoverySend($db,7,'superadmin',$input,$ready)['reason']==='order_not_pending',
+        'paid order cannot queue marketing');
+
+    // #2134: actual persisted queue -> worker -> injected transport, not an enqueue stub.
+    $calls = 0;
+    $transport = static function () use (&$calls): array {
+        ++$calls;
+        return ['status'=>200,'body'=>json_encode(['id'=>'fixture-dispatch-'.$calls])];
+    };
+    $readMail = $db->prepare('SELECT state,last_error_code,provider_message_id FROM ticket_mail_outbox WHERE id=?');
+    $expectMail = static function (int $id, string $state, ?string $reason) use ($readMail): void {
+        $readMail->execute([$id]);
+        $row = $readMail->fetch(PDO::FETCH_ASSOC);
+        t29($row['state']===$state && $row['last_error_code']===$reason
+            && $row['provider_message_id']===null, 'local terminal state and sanitized reason');
+    };
+    t29(brvtal_ticket_mail_deliver_one($db,$transport)==='suppressed','paid recovery suppressed');
+    $expectMail($send['mail_id'],'suppressed','order_not_pending');
+    t29(brvtal_ticket_mail_deliver_one($db,$transport)==='suppressed','ambiguous legacy not replayed');
+    $expectMail($legacyId,'suppressed','legacy_reminder_undetermined');
+    t29($calls===0,'no provider calls for paid or legacy suppression');
+    t29(brvtal_ticket_mail_deliver_one($db,$transport)==='accepted' && $calls===1,
+        'scoped transactional reminder unaffected by marketing optout');
+    t29((string)$db->query("SELECT delivery_state FROM ticket_mail_history WHERE outbox_id=$eventId")
+        ->fetchColumn()==='accepted','transactional receipt linked');
+
+    $freshOrder = static function (int $id) use ($db,$input,$ready): int {
+        $db->exec("UPDATE ticket_recovery_consents SET revoked_at_utc=NULL WHERE buyer_id=3 AND event_id=6");
+        $db->exec("INSERT INTO ticket_orders (id,buyer_id,event_id,status,expires_at_utc,created_at_utc,public_id)
+            VALUES ($id,3,6,'pending',DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 4 MINUTE),
+                DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 6 MINUTE),UNHEX(LPAD(HEX($id),32,'0')))");
+        $result = brvtalRecoverySend($db,7,'superadmin',array_merge($input,['order_id'=>$id]),$ready);
+        t29($result['state']==='queued','real recovery queued');
+        return $result['mail_id'];
+    };
+    $cases = [
+        101=>['consent_unavailable',"UPDATE ticket_recovery_consents SET revoked_at_utc=UTC_TIMESTAMP(6) WHERE buyer_id=3"],
+        102=>['payment_confirmed',"INSERT INTO ticket_payment_attempts (id,order_id,status) VALUES (102,102,'approved')"],
+        103=>['order_not_pending',"UPDATE ticket_orders SET status='cancelled' WHERE id=103"],
+        104=>['checkout_expired',"UPDATE ticket_orders SET expires_at_utc=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND) WHERE id=104"],
+        105=>['outside_window',"UPDATE ticket_orders SET created_at_utc=UTC_TIMESTAMP(6) WHERE id=105"],
+    ];
+    require_once __DIR__.'/../../ops/ticketing-mail-worker.php';
+    foreach ($cases as $orderId=>[$reason,$change]) {
+        $id = $freshOrder($orderId);
+        if ($orderId===101) {
+            brvtal_mail_history_record($db,$id,['order_id'=>101,'buyer_id'=>3,'event_id'=>6,
+                'template_key'=>'reminder','actor_kind'=>'admin']);
+        }
+        $db->exec($change);
+        if ($orderId===101) {
+            $cycle = brvtal_ticket_mail_worker_cycle(
+                static fn()=>['pdo'=>$db,'gate'=>['mail'=>'ready','issue'=>'ready']],
+                static fn()=> 'idle', static fn()=> 'idle',
+                static fn(PDO $pdo)=>brvtal_ticket_mail_deliver_one($pdo,$transport));
+            t29($cycle['output']['state']==='suppressed' && $cycle['exit_code']===0,
+                'CLI reports local suppression without provider acceptance or false error');
+            t29((string)$db->query("SELECT delivery_state FROM ticket_mail_history WHERE outbox_id=$id")
+                ->fetchColumn()==='suppressed','local history suppression');
+        } else {
+            t29(brvtal_ticket_mail_deliver_one($db,$transport)==='suppressed','pre-dispatch '.$reason);
+        }
+        $expectMail($id,'suppressed',$reason);
+        t29(!brvtal_ticket_mail_redrive($db,$id) && $calls===1,'suppression terminal, no provider');
+    }
+    t29((string)$db->query("SELECT status FROM ticket_payment_attempts WHERE id=102")->fetchColumn()==='approved',
+        'worker does not change Wompi attempt');
+
+    // A retry after a potentially accepted request is not proof of suppression.
+    $retryId = $freshOrder(106);
+    $retryTransport = static function () use (&$calls): array {
+        ++$calls;
+        return ['status'=>503,'body'=>'{}'];
+    };
+    t29(brvtal_ticket_mail_deliver_one($db,$retryTransport)==='retry' && $calls===2,'first attempt reached transport');
+    $db->exec("UPDATE ticket_mail_outbox SET next_attempt_at=UTC_TIMESTAMP() WHERE id=$retryId");
+    brvtalRecoveryOptOut($db,3,6);
+    t29(brvtal_ticket_mail_deliver_one($db,$transport)==='uncertain','retry after optout stays uncertain');
+    $expectMail($retryId,'uncertain','receipt_unknown');
+    t29($calls===2 && !brvtal_ticket_mail_redrive($db,$retryId),'no repeat request or manual redrive');
+
+    // Two connections: consent revocation after authorization cannot revoke an
+    // already started call. No transaction is held across the external boundary.
+    $raceId = $freshOrder(107);
+    brvtal_mail_history_record($db,$raceId,['order_id'=>107,'buyer_id'=>3,'event_id'=>6,
+        'template_key'=>'reminder','actor_kind'=>'admin']);
+    $second = new PDO($dsn.';dbname='.$name,(string)(getenv('BRVTAL_TEST_DB_USER')?:'root'),
+        (string)(getenv('BRVTAL_TEST_DB_PASS')?:''),$opts);
+    $second->exec('SET innodb_lock_wait_timeout=1');
+    $raceTransport = static function () use ($db,$second,$transport): array {
+        t29(!$db->inTransaction(),'provider invoked outside DB transaction');
+        t29(brvtal_ticket_mail_deliver_one($second,$transport)==='idle','second worker cannot claim in-flight job');
+        t29(brvtalRecoveryOptOut($second,3,6),'revocation during provider call is not locked out');
+        brvtal_mail_history_event($second,'fixture-recovery-race','fixture-race','delivered',
+            new DateTimeImmutable('now',new DateTimeZone('UTC')),hash('sha256','fixture-race'));
+        return ['status'=>200,'body'=>'{"id":"fixture-race"}'];
+    };
+    t29(brvtal_ticket_mail_deliver_one($db,$raceTransport)==='accepted','in-flight receipt not mislabeled suppressed');
+    t29((string)$db->query("SELECT delivery_state FROM ticket_mail_history WHERE outbox_id=$raceId")
+        ->fetchColumn()==='delivered','early webhook reconciled after receipt');
+    t29(brvtal_ticket_mail_deliver_one($second,$transport)==='idle' && $calls===2,'no second transport');
+
+    // Existing provider evidence is never overridden, even if consent is valid.
+    $receiptId = $freshOrder(108);
+    brvtal_mail_history_record($db,$receiptId,['order_id'=>108,'buyer_id'=>3,'event_id'=>6,
+        'template_key'=>'reminder','actor_kind'=>'admin']);
+    $db->exec("UPDATE ticket_mail_history SET delivery_state='delivered',resend_email_id='fixture-prior'
+        WHERE outbox_id=$receiptId");
+    t29(brvtal_ticket_mail_deliver_one($db,$transport)==='uncertain','contradictory receipt prevents transport');
+    $expectMail($receiptId,'uncertain','receipt_unknown');
+    t29((string)$db->query("SELECT delivery_state FROM ticket_mail_history WHERE outbox_id=$receiptId")
+        ->fetchColumn()==='delivered' && $calls===2,'prior receipt preserved, no duplicate transport');
+
+    // A 4xx after a retryable 5xx does not erase the first unknown outcome.
+    $rejectedId = $freshOrder(109);
+    $rejectCalls = 0;
+    $retryThenReject = static function () use (&$rejectCalls): array {
+        return ['status'=>++$rejectCalls===1 ? 503 : 400,'body'=>'{}'];
+    };
+    t29(brvtal_ticket_mail_deliver_one($db,$retryThenReject)==='retry','first response ambiguous');
+    $db->exec("UPDATE ticket_mail_outbox SET next_attempt_at=UTC_TIMESTAMP() WHERE id=$rejectedId");
+    t29(brvtal_ticket_mail_deliver_one($db,$retryThenReject)==='uncertain','later rejection preserves uncertainty');
+    $expectMail($rejectedId,'uncertain','receipt_unknown');
+    brvtalRecoveryOptOut($db,3,6);
+    t29(!brvtal_ticket_mail_redrive($db,$rejectedId)
+        && brvtal_ticket_mail_deliver_one($db,$retryThenReject)==='idle'
+        && $rejectCalls===2,'no redrive after ambiguous earlier attempt');
+    // Existing failed rows from before this protection remain fail-closed.
+    $legacyFailed = $freshOrder(110);
+    $db->exec("UPDATE ticket_mail_outbox SET state='failed',attempts=2,
+        first_attempt_at=UTC_TIMESTAMP(),last_error_code='provider_rejected' WHERE id=$legacyFailed");
+    t29(!brvtal_ticket_mail_redrive($db,$legacyFailed),'legacy multi-attempt failure cannot reset');
+    $expectMail($legacyFailed,'uncertain','receipt_unknown');
+    t29((int)$db->query("SELECT attempts FROM ticket_mail_outbox WHERE id=$legacyFailed")
+        ->fetchColumn()===2,'legacy fencing generation retained');
+
     putenv('BRVTAL_INTEGRATION_TESTS=0');
     try {brvtalRecoveryPlan($db,7,'superadmin',$input);throw new RuntimeException('real mode');}
     catch (DomainException $e) {t29($e->getMessage()==='SYNTHETIC_ONLY','real mode blocked');}

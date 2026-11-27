@@ -26,7 +26,7 @@ try {
     $pdo=new PDO('mysql:host='.$host.';port='.$port.';dbname='.$name.';charset=utf8mb4',$user,$pass,$opts);
     foreach ([
         'CREATE TABLE ticket_buyers (id BIGINT PRIMARY KEY,email VARCHAR(190),status VARCHAR(20),created_at DATETIME)',
-        'CREATE TABLE ticket_orders (id BIGINT PRIMARY KEY,buyer_id BIGINT,event_id INT,status VARCHAR(20),currency CHAR(3),total_cop BIGINT,created_at_utc DATETIME)',
+        'CREATE TABLE ticket_orders (id BIGINT PRIMARY KEY,buyer_id BIGINT,event_id INT,status VARCHAR(20),currency CHAR(3),total_cop BIGINT,created_at_utc DATETIME(6))',
         'CREATE TABLE ticket_order_items (id BIGINT PRIMARY KEY,order_id BIGINT,ticket_name_snapshot VARCHAR(100),quantity INT,unit_price_cop BIGINT,subtotal_cop BIGINT)',
         'CREATE TABLE ticket_payment_attempts (id BIGINT PRIMARY KEY,order_id BIGINT,provider VARCHAR(20),status VARCHAR(20),gross_amount_cop BIGINT,created_at_utc DATETIME,provider_reference VARCHAR(190) NULL,provider_transaction_id VARCHAR(190) NULL)',
         'CREATE TABLE ticket_entries (id BIGINT PRIMARY KEY,order_item_id BIGINT)',
@@ -112,5 +112,36 @@ try {
     t18Assert(brvtalTicketAdminPaymentEvidence($pdo,$validWompi)['state']==='unavailable',
         'approved without verified Wompi ledger is never certified');
 
+    // #2044: same creation-date cohort as T20, including microsecond edges.
+    $pdo->exec("INSERT INTO ticket_orders VALUES
+        (102,3,9,'paid','COP',10000,'2026-11-19 04:59:59.999999'),
+        (103,3,9,'paid','COP',20000,'2026-11-19 05:00:00.000000'),
+        (104,4,9,'paid','COP',30000,'2026-11-20 04:59:59.999999'),
+        (105,4,9,'paid','COP',40000,'2026-11-20 05:00:00.000000')");
+    $calendar=['kind'=>'orders','event_id'=>'9','from'=>'2026-11-19','to'=>'2026-11-19'];
+    $cut=brvtalTicketAdminPage($pdo,brvtalTicketAdminFilters($calendar))['rows'];
+    t18Assert(array_map(intval(...),array_column($cut,'id'))===[104,103]
+        && array_sum(array_column($cut,'total_cop'))===50000,'Bogota inclusive day, UTC half-open');
+    $calendar['to']='2026-11-20';
+    $cut=brvtalTicketAdminPage($pdo,brvtalTicketAdminFilters($calendar))['rows'];
+    t18Assert(array_map(intval(...),array_column($cut,'id'))===[105,104,103],'inclusive two-day range');
+    $calendar['to']='2026-11-19'; $calendar['email']='synthetic@example.test';
+    $cut=brvtalTicketAdminPage($pdo,brvtalTicketAdminFilters($calendar))['rows'];
+    t18Assert(array_map(intval(...),array_column($cut,'id'))===[103],'calendar retains buyer filter');
+    $legacy=brvtalTicketAdminPage($pdo,brvtalTicketAdminFilters(
+        ['kind'=>'buyers','from'=>'2026-11-01','to'=>'2026-11-01']))['rows'];
+    t18Assert(array_map(intval(...),array_column($legacy,'id'))===[4,3],'legacy buyer creation scope preserved');
 } finally { $root->exec('DROP DATABASE IF EXISTS '.$name); }
 echo "T18 MariaDB synthetic joins, filters, pagination and degraded mail OK.\n";
+
+// #2082: isolate the courtesy read fixture and require the real MariaDB receipt.
+$courtesyProcess = proc_open([PHP_BINARY, __DIR__.'/ticketing-admin-courtesy.php'],
+    [0=>STDIN,1=>['pipe','w'],2=>STDERR], $courtesyPipes);
+t18Assert(is_resource($courtesyProcess),'courtesy read fixture started');
+$courtesyOutput=stream_get_contents($courtesyPipes[1]);
+fclose($courtesyPipes[1]);
+t18Assert(proc_close($courtesyProcess)===0,'courtesy read fixture passed');
+$courtesyReceipt='BRVTAL courtesy admin read MariaDB PASS.';
+t18Assert(is_string($courtesyOutput)
+    && in_array($courtesyReceipt,preg_split('/\R/',trim($courtesyOutput))?:[],true),'courtesy MariaDB receipt required');
+echo $courtesyReceipt."\n";

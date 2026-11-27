@@ -107,6 +107,22 @@ function brvtal_ticket_mail_queue_order(
             throw new DomainException('MAIL_TICKETS_NOT_READY');
         }
     }
+    if ($kind === 'reminder') {
+        // Preserve the paid-event key. A pre-existing shared key without the
+        // original scoped history receipt is ambiguous; never overwrite or resend it.
+        $legacy = $db->prepare("SELECT id FROM ticket_mail_outbox
+            WHERE message_key=? LIMIT 1 FOR UPDATE");
+        $legacy->execute(["order:{$orderId}:reminder"]);
+        $legacyId = $legacy->fetchColumn();
+        if ($legacyId !== false) {
+            $receipt = $db->prepare("SELECT 1 FROM ticket_mail_history
+                WHERE outbox_id=? AND message_key=? AND order_id=? AND event_id=?
+                  AND buyer_id=? AND template_key='reminder' AND actor_kind='system'");
+            $receipt->execute([$legacyId, "order:{$orderId}:reminder", $orderId,
+                $order['event_id'], $order['buyer_id']]);
+            if (!$receipt->fetchColumn()) throw new DomainException('MAIL_LEGACY_REMINDER_UNDETERMINED');
+        }
+    }
     $rendered = brvtal_ticket_mail_render($kind, $data, $db);
     $text = $rendered['text'];
     $html = $rendered['html'];

@@ -9,7 +9,7 @@ const html = readFileSync(join(root, 'buyer/index.php'), 'utf8');
 const config = readFileSync(join(root, 'config/buyer_account.php'), 'utf8');
 const api = readFileSync(join(root, 'api/buyer/account.php'), 'utf8');
 const url = 'http://127.0.0.1:4173/buyer/index.php';
-const base = { public_id:'0123456789abcdef0123456789abcdef', event_title:'Noche sintética', currency:'COP', total_cop:25000, created_at_utc:'2026-11-01 21:00:00' };
+const base = { public_id:'0123456789abcdef0123456789abcdef', event_title:'Noche sintética', event_date:'2026-12-12 21:00:00', venue:'Club sintético', currency:'COP', total_cop:25000, created_at_utc:'2026-11-01 21:00:00' };
 const paid = { ...base, order_number:77, status:'paid', payment_status:'approved', items:[
   {name:'General',quantity:1,ticket_id:'abcdefabcdefabcdefabcdefabcdefab',status:'issued',qr_requires_original_token:true},
   {name:'General',quantity:1,ticket_id:'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',status:'used',qr_requires_original_token:true},
@@ -22,7 +22,7 @@ async function fakeAccount(page, rows, qrStatus=200) {
   await page.route('**/api/buyer/account.php**', route=>{
     requests.push({method:route.request().method(),url:route.request().url(),headers:route.request().headers(),data:route.request().postDataJSON?.()});
     if(route.request().method()==='POST') return route.fulfill({status:qrStatus,contentType:'application/json',body:JSON.stringify(qrStatus===200
-      ? {ok:true,qr:'BRVTAL:T1:'+'abcdef0123456789'.repeat(2)+':'+'A'.repeat(43),filename:'entrada.txt'}
+      ? {ok:true,qr:'BRVTAL:T1:'+route.request().postDataJSON().ticket_id+':'+'A'.repeat(43),filename:'entrada.txt'}
       : {ok:false,error:'TICKET_UNAVAILABLE'})});
     const pageNo=Number(new URL(route.request().url()).searchParams.get('page')||0);
     return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:{orders:pageNo?[]:rows,has_more:!!rows.length&&!pageNo,page:pageNo}})});
@@ -208,4 +208,58 @@ test('switching from pending stored QR to legacy ticket restores the manual subm
   expect(await page.locator('#qr-output').innerHTML()).toBe(expectedSvg);
   expect(sent.some(x=>x.ticket_id===legacyId&&x.action==='qr')).toBe(true);
   await expect(page.locator('#qr-feedback')).toContainText('QR autorizado');
+});
+
+// #2184: actual rendered screen and print media, synthetic credentials only.
+for(const width of [390,1440]){
+  test(`authenticated account PDF pass at ${width}px`,async ({page},testInfo)=>{
+    await page.setViewportSize({width,height:900});
+    for(const name of ['buyer-access.css','buyer-account.css']){
+      await page.route('**/css/'+name+'*',route=>route.fulfill({contentType:'text/css',body:readFileSync(join(root,'css',name))}));
+    }
+    const eligible={...paid,items:[{...paid.items[0],qr_stored:true},...paid.items.slice(1)]};
+    const cancelled={...base,public_id:'cancelled',status:'cancelled',items:[{...paid.items[0],ticket_id:'f'.repeat(32)}]};
+    const calls=await fakeAccount(page,[eligible,cancelled]);
+    await page.goto(url);
+    const action=page.getByRole('button',{name:'Descargar pase (PDF)'});
+    await expect(action).toHaveCount(1);
+    await expect(page.locator('#pass-details')).toBeHidden();
+    await testInfo.attach('account-pass-before-'+width,{body:await page.screenshot({fullPage:true}),contentType:'image/png'});
+    await page.evaluate(()=>{window.__passPrints=0;window.print=()=>{window.__passPrints++;};});
+    await action.click();
+    const print=page.getByRole('button',{name:'Imprimir / guardar PDF'});
+    await expect(print).toBeVisible();
+    await expect(page.locator('#pass-details')).toContainText('Noche sintética');
+    await expect(page.locator('#pass-details')).toContainText('12 de diciembre de 2026');
+    await expect(page.locator('#pass-details')).toContainText('Club sintético');
+    await expect(page.locator('#pass-details')).toContainText('General');
+    await expect(page.locator('#pass-details')).toContainText('ABCDEFAB');
+    await expect(page.locator('#qr-output svg')).toBeVisible();
+    expect(calls.find(x=>x.method==='POST')?.data?.ticket_id).toBe(paid.items[0].ticket_id);
+    await print.focus();await print.press('Enter');
+    expect(await page.evaluate(()=>window.__passPrints)).toBe(1);
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    await page.emulateMedia({media:'print'});
+    await expect(page.locator('#pass-details')).toBeVisible();
+    await expect(page.locator('#qr-output svg')).toBeVisible();
+    await expect(page.locator('#orders')).toBeHidden();
+    await expect(page.locator('#qr-form')).toBeHidden();
+    await expect(print).toBeHidden();
+    await testInfo.attach('account-pass-after-'+width,{body:await page.screenshot({fullPage:true}),contentType:'image/png'});
+    await page.emulateMedia({media:'screen'});
+    await page.getByRole('button',{name:'Aplicar filtros'}).click();
+    await expect(page.locator('#pass-details')).toBeHidden();
+    await expect(print).toBeHidden();
+    expect(await page.evaluate(()=>document.body.classList.contains('account-pass-ready'))).toBe(false);
+  });
+}
+
+test('failed legacy pass authorization never enables print',async ({page})=>{
+  await fakeAccount(page,[paid],404);await page.goto(url);
+  await page.getByRole('button',{name:'Descargar pase (PDF)'}).click();
+  await page.getByLabel('Credencial original').fill('A'.repeat(43));
+  await page.getByRole('button',{name:'Mostrar QR'}).click();
+  await expect(page.locator('#qr-feedback')).toContainText('No se pudo autorizar');
+  await expect(page.locator('#pass-details')).toBeHidden();
+  await expect(page.locator('#print-pass')).toBeHidden();
 });

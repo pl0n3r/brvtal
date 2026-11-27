@@ -91,10 +91,81 @@ reversion requieren autoridad, backup, plan, auditoria y decisiones
 de seguridad separadas. Este documento NO inventa un comando
 para apagar el hosting.
 
+## Go-live de boletería (#2193) — preparación sin activación
+
+**Estado de todas las puertas: NO ACTIVAR.** Plan offline para #1739, no
+autorización para ventas, correo, cobro, cambio de DNS, configuración o datos.
+Los roles son responsabilidades propuestas; el OWNER debe designar titulares
+y suplentes antes del corte, sin publicar identidades ni secretos.
+
+### Entornos, credenciales y flags
+
+| Control | Configuración objetivo / prueba | Responsable |
+| --- | --- | --- |
+| Wompi | BRVTAL_TICKET_WOMPI_MODE=off; sandbox solo con BRVTAL_TICKET_WOMPI_* de pruebas, producción con BRVTAL_TICKET_WOMPI_PROD_* segregadas; comprobar prefijos, integridad y firma de eventos sin imprimir valores | OWNER + SEGURIDAD |
+| Resend | BRVTAL_TICKET_MAIL_MODE=disabled y BRVTAL_TICKET_MAIL_ALLOW_LIVE=0; credenciales API, webhook, dominio y remitente separados por entorno; test únicamente con allowlist sintética | OWNER + SEGURIDAD |
+| Dominio | Verificar titularidad, HTTPS y DNS del remitente, SPF/DKIM/DMARC; BRVTAL_TICKET_MAIL_DNS_VERIFIED y BRVTAL_TICKET_MAIL_PRIVACY_APPROVED solo tras evidencia autorizada | OWNER + SEGURIDAD |
+| Capacidades | Revisar checkout, correo, POS, promociones y marketing por separado; mantener deshabilitada cada capacidad sin su gate específico; no activar todas a la vez | OWNER + SRE |
+
+No guardar claves, destinatarios, tokens ni cabeceras en actas o logs.
+En staging usar mock/fixtures descartables sin dinero ni proveedores reales;
+una prueba sandbox externa requiere autorización separada. No copiar claves
+de producción a staging ni deducir readiness de que exista una variable.
+
+### Monitoreo, respaldo y retorno
+
+- OPERADOR verifica HEALTH, DEPLOY y SMOKE exact-SHA según AC-01; CI
+  verde no equivale a deploy ni a validación productiva.
+- SRE propone métricas de 503/latencia, pagos pendientes y discrepancias
+  de conciliación, duplicados, cola outbox/edad/error de correo, esquema
+  incompleto y puerta sin red. CRITICAL/UNKNOWN: pausa y aviso al OWNER;
+  QA verifica recibo y acuse. No habilitar alertas ni cron aquí.
+- SRE + OWNER: antes de cualquier escritura futura autorizada, backup
+  persistente cifrado, inventario de BD/medios, hash SHA-256, retención,
+  copia fuera del host y acceso mínimo. Registrar solo recibos saneados.
+- QA ensaya restore en entorno descartable según
+  [prelive-restore-rehearsal.md](prelive-restore-rehearsal.md):
+  comparar esquema, integridad, filas ficticias y medios; medir RPO/RTO y
+  registrar PASS/FAIL y SHA exacto. No restaurar sobre producción ni borrar
+  transacciones posteriores; mantener pausa si falta prueba de retorno.
+- SRE registra decisión de reversión, versión previa autorizada y plan de
+  conciliación preservando pedidos, pagos, entradas y auditoría. Una reversión
+  real requiere autorización D-059, copia verificada y control de concurrencia.
+
+### Ensayos de contingencia sintéticos (pendientes de ejecución)
+
+| Escenario | Invariante / señal | Recuperación no destructiva | Responsable |
+| --- | --- | --- | --- |
+| Proveedor caído | Timeout/5xx; pedido no se marca pagado por inferencia | Pausar nuevos cobros, mantener pendientes, conciliar con fuente canónica tras recuperar servicio | SRE + QA |
+| Webhook duplicado | Firma e idempotencia; una transición/entrada por pago | Conservar auditoría, deduplicar por identidad canónica y reconciliar sin repetir cobro | SRE + QA |
+| Correo fallido | Outbox conserva estado y prueba sellada; no duplicar entrada | Retener cola, reintento acotado tras resolver causa, no reemitir QR por fallo de transporte | OPERADOR + QA |
+| BD a medio migrar | Readiness/schema UNKNOWN o 503; ninguna venta ni admisión nueva | Pausar capacidades, verificar inventario y respaldo, completar migración solo autorizada o volver a artefacto compatible sin perder filas | SRE + OWNER |
+| Puerta sin red | No confirmar entrada ni asumir QR válido; riesgo de doble uso | Mantener admisión electrónica en pausa; escalar, recuperar conexión y validar credencial en sistema canónico antes de admitir | OPERADOR + QA |
+
+Registrar por ensayo fixture, SHA, expected/observed, PASS/FAIL/UNKNOWN,
+responsable, acuse y evidencia de recuperación. Sin evidencia = UNKNOWN;
+no certificar que los cinco ensayos se ejecutaron en este PR.
+
+### Puerta humana de encendido
+
+| Puerta | Evidencia exigida | Responsable | Estado |
+| --- | --- | --- | --- |
+| Titularidad | Dominio, cuenta Wompi/Resend y onboarding comercial verificados | OWNER | NO ACTIVAR |
+| Impuestos | Revisión fiscal, facturación y obligaciones aplicables | OWNER + asesoría fiscal | NO ACTIVAR |
+| Datos personales #1671 | Decisión legal y privacidad, retención y derechos aprobados | OWNER + SEGURIDAD + asesoría jurídica | NO ACTIVAR |
+| Medios de pago | Métodos habilitados individualmente, conciliación y sandbox autorizada con recibo | OWNER + QA | NO ACTIVAR |
+| Reembolsos | Política, responsables, reversión y escenarios de devolución probados | OWNER + QA | NO ACTIVAR |
+| Encendido | Todas las puertas acreditadas, backup/restore, salud, CI/revisión exact-HEAD, deploy/smoke exact-SHA y aprobación explícita posterior del OWNER por capacidad | OWNER + SRE | NO ACTIVAR |
+
+Sin responsable, evidencia auténtica vigente, SHA coincidente o decisión
+explícita del OWNER: NO ACTIVAR. Legal #1671 permanece una puerta independiente.
+No ejecutar esta lista como comandos. El merge documental no abre ventas,
+no modifica flags y no constituye go-live ni certificación de producción.
+
 ## Validacion, evidencia y reversibilidad
 
 python3 -m unittest -v tests.test_prelive_operations_runbook valida
-AC-01 a AC-03 con datos sintéticos y casos negativos. Despues se
+AC-01 a AC-03 y el contrato de go-live #2193 con datos sintéticos y casos negativos. Despues se
 requiere BRVTAL CI / validate en SHA exacto, reserva V3, evidencia
 de seguridad y PR protegido. Verde offline NO CERTIFICA GO-LIVE,
 SMOKE PRODUCTIVO, alertas activas ni soporte real.

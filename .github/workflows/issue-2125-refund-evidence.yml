@@ -1,0 +1,383 @@
+name: BRVTAL 2125 refund evidence
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [main]
+    paths:
+      - '.github/workflows/issue-2125-refund-evidence.yml'
+      - 'api/ticketing/admin-refunds.php'
+      - 'discadmin/ticketing-refunds.js'
+      - 'discadmin/ticketing.css'
+      - 'tests/integration/ticketing-refunds.php'
+      - 'tests/e2e/ticketing-refunds.spec.mjs'
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  sources:
+    if: >-
+      github.repository == 'pl0n3r/brvtal' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (github.head_ref == 'work/issue-2259' || github.head_ref == 'work/issue-2125')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      base: ${{ steps.resolve.outputs.base }}
+      head: ${{ steps.resolve.outputs.head }}
+      target: ${{ steps.resolve.outputs.target }}
+      mode: ${{ steps.resolve.outputs.mode }}
+    steps:
+      - name: Resolve immutable source identities
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRIGGER_PR: ${{ github.event.pull_request.number }}
+          TRIGGER_BASE: ${{ github.event.pull_request.base.sha }}
+          TRIGGER_HEAD: ${{ github.event.pull_request.head.sha }}
+          TRIGGER_REF: ${{ github.head_ref }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/pl0n3r/brvtal/pulls/$TRIGGER_PR" > "$RUNNER_TEMP/trigger.json"
+          gh api --method GET repos/pl0n3r/brvtal/pulls -f state=open -f head=pl0n3r:work/issue-2125 -f base=main > "$RUNNER_TEMP/targets.json"
+          python3 - <<'PY'
+          import json, os, re
+          from pathlib import Path
+          env = os.environ
+          temp = Path(env["RUNNER_TEMP"])
+          trigger = json.loads((temp / "trigger.json").read_text())
+          targets = json.loads((temp / "targets.json").read_text())
+          def verify(pr, ref):
+              if not (pr["state"] == "open" and pr["base"]["ref"] == "main"
+                      and pr["head"]["ref"] == ref
+                      and all(pr[k]["repo"]["full_name"] == "pl0n3r/brvtal" for k in ("base", "head"))
+                      and all(re.fullmatch(r"[0-9a-f]{40}", pr[k]["sha"]) for k in ("base", "head"))
+                      and pr["base"]["sha"] != pr["head"]["sha"]):
+                  raise SystemExit("Invalid PR identity")
+          verify(trigger, env["TRIGGER_REF"])
+          if (str(trigger["number"]), trigger["base"]["sha"], trigger["head"]["sha"]) != (
+                  env["TRIGGER_PR"], env["TRIGGER_BASE"], env["TRIGGER_HEAD"]):
+              raise SystemExit("Trigger identity moved")
+          if len(targets) > 1:
+              raise SystemExit("Ambiguous target")
+          if targets:
+              target = targets[0]
+              verify(target, "work/issue-2125")
+              if env["TRIGGER_REF"] == "work/issue-2125" and target["number"] != trigger["number"]:
+                  raise SystemExit("Target event mismatch")
+              base, head, number, mode = target["base"]["sha"], target["head"]["sha"], target["number"], "candidate"
+          else:
+              if env["TRIGGER_REF"] != "work/issue-2259":
+                  raise SystemExit("Candidate event without candidate")
+              base = head = trigger["base"]["sha"]
+              number, mode = 0, "baseline"
+          with open(env["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
+              for k, v in dict(base=base, head=head, target=number, mode=mode).items():
+                  print(f"{k}={v}", file=out)
+          print(f"Evidence mode={mode}; base={base}; head={head}; target={number}")
+          PY
+
+  refund-2125-real-stack:
+    needs: sources
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      mariadb:
+        image: ghcr.io/mariadb/mariadb:11.4.13-noble@sha256:3cff57293253c640483e8a19ce506cf68bf8e4529385e64aeec700c02038e7ed
+        env:
+          MARIADB_ROOT_PASSWORD: brvtal_root
+          MARIADB_DATABASE: brvtal_test_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=15
+    env:
+      BASE_SHA: ${{ needs.sources.outputs.base }}
+      CANDIDATE_SHA: ${{ needs.sources.outputs.head }}
+      TARGET_PR: ${{ needs.sources.outputs.target }}
+      EVIDENCE_MODE: ${{ needs.sources.outputs.mode }}
+      TRIGGER_PR: ${{ github.event.pull_request.number }}
+      TRIGGER_BASE: ${{ github.event.pull_request.base.sha }}
+      WIRING_HEAD: ${{ github.event.pull_request.head.sha }}
+      TRIGGER_REF: ${{ github.head_ref }}
+      BRVTAL_INTEGRATION_TESTS: '1'
+      BRVTAL_TEST_DB_HOST: 127.0.0.1
+      BRVTAL_TEST_DB_PORT: '3306'
+      BRVTAL_TEST_DB_NAME: brvtal_test_ci
+      BRVTAL_TEST_DB_USER: root
+      BRVTAL_TEST_DB_PASS: brvtal_root
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.sources.outputs.base }}
+          path: base-source
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.sources.outputs.head }}
+          path: candidate-source
+          persist-credentials: false
+      - name: Confirm checked out SHA identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C base-source rev-parse HEAD)" = "$BASE_SHA"
+          test "$(git -C candidate-source rev-parse HEAD)" = "$CANDIDATE_SHA"
+          python3 candidate-source/scripts/ci_self_audit.py
+      - name: Set up PHP and local database client
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: '8.5'
+          extensions: pdo_mysql, gd
+          coverage: none
+          ini-file: production
+      - name: Execute T21 with mandatory candidate HTTP assertions
+        working-directory: candidate-source
+        shell: bash
+        run: |
+          set -euo pipefail
+          suite=tests/integration/ticketing-refunds.php
+          if [[ "$EVIDENCE_MODE" == candidate ]]; then
+            for assertion in 'real owner GET' 'finance read only without reference' 'GET permissions remain restricted' 'GET leaves payments, refunds, credentials and POS unchanged' 'never choose among multiple signed attempts'; do
+              grep -Fq "$assertion" "$suite"
+            done
+          else
+            echo "BASELINE ONLY: no #2125 staff GET product evidence."
+          fi
+          php "$suite" | tee "$RUNNER_TEMP/t21.log"
+          grep -Fxq 'T21 synthetic MariaDB partial refunds, provider receipts, QR revocation, audit and idempotency passed.' "$RUNNER_TEMP/t21.log"
+          if grep -Ei 'disposable database tests not enabled|skipped' "$RUNNER_TEMP/t21.log"; then exit 1; fi
+      - name: Revalidate authenticated PR identities before publishing
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/pl0n3r/brvtal/pulls/$TRIGGER_PR" > "$RUNNER_TEMP/trigger.json"
+          gh api --method GET repos/pl0n3r/brvtal/pulls -f state=open -f head=pl0n3r:work/issue-2125 -f base=main > "$RUNNER_TEMP/targets.json"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          env = os.environ
+          temp = Path(env["RUNNER_TEMP"])
+          def matches(pr, number, ref, base, head):
+              return (str(pr["number"]) == number and pr["state"] == "open"
+                      and pr["base"]["ref"] == "main" and pr["head"]["ref"] == ref
+                      and all(pr[k]["repo"]["full_name"] == "pl0n3r/brvtal" for k in ("base", "head"))
+                      and pr["base"]["sha"] == base and pr["head"]["sha"] == head)
+          trigger = json.loads((temp / "trigger.json").read_text())
+          targets = json.loads((temp / "targets.json").read_text())
+          if not matches(trigger, env["TRIGGER_PR"], env["TRIGGER_REF"],
+                         env["TRIGGER_BASE"], env["WIRING_HEAD"]):
+              raise SystemExit("Trigger changed; evidence is stale")
+          if env["EVIDENCE_MODE"] == "candidate":
+              if len(targets) != 1 or not matches(targets[0], env["TARGET_PR"], "work/issue-2125",
+                                                env["BASE_SHA"], env["CANDIDATE_SHA"]):
+                  raise SystemExit("Candidate changed; evidence is stale")
+          elif env["EVIDENCE_MODE"] != "baseline" or targets:
+              raise SystemExit("Baseline identity changed")
+          PY
+      - name: Record real-stack result with source identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir refund-http-evidence
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          env = os.environ
+          log = (Path(env["RUNNER_TEMP"]) / "t21.log").read_bytes()
+          receipt = dict(issue=2125, wiring_issue=2259, target_pr=int(env["TARGET_PR"]),
+                         mode=env["EVIDENCE_MODE"], base_sha=env["BASE_SHA"],
+                         head_sha=env["CANDIDATE_SHA"], workflow_head_sha=env["WIRING_HEAD"],
+                         run_id=env["GITHUB_RUN_ID"], run_attempt=env["GITHUB_RUN_ATTEMPT"],
+                         t21="PASSED", staff_http="PASSED" if env["EVIDENCE_MODE"] == "candidate" else "NOT_EVALUATED",
+                         log_sha256=hashlib.sha256(log).hexdigest(), production_validation="NOT_PERFORMED")
+          Path("refund-http-evidence/receipt.json").write_text(json.dumps(receipt, indent=2) + "\n")
+          PY
+          cp "$RUNNER_TEMP/t21.log" refund-http-evidence/t21.log
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: refund-2125-http-${{ env.CANDIDATE_SHA }}-${{ github.run_id }}
+          path: refund-http-evidence/
+          if-no-files-found: error
+          retention-days: 14
+
+  refund-2125-visual:
+    needs: sources
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      BASE_SHA: ${{ needs.sources.outputs.base }}
+      CANDIDATE_SHA: ${{ needs.sources.outputs.head }}
+      TARGET_PR: ${{ needs.sources.outputs.target }}
+      EVIDENCE_MODE: ${{ needs.sources.outputs.mode }}
+      TRIGGER_PR: ${{ github.event.pull_request.number }}
+      TRIGGER_BASE: ${{ github.event.pull_request.base.sha }}
+      WIRING_HEAD: ${{ github.event.pull_request.head.sha }}
+      TRIGGER_REF: ${{ github.head_ref }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.sources.outputs.base }}
+          path: base-source
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.sources.outputs.head }}
+          path: candidate-source
+          persist-credentials: false
+      - name: Confirm checked out SHA identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C base-source rev-parse HEAD)" = "$BASE_SHA"
+          test "$(git -C candidate-source rev-parse HEAD)" = "$CANDIDATE_SHA"
+          python3 candidate-source/scripts/ci_self_audit.py
+      - name: Install pinned browser runner
+        working-directory: candidate-source
+        run: |
+          npm install --ignore-scripts --no-save --package-lock=false --no-audit --no-fund @playwright/test@1.63.0
+          npx --no-install playwright install --with-deps chromium
+      - name: Execute Chromium evidence tests
+        working-directory: candidate-source
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PLAYWRIGHT_JSON_OUTPUT_FILE="$RUNNER_TEMP/refund-report.json"
+          if [[ "$EVIDENCE_MODE" == candidate ]]; then
+            export BRVTAL_REFUND_BASE_DIR="$GITHUB_WORKSPACE/base-source"
+            pattern='AC-04 Devoluciones antes/después'
+          else
+            echo "BASELINE ONLY: browser wiring exercised; no product captures certified."
+            pattern='AC-01 Devoluciones antes/después'
+          fi
+          npx --no-install playwright test tests/e2e/ticketing-refunds.spec.mjs --project=chromium --grep "$pattern" --workers=1 --reporter=list,json
+      - name: Revalidate authenticated PR identities before publishing
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/pl0n3r/brvtal/pulls/$TRIGGER_PR" > "$RUNNER_TEMP/trigger.json"
+          gh api --method GET repos/pl0n3r/brvtal/pulls -f state=open -f head=pl0n3r:work/issue-2125 -f base=main > "$RUNNER_TEMP/targets.json"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          env = os.environ
+          temp = Path(env["RUNNER_TEMP"])
+          def matches(pr, number, ref, base, head):
+              return (str(pr["number"]) == number and pr["state"] == "open"
+                      and pr["base"]["ref"] == "main" and pr["head"]["ref"] == ref
+                      and all(pr[k]["repo"]["full_name"] == "pl0n3r/brvtal" for k in ("base", "head"))
+                      and pr["base"]["sha"] == base and pr["head"]["sha"] == head)
+          trigger = json.loads((temp / "trigger.json").read_text())
+          targets = json.loads((temp / "targets.json").read_text())
+          if not matches(trigger, env["TRIGGER_PR"], env["TRIGGER_REF"],
+                         env["TRIGGER_BASE"], env["WIRING_HEAD"]):
+              raise SystemExit("Trigger changed; evidence is stale")
+          if env["EVIDENCE_MODE"] == "candidate":
+              if len(targets) != 1 or not matches(targets[0], env["TARGET_PR"], "work/issue-2125",
+                                                env["BASE_SHA"], env["CANDIDATE_SHA"]):
+                  raise SystemExit("Candidate changed; evidence is stale")
+          elif env["EVIDENCE_MODE"] != "baseline" or targets:
+              raise SystemExit("Baseline identity changed")
+          PY
+      - name: Verify capture bytes, dimensions and exact-source manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64, hashlib, json, os, struct, zlib
+          from pathlib import Path
+          env = os.environ
+          report = json.loads((Path(env["RUNNER_TEMP"]) / "refund-report.json").read_text())
+          stats = report["stats"]
+          if tuple(stats[key] for key in ("expected", "unexpected", "flaky", "skipped")) != (2, 0, 0, 0):
+              raise SystemExit("Expected two successful browser evidence tests")
+          out = Path("refund-visual-evidence")
+          out.mkdir()
+          required = {f"devoluciones-{stage}-{width}.png": (stage, width)
+                      for stage in ("antes", "despues") for width in (390, 1440)}
+          root = Path("candidate-source").resolve()
+          attachments = {}
+          def visit(value):
+              if isinstance(value, list):
+                  for child in value:
+                      visit(child)
+              elif isinstance(value, dict):
+                  for item in value.get("attachments", []):
+                      name = item.get("name")
+                      if name not in required:
+                          continue
+                      if name in attachments or item.get("contentType") != "image/png":
+                          raise SystemExit("Duplicate or invalid capture")
+                      if isinstance(item.get("body"), str):
+                          data = base64.b64decode(item["body"], validate=True)
+                      else:
+                          path = (root / item["path"]).resolve()
+                          if not path.is_relative_to(root):
+                              raise SystemExit("Attachment outside candidate checkout")
+                          data = path.read_bytes()
+                      attachments[name] = data
+                  for key, child in value.items():
+                      if key != "attachments":
+                          visit(child)
+          visit(report)
+          if attachments.keys() != required.keys():
+              raise SystemExit("Expected exactly four capture attachments")
+          captures = []
+          for name, (stage, width) in sorted(required.items()):
+              data = attachments[name]
+              if data[:8] != b"\x89PNG\r\n\x1a\n":
+                  raise SystemExit("Invalid PNG signature")
+              offset, dimensions, has_data, ended = 8, None, False, False
+              while offset + 12 <= len(data):
+                  size, kind = struct.unpack_from(">I4s", data, offset)
+                  end = offset + 12 + size
+                  if end > len(data):
+                      raise SystemExit("Truncated PNG")
+                  payload = data[offset + 8:end - 4]
+                  crc, = struct.unpack_from(">I", data, end - 4)
+                  if zlib.crc32(kind + payload) != crc:
+                      raise SystemExit("Invalid PNG checksum")
+                  if offset == 8:
+                      if kind != b"IHDR" or size != 13:
+                          raise SystemExit("Invalid PNG header")
+                      dimensions = struct.unpack_from(">II", payload)
+                  has_data |= kind == b"IDAT" and size > 0
+                  offset = end
+                  if kind == b"IEND":
+                      ended = size == 0
+                      break
+              if not dimensions or dimensions[0] != width or dimensions[1] < 900 or not has_data or not ended or offset != len(data):
+                  raise SystemExit("Invalid PNG dimensions or structure")
+              if env["EVIDENCE_MODE"] == "candidate":
+                  (out / name).write_bytes(data)
+                  captures.append(dict(name=name, stage=stage, width=width, height=dimensions[1],
+                                       sha256=hashlib.sha256(data).hexdigest(), size_bytes=len(data),
+                                       source_sha=env["BASE_SHA" if stage == "antes" else "CANDIDATE_SHA"]))
+          manifest = dict(issue=2125, wiring_issue=2259, target_pr=int(env["TARGET_PR"]),
+                          mode=env["EVIDENCE_MODE"], trigger_pr=int(env["TRIGGER_PR"]),
+                          workflow_head_sha=env["WIRING_HEAD"], base_sha=env["BASE_SHA"],
+                          head_sha=env["CANDIDATE_SHA"], run_id=env["GITHUB_RUN_ID"],
+                          run_attempt=env["GITHUB_RUN_ATTEMPT"], captures=captures)
+          path = out / "manifest.json"
+          path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+          receipt = dict(status="CAPTURES_VERIFIED" if captures else "BASELINE_ONLY",
+                         manifest_sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+                         visual_review="NOT_PERFORMED", production_validation="NOT_PERFORMED")
+          (out / "receipt.json").write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
+          PY
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: refund-2125-visual-${{ env.CANDIDATE_SHA }}-${{ github.run_id }}
+          path: refund-visual-evidence/
+          if-no-files-found: error
+          retention-days: 14

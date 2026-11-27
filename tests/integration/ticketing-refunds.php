@@ -248,6 +248,26 @@ try {
     t21Reject(static fn()=>brvtalRefundRequest($pdo,3,array_merge($request,[
         'entry_ids'=>[str_repeat('d',32)],'idempotency_key'=>'t21-used-entry-key-001'
     ])),'ENTRY_NOT_REFUNDABLE');
+    // A different intent cannot claim the same unit or create a partial mixed request.
+    $snapshot=static function()use($pdo):array{
+        $rows=[];
+        foreach (['ticket_refunds'=>'id','ticket_refund_entries'=>'refund_id,entry_id',
+            'ticket_refund_audit'=>'id','ticket_refund_adjustments'=>'refund_id'] as $table=>$sort) {
+            $rows[$table]=$pdo->query("SELECT * FROM $table ORDER BY $sort")->fetchAll();
+        }
+        return $rows;
+    };
+    $beforeConflict=$snapshot();
+    foreach ([$request['entry_ids'],[str_repeat('b',32),str_repeat('c',32)]] as $selection) {
+        t21Reject(static fn()=>brvtalRefundRequest($pdo,3,array_replace($request,[
+            'entry_ids'=>$selection,'idempotency_key'=>'t2122-active-conflict'
+        ])),'REFUND_CLAIM_CONFLICT');
+    }
+    t21Reject(static fn()=>brvtalRefundRequest($pdo,3,array_replace($request,[
+        'entry_ids'=>[str_repeat('b',32),str_repeat('e',32)],
+        'idempotency_key'=>'t2122-foreign-selection'
+    ])),'ENTRY_NOT_REFUNDABLE');
+    t21($snapshot()===$beforeConflict,'conflicts leave all ledger rows unchanged');
     $approved=brvtalRefundStaff($pdo,7,'superadmin',$id,'approve');
     t21($approved['status']==='approved','staff approval, no refund yet');
     t21(brvtalRefundStaff($pdo,7,'superadmin',$id,'approve')['replayed'],'double staff approval');
@@ -273,6 +293,12 @@ try {
     t21(brvtalRefundCreditedInventory($pdo,1,0)===1,
         'fully refunded ticket reduces sold inventory by one unit');
 
+    $beforeTerminal=$snapshot();
+    t21(brvtalRefundRequest($pdo,3,$request)['replayed'],'terminal same-key replay');
+    t21Reject(static fn()=>brvtalRefundRequest($pdo,3,array_replace($request,[
+        'idempotency_key'=>'t2122-terminal-conflict'
+    ])),'REFUND_CLAIM_CONFLICT');
+    t21($snapshot()===$beforeTerminal,'terminal claim remains immutable');
     $other=brvtalRefundRequest($pdo,3,array_merge($request,[
         'entry_ids'=>[str_repeat('c',32)],'idempotency_key'=>'t21-second-entry-key-01'
     ]));$id2=(int)$other['id'];
@@ -492,6 +518,11 @@ try {
         t21($validPost['status']===201
             && ($validPost['data']['data']['replayed']??false)===true,
             'real POST preserves idempotent replay within granted order');
+        $conflict=$requestHttp($guestHttp,'POST',array_replace($order94,[
+            'idempotency_key'=>'t2122-http-new-intent'
+        ]));
+        t21($conflict['status']===409 && $conflict['data']===['ok'=>false,'error'=>'REFUND_CLAIM_CONFLICT'],
+            'real guest HTTP conflict is neutral and contains no ledger details');
         $missingCsrf=$requestHttp($guestHttp,'POST',$order94,false);
         t21($missingCsrf['status']===403
             && ($missingCsrf['data']['error']??null)==='CSRF_INVALID',
@@ -508,6 +539,91 @@ try {
         t21((int)$pdo->query('SELECT COUNT(*) FROM ticket_refund_audit')->fetchColumn()
             ===$auditBefore+1,
             'HTTP rejected POST and replay cause no extra database audit');
+
+        // #2125: real staff GET using the canonical session and isolated evidence tables.
+        $pdo->exec("ALTER TABLE admins ADD is_active TINYINT NOT NULL DEFAULT 1,
+            ADD credential_epoch INT NOT NULL DEFAULT 1, ADD staff_role VARCHAR(24) NOT NULL DEFAULT 'door'");
+        $pdo->exec("UPDATE admins SET staff_role='superadmin' WHERE id=7");
+        $pdo->exec("UPDATE admins SET staff_role='admin' WHERE id=8");
+        $pdo->exec("INSERT INTO admins(id) VALUES (9)");
+        $pdo->exec("ALTER TABLE ticket_payment_attempts ADD provider_reference VARCHAR(190) NULL");
+        $pdo->exec("UPDATE ticket_payment_attempts SET provider_reference=provider_transaction_id");
+        $pdo->exec("ALTER TABLE ticket_order_items ADD event_id INT NOT NULL DEFAULT 0,
+            ADD ticket_type_id INT NOT NULL DEFAULT 0, ADD quantity INT NOT NULL DEFAULT 1,
+            ADD subtotal_cop BIGINT NOT NULL DEFAULT 0");
+        $pdo->exec("UPDATE ticket_order_items SET event_id=2,ticket_type_id=10,subtotal_cop=3000 WHERE id=106");
+        $pdo->exec("CREATE TABLE ticket_pos_shifts (id INT PRIMARY KEY,event_id INT,operator_admin_id INT)");
+        $pdo->exec("CREATE TABLE ticket_pos_sales (order_id INT PRIMARY KEY,method VARCHAR(24),
+            operator_admin_id INT,shift_id INT,event_id INT,amount_cop BIGINT,ticket_type_id INT,
+            quantity INT,unit_price_cop BIGINT,status VARCHAR(24),completed_at_utc DATETIME)");
+        $pdo->exec("INSERT INTO ticket_pos_shifts VALUES (1,2,7)");
+        $pdo->exec("INSERT INTO ticket_pos_sales VALUES (95,'cash',7,1,2,3000,10,1,3000,'paid',UTC_TIMESTAMP())");
+        $pdo->exec("INSERT INTO ticket_payment_attempts VALUES (603,94,'wompi','trx_test_94','approved',2000,'ref94')");
+        $pdo->exec("INSERT INTO ticket_payment_webhook_events VALUES (603,'trx_test_94','APPROVED')");
+        $ids=[(int)$allowed['id'],(int)$ungrantedRefund['id'],(int)$foreignRefund['id']];
+        $pdo->exec("UPDATE ticket_refunds SET status='approved' WHERE id IN (".implode(',',$ids).")");
+        $adminGet=static function(?int $admin)use($temporary,$httpPort):array{
+            $headers='Connection: close';
+            if($admin!==null){
+                $sid=bin2hex(random_bytes(16));
+                $session=['admin_id'=>$admin,'credential_epoch'=>1,'csrf'=>str_repeat('a',64),
+                    'issued_at'=>time(),'last_activity'=>time()];
+                $serialized='';
+                foreach($session as $key=>$value)$serialized.=$key.'|'.serialize($value);
+                $sessionFile=$temporary.'/sess_'.$sid;
+                t21(file_put_contents($sessionFile,$serialized)!==false,'synthetic admin session');
+                chmod($sessionFile,0600);
+                $headers.="\r\nCookie: BRVTAL_ADMIN=".$sid;
+            }
+            $response=@file_get_contents('http://127.0.0.1:'.$httpPort.'/api/ticketing/admin-refunds.php',
+                false,stream_context_create(['http'=>['ignore_errors'=>true,'header'=>$headers,'timeout'=>8]]));
+            preg_match('~^HTTP/\S+ ([0-9]{3})~',(string)($http_response_header[0]??''),$m);
+            return [(int)($m[1]??0),is_string($response)?json_decode($response,true):null];
+        };
+        $readOnlySnapshot=(static fn(): array => [$snapshot(),$pdo->query('SELECT * FROM ticket_orders ORDER BY id')->fetchAll(),
+            $pdo->query('SELECT * FROM ticket_entry_credentials ORDER BY entry_id')->fetchAll(),
+            $pdo->query('SELECT * FROM ticket_payment_attempts ORDER BY id')->fetchAll(),
+            $pdo->query('SELECT * FROM ticket_pos_sales ORDER BY order_id')->fetchAll()]);
+        $beforeGet=$readOnlySnapshot();
+        [$code,$body]=$adminGet(7);
+        t21($code===200&&$body['can_decide']===true,'real owner GET');
+        $rows=array_column($body['data'],null,'id');
+        t21($rows[$ids[0]]['payment_evidence']['state']==='verified'
+            &&$rows[$ids[0]]['wompi_payment_ref']==='trx_test_94'
+            &&$rows[$ids[0]]['can_manual_confirm']===true,'owner sees unique Wompi proof');
+        t21($rows[$ids[1]]['payment_evidence']['state']==='registered_offline'
+            &&$rows[$ids[1]]['can_manual_confirm']===false,'POS is not Wompi');
+        t21($rows[$ids[2]]['payment_evidence']['reason']==='paid_without_proof'
+            &&$rows[$ids[2]]['can_manual_confirm']===false,'missing payment proof');
+        t21(!array_key_exists('order_id',$rows[$ids[0]])&&!array_key_exists('buyer_id',$rows[$ids[0]])
+            &&!array_key_exists('total_cop',$rows[$ids[0]]),'only necessary refund fields');
+        [$code,$finance]=$adminGet(8);
+        $financeRows=array_column($finance['data']??[],null,'id');
+        t21($code===200&&$finance['can_decide']===false
+            &&$financeRows[$ids[0]]['payment_evidence']['state']==='verified'
+            &&$financeRows[$ids[0]]['wompi_payment_ref']===null
+            &&$financeRows[$ids[0]]['can_manual_confirm']===false,'finance read only without reference');
+        t21($adminGet(9)[0]===403&&$adminGet(null)[0]===401,'GET permissions remain restricted');
+        t21($beforeGet===$readOnlySnapshot(),'GET leaves payments, refunds, credentials and POS unchanged');
+        $pdo->exec("INSERT INTO ticket_payment_attempts VALUES (604,94,'wompi','trx_duplicate','refunded',2000,'ref94b')");
+        $pdo->exec("INSERT INTO ticket_payment_webhook_events VALUES (604,'trx_duplicate','APPROVED')");
+        $beforeGet=$readOnlySnapshot();
+        [$code,$body]=$adminGet(7); $rows=array_column($body['data']??[],null,'id');
+        t21($code===200&&$rows[$ids[0]]['payment_evidence']['reason']==='duplicate_wompi'
+            &&$rows[$ids[0]]['wompi_payment_ref']===null
+            &&$rows[$ids[0]]['can_manual_confirm']===false,'never choose among multiple signed attempts');
+        t21($beforeGet===$readOnlySnapshot(),'conflict GET does not mutate ledger');
+        $pdo->exec("DELETE FROM ticket_payment_webhook_events WHERE attempt_id=604");
+        $pdo->exec("DELETE FROM ticket_payment_attempts WHERE id=604");
+        $pdo->exec("UPDATE ticket_payment_attempts SET provider_transaction_id='invalid ref' WHERE id=603");
+        $pdo->exec("UPDATE ticket_payment_webhook_events SET provider_transaction_id='invalid ref' WHERE attempt_id=603");
+        [$code,$body]=$adminGet(7); $rows=array_column($body['data']??[],null,'id');
+        t21($code===200&&$rows[$ids[0]]['payment_evidence']['reason']==='wompi_reference_unverified'
+            &&$rows[$ids[0]]['wompi_payment_ref']===null
+            &&$rows[$ids[0]]['can_manual_confirm']===false,'malformed reference cannot unlock Wompi action');
+        $pdo->exec("DELETE FROM ticket_payment_webhook_events WHERE attempt_id IN (603,604)");
+        $pdo->exec("DELETE FROM ticket_payment_attempts WHERE id IN (603,604)");
+        $pdo->exec("UPDATE ticket_refunds SET status='requested' WHERE id IN (".implode(',',$ids).")");
     } finally {
         if(is_resource($serverProcess)){proc_terminate($serverProcess);proc_close($serverProcess);}
         foreach(glob($temporary.'/*')?:[] as $file){if(is_file($file))unlink($file);}
@@ -539,13 +655,119 @@ try {
         $refs=[];
         foreach ($prices as $i=>$price) {
             $entry=$orderId*10+$i; $entryRef=sprintf('%032x',$entry);
-            $pdo->prepare('INSERT INTO ticket_order_items VALUES (?,?,?)')->execute([$entry,$orderId,$price]);
+            $pdo->prepare('INSERT INTO ticket_order_items(id,order_id,unit_price_cop) VALUES (?,?,?)')->execute([$entry,$orderId,$price]);
             $pdo->prepare("INSERT INTO ticket_entries(id,public_id,order_item_id,status)
                 VALUES (?,UNHEX(?),?,'issued')")->execute([$entry,$entryRef,$entry]);
             $refs[]=$entryRef;
         }
         return [$ref,$refs];
     };
+    // Rejected claims are deliberately not released, even for mixed selections.
+    [$rejectedRef,$rejectedEntries]=$newOrder(900,600,[300,300]);
+    $rejectedInput=['order_id'=>$rejectedRef,'entry_ids'=>[$rejectedEntries[0]],
+        'reason'=>'Motivo sintético de rechazo','idempotency_key'=>'t2122-rejected-original'];
+    $rejected=brvtalRefundRequest($pdo,3,$rejectedInput);
+    brvtalRefundStaff($pdo,7,'superadmin',(int)$rejected['id'],'reject','Motivo sintético');
+    $beforeRejected=$snapshot();
+    t21(brvtalRefundRequest($pdo,3,$rejectedInput)['replayed'],'rejected same-key replay');
+    t21Reject(static fn()=>brvtalRefundRequest($pdo,3,array_replace($rejectedInput,[
+        'entry_ids'=>$rejectedEntries,'idempotency_key'=>'t2122-rejected-mixed'
+    ])),'REFUND_CLAIM_CONFLICT');
+    t21($snapshot()===$beforeRejected,'rejected mixed selection leaves no partial request');
+
+    // Real database failure in the second line insertion must not become a business conflict.
+    [$failureRef,$failureEntries]=$newOrder(901,600,[300,300]);
+    $failureInput=['order_id'=>$failureRef,'entry_ids'=>$failureEntries,
+        'reason'=>'Fallo SQL sintético','idempotency_key'=>'t2122-db-failure'];
+    $beforeFailure=$snapshot();
+    $pdo->exec("CREATE TRIGGER t2122_fail BEFORE INSERT ON ticket_refund_entries FOR EACH ROW
+        BEGIN IF NEW.entry_id=9011 THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='synthetic failure'; END IF; END");
+    try {
+        try {
+            brvtalRefundRequest($pdo,3,$failureInput);
+            throw new RuntimeException('expected database error');
+        } catch (PDOException $e) {
+            t21(($e->errorInfo[0]??null)==='45000','unrelated SQL failure preserved');
+        }
+        t21(!$pdo->inTransaction() && $snapshot()===$beforeFailure,'SQL failure rolls back header and first line');
+    } finally {
+        $pdo->exec('DROP TRIGGER t2122_fail');
+    }
+
+    // Two independent PHP processes use their own database connections.
+    // Hold the event mutex until both workers are ready, then release them together.
+    $worker=<<<'PHP'
+require $argv[1];
+$db=new PDO('mysql:host='.(getenv('BRVTAL_TEST_DB_HOST')?:'127.0.0.1')
+    .';port='.(getenv('BRVTAL_TEST_DB_PORT')?:3306).';dbname='.$argv[2].';charset=utf8mb4',
+    getenv('BRVTAL_TEST_DB_USER')?:'root',getenv('BRVTAL_TEST_DB_PASS')?:'',
+    [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_EMULATE_PREPARES=>false]);
+$db->exec('SET SESSION innodb_lock_wait_timeout=5');
+echo "ready\n"; fflush(STDOUT);
+if (fgets(STDIN)!=="go\n") exit(2);
+try {
+    $result=brvtalRefundRequest($db,3,json_decode($argv[3],true,512,JSON_THROW_ON_ERROR));
+    echo ($result['replayed']?'replayed':'created')."\n";
+} catch (DomainException $e) {
+    echo $e->getMessage()."\n";
+} catch (Throwable) {
+    echo "unexpected\n";
+}
+PHP;
+    foreach ([902=>false,903=>true] as $raceOrder=>$sameKey) {
+        [$raceRef,$raceEntries]=$newOrder($raceOrder,600,[300,300]);
+        $raceInput=['order_id'=>$raceRef,'entry_ids'=>[$raceEntries[0]],
+            'reason'=>'Concurrencia sintética','idempotency_key'=>'t2122-race-'.$raceOrder.'-one'];
+        $raceBefore=$snapshot(); $children=[]; $results=[];
+        $pdo->beginTransaction();
+        try {
+            $pdo->query('SELECT id FROM events WHERE id=1 FOR UPDATE')->fetchColumn();
+            foreach ([0,1] as $index) {
+                $input=$raceInput;
+                if ($index===1&&!$sameKey) $input['idempotency_key']='t2122-race-'.$raceOrder.'-two';
+                $proc=proc_open([PHP_BINARY,'-r',$worker,dirname(__DIR__,2).'/config/ticketing_refunds.php',
+                    $dbName,json_encode($input,JSON_THROW_ON_ERROR)],
+                    [0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes);
+                t21(is_resource($proc),'concurrent worker started');
+                $children[]=[$proc,$pipes];
+                stream_set_timeout($pipes[1],10);
+                t21(fgets($pipes[1])==="ready\n",'independent connection ready');
+            }
+            foreach ($children as [$proc,$pipes]) {fwrite($pipes[0],"go\n"); fflush($pipes[0]);}
+            usleep(100000);
+            foreach ($children as [$proc,$pipes]) t21(proc_get_status($proc)['running'],'worker awaits mutex');
+            $pdo->commit();
+            foreach ($children as [$proc,$pipes]) $results[]=trim((string)fgets($pipes[1]));
+        } finally {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            foreach ($children as [$proc,$pipes]) {
+                foreach ($pipes as $pipe) fclose($pipe);
+                if (proc_get_status($proc)['running']) proc_terminate($proc);
+                proc_close($proc);
+            }
+        }
+        sort($results,SORT_STRING);
+        t21($results===($sameKey?['created','replayed']:['REFUND_CLAIM_CONFLICT','created']),
+            'concurrent outcomes: '.implode(',',$results));
+        $after=$snapshot();
+        foreach (['ticket_refunds','ticket_refund_entries','ticket_refund_audit'] as $table)
+            t21(count($after[$table])===count($raceBefore[$table])+1,'one concurrent '.$table.' row');
+        t21($after['ticket_refund_adjustments']===$raceBefore['ticket_refund_adjustments'],
+            'concurrent conflict creates no financial adjustment');
+    }
+
+    // Deliberately inconsistent synthetic history exercises the UNIQUE fallback:
+    // the second line collides with a claim outside the current order's ledger.
+    [$collisionRef,$collisionEntries]=$newOrder(904,600,[300,300]);
+    $pdo->prepare('INSERT INTO ticket_refund_entries(refund_id,entry_id,amount_cop) VALUES(?,?,?)')
+        ->execute([$rejected['id'],9041,300]);
+    $beforeCollision=$snapshot();
+    t21Reject(static fn()=>brvtalRefundRequest($pdo,3,[
+        'order_id'=>$collisionRef,'entry_ids'=>$collisionEntries,
+        'reason'=>'Colisión sintética UNIQUE','idempotency_key'=>'t2122-unique-fallback'
+    ]),'REFUND_CLAIM_CONFLICT');
+    t21(!$pdo->inTransaction() && $snapshot()===$beforeCollision,
+        'exact unique collision rolls back header and first line');
     $partitions=[[[0,1,2]],[[0],[1,2]],[[1],[0,2]],[[2],[0,1]],[[0],[1],[2]]];
     $orderId=1000;
     foreach ([[10000,[4000,4000,4000],[3333,3333,3334]],
@@ -574,7 +796,7 @@ try {
                 $replay=brvtalRefundRequest($pdo,3,array_replace($input,['entry_ids'=>array_reverse($selected)]));
                 t21($replay['replayed']&&(int)$replay['id']===(int)$refund['id'],'same-key replay');
                 t21Reject(static fn()=>brvtalRefundRequest($pdo,3,array_replace($input,[
-                    'idempotency_key'=>'t21-duplicate-'.$orderId.'-'.$i])),'ENTRY_NOT_REFUNDABLE');
+                    'idempotency_key'=>'t21-duplicate-'.$orderId.'-'.$i])),'REFUND_CLAIM_CONFLICT');
             }
             t21($sum===$total,'all disjoint claims reconcile paid total exactly');
         }
