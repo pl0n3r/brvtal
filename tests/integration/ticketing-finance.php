@@ -104,6 +104,11 @@ t20($invalidPos['unverified_orders']===1 && $invalidPos['pos_cop']===0,
 $terminal=$posSale;$terminal['method']='terminal';
 $terminalSummary=brvtalFinanceSummarize([$posOrder],[$posItem],[],[$terminal])[0];
 t20($terminalSummary['pos_cop']===20000,'operator-confirmed terminal accepted without provider fee');
+foreach (['=1+1',' +SUM(A1)','-1+2','@SUM(A1)',"\tformula","\rformula"] as $formula) {
+    t20(brvtalFinanceCsvCell($formula)==="'".$formula,'formula neutralization');
+}
+t20(brvtalFinanceCsvCell(-3500)==='-3500' && brvtalFinanceCsvCell(null)==='',
+    'typed negative COP and unknown stay distinct');
 // Real MariaDB negative cases: channel selection can remove all matched orders.
 // Only run on a disposable DB with the integration-test flag.
 if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
@@ -249,6 +254,57 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
         t20($range['paid_orders']===3 && $range['approved_cop']===90000
             && $range['refund_cop']===10000 && $range['refund_in_period_cop']===9000,
             'inclusive two-day range with next-day adjustment');
+        // #2192: use the real append-only schema with disposable, synthetic event data.
+        $db->exec('CREATE TABLE events (id INT UNSIGNED PRIMARY KEY) ENGINE=InnoDB');
+        $db->exec('INSERT INTO events VALUES (1),(2),(3),(4),(5),(6)');
+        $db->exec((string)file_get_contents(__DIR__.'/../../database/migration_ticketing_finance_expenses_01.sql'));
+        $db->exec("INSERT INTO event_expenses (id,event_id,category,concept,amount_cop,entry_date,status,supersedes_id,created_at_utc) VALUES
+            (1,3,'artistas','fixture',30000,'2026-11-19','committed',NULL,UTC_TIMESTAMP(6)),
+            (2,3,'artistas','fixture',20000,'2026-11-19','paid',1,UTC_TIMESTAMP(6)),
+            (3,3,'lugar','fixture',10000,'2026-11-19','paid',NULL,UTC_TIMESTAMP(6)),
+            (4,3,'produccion','fixture',15000,'2026-11-19','committed',NULL,UTC_TIMESTAMP(6)),
+            (5,3,'otros','fixture',9999,'2026-11-19','paid',NULL,UTC_TIMESTAMP(6)),
+            (6,3,'otros','fixture',9999,'2026-11-19','void',5,UTC_TIMESTAMP(6)),
+            (7,6,'lugar','fixture',5000,'2026-11-19','paid',NULL,UTC_TIMESTAMP(6))");
+        $db->exec("INSERT INTO event_budgets (id,event_id,category,amount_cop,entry_date,status,supersedes_id,created_at_utc) VALUES
+            (1,3,'artistas',40000,'2026-11-19','active',NULL,UTC_TIMESTAMP(6)),
+            (2,3,'artistas',50000,'2026-11-19','active',1,UTC_TIMESTAMP(6)),
+            (3,3,'lugar',20000,'2026-11-19','active',NULL,UTC_TIMESTAMP(6)),
+            (4,3,'produccion',25000,'2026-11-19','active',NULL,UTC_TIMESTAMP(6)),
+            (5,5,'artistas',10000,'2026-11-19','active',NULL,UTC_TIMESTAMP(6))");
+        $db->exec("UPDATE ticket_payment_attempts SET fee_amount_cop=3000,fee_vat_cop=570,
+            withheld_amount_cop=100,net_amount_cop=16330 WHERE id=54");
+        $profit=brvtalFinanceReport($db,3,null,null,'all')[0];
+        t20($profit['net_after_refunds_cop']===90000 && $profit['net_after_fees_cop']===86430
+            && $profit['expenses_cop']===30000 && $profit['committed_expenses_cop']===15000
+            && $profit['profit_cop']===56430 && $profit['profit_margin_pct']===round(56430/86430*100,2)
+            && $profit['break_even_tickets']===3 && $profit['break_even_assumption']!==null
+            && $profit['profit_evidence']==='provisional_recorded_ledger',
+            'whole event profit subtracts refunds, Wompi fee/VAT and paid expenses exactly once');
+        t20($profit['budget_cop']===95000 && $profit['budget_variance_cop']===65000
+            && $profit['budget_vs_actual']['artistas']['paid_cop']===20000
+            && $profit['budget_vs_actual']['produccion']['committed_cop']===15000
+            && !isset($profit['budget_vs_actual']['otros']),'latest budget/expense revisions, void and committed separated');
+        $filtered=brvtalFinanceReport($db,3,'2026-11-19','2026-11-20','all')[0];
+        t20($filtered['profit_cop']===null && $filtered['profit_evidence']==='filtered_scope'
+            && $filtered['expenses_cop']===null,'no allocation of event-wide expenses to filtered cohorts');
+        $budgetOnly=brvtalFinanceReport($db,5,null,null,'all')[0];
+        t20($budgetOnly['budget_cop']===10000 && $budgetOnly['expenses_cop']===null
+            && $budgetOnly['profit_cop']===null,'budget is not proof of actual expenses');
+        $noSales=brvtalFinanceReport($db,6,null,null,'all')[0];
+        t20($noSales['paid_orders']===0 && $noSales['profit_cop']===-5000
+            && $noSales['break_even_tickets']===null && $noSales['profit_margin_pct']===null,
+            'ledger-only event shows paid cost without inventing ticket sales');
+        $db->exec("UPDATE ticket_payment_attempts SET fee_vat_cop=NULL WHERE id=54");
+        $unknown=brvtalFinanceReport($db,3,null,null,'all')[0];
+        t20($unknown['profit_cop']===null && $unknown['net_after_fees_cop']===null
+            && $unknown['profit_evidence']==='incomplete_revenue','unknown provider evidence prevents profit');
+        $db->exec("UPDATE ticket_payment_attempts SET fee_vat_cop=570 WHERE id=54");
+        $db->exec('RENAME TABLE event_budgets TO budgets_unavailable');
+        $unknown=brvtalFinanceReport($db,3,null,null,'all')[0];
+        t20($unknown['profit_cop']===null && $unknown['expenses_cop']===null
+            && $unknown['profit_evidence']==='ledger_unavailable','missing ledger fails closed');
+        $db->exec('RENAME TABLE budgets_unavailable TO event_budgets');
         // #2054: same event, two types, renamed historical snapshots and contradictory evidence.
         $db->exec("INSERT INTO ticket_orders VALUES
             (47,4,'paid',20000,'COP',UTC_TIMESTAMP(6)),(48,4,'paid',30000,'COP',UTC_TIMESTAMP(6)),
