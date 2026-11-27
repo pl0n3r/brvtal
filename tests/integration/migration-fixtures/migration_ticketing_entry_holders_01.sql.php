@@ -64,7 +64,7 @@ return static function (PDO $server, string $dsn, string $user, string $pass): v
         $reject(static fn() => $holder->execute([99,2,1,$now]), [1452], 'unknown entry');
         $reject(static fn() => $holder->execute([3,99,1,$now]), [1452], 'unknown buyer');
         // This is a fixture-only legacy projection after complete schema proof and valid order join.
-        $effective = static fn(): array => array_map('intval', $pdo->query(
+        $effective = static fn(): array => array_map(intval(...), $pdo->query(
             'SELECT COALESCE(h.buyer_id,o.buyer_id) FROM ticket_entries e JOIN ticket_order_items i ON i.id=e.order_item_id '
             . 'JOIN ticket_orders o ON o.id=i.order_id LEFT JOIN ticket_entry_holders h ON h.entry_id=e.id ORDER BY e.id'
         )->fetchAll(PDO::FETCH_COLUMN));
