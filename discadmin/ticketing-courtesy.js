@@ -1,4 +1,40 @@
 /* Cortesías: canonical owner-only workspace; the server owns permissions and state. */
+async function read(params) {
+  const response=await fetch('/api/ticketing/admin-courtesy-list.php?'+params,{credentials:'same-origin',cache:'no-store'});
+  const body=await response.json();
+  if(!response.ok||body.ok!==true||!Array.isArray(body.data?.rows)||!Array.isArray(body.data?.catalog)){
+    throw new Error('NO_LIST');
+  }
+  return body.data;
+}
+
+function issueMessage(result) {
+  if(result.replayed){
+    return result.needs_resend===true
+      ? 'La cortesía existe, pero no tiene un envío confirmado. Usa Reenviar correo con QR.'
+      : 'La cortesía ya estaba registrada; no se creó otra entrada ni otro correo.';
+  }
+  return result.queued===true
+    ? 'Cortesía creada sin cobro. El correo con el QR quedó en cola de envío.'
+    : 'La cortesía no pudo confirmarse; consulta el estado antes de reintentar.';
+}
+
+function errorMessage(code) {
+  if(code==='MAIL_NOT_READY')return 'El correo aún no está configurado para este destinatario. No se emitió la cortesía.';
+  if(code==='COURTESY_SCHEMA_MISSING')return 'La base de datos de cortesías no está preparada. No se emitió la cortesía.';
+  return 'No autorizada o cupo no disponible. No se presume emisión.';
+}
+
+function actionMessage(body,result,id) {
+  const resend=body.action==='resend';
+  if(id!==body.invite_id||result.status!==(resend?'queued':'revoked')||(resend&&result.queued!==true)){
+    return 'Respuesta no confirmada. Consulta la invitación antes de reintentar.';
+  }
+  return resend
+    ? 'Nuevo QR preparado para envío. El enlace anterior ya no es válido.'
+    : 'Cortesía revocada y cupo liberado. El QR anterior ya no permite ingresar.';
+}
+
 export function mount(panel, active = () => panel.isConnected, csrf = '') {
   if (!csrf || !active() || panel.querySelector('[data-ticketing-courtesy]')) return;
   panel.replaceChildren();
@@ -47,7 +83,10 @@ export function mount(panel, active = () => panel.isConnected, csrf = '') {
   const filterEvent=field('event_id','Filtrar evento',[]), filterType=field('ticket_type_id','Filtrar boleta',[]);
   field('category','Filtrar categoría',categories);field('status','Filtrar estado',states);field('invite_id','Número de cortesía');
   const button=(label,handler)=>{const b=document.createElement('button');b.type='button';b.className='tk-button';
-    b.textContent=label;if(handler)b.addEventListener('click',handler);return b;};
+    b.textContent=label;
+    if(handler){b.addEventListener('click',handler);}
+    return b;
+  };
   const search=button('Consultar invitaciones');search.type='submit';filters.append(search);
   const listStatus=document.createElement('p');listStatus.className='tk-status';listStatus.setAttribute('role','status');
   const results=document.createElement('div');results.className='tk-table-wrap';
@@ -63,12 +102,6 @@ export function mount(panel, active = () => panel.isConnected, csrf = '') {
     for(const el of section.querySelectorAll('button'))el.disabled=busy;
     submit.disabled=busy||!ready||!catalog.length;event.disabled=busy||!ready;ticket.disabled=busy||!ready;
   };
-  async function read(params) {
-    const response=await fetch('/api/ticketing/admin-courtesy-list.php?'+params,{credentials:'same-origin',cache:'no-store'});
-    const body=await response.json();
-    if(!response.ok||body.ok!==true||!Array.isArray(body.data?.rows)||!Array.isArray(body.data?.catalog))throw Error('NO_LIST');
-    return body.data;
-  }
   function setOptions(select,items,placeholder) {
     const value=select.value;
     select.replaceChildren(option('',placeholder),...items.map(([v,t])=>option(v,t)));
@@ -95,7 +128,7 @@ export function mount(panel, active = () => panel.isConnected, csrf = '') {
       const data=await read(new URLSearchParams({invite_id:String(row.id)}));
       if(!alive())return;
       const current=data.rows.find(item=>item.id===row.id);
-      if(!current)throw Error('NO_INVITE');
+      if(!current)throw new Error('NO_INVITE');
       if(action==='detail'){detail.textContent=summary(current);return;}
       if(!eligible(current)||current.resend_requests!==row.resend_requests){
         status.textContent='La invitación cambió. Revisa su estado antes de actuar.';return;
@@ -121,9 +154,13 @@ export function mount(panel, active = () => panel.isConnected, csrf = '') {
         labelFor(states,row.status)+(row.incident?' · Incidencia de estado':''),mail[row.mail_state]||mail.unknown]
         .forEach((value,index)=>{const td=tr.insertCell();td.dataset.label=headings[index];td.textContent=value;});
       const actions=tr.insertCell();actions.dataset.label='Acciones';
-      actions.append(button('Ver detalle',()=>void rowAction(row,'detail')));
-      if(eligible(row))actions.append(button('Reenviar correo con QR',()=>void rowAction(row,'resend')),
-        button('Revocar',()=>void rowAction(row,'revoke')));
+      const group=document.createElement('div');group.className='tk-entry-actions';
+      group.append(button('Ver detalle',()=>void rowAction(row,'detail')));
+      if(eligible(row)){
+        group.append(button('Reenviar correo con QR',()=>void rowAction(row,'resend')),
+          button('Revocar',()=>void rowAction(row,'revoke')));
+      }
+      actions.append(group);
     }
   }
   async function load(append=false){
@@ -151,6 +188,21 @@ export function mount(panel, active = () => panel.isConnected, csrf = '') {
   filters.addEventListener('submit',e=>{e.preventDefault();detail.replaceChildren();void load();});
   const listHeading=document.createElement('h3');listHeading.textContent='Invitaciones registradas';
   list.append(listHeading,filters,listStatus,results,more,detail);
+  function applyWriteResult(body,ok,data) {
+    if(!ok||data.ok!==true||!data.data){
+      status.textContent=errorMessage(data.error);return;
+    }
+    const id=Number(data.data.invite_id);
+    if(!Number.isSafeInteger(id)||id<1){
+      status.textContent='No fue posible verificar la cortesía. Consulta el estado antes de reintentar.';return;
+    }
+    if(body.action!=='issue'){
+      status.textContent=actionMessage(body,data.data,id);return;
+    }
+    pendingIssue=null;
+    filters.reset();fillFilters();filters.elements.namedItem('invite_id').value=String(id);
+    status.textContent=issueMessage(data.data);
+  }
   async function send(body, locked=false) {
     if (!alive() || (busy&&!locked) || (!locked&&!ready)) return;
     if(!locked){busy=true;++request;more.hidden=true;}
@@ -166,38 +218,7 @@ export function mount(panel, active = () => panel.isConnected, csrf = '') {
       });
       const data=await response.json();
       if (!alive()) return;
-      if (!response.ok||data.ok!==true||!data.data) {
-        status.textContent=data.error==='MAIL_NOT_READY'
-          ? 'El correo aún no está configurado para este destinatario. No se emitió la cortesía.'
-          : data.error==='COURTESY_SCHEMA_MISSING'
-            ? 'La base de datos de cortesías no está preparada. No se emitió la cortesía.'
-            : 'No autorizada o cupo no disponible. No se presume emisión.';
-        return;
-      }
-      const id=Number(data.data.invite_id);
-      if (!Number.isSafeInteger(id)||id<1) {
-        status.textContent='No fue posible verificar la cortesía. Consulta el estado antes de reintentar.';
-        return;
-      }
-      if (body.action==='issue') {
-        pendingIssue=null;
-        filters.reset();fillFilters();filters.elements.namedItem('invite_id').value=String(id);
-        status.textContent=data.data.replayed
-          ? data.data.needs_resend===true
-            ? 'La cortesía existe, pero no tiene un envío confirmado. Usa Reenviar correo con QR.'
-            : 'La cortesía ya estaba registrada; no se creó otra entrada ni otro correo.'
-          : data.data.queued===true
-            ? 'Cortesía creada sin cobro. El correo con el QR quedó en cola de envío.'
-            : 'La cortesía no pudo confirmarse; consulta el estado antes de reintentar.';
-      } else {
-        if(id!==body.invite_id||data.data.status!==(body.action==='resend'?'queued':'revoked')
-          ||(body.action==='resend'&&data.data.queued!==true)){
-          status.textContent='Respuesta no confirmada. Consulta la invitación antes de reintentar.';return;
-        }
-        status.textContent=body.action==='resend'
-          ? 'Nuevo QR preparado para envío. El enlace anterior ya no es válido.'
-          : 'Cortesía revocada y cupo liberado. El QR anterior ya no permite ingresar.';
-      }
+      applyWriteResult(body,response.ok,data);
     } catch {
       if (alive()) status.textContent=body.action==='issue'
         ? 'Sin confirmación del servidor. Reintenta con la misma clave.'
