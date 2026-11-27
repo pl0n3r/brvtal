@@ -390,7 +390,7 @@ function brvtal_bulk_apply(PDO $pdo, array $request, ?callable $audit = null): a
     $lifecycleColumns = $resource === 'events'
         ? ',title,event_date,city,description,published_at,cancelled_at,finished_at'
         : '';
-    $publicationColumns = $resource === 'sets' ? ',external_url' : ($resource === 'pages' && $status === 'published' ? ',locale,content_json' : '');
+    $publicationColumns = $resource === 'sets' ? ',external_url' : '';
     $selectColumns = $audit === null
         ? "id,status{$lifecycleColumns}{$publicationColumns}"
         : "id,status{$lifecycleColumns}{$publicationColumns},`{$labelColumn}` AS resource_label";
@@ -405,7 +405,9 @@ function brvtal_bulk_apply(PDO $pdo, array $request, ?callable $audit = null): a
         }
 
         if ($resource === 'pages' && $status === 'published') {
-            foreach ($rows as $row) {
+            $pages = $pdo->prepare("SELECT locale,content_json FROM pages WHERE id IN ({$placeholders}) ORDER BY id FOR UPDATE");
+            $pages->execute($ids);
+            foreach ($pages->fetchAll(PDO::FETCH_ASSOC) as $row) {
                 $error = brvtal_page_publication_error(array_replace($row, ['status'=>'published']), $pdo);
                 if ($error !== null) {
                     throw new InvalidArgumentException($error);
