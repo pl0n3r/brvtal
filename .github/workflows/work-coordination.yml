@@ -31,6 +31,8 @@ jobs:
        startsWith(github.event.comment.body, '/release ') ||
        startsWith(github.event.comment.body, '/transfer ') ||
        startsWith(github.event.comment.body, '/recover ') ||
+       github.event.comment.body == '/adopt-orphan-contract' ||
+       startsWith(github.event.comment.body, '/recover-orphan-lock ') ||
        startsWith(github.event.comment.body, '/renovar-contrato '))
     # Factory v1 declares this maximum workflow_call envelope. GitHub validates
     # the caller against that envelope before selecting the operation-specific job;

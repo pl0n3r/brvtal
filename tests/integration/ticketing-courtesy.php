@@ -70,7 +70,7 @@ try {
             attempt_id BIGINT UNSIGNED,provider_transaction_id VARCHAR(190),signed_status VARCHAR(20)) ENGINE=InnoDB'
     ];
     foreach($schema as $statement) $db->exec($statement);
-    foreach(['migration_ticketing_entries_01.sql','migration_ticketing_courtesy_01.sql','migration_ticketing_mail_outbox_01.sql'] as $file) {
+    foreach(['migration_ticketing_entries_01.sql','migration_ticket_entry_secret_01.sql','migration_ticketing_courtesy_01.sql','migration_ticketing_mail_outbox_01.sql'] as $file) {
         $sql=(string)file_get_contents(__DIR__.'/../../database/'.$file);
         $sql=(string)preg_replace('/^\s*--[^\r\n]*$/m','',$sql);
         foreach(array_filter(array_map(trim(...),explode(';',$sql))) as $statement) $db->exec($statement);
@@ -90,7 +90,7 @@ try {
     t25(brvtalCourtesyEnabled($db),'only synthetic mode enabled');
     try {brvtalCourtesyIssue($db,8,'admin',$input);throw new RuntimeException('role bypass');}
     catch(DomainException $e){t25($e->getMessage()==='FORBIDDEN','least privilege');}
-    // QR never leaves the encrypted transactional outbox; no plaintext in database.
+    // The transactional outbox and stored credential must both remain encrypted.
     $getQr=static function(PDO $db,int $invite): string {
         $q=$db->prepare('SELECT body_text FROM ticket_mail_outbox
             WHERE related_ref=? AND state="queued" ORDER BY id DESC LIMIT 1');
@@ -104,10 +104,29 @@ try {
             'one-use bearer included in sealed mail');
         return (string)($match[0] ?? '');
     };
+    $activeCredential=static function(PDO $db,int $invite): array {
+        $q=$db->prepare("SELECT e.public_id,c.entry_id,c.version,c.token_hash,c.token_encrypted
+            FROM ticket_courtesy_invites i JOIN ticket_entries e ON e.id=i.entry_id
+            JOIN ticket_entry_credentials c ON c.entry_id=e.id AND c.status='active' WHERE i.id=?");
+        $q->execute([$invite]);
+        $row=$q->fetch(PDO::FETCH_ASSOC);
+        t25(is_array($row),'active courtesy credential exists');
+        return $row;
+    };
+    $assertStored=static function(array $row,string $qr): void {
+        $sealed=$row['token_encrypted'];
+        t25(is_string($sealed) && strlen($sealed)===61,'authenticated ciphertext stored');
+        $secret=brvtal_ticket_issue_open_token($sealed,$row['public_id']);
+        t25(!str_contains($sealed,$secret) && hash_equals($row['token_hash'],hash('sha256',$secret,true)),
+            'ciphertext recovers exactly the hashed bearer without storing plaintext');
+        t25($qr==='BRVTAL:T1:'.bin2hex($row['public_id']).':'.rtrim(strtr(base64_encode($secret),'+/','-_'),'='),
+            'stored credential matches the original mail QR');
+    };
     $first=brvtalCourtesyIssue($db,7,'superadmin',$input);
     t25($first['queued']===true&&$first['qr']===null&&!$first['sent'],
         'queued encrypted email without plaintext or provider');
     $firstQr=$getQr($db,$first['invite_id']);
+    $assertStored($activeCredential($db,$first['invite_id']),$firstQr);
     $replay=brvtalCourtesyIssue($db,7,'superadmin',$input);
     t25($replay['replayed']&&$replay['qr']===null,'idempotent no second secret');
     foreach ([
@@ -147,11 +166,28 @@ try {
     t25(brvtalTicketCheckinConsume($db,1,7,'door-B',$firstQr,$doorClock)['reason']==='already_used',
         'replay denied');
     $secondOldQr=$getQr($db,$second['invite_id']);
+    $oldCredential=$activeCredential($db,$second['invite_id']);
+    $assertStored($oldCredential,$secondOldQr);
+    // Simulate a historical hash-only credential: NULL is the existing non-recoverable marker.
+    $db->prepare('UPDATE ticket_entry_credentials SET token_encrypted=NULL WHERE entry_id=? AND version=?')
+        ->execute([$oldCredential['entry_id'],$oldCredential['version']]);
+    t25($activeCredential($db,$second['invite_id'])['token_encrypted']===null,
+        'historical courtesy remains non-recoverable without inventing a secret');
     $resend=brvtalCourtesyAction($db,7,'superadmin','resend',$second['invite_id']);
     t25($resend['queued']===true && $resend['sent']===false,
         'resend queues new mail without calling provider');
     $secondNewQr=$getQr($db,$second['invite_id']);
     t25($secondOldQr!==$secondNewQr,'resend rotates credential');
+    $newCredential=$activeCredential($db,$second['invite_id']);
+    $assertStored($newCredential,$secondNewQr);
+    t25((int)$newCredential['version']===(int)$oldCredential['version']+1
+        && !hash_equals($oldCredential['token_hash'],$newCredential['token_hash']),
+        'rotation preserves audit version and replaces hash');
+    $q=$db->prepare('SELECT status,token_encrypted FROM ticket_entry_credentials WHERE entry_id=? AND version=?');
+    $q->execute([$oldCredential['entry_id'],$oldCredential['version']]);
+    $legacy=$q->fetch(PDO::FETCH_ASSOC);
+    t25(is_array($legacy) && $legacy['status']==='revoked' && $legacy['token_encrypted']===null,
+        'legacy revoked row stays hash-only; no fabricated recovery');
     t25(brvtalTicketCheckinConsume($db,1,7,'door-B',$secondOldQr,$doorClock)['ok']===false,
         'old resend credential revoked');
     t25((int)$db->query("SELECT COUNT(*) FROM ticket_inventory_holds WHERE kind='courtesy'
