@@ -1,0 +1,118 @@
+name: Issue 2191 synthetic finance evidence
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [main]
+    paths:
+      - '.github/workflows/issue-2191-expenses-evidence.yml'
+      - 'tests/e2e/run-finance-expenses-evidence.sh'
+      - 'tests/e2e/finance-expenses-http-fixture.mjs'
+      - 'api/ticketing/admin-finances.php'
+      - 'discadmin/ticketing-finance.php'
+      - 'discadmin/ticketing-finance.js'
+      - 'tests/e2e/discadmin-ticketing-finance-expenses.spec.mjs'
+permissions:
+  contents: read
+  pull-requests: read
+jobs:
+  evidence:
+    name: finance-2191-evidence
+    if: >-
+      github.repository == 'pl0n3r/brvtal' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (github.head_ref == 'work/issue-2306' || github.head_ref == 'work/issue-2191')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      mariadb:
+        image: ghcr.io/mariadb/mariadb:11.4.13-noble@sha256:3cff57293253c640483e8a19ce506cf68bf8e4529385e64aeec700c02038e7ed
+        env:
+          MARIADB_ROOT_PASSWORD: brvtal_root
+          MARIADB_DATABASE: brvtal_test_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s --health-timeout=3s --health-retries=15
+    env:
+      TRIGGER_HEAD: ${{ github.event.pull_request.head.sha }}
+      TRIGGER_BASE: ${{ github.event.pull_request.base.sha }}
+      TRIGGER_REF: ${{ github.head_ref }}
+      TRIGGER_PR: ${{ github.event.pull_request.number }}
+    steps:
+      - name: Resolve exact product PR
+        id: target
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api repos/pl0n3r/brvtal/pulls/2305 > "$RUNNER_TEMP/finance-target.json"
+          python3 - <<'PY'
+          import json, os, re
+          from pathlib import Path
+          p = json.loads(Path(os.environ['RUNNER_TEMP'], 'finance-target.json').read_text())
+          assert p['number'] == 2305 and p['state'] == 'open'
+          assert p['head']['ref'] == 'work/issue-2191' and p['base']['ref'] == 'main'
+          assert p['head']['repo']['full_name'] == p['base']['repo']['full_name'] == 'pl0n3r/brvtal'
+          assert re.search(r'(?im)^closes #2191\s*$', p['body'] or '')
+          head, base = p['head']['sha'], p['base']['sha']
+          assert head != base and all(re.fullmatch('[a-f0-9]{40}', x) for x in (head, base))
+          if os.environ['TRIGGER_REF'] == 'work/issue-2191':
+              assert os.environ['TRIGGER_PR'] == '2305'
+              assert (head, base) == (os.environ['TRIGGER_HEAD'], os.environ['TRIGGER_BASE'])
+          else:
+              assert os.environ['TRIGGER_REF'] == 'work/issue-2306'
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
+              print(f'head={head}\nbase={base}', file=out)
+          PY
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: wiring
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ steps.target.outputs.head }}
+          path: candidate
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify checkouts and workflow safety
+        run: |
+          test "$(git -C wiring rev-parse HEAD)" = "$TRIGGER_HEAD"
+          python3 wiring/scripts/ci_self_audit.py
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
+        with:
+          php-version: '8.5'
+          extensions: pdo_mysql, mbstring
+          coverage: none
+      - name: Install browser dependencies
+        working-directory: candidate
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Capture and verify real persisted operations
+        working-directory: candidate
+        env:
+          TARGET_HEAD: ${{ steps.target.outputs.head }}
+          TARGET_BASE: ${{ steps.target.outputs.base }}
+        run: bash ../wiring/tests/e2e/run-finance-expenses-evidence.sh
+      - name: Revalidate exact target before publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api repos/pl0n3r/brvtal/pulls/2305 > "$RUNNER_TEMP/finance-current.json"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          def identity(name):
+              p = json.loads(Path(os.environ['RUNNER_TEMP'], name).read_text())
+              return (p['number'], p['state'], p['head']['repo']['full_name'],
+                      p['head']['ref'], p['head']['sha'], p['base']['repo']['full_name'],
+                      p['base']['ref'], p['base']['sha'])
+          assert identity('finance-target.json') == identity('finance-current.json')
+          PY
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: issue-2191-evidence-${{ steps.target.outputs.head }}-${{ github.run_id }}
+          path: candidate/artifacts/issue-2191/
+          if-no-files-found: error
+          retention-days: 14
