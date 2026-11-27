@@ -206,7 +206,7 @@
       ],
       "purpose": "contact_capture",
       "basis": "review_required",
-      "retention": "review_required",
+      "retention": "contact_capture_24m",
       "consent": "review_required",
       "providers": []
     },

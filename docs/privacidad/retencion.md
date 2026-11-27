@@ -17,7 +17,7 @@ Producto: `pl0n3r/brvtal`
 | admin_totp_pending | authentication | session_30d | review_required |
 | auth_password_rate_limit | usage | review_required | review_required |
 | auth_totp_rate_limit | usage | review_required | review_required |
-| contact_capture | contact | review_required | review_required |
+| contact_capture | contact | contact_capture_24m | review_required |
 | contact_delivery | contact | external_mailbox_review_required | review_required |
 | contact_rate_limit | usage | review_required | review_required |
 | form_entry_management | contact | review_required | review_required |
