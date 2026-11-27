@@ -183,7 +183,7 @@ function brvtalCourtesyIssue(PDO $db,int $actor,string $role,array $data): array
         $entry=(int)$db->lastInsertId();
         $db->prepare("INSERT INTO ticket_entry_credentials(entry_id,version,token_hash,token_encrypted,created_at_utc)
             VALUES (?,1,?,?,UTC_TIMESTAMP(6))")->execute([
-                $entry,hash('sha256',$secret,true),brvtal_ticket_issue_seal_token($secret,$public)]);
+                $entry, hash('sha256', $secret, true), brvtal_ticket_issue_seal_token($secret, $public)]);
         $db->prepare('INSERT INTO ticket_courtesy_invites
             (event_id,ticket_type_id,order_id,entry_id,category,recipient_digest,request_digest,reason,authorized_by)
             VALUES (?,?,?,?,?,?,?,?,?)')->execute([$event,$type,$order,$entry,$data['category'],
@@ -244,8 +244,8 @@ function brvtalCourtesyAction(PDO $db,int $actor,string $role,string $action,int
             $secret=random_bytes(32);
             $db->prepare("INSERT INTO ticket_entry_credentials
                 (entry_id,version,token_hash,token_encrypted,created_at_utc) VALUES (?,?,?,?,UTC_TIMESTAMP(6))")
-                ->execute([(int)$row['entry_id'],(int)$version+1,hash('sha256',$secret,true),
-                    brvtal_ticket_issue_seal_token($secret,(string)$row['public_id'])]);
+                ->execute([(int)$row['entry_id'], (int)$version+1, hash('sha256', $secret, true),
+                    brvtal_ticket_issue_seal_token($secret, (string)$row['public_id'])]);
             $db->prepare("UPDATE ticket_mail_outbox SET state='failed',last_error_code='courtesy_superseded'
                 WHERE related_ref=? AND state IN ('queued','retry')")->execute(["courtesy:{$invite}"]);
             brvtalCourtesyQueue($db,$invite,(string)$row['email'],(string)$row['public_id'],$secret,$revision);
