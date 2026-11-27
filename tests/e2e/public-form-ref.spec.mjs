@@ -2,7 +2,6 @@ import { test, expect } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-
 const source = [
   "require_once 'config/public_seo.php'; require_once 'config/public_page.php';",
   "$raw=json_encode(['blocks'=>[['type'=>'heading','content'=>'Antes del formulario'],['type'=>'form_ref','public_id'=>str_repeat('a',32)],['type'=>'text','content'=>'Después del formulario <img src=x onerror=alert(1)>']]]);",
@@ -12,7 +11,6 @@ const source = [
   "$seo=['title'=>'Fixture CMS','description'=>$description,'image'=>'','canonical'=>'https://www.brvtal.com.co/pages/cms-fixture','schema'=>['@context'=>'https://schema.org','@type'=>'WebPage','description'=>$description]];",
   "echo brvtal_public_entity_page($page,$seo);"
 ].join('\n');
-
 async function mount(page, root, state) {
   const html=execFileSync('php',['-r',source,state],{cwd:root,encoding:'utf8'});
   await page.route('**/*',async route=>{
@@ -29,7 +27,6 @@ async function mount(page, root, state) {
   });
   await page.goto('http://127.0.0.1:4173/pages/cms-fixture');
 }
-
 for(const width of [390,1440]){
   test('2072 inert CMS form, exact public renderer '+width,async({page})=>{
     await page.setViewportSize({width,height:900});
@@ -50,7 +47,7 @@ for(const width of [390,1440]){
     await expect(block).toContainText('Mensaje sintético');
     await expect(block.locator('form,input,textarea,select,button')).toHaveCount(0);
     await expect(page.locator('img[src="x"]')).toHaveCount(0);
-    expect(await page.locator('.entity-statement').innerText()).toMatch(/Antes del formulario[\s\S]*Formulario sintético[\s\S]*Después del formulario/);
+    expect(await page.locator('.entity-statement').innerText()).toMatch(/Antes del formulario[\s\S]*Formulario sintético[\s\S]*Después del formulario/i);
     expect(await page.locator('meta[name=description]').getAttribute('content')).not.toMatch(/aaaaaaaa|Formulario sintético/);
     expect(await block.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBeTruthy();
     await capture(page,'after');

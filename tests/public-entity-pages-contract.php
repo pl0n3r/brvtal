@@ -64,6 +64,7 @@ public_pages_expect(str_contains($pageContractUi, 'text · paragraph · heading 
 $ref = ['type'=>'form_ref','public_id'=>str_repeat('a',32)];
 $blocks = json_encode(['blocks'=>[['type'=>'heading','content'=>'Before'],$ref,['type'=>'text','content'=>'After']]], JSON_THROW_ON_ERROR);
 public_pages_expect(brvtal_page_content_plain_text($blocks) === "Before\n\nAfter", 'form IDs excluded from SEO');
+public_pages_expect(brvtal_page_publication_error(['status'=>'published','locale'=>'en','content_json'=>$blocks]) === 'PAGE_FORM_REF_LOCALE_MUST_BE_ES', 'form refs use canonical Spanish route');
 public_pages_expect(brvtal_page_content_structure_error($blocks) === 'PAGE_FORM_REF_UNAVAILABLE', 'no DB authority, no publication');
 public_pages_expect(brvtal_page_form_id($ref + ['html'=>'<iframe>']) === null, 'strict reference fields');
 public_pages_expect(brvtal_page_form_id(array_replace($ref,['public_id'=>str_repeat('A',32)])) === null, 'canonical lowercase opaque identity');

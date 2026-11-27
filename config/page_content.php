@@ -45,13 +45,10 @@ function brvtal_page_form_id(mixed $block): ?string
         && is_string($block['public_id'] ?? null) && preg_match('/\A[a-f0-9]{32}\z/D', $block['public_id'])
         ? $block['public_id'] : null;
 }
-
 /** Only immutable public copy is returned; no draft, policy keys, IDs or delivery configuration. */
 function brvtal_page_form_resolve(PDO $pdo, string $id): ?array
 {
-    if (!preg_match('/\A[a-f0-9]{32}\z/D', $id)) {
-        return null;
-    }
+    if (!preg_match('/\A[a-f0-9]{32}\z/D', $id)) return null;
     try {
         $query = $pdo->prepare("SELECT r.form_key,r.published_version_number,v.definition_json,
             v.definition_sha256,p.notice_version,p.privacy_policy_json,p.delivery_policy_json
@@ -82,9 +79,7 @@ function brvtal_page_form_resolve(PDO $pdo, string $id): ?array
         }
         $consent = array_filter($fields, static fn(array $field): bool => $field['type'] === 'consent'
             && $field['purpose'] === 'privacy' && $field['notice_version'] === $row['notice_version']);
-        if (count($consent) !== 1) {
-            return null;
-        }
+        if (count($consent) !== 1) return null;
         return ['title'=>$policy['form_title'], 'fields'=>array_values(array_map(
             static fn(array $field): array => ['label'=>$field['label'],'help'=>$field['help'] ?? '',
                 'options'=>array_column($field['options'] ?? [], 'label')], $fields
@@ -93,7 +88,6 @@ function brvtal_page_form_resolve(PDO $pdo, string $id): ?array
         return null;
     }
 }
-
 function brvtal_page_form_html(?array $form): string
 {
     if ($form === null) {
@@ -109,7 +103,6 @@ function brvtal_page_form_html(?array $form): string
     }
     return $html . '</ul></section>';
 }
-
 /** Render in source order. Forms are descriptive, never interactive, regardless of configuration. */
 function brvtal_page_content_html(mixed $value, callable $resolve): string
 {
@@ -141,7 +134,6 @@ function brvtal_page_content_html(mixed $value, callable $resolve): string
     }
     return $html;
 }
-
 function brvtal_page_content_structure_error(mixed $value, ?PDO $pdo = null): ?string
 {
     $raw = trim((string)$value);

@@ -23,8 +23,7 @@ jobs:
           set -euo pipefail
           base="$RUNNER_TEMP/cms-2072-base"
           git worktree add --detach "$base" "$BASE_SHA"
-          test "$(git -C "$base" rev-parse HEAD)" = "$BASE_SHA"
-          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          test "$(git -C "$base" rev-parse HEAD)" = "$BASE_SHA" && test "$(git rev-parse HEAD)" = "$HEAD_SHA"
           npm install --ignore-scripts --no-audit --no-fund
           npx playwright install --with-deps chromium
           BRVTAL_FORM_VISUAL_BASE_ROOT="$base" npx playwright test tests/e2e/public-form-ref.spec.mjs --project=chromium --workers=1

@@ -2,7 +2,7 @@
 declare(strict_types=1);
 // @brvtal-ci database
 function cmsCheck(bool $ok, string $message): void {
-    if (!$ok) throw new RuntimeException('CMS fixture: '.$message);
+    if (!$ok) throw new RuntimeException('CMS fixture: '.$message, debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS,1)[0]['line']);
 }
 $prefix=(string)getenv('BRVTAL_TEST_DB_NAME');
 cmsCheck(getenv('BRVTAL_INTEGRATION_TESTS')==='1' && getenv('BRVTAL_TEST_DB_HOST')==='127.0.0.1'
@@ -76,7 +76,7 @@ try {
         cmsCheck(preg_match('/^HTTP\/\S+ '.$status.' /',http_get_last_response_headers()[0]??'')===1,'HTTP '.$status.' '.$path);
         return (string)$raw;
     };
-    $make=static fn(string $slug,string $ref,string $status='published'):array=>['title'=>'Fixture '.$slug,'slug'=>$slug,'locale'=>'en','status'=>$status,
+    $make=static fn(string $slug,string $ref,string $status='published'):array=>['title'=>'Fixture '.$slug,'slug'=>$slug,'locale'=>'es','status'=>$status,
         'content_json'=>json_encode(['blocks'=>[['type'=>'heading','content'=>'Before'],['type'=>'form_ref','public_id'=>$ref],
             ['type'=>'text','content'=>'After <img src=x onerror=alert(1)>']]],JSON_THROW_ON_ERROR)];
     $api='/api/index.php/pages';
@@ -85,14 +85,14 @@ try {
         $raw=$http($api,422,'POST',$make('cms-invalid',$invalid));
         cmsCheck(json_decode($raw,true)['error']==='PAGE_FORM_REF_UNAVAILABLE','publication fails closed');
     }
-    $http($api,201,'POST',$make('cms-valid',$id));
+    $http($api,422,'POST',array_replace($make('cms-wrong-locale',$id),['locale'=>'en'])); $http($api,201,'POST',$make('cms-valid',$id));
     $draft=json_decode($http($api,201,'POST',$make('cms-unpublished',$draftId,'draft')),true,flags:JSON_THROW_ON_ERROR);
     $draftPage=(int)$draft['id'];
     $http($api.'/'.$draftPage,422,'PUT',['status'=>'published']);
     $http('/api/bulk-actions.php',422,'POST',['resource'=>'pages','ids'=>[$draftPage],'status'=>'published']);
     cmsCheck($db->query("SELECT status FROM pages WHERE id=".$draftPage)->fetchColumn()==='draft','invalid batch and edit rollback');
     $legacy=['title'=>'Legacy fixture','slug'=>'cms-legacy','locale'=>'en','status'=>'published','content_json'=>'{"text":"Legacy text"}'];
-    $http($api,201,'POST',$legacy);
+    $http($api,201,'POST',$legacy); $db->exec("UPDATE pages SET locale='es' WHERE slug='cms-legacy'"); // historical public fixture
     cmsCheck(str_contains($http('/index.php?type=pages&slug=cms-legacy',200,'GET',null,false),'Legacy text'),'legacy public HTTP');
     $url='/index.php?type=pages&slug=cms-valid'; $html=$http($url,200,'GET',null,false);
     cmsCheck(str_contains($html,'data-form-ref="preview"') && str_contains($html,'Formulario sintético') && str_contains($html,'Mensaje sintético')
@@ -102,9 +102,12 @@ try {
     $html=$http($url,200,'GET',null,false);
     cmsCheck(str_contains($html,'data-form-ref="unavailable"')&&!str_contains($html,'Formulario sintético'),'revocation immediate');
     cmsCheck((int)$db->query('SELECT COUNT(*) FROM form_entries')->fetchColumn()===0,'no capture');
-    echo "CMS form reference HTTP/MariaDB passed.\n";
+    echo "BRVTAL_MARKED_DATABASE_PASS: forms-cms-embed.php\n";
+} catch (Throwable $error) {
+    $failedLine = $error->getFile() === __FILE__ ? ($error->getCode() ?: $error->getLine()) : 200;
 } finally {
     if(is_resource($process)){proc_terminate($process);proc_close($process);}
     $server->exec('DROP DATABASE '.$name);
     if(is_dir($root))exec('rm -rf -- '.escapeshellarg($root));
 }
+if(isset($failedLine)) exit(max(1,min(254,(int)$failedLine)));
