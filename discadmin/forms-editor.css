@@ -11,3 +11,5 @@
 .forms-editor button[draggable=true]{cursor:grab}
 .forms-editor [data-preview]{display:grid;gap:8px}
 @media(max-width:650px){.forms-editor fieldset{padding:10px}.forms-editor .forms-actions button{flex:1 1 100%}}
+.forms-editor [data-save]{font-weight:700}
+.forms-editor .forms-actions button:focus-visible,.forms-editor fieldset button:focus-visible{outline:2px solid currentColor;outline-offset:3px}

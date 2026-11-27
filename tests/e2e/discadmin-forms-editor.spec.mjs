@@ -81,6 +81,28 @@ for(const width of [390,1440])test('Editor visual y publicación '+width,async({
   await expect(page.getByLabel('Nombre del formulario')).toHaveValue('Borrador local');
   await expect(page.getByRole('button',{name:'Publicar versión'})).toBeDisabled();
 });
+test('Duplicar, desactivar y revocación de permiso durante escritura',async({page})=>{
+  const c=await setup(page);
+  await page.getByRole('button',{name:'Editor de formularios'}).click();
+  await page.getByRole('button',{name:'Crear formulario'}).click();
+  await page.getByLabel('Nombre del formulario').fill('Original ficticio');
+  await page.getByLabel('Slug',{exact:true}).fill('original');
+  await page.getByRole('button',{name:'Guardar borrador'}).click();
+  await expect(page.getByText('Revisión 1',{exact:false})).toBeVisible();
+  page.once('dialog',d=>d.accept('copia'));
+  await page.getByRole('button',{name:'Duplicar definición'}).click();
+  await expect(page.getByLabel('Slug',{exact:true})).toHaveValue('copia');
+  expect(c.posts.at(-1).body).toMatchObject({action:'duplicate',form_key:'f_fixture',revision:1,slug:'copia'});
+  page.once('dialog',d=>d.accept());
+  await page.getByRole('button',{name:'Desactivar',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Desactivar',exact:true})).toHaveCount(0);
+  await page.getByLabel('Nombre del formulario').fill('Conservar borrador');
+  c.error=403;
+  await page.getByRole('button',{name:'Guardar borrador'}).click();
+  await expect(page.getByText('Permiso no válido.',{exact:false})).toBeVisible();
+  await expect(page.getByLabel('Nombre del formulario')).toHaveValue('Conservar borrador');
+  await expect(page.getByRole('button',{name:'Guardar borrador'})).toBeDisabled();
+});
 test('Permiso denegado no expone editor ni afecta bandeja',async({page})=>{
   const c=await setup(page,{denied:true});await expect(page.getByRole('button',{name:'Editor de formularios'})).toHaveCount(0);expect(c.posts).toHaveLength(0);
 });
