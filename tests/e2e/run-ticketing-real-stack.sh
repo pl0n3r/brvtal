@@ -22,6 +22,7 @@ if [[ "${1:-}" != --inside ]]; then
   else
     echo 'T31_PROMO_STACK_NOT_PRESENT: no promo evidence'
   fi
+  if [[ "${BRVTAL_T31_RECOVERY_REQUIRED:-}" == 1 ]]; then scenarios+=(resend); fi
   cat > "$scratch/Dockerfile" <<'DOCKERFILE'
 FROM node:22-bookworm-slim AS browser
 RUN npm install --prefix /opt/t31-browser --ignore-scripts --no-audit --no-fund --save-exact playwright-core@1.63.0
@@ -52,6 +53,10 @@ case "$2" in
     spec=tests/e2e/ticketing-checkout-real-stack.spec.mjs
     test_name='T31 real checkout, payment, issuance, mail and buyer isolation'
     ;;
+  resend)
+    spec=tests/e2e/ticketing-checkout-real-stack.spec.mjs
+    test_name='T31 real checkout, payment, issuance, mail and buyer isolation'
+    ;;
   promo)
     spec=tests/e2e/ticketing-promos-real-stack.spec.mjs
     test_name='T31 real promo checkout net payment and idempotent issuance'
@@ -64,7 +69,8 @@ if awk 'NR>1 && $2=="00000000" {found=1} END {exit !found}' /proc/net/route; the
 export DB_NAME="brvtal_test_t31_$(openssl rand -hex 6)"
 [[ "$DB_NAME" =~ ^brvtal_test_t31_[a-f0-9]{12}$ ]] || exit 1
 # Never inherit the synthetic promo switch from the host.
-unset BRVTAL_INTEGRATION_TESTS
+unset BRVTAL_INTEGRATION_TESTS BRVTAL_T31_RECOVERY
+if [[ "$2" == resend ]]; then export BRVTAL_T31_RECOVERY=1; fi
 if [[ "$2" == promo ]]; then
   export BRVTAL_INTEGRATION_TESTS=1
 fi
@@ -98,6 +104,9 @@ for migration in content_core_01 releases_01 seo_01 integration_secrets_01 ticke
   ticketing_mail_outbox_01 ticket_mail_html_01 mail_templates_01 ticketing_mail_history_01 totp_foundation; do
   "${root[@]}" "$DB_NAME" < "database/migration_$migration.sql"
 done
+if [[ "$2" == resend ]]; then
+  "${root[@]}" "$DB_NAME" < database/migration_ticketing_order_notes_01.sql
+fi
 cat > config/config.php <<'PHP'
 <?php
 return [
@@ -125,9 +134,14 @@ $pdo->exec('INSERT INTO ticket_inventory_types(ticket_type_id,event_id,capacity)
 $q=$pdo->prepare("INSERT INTO ticket_buyers(public_id,email,full_name,password_hash,email_verified_at,status)
  VALUES(RANDOM_BYTES(16),?,?,?,UTC_TIMESTAMP(6),'active')");
 foreach (['buyer','other'] as $name) $q->execute([$name.'@example.test',$name,password_hash('T31 fixture password only!',PASSWORD_DEFAULT)]);
+if (getenv('BRVTAL_T31_RECOVERY') === '1') {
+    $pdo->exec("UPDATE ticket_buyers SET consent_version='synthetic',consent_recorded_at=UTC_TIMESTAMP(6)");
+}
 // Staff identities only; every ticket and credential still originates from checkout.
 $staff=$pdo->prepare('INSERT INTO admins(email,password_hash,name,staff_role,is_active) VALUES(?,?,?,?,1)');
-foreach (['door-a'=>'door','door-b'=>'door','no-door'=>'viewer'] as $name=>$role) {
+$roles=['door-a'=>'door','door-b'=>'door','no-door'=>'viewer'];
+if (getenv('BRVTAL_T31_RECOVERY') === '1') $roles+=['support-a'=>'superadmin','support-b'=>'superadmin'];
+foreach ($roles as $name=>$role) {
     $staff->execute([$name.'@example.test',password_hash('T31 staff fixture only!',PASSWORD_DEFAULT),$name,$role]);
 }
 PHP
@@ -168,8 +182,11 @@ if (isset($assets[$path])) {
     header('Content-Type: '.$assets[$path]);
     readfile('/tmp/app'.$path); exit;
 }
-if (!in_array($path, ['/index.php','/api/buyer/auth.php','/api/buyer/account.php','/api/ticketing/webhook-wompi.php',
-    '/api/index.php/auth','/api/ticketing/checkin.php','/discadmin/ticketing-door.php'], true)) {
+$routes=['/index.php','/api/buyer/auth.php','/api/buyer/account.php','/api/ticketing/webhook-wompi.php',
+    '/api/index.php/auth','/api/ticketing/checkin.php','/discadmin/ticketing-door.php'];
+if (getenv('BRVTAL_T31_RECOVERY') === '1') $routes=array_merge($routes,
+    ['/api/ticketing/admin-actions.php','/api/ticketing/admin-entries.php']);
+if (!in_array($path,$routes,true)) {
     http_response_code(404); exit;
 }
 $script=$path==='/api/index.php/auth'?'/api/index.php':$path;
@@ -219,5 +236,9 @@ if [[ "$2" == checkout ]]; then
     echo 'T31_CHECKIN_RECEIPT_MISSING' >&2; exit 1;
   }
   echo 'T31_CHECKIN_STACK_PASS: issued QR, real door, concurrent audit, mobile negatives'
+fi
+if [[ "$2" == resend ]]; then
+  grep -Fxq '# T31_RESEND_STACK_PASS: authenticated recovery, concurrent rotation, immutable mail and single admission' /fixture/test.tap || exit 1
+  echo 'T31_RESEND_STACK_PASS: authenticated recovery, concurrent rotation, immutable mail and single admission'
 fi
 echo "T31_SCENARIO_PASS: $2"

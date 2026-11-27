@@ -49,6 +49,11 @@ $catalogJson=json_encode(['ok'=>true,'events'=>$catalog],
 <section data-finance-module class="tk-finance">
   <script type="application/json" data-finance-catalog><?= $catalogJson ?></script>
   <h2>Finanzas de boletería</h2>
+  <div class="tk-actions" role="group" aria-label="Vistas de Finanzas">
+    <button class="tk-button" type="button" data-finance-summary aria-pressed="true" aria-controls="tk-finance-summary">Resumen</button>
+    <button class="tk-button" type="button" data-finance-expenses aria-pressed="false" aria-controls="tk-finance-ledger">Gastos</button>
+  </div>
+  <div id="tk-finance-summary">
   <p class="ticketing-empty">Consulta ingresos y operaciones por evento. Los abonos, comisiones y gastos aún no tienen conciliación acreditada.</p>
   <form data-finance-form class="tk-form">
     <fieldset class="tk-step">
@@ -56,7 +61,11 @@ $catalogJson=json_encode(['ok'=>true,'events'=>$catalog],
       <div class="tk-field"><label for="tk-finance-event">Evento</label>
         <select id="tk-finance-event" name="event_id"><option value="">Todos los eventos</option></select></div>
       <div class="tk-field"><label for="tk-finance-channel">Canal</label>
-        <select id="tk-finance-channel" name="channel"><option value="all">Todos</option><option value="wompi">Wompi</option></select></div>
+        <select id="tk-finance-channel" name="channel">
+          <option value="all">Todos</option>
+          <option value="wompi">Wompi</option>
+          <option value="pos">POS (Caja)</option>
+        </select></div>
     </fieldset>
     <fieldset class="tk-step">
       <legend>Período</legend>
@@ -78,5 +87,36 @@ $catalogJson=json_encode(['ok'=>true,'events'=>$catalog],
       <button class="tk-button" type="button" data-finance-open-pos aria-pressed="false">Caja</button>
     </div>
     <div data-finance-tool-panel></div>
+  </section>
+  </div>
+  <section id="tk-finance-ledger" hidden aria-labelledby="tk-ledger-title"
+    data-ledger-csrf="<?= htmlspecialchars(brvtal_admin_csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
+    <h3 id="tk-ledger-title">Gastos y presupuesto</h3>
+    <p>Registra compromisos, gastos pagados y presupuestos por categoría. Los ajustes conservan el historial; no efectúan pagos.</p>
+    <div class="tk-field"><label for="tk-ledger-event">Evento del libro</label>
+      <select id="tk-ledger-event"><option value="">Elige un evento</option></select></div>
+    <div class="tk-actions"><button class="tk-button" type="button" data-ledger-refresh>Actualizar libro</button></div>
+    <p class="tk-status" role="status" aria-live="polite" data-ledger-status></p>
+    <div data-ledger-results></div>
+    <template data-ledger-template>
+      <form data-ledger-form>
+        <fieldset class="tk-step" disabled>
+          <legend data-ledger-heading>Nuevo registro</legend>
+          <label class="tk-field">Tipo de registro<select name="kind"><option value="expense">Gasto</option><option value="budget">Presupuesto</option></select></label>
+          <label class="tk-field">Categoría<select name="category" required>
+            <option value="artistas">Artistas</option><option value="lugar">Lugar</option><option value="produccion">Producción</option>
+            <option value="publicidad">Publicidad</option><option value="logistica">Logística</option><option value="otros">Otros</option>
+          </select></label>
+          <div data-expense-only><label class="tk-field">Concepto<input name="concept" maxlength="180" required></label></div>
+          <label class="tk-field">Importe (COP)<input name="amount_cop" type="number" min="1" max="9007199254740991" step="1" required></label>
+          <label class="tk-field">Fecha (Bogotá)<input name="entry_date" type="date" required></label>
+          <div data-expense-only><label class="tk-field">Estado<select name="status"><option value="committed">Comprometido</option><option value="paid">Pagado</option></select></label></div>
+          <label class="tk-field">Motivo del registro o ajuste<input name="reason" maxlength="320" required></label>
+          <div class="tk-actions"><button class="tk-button is-primary" type="submit">Guardar registro</button>
+            <button class="tk-button" type="button" data-ledger-new>Nuevo registro</button>
+            <button class="tk-button" type="button" data-ledger-void hidden>Anular registro</button></div>
+        </fieldset>
+      </form>
+    </template>
   </section>
 </section>

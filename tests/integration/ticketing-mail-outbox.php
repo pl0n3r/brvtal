@@ -327,6 +327,59 @@ mail_assert(brvtal_ticket_mail_prepare_dispatch($pdo, $legacyJob)==='lease_lost'
 mail_assert(brvtal_ticket_mail_reconcile_stale($second, 2)===1, 'other worker reconciles stale legacy');
 mail_assert(!brvtal_ticket_mail_redrive($pdo,$legacy), 'stale legacy cannot redrive');
 
+// #2126: exercise legacy, tampered and context-swapped jobs against the worker.
+$pdo->exec((string)file_get_contents(__DIR__.'/../../database/migration_ticket_mail_html_01.sql'));
+$oldConfig = $GLOBALS['config'] ?? null;
+$GLOBALS['config']['security']['encryption_key'] = str_repeat('mail-fixture-', 4);
+putenv('BRVTAL_TICKET_MAIL_TESTING=1');
+putenv('BRVTAL_TICKET_MAIL_MODE=mock');
+$pdo->beginTransaction();
+$sealedId = brvtal_ticket_waitlist_mail_enqueue($pdo, 2126, 'offer',
+    'sealed@example.test','Synthetic','Synthetic offer');
+$pdo->commit();
+$sealedJob = $pdo->query("SELECT * FROM ticket_mail_outbox WHERE id=$sealedId")->fetch(PDO::FETCH_ASSOC);
+mail_assert(brvtal_ticket_waitlist_mail_open($sealedJob)!==null,'waitlist envelope opens');
+$renamed = BRVTAL_BUYER_MAIL_SEAL_PREFIX.substr($sealedJob['body_text'], strlen(BRVTAL_WAITLIST_MAIL_PREFIX));
+mail_assert(brvtalBuyerMailUnseal($renamed)===null,'buyer-auth cannot open re-prefixed waitlist ciphertext');
+$bytes=base64_decode(substr($sealedJob['body_text'],strlen(BRVTAL_WAITLIST_MAIL_PREFIX)),true);
+if (!is_string($bytes) || strlen($bytes) <= 28) throw new RuntimeException('fixture envelope missing');
+$bytes[28]=chr(ord($bytes[28]) ^ 1);
+mail_assert(brvtal_ticket_waitlist_mail_open(array_replace($sealedJob,
+    ['body_text'=>BRVTAL_WAITLIST_MAIL_PREFIX.base64_encode($bytes)]))===null,
+    'modified ciphertext rejected');
+foreach (['related_ref'=>'waitlist:2127','recipient_email'=>'other@example.test',
+    'subject'=>'Other','template_key'=>'waitlist_join','template_version'=>1,
+    'message_key'=>'waitlist:offer:2126:0000000000',
+    'body_html'=>$sealedJob['body_text']] as $field=>$value) {
+    mail_assert(brvtal_ticket_waitlist_mail_open(array_replace($sealedJob,[$field=>$value]))===null,
+        'envelope rejects altered context or part');
+}
+$pdo->exec("INSERT INTO ticket_mail_outbox
+    (message_key,payload_hash,related_ref,recipient_email,subject,body_text)
+    VALUES ('waitlist:join:2127:0000000000',REPEAT('a',64),'waitlist:2127',
+    'legacy@example.test','Synthetic','Historical cleartext')");
+$clearId=(int)$pdo->lastInsertId();
+$pdo->prepare("UPDATE ticket_mail_outbox SET body_html=? WHERE id=?")
+    ->execute([$sealedJob['body_text'],$sealedId]);
+$forbiddenCalls=0;
+$forbiddenTransport=static function () use (&$forbiddenCalls): array {
+    $forbiddenCalls++;
+    return ['status'=>200,'body'=>'{"id":"unexpected"}'];
+};
+mail_assert(brvtal_ticket_mail_deliver_one($pdo,$forbiddenTransport)==='failed','swapped envelope rejected');
+mail_assert(brvtal_ticket_mail_deliver_one($pdo,$forbiddenTransport)==='failed','legacy cleartext rejected');
+mail_assert($forbiddenCalls===0,'no transport on invalid or legacy waitlist jobs');
+mail_assert(!brvtal_ticket_mail_redrive($pdo,$clearId)
+    && !brvtal_ticket_mail_redrive($pdo,$sealedId),'invalid waitlist cannot redrive');
+mail_assert($pdo->query("SELECT body_text FROM ticket_mail_outbox WHERE id=$clearId")->fetchColumn()
+    ==='Historical cleartext','historical body is not rewritten');
+$pdo->prepare("UPDATE ticket_mail_outbox SET state='failed',attempts=2,last_error_code='provider_rejected'
+    WHERE id=?")->execute([$sealedId]);
+mail_assert(!brvtal_ticket_mail_redrive($pdo,$sealedId)
+    && $pdo->query("SELECT state FROM ticket_mail_outbox WHERE id=$sealedId")->fetchColumn()==='uncertain',
+    'later waitlist rejection cannot erase an earlier ambiguous attempt');
+if ($oldConfig === null) unset($GLOBALS['config']); else $GLOBALS['config']=$oldConfig;
+
 echo "BRVTAL ticket-mail outbox integration OK.\n";
 
 // T11: run signed webhook and durable history tests in the existing canonical mail integration suite.

@@ -37,7 +37,7 @@ try {
       'CREATE TABLE ticket_mail_outbox (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,message_key VARCHAR(128) UNIQUE,payload_hash CHAR(64),related_ref VARCHAR(128),recipient_email VARCHAR(254),subject VARCHAR(255),body_text TEXT,body_html TEXT,template_key VARCHAR(64),template_version INT,provider_message_id VARCHAR(128),state VARCHAR(16) DEFAULT "queued",next_attempt_at DATETIME DEFAULT CURRENT_TIMESTAMP,created_at DATETIME DEFAULT CURRENT_TIMESTAMP,updated_at DATETIME DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB',
       'CREATE TABLE ticket_mail_history (id BIGINT AUTO_INCREMENT PRIMARY KEY,outbox_id BIGINT UNSIGNED UNIQUE,message_key VARCHAR(128) UNIQUE,template_key VARCHAR(64),recipient_hint VARCHAR(128),recipient_digest CHAR(64),event_id BIGINT UNSIGNED,buyer_id BIGINT UNSIGNED,order_id BIGINT UNSIGNED,ticket_id BIGINT UNSIGNED,actor_kind VARCHAR(16),resend_email_id VARCHAR(128),delivery_state VARCHAR(16),retention_until DATETIME,state_at DATETIME,created_at DATETIME DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB'
     ] as $ddl) $db->exec($ddl);
-    foreach(['ticketing_orders','ticketing_webhook','ticketing_entries','ticket_entry_secret','ticketing_order_notes'] as $migration) {
+    foreach(['ticketing_orders','ticketing_webhook','ticketing_entries','ticket_entry_secret','ticketing_order_notes','mail_templates'] as $migration) {
         foreach(preg_split('/;\s*\n/',(string)file_get_contents(__DIR__.'/../../database/migration_'.$migration.'_01.sql')) as $part) {
             if(trim($part)!=='') $db->exec($part);
         }
@@ -226,6 +226,11 @@ try {
         foreach ($tables as $table) $values[]=$db->query('SELECT * FROM '.$table)->fetchAll();
         return hash('sha256',serialize($values));
     };
+    require_once __DIR__.'/../../config/mail_template_store.php';
+    $doc=brvtal_mail_template_catalog()['ticket_recovery']['defaults'];
+    $doc['subject']='Recuperación de boletas de prueba';
+    $draft=brvtal_mail_template_save_draft($db,'ticket_recovery','ticketing',$doc,7,0);
+    $published=brvtal_mail_template_publish($db,'ticket_recovery','ticketing',$draft['version_id'],7,1);
     $before=$durable();
     $result=$invoke($resend);
     actionAssert($result['email_queued'] && $result['status']==='queued','account resend queued');
@@ -238,14 +243,18 @@ try {
     actionAssert(count($copies)===2 && $copies[0]['body_text']===$sealed
         && $copies[0]['body_html']===$sealedHtml,'historical mail immutable');
     actionAssert($copies[1]['recipient_email']==='buyer@example.test'
-        && $copies[1]['template_key']==='payment_approved'
+        && $copies[0]['template_key']==='payment_approved'
+        && $copies[1]['template_key']==='ticket_recovery'
+        && (int)$copies[1]['template_version']===$published['version_id']
+        && $copies[1]['subject']===$doc['subject']
         && str_starts_with($copies[1]['body_text'],BRVTAL_BUYER_MAIL_SEAL_PREFIX)
         && str_starts_with($copies[1]['body_html'],BRVTAL_BUYER_MAIL_SEAL_PREFIX),'current recipient and sealed versioned render');
+    actionAssert($db->query('SELECT template_key FROM ticket_mail_history WHERE outbox_id='.(int)$copies[1]['id'])->fetchColumn()==='ticket_recovery','history records recovery template');
     foreach (['body_text','body_html'] as $field) {
         $plain=brvtalBuyerMailUnseal($copies[1][$field]);
         actionAssert(is_string($plain) && str_contains($plain,'https://www.brvtal.com.co/buyer/')
             && !str_contains($plain,'BRVTAL:T1:') && !str_contains($plain,'token=')
-            && !str_contains($plain,'obsolete'),'account-only link, no old bearer');
+            && !str_contains($plain,'obsolete') && !str_contains($plain,'código QR'),'account-only link, no old bearer or QR promise');
     }
     // Use the real reissue/account/check-in services after enqueue, not a
     // second handcrafted QR or a provider call. The queued link remains safe.

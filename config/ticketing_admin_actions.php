@@ -399,7 +399,7 @@ function brvtalTicketAdminRecordOrderAction(PDO $pdo, int $actorId, string $role
             // The account URL carries no order, entry, activation or QR secret.
             // Account access checks the current buyer, order and credential at
             // retrieval time even if the entry changes after this transaction.
-            $mail = brvtal_ticket_mail_render('payment_approved', [
+            $mail = brvtal_ticket_mail_render('ticket_recovery', [
                 'event' => $event['title'],
                 'link' => 'https://www.brvtal.com.co/buyer/',
                 'order_number' => $orderId,
@@ -417,7 +417,7 @@ function brvtalTicketAdminRecordOrderAction(PDO $pdo, int $actorId, string $role
             );
             brvtal_mail_history_record($pdo,$outboxId,[
                 'event_id'=>(int)$order['event_id'],'buyer_id'=>(int)$order['buyer_id'],
-                'order_id'=>$orderId,'template_key'=>'payment_approved',
+                'order_id'=>$orderId,'template_key'=>$mail['template_key'],
                 'actor_kind'=>'admin']);
             $state = 'queued';
         }

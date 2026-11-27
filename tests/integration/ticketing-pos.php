@@ -2,6 +2,8 @@
 declare(strict_types=1);
 require_once __DIR__.'/../../config/ticketing_pos.php';
 require_once __DIR__.'/../../config/ticketing_checkin.php';
+require_once __DIR__.'/../../config/migrations.php';
+require_once __DIR__.'/../../config/migration_reconcile.php';
 function posAssert(bool $v,string $why): void {
     if (!$v) throw new RuntimeException('T24 POS: '.$why);
 }
@@ -38,6 +40,24 @@ posDenies(static fn()=>brvtalPosInput(array_replace($manual,
 posDenies(static fn()=>brvtalPosInput(array_replace($manual,
     ['method'=>'wompi_qr'])),'POS_INVALID_MANUAL_ORDER');
 posDenies(static fn()=>brvtalPosInput($manual+['total_cop'=>'1']),'POS_INVALID_FIELDS');
+$received=['received_amount_cop'=>'42000','received_reason'=>'Pago offline previo',
+    'received_reference'=>'REC-2026-001'];
+posAssert(brvtalPosInput($manual+$received)['received_amount_cop']===42000,'typed received amount');
+foreach (['received_reason','received_reference'] as $field) {
+    $missing=$received; unset($missing[$field]);
+    posDenies(static fn()=>brvtalPosInput($manual+$missing),'POS_INVALID_FIELDS');
+    posDenies(static fn()=>brvtalPosInput($manual+array_replace($received,[$field=>''])),
+        'POS_INVALID_RECEIVED_EVIDENCE');
+}
+foreach (['-1','0','1000000001'] as $bad) {
+    posDenies(static fn()=>brvtalPosInput($manual+array_replace($received,['received_amount_cop'=>$bad])),
+        'POS_INVALID_NUMBER');
+}
+posDenies(static fn()=>brvtalPosInput($manual+array_replace($received,['received_amount_cop'=>'42001'])),
+    'POS_INVALID_RECEIVED_EVIDENCE');
+posDenies(static fn()=>brvtalPosInput($manual+array_replace($received,['received_reason'=>"bad|reason"])),
+    'POS_INVALID_RECEIVED_EVIDENCE');
+posDenies(static fn()=>brvtalPosInput($prepare+$received),'POS_INVALID_FIELDS');
 posAssert(!brvtalPosCan('door')&&!brvtalPosCan('viewer'),'door cannot sell');
 foreach ([
   [$prepare+['payment_approved'=>true],'POS_INVALID_FIELDS'],
@@ -142,7 +162,14 @@ ROUTER;
             [$status]=$request($path,$base,$intent);
             posAssert($status===419,'HTTP CSRF required');
             [$status,$body]=$request($path,[...$base,'X-CSRF-Token: '.$session['csrf']],$intent);
-            if($actor===1)posAssert($status===200&&$body===['ok'=>true,'data'=>$expected],'real HTTP receipt');
+            if($intent['action']==='manual_quote' && $actor!==3) {
+                $quote=$body['data']??[];
+                posAssert($status===200 && preg_match('/^[0-9]{10}[.][a-f0-9]{64}$/D',$quote['quote_token']??''),
+                    'real HTTP quote and opaque proof');
+                unset($quote['quote_token'],$quote['expires_at_utc']);
+                posAssert($quote===$expected,'real HTTP quote fields');
+            }
+            elseif($actor===1)posAssert($status===200&&$body===['ok'=>true,'data'=>$expected],'real HTTP receipt');
             elseif($actor===2)posAssert($status===200&&$body===['ok'=>true,'data'=>['state'=>'not_found']],'HTTP actor isolation');
             elseif($intent['action']==='shift_status')
                 posAssert($status===200&&$body===['ok'=>true,'data'=>['state'=>'not_found']],'HTTP other staff isolated');
@@ -240,6 +267,48 @@ $db->exec("INSERT INTO event_ticket_types(id,event_id,name,price,status,currency
 $db->exec("INSERT INTO ticket_inventory_events(event_id,capacity) VALUES(6,3)");
 $db->exec("INSERT INTO ticket_inventory_types(ticket_type_id,event_id,capacity,courtesy_capacity)
  VALUES(10,6,3,0)");
+// #2260: seed genuine old-schema synthetic sales before applying the additive DDL.
+$db->exec("INSERT INTO ticket_pos_shifts(event_id,operator_admin_id,opening_cash_cop) VALUES(6,3,0)");
+$legacyShift=(int)$db->lastInsertId();
+$db->exec("INSERT INTO ticket_buyers(public_id,status) VALUES (UNHEX(REPEAT('ab',16)),'guest')");
+$legacyBuyer=(int)$db->lastInsertId();
+$db->prepare("INSERT INTO ticket_orders(public_id,buyer_id,event_id,checkout_key_hash,status,currency,total_cop)
+    VALUES (UNHEX(REPEAT('cd',16)),?,6,?,'paid','COP',25000)")
+    ->execute([$legacyBuyer,hash('sha256','legacy-fixture')]);
+$legacyOrder=(int)$db->lastInsertId();
+$seed=$db->prepare("INSERT INTO ticket_pos_sales
+    (shift_id,event_id,operator_admin_id,ticket_type_id,order_id,quantity,unit_price_cop,amount_cop,method,
+     status,request_key_hash,request_hash,confirmation_hash,expires_at_utc,completed_at_utc)
+    VALUES (?,6,3,10,?,1,25000,25000,'cash',?,?,?, ?,DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 120 SECOND),?)");
+foreach (['prepared','cancelled','paid'] as $state) {
+    $seed->execute([$legacyShift,$state==='paid'?$legacyOrder:null,$state,hash('sha256','legacy-key-'.$state),
+        hash('sha256','legacy-request-'.$state),hash('sha256','legacy-confirm-'.$state),
+        $state==='prepared'?null:gmdate('Y-m-d H:i:s')]);
+}
+$quoteMigration='migration_ticketing_pos_03.sql';
+$quoteSql=(string)file_get_contents(__DIR__.'/../../database/'.$quoteMigration);
+$quoteProof=static fn():array => brvtalMigrationSchemaProof($db,$quoteMigration);
+$quoteRows=static fn():array => $db->query('SELECT * FROM ticket_pos_sales ORDER BY id')->fetchAll(PDO::FETCH_ASSOC);
+$legacy=$quoteRows();
+$absent=$quoteProof();
+posAssert(count($legacy)===3 && brvtalMigrationProofIsFullyAbsent($absent),'old schema and sales exist');
+brvtalMigrationAssertReconciliationSql($quoteMigration,$quoteSql,$absent);
+$db->exec($quoteSql);
+posAssert($quoteProof()['complete'],'quote proof complete after actual DDL');
+$columns=['quote_source'=>null,'quote_stage_code'=>null,'quote_channel'=>null];
+foreach($quoteRows() as $index=>$row) {
+    posAssert(array_intersect_key($row,$columns)===$columns && array_diff_key($row,$columns)===$legacy[$index],
+        'legacy sale unchanged and provenance unknown');
+}
+posAssert(count($quoteRows())===count($legacy),'quote DDL preserves row count');
+// Only disposable fixture rows are removed to keep the original count assertions.
+$db->prepare('DELETE FROM ticket_pos_sales WHERE shift_id=?')->execute([$legacyShift]);
+$db->prepare('DELETE FROM ticket_pos_shifts WHERE id=?')->execute([$legacyShift]);
+$db->prepare('DELETE FROM ticket_orders WHERE id=?')->execute([$legacyOrder]);
+$db->prepare('DELETE FROM ticket_buyers WHERE id=?')->execute([$legacyBuyer]);
+foreach (['migration_ticketing_door_price_01.sql','migration_ticketing_stages_01.sql'] as $path) {
+    $db->exec((string)file_get_contents(__DIR__.'/../../database/'.$path));
+}
 $open=['action'=>'open','event_id'=>'6','opening_cash_cop'=>'50000'];
 posDenies(static fn()=>brvtalPosRun($db,1,'door',$open),'FORBIDDEN');
 $read=static fn(int $actor=1,?array $input=null)=>brvtalPosRun($db,$actor,'admin',$input??$statusRead);
@@ -304,7 +373,9 @@ posAssert($db->query("SELECT email FROM ticket_buyers WHERE email='puerta@exampl
     ==='puerta@example.test','transactional buyer email persisted in disposable fixture');
 posAssert((int)$db->query('SELECT COUNT(*) FROM ticket_payment_attempts')->fetchColumn()===0,
     'no forged Wompi approved attempt');
-posDenies(static fn()=>brvtalPosRun($db,1,'admin',$confirm),'POS_SALE_UNAVAILABLE');
+$againReceipt=brvtalPosRun($db,1,'admin',$confirm);
+posAssert($againReceipt['replayed'] && $againReceipt['receipt']===$paid['receipt']
+    && $againReceipt['amount_cop']===$paid['amount_cop'] && $againReceipt['tickets']===[], 'same receipt, no new QR');
 $early=brvtalTicketCheckinConsume($db,6,2,'synthetic-reader',$paid['tickets'][0],
     $doorClock->modify('-1 second'));
 posAssert(!$early['ok']&&$early['reason']==='event_closed',
@@ -342,7 +413,14 @@ try {
     posDenies(static fn()=>brvtalPosInput(array_replace($intent,['idempotency_key'=>'short'])),'POS_INVALID_MANUAL_INTENT');
     posDenies(static fn()=>brvtalPosRun($db,1,'admin',$intent),'FORBIDDEN');
     posAssert(brvtalPosRun($db,1,'superadmin',$intent)===['state'=>'not_found'],'absent intention');
-    $created=brvtalPosRun($db,1,'superadmin',$manual);
+    posDenies(static fn()=>brvtalPosRun($db,1,'superadmin',$manual),'POS_QUOTE_REQUIRED');
+    $manualKey=random_bytes(32);
+    $manualQuote=['action'=>'manual_quote','event_id'=>'6','ticket_type_id'=>'10','quantity'=>'2',
+        'idempotency_key'=>$manual['idempotency_key']];
+    $q=brvtalPosRun($db,1,'superadmin',$manualQuote,$manualKey);
+    posAssert($q['amount_cop']===50000 && $q['source']==='base','manual quote reflects base when no stages');
+    $manual['quote_token']=$q['quote_token'];
+    $created=brvtalPosRun($db,1,'superadmin',$manual,$manualKey);
     putenv('BRVTAL_INTEGRATION_TESTS=1');
     try {posAssert($read()===['state'=>'unverifiable'],'manual audit parent is not a physical drawer');}
     finally {putenv('BRVTAL_INTEGRATION_TESTS=0');}
@@ -371,7 +449,7 @@ try {
     posDenies(static fn()=>brvtalPosRun($db,1,'superadmin',
         array_replace($manual,['quantity'=>'1'])),'POS_IDEMPOTENCY_CONFLICT');
     posDenies(static fn()=>brvtalPosRun($db,1,'superadmin',
-        array_replace($manual,['idempotency_key'=>str_repeat('n',32),'quantity'=>'1'])),
+        array_replace($manualQuote,['idempotency_key'=>str_repeat('n',32),'quantity'=>'1']),$manualKey),
         'INVENTORY_SOLD_OUT');
     $outbox=$db->prepare('SELECT id,payment_attempt_id,state FROM ticket_issue_outbox WHERE order_id=?');
     $outbox->execute([$created['order_id']]);
@@ -417,3 +495,136 @@ try {
 }
 finally {putenv('BRVTAL_INTEGRATION_TESTS=1');}
 echo "T24 disposable POS cash, inventory, QR/check-in, audit, cancellation, RBAC OK.\n";
+
+// #2176: two real connections; change the policy between quote and confirmation.
+$event=$db->prepare("INSERT INTO events VALUES (7,'published',?,?)");
+$event->execute([$date,$published]);
+$db->exec("INSERT INTO event_ticket_types(id,event_id,name,price,status,currency,door_price_cop)
+    VALUES(11,7,'General etapa',19000.00,'active','COP',35000)");
+$db->exec("INSERT INTO ticket_inventory_events(event_id,capacity) VALUES(7,20)");
+$db->exec("INSERT INTO ticket_inventory_types(ticket_type_id,event_id,capacity,courtesy_capacity) VALUES(11,7,20,0)");
+$stage=$db->prepare("INSERT INTO ticket_type_stages(ticket_type_id,event_id,code,price_cop,cumulative_capacity,
+    opens_at_local,closes_at_local) VALUES(11,7,'preventa',27000,20,?,?)");
+$stage->execute([$when->modify('-1 day')->format('Y-m-d H:i:s'),$when->modify('+1 day')->format('Y-m-d H:i:s')]);
+$other=new PDO("mysql:host=$host;port=$port;dbname=$name;charset=utf8mb4",$user,$pass,$opts);
+$edit=static function(string $sql)use($other):void{
+    $other->beginTransaction();
+    try {$other->query('SELECT id FROM events WHERE id=7 FOR UPDATE')->fetchColumn();$other->exec($sql);$other->commit();}
+    catch(Throwable $e){$other->rollBack();throw $e;}
+};
+$doorShift=brvtalPosRun($db,2,'admin',['action'=>'open','event_id'=>'7','opening_cash_cop'=>'0']);
+$doorRequest=array_replace($prepare,['shift_id'=>(string)$doorShift['shift_id'],'ticket_type_id'=>'11',
+    'idempotency_key'=>str_repeat('d',32)]);
+$door=brvtalPosRun($db,2,'admin',$doorRequest);
+posAssert($door['amount_cop']===35000 && $door['source']==='door' && $door['stage_code']==='preventa','explicit door price');
+$doorConfirm=['action'=>'confirm','sale_id'=>(string)$door['sale_id'],'confirmation_token'=>$door['confirmation_token'],'confirm'=>true];
+$before=$snapshotRead();
+$edit('UPDATE event_ticket_types SET door_price_cop=36000 WHERE id=11');
+posDenies(static fn()=>brvtalPosRun($db,2,'admin',$doorConfirm),'POS_QUOTE_CHANGED');
+posAssert($snapshotRead()===$before,'door conflict makes no sale or entry');
+brvtalPosRun($db,2,'admin',['action'=>'cancel','sale_id'=>$doorConfirm['sale_id'],'confirmation_token'=>$doorConfirm['confirmation_token']]);
+$edit('UPDATE event_ticket_types SET door_price_cop=NULL WHERE id=11');
+$door=brvtalPosRun($db,2,'admin',array_replace($doorRequest,['idempotency_key'=>str_repeat('e',32)]));
+posAssert($door['amount_cop']===27000 && $door['source']==='stage','door falls back to active stage');
+$doorConfirm=array_replace($doorConfirm,['sale_id'=>(string)$door['sale_id'],'confirmation_token'=>$door['confirmation_token']]);
+$paidDoor=brvtalPosRun($db,2,'admin',$doorConfirm);
+posAssert($paidDoor['amount_cop']===27000,'door shown equals receipt');
+$key=random_bytes(32);
+$order=array_replace($manual,['event_id'=>'7','ticket_type_id'=>'11','quantity'=>'2','idempotency_key'=>str_repeat('f',32)]);
+unset($order['quote_token']);
+$quoteInput=['action'=>'manual_quote','event_id'=>'7','ticket_type_id'=>'11','quantity'=>'2','idempotency_key'=>$order['idempotency_key']];
+posDenies(static fn()=>brvtalPosRun($db,1,'admin',$quoteInput,$key),'FORBIDDEN');
+$before=$snapshotRead();
+$q=brvtalPosRun($db,1,'superadmin',$quoteInput,$key);
+posAssert($q['amount_cop']===54000 && $q['source']==='stage' && $snapshotRead()===$before,'manual quote read only');
+$order['quote_token']=$q['quote_token'];
+posDenies(static fn()=>brvtalPosRun($db,2,'superadmin',$order,$key),'POS_QUOTE_CHANGED');
+$edit("UPDATE ticket_type_stages SET code='general',price_cop=29000 WHERE ticket_type_id=11");
+posDenies(static fn()=>brvtalPosRun($db,1,'superadmin',$order,$key),'POS_QUOTE_CHANGED');
+posAssert($snapshotRead()===$before,'stage transition creates no paid order');
+$q=brvtalPosRun($db,1,'superadmin',$quoteInput,$key);
+$order['quote_token']=$q['quote_token'];
+$edit('UPDATE ticket_inventory_events SET capacity=19 WHERE event_id=7');
+posDenies(static fn()=>brvtalPosRun($db,1,'superadmin',$order,$key),'POS_QUOTE_CHANGED');
+posAssert($snapshotRead()===$before,'capacity conflict rolls back');
+$q=brvtalPosRun($db,1,'superadmin',$quoteInput,$key);
+$order['quote_token']=$q['quote_token'];
+$paidManual=brvtalPosRun($db,1,'superadmin',$order,$key);
+posAssert($paidManual['amount_cop']===58000 && $paidManual['amount_cop']===$q['amount_cop'],'manual total equals quote');
+$edit('UPDATE ticket_type_stages SET price_cop=31000 WHERE ticket_type_id=11');
+$replayed=brvtalPosRun($db,1,'superadmin',$order);
+posAssert($replayed['replayed'] && $replayed['order_id']===$paidManual['order_id'] &&
+    $replayed['amount_cop']===58000,'manual replay before re-quote');
+$q=$db->prepare("SELECT s.unit_price_cop,s.quote_source,s.quote_stage_code,s.quote_channel,
+    s.amount_cop,o.total_cop,i.subtotal_cop FROM ticket_pos_sales s
+    JOIN ticket_orders o ON o.id=s.order_id JOIN ticket_order_items i ON i.order_id=o.id
+    WHERE s.id=?");
+foreach ([[$paidDoor,27000,'preventa','door'],[$paidManual,29000,'general','manual']] as [$receipt,$unit,$stageCode,$channel]) {
+    $q->execute([$receipt['sale_id']]);$row=$q->fetch(PDO::FETCH_ASSOC);
+    posAssert((int)$row['unit_price_cop']===$unit && $row['quote_source']==='stage'
+        && $row['quote_stage_code']===$stageCode && $row['quote_channel']===$channel
+        && (int)$row['amount_cop']===$receipt['amount_cop'] && (int)$row['total_cop']===$receipt['amount_cop']
+        && (int)$row['subtotal_cop']===$receipt['amount_cop'],'immutable quote snapshot agrees across sale, order and line');
+}
+posIntentHttp(['host'=>$host,'port'=>$port,'name'=>$name,'user'=>$user,'pass'=>$pass],
+    array_replace($quoteInput,['quantity'=>'1','idempotency_key'=>str_repeat('h',32)]),
+    ['channel'=>'manual','unit_price_cop'=>31000,'amount_cop'=>31000,'source'=>'stage','stage_code'=>'general']);
+// #2177: exact received amount, evidence, authorization and replay.
+$offline=array_replace($order,['idempotency_key'=>str_repeat('r',32)])+$received;
+$offlineQuote=array_replace($quoteInput,['idempotency_key'=>$offline['idempotency_key']]);
+$offline['quote_token']=brvtalPosRun($db,1,'superadmin',$offlineQuote,$key)['quote_token'];
+$before=$snapshotRead();
+posDenies(static fn()=>brvtalPosRun($db,2,'admin',$offline,$key),'FORBIDDEN');
+$missing=$offline;unset($missing['received_reason']);
+posDenies(static fn()=>brvtalPosRun($db,1,'superadmin',$missing,$key),'POS_INVALID_FIELDS');
+posAssert($snapshotRead()===$before,'received negatives do not create orders');
+$paidOffline=brvtalPosRun($db,1,'superadmin',$offline,$key);
+posAssert($paidOffline['amount_cop']===42000 && !$paidOffline['replayed'],'actual received amount persisted');
+$q=$db->prepare("SELECT s.unit_price_cop,s.amount_cop,s.request_hash,o.total_cop,i.subtotal_cop
+    FROM ticket_pos_sales s JOIN ticket_orders o ON o.id=s.order_id
+    JOIN ticket_order_items i ON i.order_id=o.id WHERE s.id=?");
+$q->execute([$paidOffline['sale_id']]);$row=$q->fetch(PDO::FETCH_ASSOC);
+posAssert((int)$row['unit_price_cop']===21000 && (int)$row['amount_cop']===42000
+    && (int)$row['total_cop']===42000 && (int)$row['subtotal_cop']===42000,'received totals reconcile');
+$evidence=$db->prepare("SELECT actor_admin_id,note_text FROM ticket_order_notes
+    WHERE order_id=? AND note_text LIKE 'manual-received|%'");
+$evidence->execute([$paidOffline['order_id']]);$note=$evidence->fetch(PDO::FETCH_ASSOC);
+posAssert((int)$note['actor_admin_id']===1
+    && $note['note_text']==='manual-received|'.$row['request_hash'].'|62000|42000|REC-2026-001|Pago offline previo',
+    'owner, original quote, amount, reference and reason audited');
+$after=$snapshotRead();
+$replay=brvtalPosRun($db,1,'superadmin',$offline);
+posAssert($replay['replayed'] && $replay['order_id']===$paidOffline['order_id']
+    && $replay['amount_cop']===42000 && $snapshotRead()===$after,'received retry is idempotent');
+foreach (['received_amount_cop'=>'44000','received_reason'=>'Otro motivo','received_reference'=>'REC-OTHER'] as $field=>$value) {
+    posDenies(static fn()=>brvtalPosRun($db,1,'superadmin',array_replace($offline,[$field=>$value])),
+        'POS_IDEMPOTENCY_CONFLICT');
+}
+posAssert($snapshotRead()===$after,'changed received evidence never duplicates sale');
+$intent=['action'=>'manual_intent','idempotency_key'=>$offline['idempotency_key']];
+$found=brvtalPosRun($db,1,'superadmin',$intent);
+posAssert($found['state']==='found' && $found['amount_cop']===42000
+    && brvtal_ticket_pos_verified($db,(int)$paidOffline['order_id']),'received receipt and issuance verified');
+$beforeRepeat=$quoteRows();
+$db->exec($quoteSql);
+posAssert($quoteRows()===$beforeRepeat && $quoteProof()['complete'],'second DDL preserves all rows and proof');
+echo "T24 POS channel quote, conflict, snapshot and replay integration passed.\n";
+
+// Negative proof against an empty, isolated schema; never modify the historical fixture rows.
+$negativeName=$name.'_quote';
+$server->exec("CREATE DATABASE `$negativeName` CHARACTER SET utf8mb4");
+try {
+    $server->exec("USE `$negativeName`");
+    $server->exec("CREATE TABLE ticket_pos_sales (
+        quote_source ENUM('door','stage','base') NOT NULL,
+        quote_stage_code VARCHAR(32) NULL,
+        quote_channel ENUM('door','manual') NULL) ENGINE=InnoDB");
+    $negative=brvtalMigrationSchemaProof($server,$quoteMigration);
+    posAssert(!$negative['complete'] && !$negative['checks']['column-nullable:ticket_pos_sales.quote_source']
+        && !$negative['checks']["column-type:ticket_pos_sales.quote_stage_code=enum('early_bird','preventa','general','puerta')"],
+        'quote proof rejects wrong nullability and column type');
+    posAssert(brvtalMigrationProofDisposition($quoteMigration,$negative)==='blocked','schema drift is fail-closed');
+} finally {
+    $server->exec("DROP DATABASE `$negativeName`");
+}
+echo "T24 POS quote snapshot DDL twice, historical NULLs, proof and negative drift OK.\n";

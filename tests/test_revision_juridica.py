@@ -28,7 +28,8 @@ class RevisionJuridicaTests(unittest.TestCase):
         self.assertTrue(index.startswith(
             f"Última actualización automática de las fuentes: {day} · SHA-256 de fuentes: `{sha}`"))
         self.assertIn("documented_not_legally_approved", index)
-        self.assertIn(f"versión declarada `{mod.version(ROOT)}`", index)
+        self.assertNotIn("versión declarada", index)
+        self.assertNotIn(mod.version(ROOT), index)
         self.assertEqual(json.loads((ROOT / "package.json").read_text(encoding="utf-8"))["version"],
                          mod.version(ROOT))
         for provider in ("google_analytics", "smtp_mail_provider"):
@@ -74,6 +75,25 @@ class RevisionJuridicaTests(unittest.TestCase):
                 path.write_bytes(b"corrupt")
                 self.assertIn(mod.NAMES[0][0], mod.synchronize(root, check=True))
                 self.assertEqual(path.read_bytes(), b"corrupt")
+
+
+    def test_version_bump_alone_does_not_stale_index(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / "docs/privacidad").mkdir(parents=True)
+            (root / "config").mkdir()
+            for name, _ in mod.NAMES:
+                (root / "docs/privacidad" / name).write_bytes(name.encode("utf-8"))
+            (root / "datos.yml").write_text(json.dumps({"treatments": [{"providers": []}]}))
+            version_file = root / "config/version.php"
+            version_file.write_text("<?php const BRVTAL_APP_VERSION = '0.0.1';")
+            with patch.object(mod, "provenance", return_value=("a" * 64, "2026-10-18")):
+                mod.synchronize(root, check=False)
+                version_file.write_text("<?php const BRVTAL_APP_VERSION = '9.9.9';")
+                self.assertEqual(mod.synchronize(root, check=True), [])
+                index = (root / "revision-juridica/00-LEEME.md").read_text(encoding="utf-8")
+                self.assertNotIn("9.9.9", index)
+                self.assertNotIn("0.0.1", index)
 
 
     def test_rejects_unknown_entries_and_symlinks_without_writing(self):

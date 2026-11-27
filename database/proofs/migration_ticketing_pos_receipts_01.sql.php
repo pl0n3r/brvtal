@@ -1,0 +1,32 @@
+<?php
+declare(strict_types=1);
+
+return [
+    'table:ticket_pos_payment_destinations',
+    'column:ticket_pos_payment_destinations.id',
+    "column-type:ticket_pos_payment_destinations.method=enum('transfer','nequi','daviplata','terminal')",
+    'column-type:ticket_pos_payment_destinations.alias=varchar(80)',
+    'column:ticket_pos_payment_destinations.is_active',
+    'column:ticket_pos_payment_destinations.created_by_admin_id',
+    'column-type:ticket_pos_payment_destinations.created_at_utc=datetime(6)',
+    'column-nullable:ticket_pos_payment_destinations.deactivated_by_admin_id',
+    'column-nullable:ticket_pos_payment_destinations.deactivated_at_utc',
+    'unique-index:ticket_pos_payment_destinations.PRIMARY=id',
+    'unique-index:ticket_pos_payment_destinations.uq_pos_destination_method=id,method',
+    'fk-reference:ticket_pos_payment_destinations.fk_pos_destination_creator=created_by_admin_id:admins.id',
+    'fk-reference:ticket_pos_payment_destinations.fk_pos_destination_deactivator=deactivated_by_admin_id:admins.id',
+    'check-constraint:ticket_pos_payment_destinations.ck_pos_destination_active',
+    'table:ticket_pos_payment_receipts',
+    'column:ticket_pos_payment_receipts.id',
+    'column:ticket_pos_payment_receipts.order_id',
+    "column-type:ticket_pos_payment_receipts.method=enum('transfer','nequi','daviplata','terminal')",
+    'column:ticket_pos_payment_receipts.destination_id',
+    'column-type:ticket_pos_payment_receipts.normalized_reference=varchar(80)',
+    'column-type:ticket_pos_payment_receipts.request_hash=char(64)',
+    'column-type:ticket_pos_payment_receipts.created_at_utc=datetime(6)',
+    'unique-index:ticket_pos_payment_receipts.PRIMARY=id',
+    'unique-index:ticket_pos_payment_receipts.uq_pos_receipt_scope=destination_id,normalized_reference',
+    'fk-reference:ticket_pos_payment_receipts.fk_pos_receipt_destination=destination_id:ticket_pos_payment_destinations.id',
+    'fk-reference:ticket_pos_payment_receipts.fk_pos_receipt_destination=method:ticket_pos_payment_destinations.method',
+    'fk-reference:ticket_pos_payment_receipts.fk_pos_receipt_order=order_id:ticket_orders.id',
+];

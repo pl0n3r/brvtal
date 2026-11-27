@@ -225,6 +225,13 @@ CREATE TABLE analytics_events (
 -- migration_ticketing_orders_01.sql using the migration runner.
 -- migration_ticketing_door_price_01.sql adds nullable door_price_cop (INT UNSIGNED)
 -- to event_ticket_types; NULL keeps the active web stage as the door tariff.
+-- migration_ticketing_purchase_limits_01.sql adds nullable INT UNSIGNED limits
+-- event_ticket_types.min_per_order, event_ticket_types.max_per_order and
+-- events.max_per_buyer; NULL preserves the legacy web checkout policy.
+-- migration_ticketing_finance_expenses_01.sql creates event_expenses and
+-- event_budgets as append-only revision ledgers; apply through the runner.
+-- migration_ticketing_settlements_01.sql adds synthetic settlement evidence and
+-- immutable lines with logical rollback; apply through the runner.
 INSERT INTO settings(setting_key, setting_value, is_json) VALUES
 ('site', '{"name":"BRVTAL","tagline":"RAVE TILL GRAVE","default_locale":"es","available_locales":["es","en"]}', 1),
 ('social', '{"instagram":"","soundcloud":"","youtube":"","spotify":""}', 1),
