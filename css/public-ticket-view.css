@@ -62,3 +62,22 @@
 .purchase-secondary{min-height:44px;display:inline-flex;align-items:center;color:inherit;text-underline-offset:3px}
 @keyframes purchase-spin{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.purchase-state-icon{animation:none!important}}
+
+/* #2183: native browser printing, no additional credential or server request. */
+.ticket-print-brand,.ticket-print-private{display:none}
+.ticket-print-actions{max-width:34ch;width:100%}
+.ticket-print-actions .access-submit{justify-content:center;margin:0}
+.ticket-print-actions .access-hint{font-family:inherit;font-size:14px}
+@media print{
+  body.buyer-ticket{background:#fff;color:#000;color-scheme:light;min-height:0;overflow:visible}
+  .buyer-ticket::before,.buyer-ticket::after,.buyer-ticket .access-topbar,
+  .buyer-ticket .access-footer,.buyer-ticket .ticket-actions,.buyer-ticket .ticket-tips{display:none}
+  .buyer-ticket .access-main,.buyer-ticket .ticket-shell{display:block;width:100%;max-width:none;min-height:0;padding:0;margin:0}
+  .buyer-ticket .ticket-pass{gap:4mm;break-inside:avoid}
+  .buyer-ticket .ticket-print-brand{display:block;margin:0;font:700 16pt/1.2 Arial,sans-serif}
+  .buyer-ticket .ticket-print-private{display:block;margin:0;font:400 11pt/1.4 Arial,sans-serif}
+  .buyer-ticket .ticket-title{color:#000;font:700 24pt/1.2 Arial,sans-serif}
+  .buyer-ticket .ticket-lead,.buyer-ticket .ticket-ref{color:#000;font-size:12pt}
+  .buyer-ticket .ticket-code{padding:5mm;border-radius:0;box-shadow:none;background:#fff;break-inside:avoid}
+  .buyer-ticket .ticket-code img,.buyer-ticket .ticket-code canvas{width:65mm;height:65mm;max-width:none}
+}

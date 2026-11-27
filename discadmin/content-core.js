@@ -522,7 +522,7 @@ function initEventSalesEditor(){
     const input=$('#e_private_url'),feedback=$('#e_private_feedback');
     if(!input?.value||!feedback)return;
     try{await navigator.clipboard.writeText(input.value);feedback.textContent='Enlace copiado';}
-    catch(_){
+    catch {
       // Clipboard permission can be denied; select the URL for manual copy without exposing errors.
       input.focus();input.select();feedback.textContent='No se pudo copiar automáticamente. Copia el enlace seleccionado.';
     }

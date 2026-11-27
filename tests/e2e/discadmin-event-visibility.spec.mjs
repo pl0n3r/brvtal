@@ -14,7 +14,7 @@ const url='http://127.0.0.1:4173/discadmin/e2e-event-visibility.html';
 async function openEditor(page,options={}){
   const {html,source,workflow,styles}=editorSources(options.root);
   const state={events:options.events||[],ticketTypes:options.ticketTypes||[],timetable:options.timetable||[],writes:[]};
-  await page.route(url,route=>route.fulfill({contentType:'text/html',body:'<!doctype html><html><head><style>'+styles+'</style></head><body>'+html+'</body></html>'}));
+  await page.route(url,route=>route.fulfill({contentType:'text/html; charset=utf-8',body:'<!doctype html><html><head><meta charset="utf-8"><style>'+styles+'</style></head><body>'+html+'</body></html>'}));
   await page.goto(url);
   await page.evaluate(data=>{
     window.__salesFixture=data;
@@ -104,6 +104,8 @@ for(const width of [390,1440]){
       mkdirSync(output,{recursive:true});
       await openPublic(page,{root:baseline});
       await expect(page.locator('#e_visibility')).toHaveCount(0);
+      await page.locator('#e_status').evaluate(element=>element.closest('.field').scrollIntoView({block:'start',inline:'nearest',behavior:'instant'}));
+      await expect(page.locator('#e_status')).toBeInViewport({ratio:1});
       await page.screenshot({path:join(output,'before-'+width+'.png'),animations:'disabled'});
       // Fresh context keeps the fixture and old event listeners isolated.
       const next=await page.context().newPage();
@@ -115,6 +117,11 @@ for(const width of [390,1440]){
         await next.locator('[data-step="5"]').click();
         await expect(next.locator('#e_visibility')).toHaveValue('unlisted');
         await expect(next.locator('#e_private_copy')).toBeEnabled();
+        await next.locator('#e_status').evaluate(element=>element.closest('.field').scrollIntoView({block:'start',inline:'nearest',behavior:'instant'}));
+        await expect(next.locator('#e_visibility')).toBeInViewport({ratio:1});
+        await expect(next.locator('#e_private_url')).toBeInViewport({ratio:1});
+        await expect(next.locator('#e_private_copy')).toBeInViewport({ratio:1});
+        await expect(next.locator('#e_visibility option[value="public"]')).toHaveText('Público');
         await next.screenshot({path:join(output,'after-'+width+'.png'),animations:'disabled'});
       }finally{await next.close();}
     });
