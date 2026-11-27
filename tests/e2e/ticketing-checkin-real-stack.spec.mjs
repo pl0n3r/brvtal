@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
@@ -7,7 +8,8 @@ import { randomBytes } from 'node:crypto';
 export async function checkinIssued(args) {
   // A genuine awaited subtest: failure propagates to the mandatory parent checkout test.
   await test('T31 real issued QR at door: mobile, concurrent audit and negatives', async () => {
-    await runCheckin(args);
+    assert.equal(await runCheckin(args), '1', 'exactly one durable admission after browser cleanup');
+    console.log('T31_CHECKIN_STACK_PASS: issued QR, real door, concurrent audit, mobile negatives');
   });
 }
 
@@ -90,5 +92,5 @@ async function runCheckin({ check, db, request, qr, ticketId, armDoorRace }) {
     check(db("SELECT COUNT(*) FROM ticket_checkins WHERE outcome='rejected' AND reason_code='already_used'") === '1', 'one concurrent replay audited');
     check(db("SELECT COUNT(*) FROM ticket_checkins c JOIN ticket_entries e ON e.id=c.entry_id JOIN ticket_entry_credentials k ON k.entry_id=e.id AND k.version=c.credential_version WHERE c.outcome='accepted' AND c.event_id=1 AND c.operator_admin_id=" + winner.id + " AND e.public_id=UNHEX('" + ticketId + "') AND k.status='active' AND e.used_at_utc IS NOT NULL") === '1', 'accepted audit links exact issued entry and operator');
   } finally { await browser.close(); }
-  console.log('T31_CHECKIN_STACK_PASS: issued QR, real door, concurrent audit, mobile negatives');
+  return accepted();
 }
