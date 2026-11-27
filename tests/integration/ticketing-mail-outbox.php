@@ -373,6 +373,11 @@ mail_assert(!brvtal_ticket_mail_redrive($pdo,$clearId)
     && !brvtal_ticket_mail_redrive($pdo,$sealedId),'invalid waitlist cannot redrive');
 mail_assert($pdo->query("SELECT body_text FROM ticket_mail_outbox WHERE id=$clearId")->fetchColumn()
     ==='Historical cleartext','historical body is not rewritten');
+$pdo->prepare("UPDATE ticket_mail_outbox SET state='failed',attempts=2,last_error_code='provider_rejected'
+    WHERE id=?")->execute([$sealedId]);
+mail_assert(!brvtal_ticket_mail_redrive($pdo,$sealedId)
+    && $pdo->query("SELECT state FROM ticket_mail_outbox WHERE id=$sealedId")->fetchColumn()==='uncertain',
+    'later waitlist rejection cannot erase an earlier ambiguous attempt');
 if ($oldConfig === null) unset($GLOBALS['config']); else $GLOBALS['config']=$oldConfig;
 
 echo "BRVTAL ticket-mail outbox integration OK.\n";

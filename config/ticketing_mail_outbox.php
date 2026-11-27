@@ -319,22 +319,30 @@ function brvtal_ticket_mail_claim(PDO $pdo): ?array
 }
 
 /**
- * Fence recovery dispatch at the last local authorization point. Lock the
- * order/consent before the outbox (producer lock order), then commit BEFORE
+ * Fence recovery and waitlist dispatch at the last local authorization point.
+ * Lock the domain/consent before the outbox (producer lock order), then commit BEFORE
  * the provider call. A payment/opt-out after this boundary cannot revoke an
  * already authorized/in-flight request.
  */
 function brvtal_ticket_mail_prepare_dispatch(PDO $pdo, array $job): string
 {
-    if (!preg_match('/^order:.*:(abandoned_checkout|reminder)$/D', (string)$job['message_key'])) {
+    $waitlist = brvtal_ticket_waitlist_mail_is($job);
+    if (!$waitlist && !preg_match('/^order:.*:(abandoned_checkout|reminder)$/D', (string)$job['message_key'])) {
         return 'ready';
     }
-    require_once __DIR__ . '/ticketing_recovery.php';
+    $plain = $waitlist ? brvtal_ticket_waitlist_mail_open($job) : null;
+    if ($waitlist) {
+        require_once __DIR__ . '/ticketing_waitlist.php';
+    } else {
+        require_once __DIR__ . '/ticketing_recovery.php';
+    }
     $pdo->beginTransaction();
     try {
         $historyReady = (int)$pdo->query("SELECT COUNT(*) FROM information_schema.TABLES
             WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='ticket_mail_history'")->fetchColumn() === 1;
-        $reason = brvtalRecoveryDispatchReason($pdo, $job, $historyReady);
+        $reason = $waitlist
+            ? ($plain === null ? 'waitlist_seal_invalid' : brvtal_waitlist_dispatch_reason($pdo,$job,$plain))
+            : brvtalRecoveryDispatchReason($pdo, $job, $historyReady);
         $fence = $pdo->prepare("SELECT id FROM ticket_mail_outbox
             WHERE id=? AND attempts=? AND state='sending' AND locked_until>=UTC_TIMESTAMP()
               AND provider_message_id IS NULL AND accepted_at IS NULL FOR UPDATE");
@@ -357,7 +365,8 @@ function brvtal_ticket_mail_prepare_dispatch(PDO $pdo, array $job): string
         }
         // An earlier attempt may have reached the provider, even on 5xx.
         // Contradictory history evidence also prevents a new provider call.
-        $state = (int)$job['attempts'] === 1 && !$hasReceipt ? 'suppressed' : 'uncertain';
+        $state = (int)$job['attempts'] === 1 && !$hasReceipt
+            ? ($reason === 'waitlist_seal_invalid' ? 'failed' : 'suppressed') : 'uncertain';
         if ($state === 'suppressed' && $receipt) {
             $audit = $pdo->prepare("UPDATE ticket_mail_history
                 SET delivery_state='suppressed',state_at=UTC_TIMESTAMP()
@@ -419,7 +428,8 @@ function brvtal_ticket_mail_deliver_one(PDO $pdo, ?callable $request = null): st
     }
     // A later definitive rejection cannot disprove an earlier ambiguous call.
     if ($state === 'failed' && $attempts > 1
-        && preg_match('/^order:.*:(abandoned_checkout|reminder)$/D', (string)$job['message_key'])) {
+        && (brvtal_ticket_waitlist_mail_is($job)
+            || preg_match('/^order:.*:(abandoned_checkout|reminder)$/D', (string)$job['message_key']))) {
         $state = 'uncertain';
         $result['code'] = 'receipt_unknown';
     }
@@ -487,7 +497,7 @@ function brvtal_ticket_mail_redrive(PDO $pdo, int $id): bool
     }
     // Legacy failures from multiple attempts may hide a preceding 5xx.
     // Retain the original fencing generation; do not erase uncertainty.
-    $pattern = '^order:.*:(abandoned_checkout|reminder)$';
+    $pattern = '^(order:.*:(abandoned_checkout|reminder)|waitlist:(join|offer):[1-9][0-9]*:[a-f0-9]{10})$';
     $ambiguous = $pdo->prepare("UPDATE ticket_mail_outbox
         SET state='uncertain',locked_until=NULL,last_error_code='receipt_unknown',updated_at=UTC_TIMESTAMP()
         WHERE id=? AND state='failed' AND attempts>1 AND message_key REGEXP ?");

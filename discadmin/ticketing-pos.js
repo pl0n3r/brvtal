@@ -140,11 +140,12 @@ export function mount(target) {
   let recoveryRequired=!!storedIntent||!storageAvailable;
   const renderManualReceipt=(data,recovered)=>{
     manualSubmitted=true;manualSubmit.disabled=true;manualQuote=null;
+    if(recovered){manualPreview.replaceChildren();manualReviewed=false;reviewSnapshot=null;}
     let delivery='emisión de QR en cola, entrega por correo no verificada.';
     if(data.issuance==='issued')delivery='QR emitido, entrega por correo no verificada.';
     else if(recovered)delivery='emisión de QR pendiente, entrega por correo no verificada.';
     manualStatus.textContent='Pedido #'+data.order_id+(recovered?' recuperado.':' creado.')
-      +' Pago offline confirmado; '+delivery;
+      +' Pago offline confirmado; '+delivery+(recovered?' Se conserva el importe del recibo original.':'');
     manualReceipt.replaceChildren(el('p','Pedido #'+data.order_id+' · '
       +data.amount_cop+' COP · '+data.method+'. Consulta Pedidos para verificar el estado.'));
     const navigate=el('button','Ver en Pedidos','tk-button');navigate.type='button';
@@ -290,7 +291,7 @@ export function mount(target) {
         POS_QUOTE_REQUIRED:'Se necesita una cotización nueva antes de confirmar.',
         POS_INVALID_MANUAL_ORDER:'El servidor rechazó los datos. Revisa la referencia, el nombre y el medio de pago.'
       };
-      if(error.status===409)clearManualReview();
+      if(error.status===409||error.status===403)clearManualReview();
       recoveryRequired=!Object.hasOwn(reasons,error.message)||error.message==='POS_IDEMPOTENCY_CONFLICT';
       manualStatus.textContent=reasons[error.message]
         || 'No se pudo verificar el resultado. Consultando el recibo original…';
