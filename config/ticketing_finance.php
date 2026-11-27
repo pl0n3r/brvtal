@@ -50,6 +50,45 @@ function brvtalFinanceAccumulateType(array &$types, array $line): void
     $types[$id]=$type;
 }
 
+/** A receipt is evidence, never a second sale or a settlement. */
+function brvtalFinanceDiscrepancy(array $order, array $evidence): ?array
+{
+    $proof = $evidence['classification'];
+    if (!in_array($proof['state'], ['discrepancy', 'unavailable'], true)) {
+        return null;
+    }
+    $receipts = [];
+    $unproven = 0;
+    foreach ($evidence['attempts'] as $attempt) {
+        if ($attempt['provider'] !== 'wompi' || !in_array($attempt['status'], ['approved', 'refunded'], true)) {
+            continue;
+        }
+        $tx = (string)($attempt['provider_transaction_id'] ?? '');
+        if (!(bool)($attempt['verified_event'] ?? false) || ($attempt['provider_reference'] ?? '') === ''
+            || !preg_match('/^[a-zA-Z0-9-]{1,128}$/D', $tx)) {
+            $unproven++;
+            continue;
+        }
+        $amount = (int)($attempt['gross_amount_cop'] ?? 0);
+        $amount = $amount > 0 && $amount === (int)$order['total_cop'] && $order['currency'] === 'COP'
+            ? $amount : null;
+        if (array_key_exists($tx, $receipts) && $receipts[$tx] !== $amount) {
+            $amount = null;
+        }
+        $receipts[$tx] = $amount;
+    }
+    ksort($receipts, SORT_STRING);
+    $rows = [];
+    $sum = $receipts && $unproven === 0 ? 0 : null;
+    foreach ($receipts as $tx => $amount) {
+        $rows[] = ['transaction_id'=>(string)$tx, 'gross_cop'=>$amount];
+        $sum = $sum === null || $amount === null || $sum > PHP_INT_MAX - $amount ? null : $sum + $amount;
+    }
+    return ['order_id'=>(int)$order['id'], 'state'=>$proof['state'], 'reason'=>$proof['reason'],
+        'channel'=>$proof['channel'], 'wompi_receipts'=>$rows, 'authenticated_cop'=>$sum,
+        'unproven_attempts'=>$unproven];
+}
+
 /** Refunds must be confirmed adjustment records, never inferred from order status. */
 function brvtalFinanceSummarize(array $orders, array $items, array $attempts,
     array $posSales=[], array $refundsByOrder=[], bool $refundEvidence=true,
@@ -88,10 +127,16 @@ function brvtalFinanceSummarize(array $orders, array $items, array $attempts,
             'withheld_cop'=>0, 'payout_cop'=>0, 'difference_cop'=>0,
             'expenses_cop'=>null, 'profit_cop'=>null,
             'settlement_status'=>'unverified', 'capacity'=>null, 'checkins'=>null,
-            'types'=>[], 'transactions'=>[],
+            'types'=>[], 'transactions'=>[], 'discrepancies'=>[],
         ];
         $id = (int)$order['id'];
         $status = (string)$order['status'];
+        if (isset($evidenceByOrder[$id])) {
+            $discrepancy = brvtalFinanceDiscrepancy($order, $evidenceByOrder[$id]);
+            if ($discrepancy !== null) {
+                $summary['discrepancies'][] = $discrepancy;
+            }
+        }
         if ($status === 'refunded') $summary['refunded_orders']++;
         if (in_array($status, ['pending','draft'], true)) $summary['pending_orders']++;
         elseif (in_array($status, ['failed','cancelled','expired'], true)) $summary['declined_orders']++;
@@ -229,9 +274,15 @@ function brvtalFinanceChannelEvidence(PDO $db, array $orders): array
     $ids=array_column($orders,'id');
     $in=implode(',',array_fill(0,count($ids),'?'));
     $schema=brvtalTicketAdminPaymentSchema($db);
-    $stmt=$db->prepare("SELECT id,order_id,provider,provider_transaction_id,status,
-        gross_amount_cop,fee_amount_cop,fee_vat_cop,withheld_amount_cop,net_amount_cop
-        FROM ticket_payment_attempts WHERE order_id IN ($in)");
+    // Same durable attempt/transaction identity used by T18; EXISTS never
+    // multiplies receipts when callbacks repeat. Never expose provider_reference.
+    $verifiedEvent = $schema['wompi_events']
+        ? "EXISTS (SELECT 1 FROM ticket_payment_webhook_events w
+            WHERE w.attempt_id=a.id AND w.provider_transaction_id=a.provider_transaction_id)"
+        : 'FALSE';
+    $stmt=$db->prepare("SELECT a.id,a.order_id,a.provider,a.provider_reference,a.provider_transaction_id,a.status,
+        a.gross_amount_cop,a.fee_amount_cop,a.fee_vat_cop,a.withheld_amount_cop,a.net_amount_cop,
+        $verifiedEvent AS verified_event FROM ticket_payment_attempts a WHERE a.order_id IN ($in)");
     $stmt->execute($ids);
     $attempts=$stmt->fetchAll(PDO::FETCH_ASSOC);
     // Do not erase invalid, incomplete or duplicate POS rows with an inner
@@ -274,7 +325,29 @@ function brvtalFinanceFilterOrders(array $orders, array $byOrder, string $channe
     }));
 }
 
+/** Own one consistent read-only snapshot unless the caller already owns a transaction. */
 function brvtalFinanceReport(PDO $db, ?int $eventId, ?string $from, ?string $to, string $channel): array
+{
+    $ownsTransaction = !$db->inTransaction();
+    if ($ownsTransaction) {
+        $db->exec('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
+        $db->beginTransaction();
+    }
+    try {
+        $result = brvtalFinanceReportSnapshot($db, $eventId, $from, $to, $channel);
+        if ($ownsTransaction) {
+            $db->commit();
+        }
+        return $result;
+    } catch (Throwable $e) {
+        if ($ownsTransaction && $db->inTransaction()) {
+            $db->rollBack();
+        }
+        throw $e;
+    }
+}
+
+function brvtalFinanceReportSnapshot(PDO $db, ?int $eventId, ?string $from, ?string $to, string $channel): array
 {
     $start = $from === null ? null : brvtalFinanceCalendarBound($from, false);
     $end = $to === null ? null : brvtalFinanceCalendarBound($to, true);
