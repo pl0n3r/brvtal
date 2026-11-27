@@ -277,7 +277,7 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
         $byOrder=$evidence['by_order'];
         foreach (['all','wompi','pos'] as $channel) {
             $selected=brvtalFinanceFilterOrders($candidates,$byOrder,$channel);
-            $selectedIds=array_map('intval',array_column($selected,'id'));
+            $selectedIds=array_map(intval(...),array_column($selected,'id'));
             t20(in_array(48,$selectedIds,true) && in_array(50,$selectedIds,true),
                 'conflict remains in every relevant cohort');
             foreach ([48,50] as $id) {
