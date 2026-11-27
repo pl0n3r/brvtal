@@ -68,6 +68,7 @@ $expectedIds = [
     'admin_totp_pending',
     'auth_password_rate_limit',
     'auth_totp_rate_limit',
+    'contact_capture',
     'contact_delivery',
     'contact_rate_limit',
     'internal_analytics_events',
@@ -228,7 +229,18 @@ privacy_expect($contact['providers'] === [], 'mail/MTA provider must remain unkn
 privacy_expect($contact['retention'] === 'external_mailbox_review_required', 'external mailbox retention must remain pending review');
 $contactApi = privacy_text('api/contact.php');
 $contactConfig = privacy_text('config/public_contact.php');
-privacy_expect(!str_contains($contactApi, 'db()'), 'public contact endpoint must not claim/store these fields in BRVTAL DB');
+$capture = privacy_treatment($data, 'contact_capture');
+privacy_expect($capture['fields'] === ['name','email','subject','message','entry_id','form_key','version_number','definition_sha256','idempotency_digest','created_at_utc','purpose_key','notice_version','retention_policy_key','retention_until_utc','state','redacted_at_utc','action_key'], 'contact capture fields drifted');
+privacy_expect($capture['basis'] === 'review_required' && $capture['retention'] === 'review_required' && $capture['consent'] === 'review_required' && $capture['providers'] === [], 'capture remains pending legal review');
+require_once __DIR__ . '/../config/form_entries.php';
+privacy_expect(brvtal_contact_capture_policy([]) === null, 'capture is off by default');
+try {
+    brvtal_contact_capture_policy(['contact'=>['capture'=>['enabled'=>true]]]);
+    privacy_expect(false, 'capture without approved policy must fail closed');
+} catch (RuntimeException $e) {
+    privacy_expect($e->getMessage() === 'CONTACT_CAPTURE_UNAVAILABLE', 'capture policy rejection');
+}
+privacy_expect(str_contains($contactApi, 'brvtal_contact_capture_policy($config) !== null') && str_contains($contactApi, 'brvtal_contact_capture(db()'), 'database capture requires explicit policy gate');
 privacy_expect(str_contains($contactConfig, 'return @mail('), 'contact flow must still use host mail transport without inventing a provider');
 
 $contactRate = privacy_treatment($data, 'contact_rate_limit');

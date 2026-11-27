@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/bootstrap.php';
 require_once __DIR__ . '/../config/public_contact.php';
 require_once __DIR__ . '/../config/public_abuse_guard.php';
+require_once __DIR__ . '/../config/form_entries.php';
 
 // The required bootstrap loads and validates this configuration.
 /** @var array<string, mixed> $config */
@@ -50,6 +51,20 @@ try {
     $validation = brvtal_contact_validate_payload($input, $config);
     if (!$validation['ok']) {
         json_response(['ok' => false, 'error' => 'VALIDATION_FAILED', 'fields' => $validation['errors']], 422);
+    }
+
+    // Build-ahead only: disabled unless an approved capture policy is configured.
+    if (brvtal_contact_capture_policy($config) !== null) {
+        $key = $_SERVER['HTTP_IDEMPOTENCY_KEY'] ?? null;
+        try {
+            brvtal_contact_capture_key($key);
+            brvtal_contact_capture(db(), $validation['data'], $key, $config);
+        } catch (InvalidArgumentException) {
+            json_response(['ok' => false, 'error' => 'CONTACT_INTENT_INVALID'], 422);
+        } catch (DomainException) {
+            json_response(['ok' => false, 'error' => 'CONTACT_INTENT_CONFLICT'], 409);
+        }
+        json_response(['ok' => true, 'message' => 'MESSAGE_RECEIVED']);
     }
 
     if (!brvtal_contact_send($validation['data'], $config)) {
