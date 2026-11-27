@@ -183,6 +183,34 @@
       "providers": []
     },
     {
+      "id": "contact_capture",
+      "category": "contact",
+      "fields": [
+        "name",
+        "email",
+        "subject",
+        "message",
+        "entry_id",
+        "form_key",
+        "version_number",
+        "definition_sha256",
+        "idempotency_digest",
+        "created_at_utc",
+        "purpose_key",
+        "notice_version",
+        "retention_policy_key",
+        "retention_until_utc",
+        "state",
+        "redacted_at_utc",
+        "action_key"
+      ],
+      "purpose": "contact_capture",
+      "basis": "review_required",
+      "retention": "review_required",
+      "consent": "review_required",
+      "providers": []
+    },
+    {
       "id": "contact_delivery",
       "category": "contact",
       "fields": [
