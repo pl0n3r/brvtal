@@ -27,7 +27,16 @@ try {
     $actor=(int)($_SESSION['admin_id']??0);
     $role=$pdo->prepare('SELECT staff_role FROM admins WHERE id=? AND is_active=1 LIMIT 1');
     $role->execute([$actor]);
-    $receipt=brvtalPosRun($pdo,$actor,(string)($role->fetchColumn()?:''),$data);
+    // This server-only key is not the browser-visible CSRF token.
+    $quoteKey=null;
+    if (in_array($data['action']??null,['manual_quote','manual_order'],true)) {
+        if (!is_string($_SESSION['pos_quote_key']??null)
+            || !preg_match('/^[a-f0-9]{64}$/D',$_SESSION['pos_quote_key'])) {
+            $_SESSION['pos_quote_key']=bin2hex(random_bytes(32));
+        }
+        $quoteKey=hex2bin($_SESSION['pos_quote_key']);
+    }
+    $receipt=brvtalPosRun($pdo,$actor,(string)($role->fetchColumn()?:''),$data,$quoteKey);
     json_response(['ok'=>true,'data'=>$receipt],200);
 } catch (InvalidArgumentException | JsonException) {
     json_response(['ok'=>false,'error'=>'INVALID_PAYLOAD'],422);
@@ -36,7 +45,8 @@ try {
     $status=match($code) {
         'FORBIDDEN'=>403,'POS_SYNTHETIC_ONLY'=>423,
         'POS_EVENT_UNAVAILABLE','POS_TYPE_UNAVAILABLE'=>404,
-        'POS_IDEMPOTENCY_CONFLICT','POS_SHIFT_ALREADY_OPEN','INVENTORY_SOLD_OUT'=>409,
+        'POS_IDEMPOTENCY_CONFLICT','POS_SHIFT_ALREADY_OPEN','INVENTORY_SOLD_OUT',
+        'POS_QUOTE_REQUIRED','POS_QUOTE_CHANGED'=>409,
         'POS_PROVIDER_PROOF_REQUIRED','POS_TRANSFER_RULES_REQUIRED'=>403,
         default=>409,
     };
