@@ -203,6 +203,7 @@ $public = [
     'api/buyer/account.php' => ['brvtalBuyerAccountAuthorized(', 'brvtalBuyerCsrfValid('],
     'api/buyer/refunds.php' => ['brvtalBuyerAccountAuthorized(', 'brvtalBuyerCsrfValid('],
     'api/contact.php' => ['brvtal_contact_consume_rate_limit(', 'brvtal_public_abuse_check('],
+    'api/forms.php' => ['brvtalFormsRate(', 'brvtalFormsVerify(', 'brvtalFormsCaptureEnabled('],
     // A public-prefixed route can still be private; verify both admin gates.
     'api/public-preview.php' => ['brvtal_admin_require(', 'brvtal_admin_require_csrf('],
     'api/ticketing/checkout.php' => ['brvtalBuyerSessionStart(', 'brvtalBuyerCsrfValid('],
@@ -214,7 +215,7 @@ $public = [
 ];
 $found = [];
 $files = array_merge(glob($root.'/api/buyer/*.php') ?: [],
-    glob($root.'/api/ticketing/*.php') ?: [], glob($root.'/api/public*.php') ?: [],
+    glob($root.'/api/ticketing/*.php') ?: [], glob($root.'/api/public*.php') ?: [], glob($root.'/api/forms*.php') ?: [],
     [$root.'/api/contact.php', $root.'/api/newsletter.php']);
 foreach (array_unique($files) as $path) {
     if (!is_file($path)) continue;

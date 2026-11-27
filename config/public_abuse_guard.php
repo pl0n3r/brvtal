@@ -119,3 +119,39 @@ function brvtal_public_abuse_mail_limit(
     if (!$person['allowed']) return $person;
     return brvtal_contact_consume_rate_limit('global', $path, $now, $global, 3600);
 }
+
+/** Fixed public form scope: signature includes the opaque identity, version and retry intent. */
+function brvtalFormsChallenge(array $config, string $context, ?int $now = null): array
+{
+    $challenge = brvtal_contact_issue_challenge($config, $now);
+    $token = $challenge['token'];
+    $mac = hash_hmac('sha256', 'forms|'.$context.'|'.$token, brvtal_contact_secret($config), true);
+    return ['question'=>$challenge['question'], 'captcha_token'=>$token.'.'.brvtal_contact_base64url_encode($mac),
+        'expires_in'=>$challenge['expires_in']];
+}
+
+function brvtalFormsVerify(array $config, string $context, mixed $token, mixed $answer, ?int $now = null): bool
+{
+    if (!is_string($token) || strlen($token) > 512 || !is_string($answer)) return false;
+    $parts = explode('.', $token);
+    if (count($parts) !== 3) return false;
+    $contact = $parts[0].'.'.$parts[1];
+    $mac = hash_hmac('sha256', 'forms|'.$context.'|'.$contact, brvtal_contact_secret($config), true);
+    $provided = brvtal_contact_base64url_decode($parts[2]);
+    if (!is_string($provided) || !hash_equals($mac, $provided)) return false;
+    $now ??= time();
+    $decoded = brvtal_contact_decode_challenge($contact, $config, $now);
+    return is_array($decoded) && $now - $decoded['iat'] >= 2
+        && brvtal_contact_verify_challenge($contact, $answer, $config, $now);
+}
+
+function brvtalFormsRate(array $config, string $id, ?string $path = null, ?int $now = null): array
+{
+    $path ??= __DIR__.'/../storage/rate_limits/forms.json';
+    $ip = hash_hmac('sha256', brvtal_contact_resolve_client_ip($config), brvtal_contact_secret($config));
+    foreach (['forms:global'=>300, 'forms:ip:'.$ip=>30, 'forms:scope:'.$id=>60] as $bucket=>$max) {
+        $result = brvtal_contact_consume_rate_limit($bucket, $path, $now, $max, 900);
+        if (!$result['allowed']) return $result;
+    }
+    return $result;
+}
