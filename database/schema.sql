@@ -228,6 +228,8 @@ CREATE TABLE analytics_events (
 -- migration_ticketing_purchase_limits_01.sql adds nullable INT UNSIGNED limits
 -- event_ticket_types.min_per_order, event_ticket_types.max_per_order and
 -- events.max_per_buyer; NULL preserves the legacy web checkout policy.
+-- migration_ticketing_finance_expenses_01.sql creates event_expenses and
+-- event_budgets as append-only revision ledgers; apply through the runner.
 INSERT INTO settings(setting_key, setting_value, is_json) VALUES
 ('site', '{"name":"BRVTAL","tagline":"RAVE TILL GRAVE","default_locale":"es","available_locales":["es","en"]}', 1),
 ('social', '{"instagram":"","soundcloud":"","youtube":"","spotify":""}', 1),
