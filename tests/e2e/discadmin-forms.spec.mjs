@@ -168,7 +168,12 @@ for (const width of [390,1440]) {
     expect(control.calls.filter(c=>c.method==='POST').at(-1).body).toMatchObject({action:'note',expected_revision:1,note:attack});
     expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
     if (managementBase) {
-      await workspace.getByRole('heading',{name:'Gestión de respuesta'}).scrollIntoViewIfNeeded();
+      const toast=page.locator('.brvtal-feedback button');
+      if (await toast.count()) {
+        for (const close of await toast.all()) await close.click();
+        await expect(toast).toHaveCount(0);
+      }
+      await page.evaluate(()=>window.scrollTo(0,0));
       await page.screenshot({path:'artifacts/forms-2073/after-'+width+'.png',animations:'disabled',fullPage:true});
       await page.screenshot({path:'artifacts/forms-2073/after-'+width+'.jpg',type:'jpeg',quality:65,animations:'disabled',fullPage:true});
     }

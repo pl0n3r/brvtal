@@ -75,6 +75,37 @@ window.BRVTALForms = (() => {
         content.append(button('Reintentar',retry));
       }
     }
+    async function csrfToken(controller) {
+      const token = typeof csrf !== 'undefined' ? csrf : '';
+      if (token) return token;
+      const auth = await fetch('/api/index.php/auth',{credentials:'same-origin',cache:'no-store',signal:controller.signal});
+      const session = await auth.json();
+      if (!auth.ok || session.authenticated!==true || !session.csrf) throw new Error('AUTH_REQUIRED');
+      return session.csrf;
+    }
+    async function downloadCsv(res,controller) {
+      if (!/^text\/csv(?:;|$)/i.test(res.headers.get('Content-Type')||'')) throw new Error('INVALID');
+      const blob=await res.blob();
+      if (!current(controller)) return;
+      const url=URL.createObjectURL(blob), link=node('a');
+      link.href=url; link.download='forms-responses.csv';
+      document.body.append(link); link.click(); link.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),1000);
+      status.textContent='CSV descargado.';
+    }
+    async function handlePost(res,controller,body,done,refresh) {
+      if ([401,403,419].includes(res.status)) throw new Error('AUTH_REQUIRED');
+      if (res.status===503) return refresh('La gestión no está disponible. Consulta el estado actualizado.');
+      if (res.ok && body.action==='export') return downloadCsv(res,controller);
+      const payload=await res.json();
+      if (!current(controller)) return;
+      if (res.status===409) return refresh('La respuesta cambió o ya no está disponible. Revisa el estado actualizado antes de actuar.');
+      if (payload.error==='EXPORT_LIMIT_EXCEEDED') {
+        status.textContent='Más de 1.000 respuestas vigentes. Acota los filtros para exportar.'; return;
+      }
+      if (!res.ok || payload.ok!==true) throw new Error('INVALID');
+      return done();
+    }
     async function post(body,done,refresh) {
       const controller = active;
       if (!enabled || busy || !current(controller)) return;
@@ -83,41 +114,11 @@ window.BRVTALForms = (() => {
       controls.forEach(el=>{el.disabled=true;});
       status.textContent = body.action === 'export' ? 'Preparando CSV…' : 'Guardando…';
       try {
-        let token = typeof csrf !== 'undefined' ? csrf : '';
-        if (!token) {
-          const auth = await fetch('/api/index.php/auth',{credentials:'same-origin',cache:'no-store',signal:controller.signal});
-          const session = await auth.json();
-          if (!auth.ok || session.authenticated!==true || !session.csrf) throw new Error('AUTH_REQUIRED');
-          token=session.csrf;
-        }
+        const token=await csrfToken(controller);
         if (!current(controller)) return;
         const res=await fetch('/api/admin-forms.php',{method:'POST',credentials:'same-origin',cache:'no-store',
           signal:controller.signal,headers:{'Content-Type':'application/json','X-CSRF-Token':token},body:JSON.stringify(body)});
-        if (!current(controller)) return;
-        if ([401,403,419].includes(res.status)) throw new Error('AUTH_REQUIRED');
-        if (res.status===503) {
-          await refresh('La gestión no está disponible. Consulta el estado actualizado.'); return;
-        }
-        if (res.ok && body.action==='export') {
-          if (!/^text\/csv(?:;|$)/i.test(res.headers.get('Content-Type')||'')) throw new Error('INVALID');
-          const blob=await res.blob();
-          if (!current(controller)) return;
-          const url=URL.createObjectURL(blob), link=node('a');
-          link.href=url; link.download='forms-responses.csv';
-          document.body.append(link); link.click(); link.remove();
-          setTimeout(()=>URL.revokeObjectURL(url),1000);
-          status.textContent='CSV descargado.'; return;
-        }
-        const payload=await res.json();
-        if (!current(controller)) return;
-        if (res.status===409) {
-          await refresh('La respuesta cambió o ya no está disponible. Revisa el estado actualizado antes de actuar.'); return;
-        }
-        if (payload.error==='EXPORT_LIMIT_EXCEEDED') {
-          status.textContent='Más de 1.000 respuestas vigentes. Acota los filtros para exportar.'; return;
-        }
-        if (!res.ok || payload.ok!==true) throw new Error('INVALID');
-        await done();
+        if (current(controller)) await handlePost(res,controller,body,done,refresh);
       } catch (error) {
         if (!current(controller)) return;
         if (error.message==='AUTH_REQUIRED') {
@@ -130,6 +131,9 @@ window.BRVTALForms = (() => {
           busy=false; controls.forEach(el=>{el.disabled=false;});
         }
       }
+    }
+    function exportFiltered() {
+      return post({action:'export',form_key:formKey,...filters},()=>{},msg=>list(true,msg));
     }
     function rows(items,render) {
       if (!Array.isArray(items)) throw new Error('INVALID_LIST');
@@ -162,7 +166,7 @@ window.BRVTALForms = (() => {
         const option=node('option',title); option.value=key; workflow.append(option);
       }
       workflow.value=filters.management_state||''; workflowLabel.append(workflow);
-      if (enabled) form.append(workflowLabel);
+      if (enabled || filters.management_state) form.append(workflowLabel);
       const inputs = {};
       for (const [key,title] of [['from','Desde'],['to','Hasta']]) {
         const dateLabel = node('label',title), input = node('input');
@@ -175,7 +179,7 @@ window.BRVTALForms = (() => {
         if (inputs.from.value && inputs.to.value && inputs.from.value > inputs.to.value) {
           status.textContent = 'La fecha inicial no puede ser posterior a la final.'; return;
         }
-        filters = Object.fromEntries(Object.entries({state:select.value,management_state:enabled?workflow.value:'',from:inputs.from.value,to:inputs.to.value}).filter(([,v])=>v));
+        filters = Object.fromEntries(Object.entries({state:select.value,management_state:workflow.value,from:inputs.from.value,to:inputs.to.value}).filter(([,v])=>v));
         cursors = ['']; void list(true);
       });
       content.append(form);
@@ -199,8 +203,7 @@ window.BRVTALForms = (() => {
         if (data.has_more===true && /^[a-f0-9]{32}$/.test(data.next_cursor || '')) {
           actions.append(button('Siguiente',()=>{cursors.push(data.next_cursor);return list(true);}));
         }
-        if (enabled) actions.append(button('Exportar CSV de los filtros',()=>post(
-          {action:'export',form_key:formKey,...filters},()=>{},msg=>list(true,msg))));
+        if (enabled) actions.append(button('Exportar CSV de los filtros',exportFiltered));
         content.append(actions);
         if (enabled) content.append(node('p','Exporta hasta 1.000 respuestas vigentes de todos los resultados filtrados, no solo de esta página.'));
         if (message) status.textContent=message;
