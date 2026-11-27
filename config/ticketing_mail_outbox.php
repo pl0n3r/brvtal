@@ -353,27 +353,18 @@ function brvtal_ticket_mail_redrive(PDO $pdo, int $id): bool
     }
     // Legacy failures from multiple attempts may hide a preceding 5xx.
     // Retain the original fencing generation; do not erase uncertainty.
+    $pattern = '^order:.*:(abandoned_checkout|reminder)$';
     $ambiguous = $pdo->prepare("UPDATE ticket_mail_outbox
         SET state='uncertain',locked_until=NULL,last_error_code='receipt_unknown',updated_at=UTC_TIMESTAMP()
-        WHERE id=? AND state='failed' AND attempts>1
-          AND message_key REGEXP '^order:.*:(abandoned_checkout|reminder)
-    $stmt->execute([$id]);
-    return $stmt->rowCount() === 1;
-}
-");
-    $ambiguous->execute([$id]);
+        WHERE id=? AND state='failed' AND attempts>1 AND message_key REGEXP ?");
+    $ambiguous->execute([$id, $pattern]);
     if ($ambiguous->rowCount() === 1) return false;
     $stmt = $pdo->prepare("UPDATE ticket_mail_outbox
         SET state='queued',attempts=0,first_attempt_at=NULL,
             next_attempt_at=UTC_TIMESTAMP(),locked_until=NULL,last_error_code=NULL
-        WHERE id=? AND state='failed' AND
-          NOT (attempts>1 AND message_key REGEXP '^order:.*:(abandoned_checkout|reminder)
-    $stmt->execute([$id]);
-    return $stmt->rowCount() === 1;
-}
-) AND
+        WHERE id=? AND state='failed' AND NOT (attempts>1 AND message_key REGEXP ?) AND
           last_error_code IN ('transport_disabled','invalid_configuration',
               'provider_rejected','transport_unavailable')");
-    $stmt->execute([$id]);
+    $stmt->execute([$id, $pattern]);
     return $stmt->rowCount() === 1;
 }
