@@ -355,7 +355,12 @@ function brvtalTicketAdminRecordOrderAction(PDO $pdo, int $actorId, string $role
                 throw new DomainException('MAIL_PAYLOAD_NOT_RECOVERABLE');
             }
             $projection = brvtalTicketAdminRecoveryProjection(
-                $pdo, $actorId, $role, $orderId, (int)$order['event_id'], $recipient
+                $pdo,
+                $actorId,
+                $role,
+                $orderId,
+                (int)$order['event_id'],
+                $recipient
             );
             if (!in_array('recoverable', array_column($projection['entries'], 'state'), true)) {
                 throw new DomainException('MAIL_PAYLOAD_NOT_RECOVERABLE');
@@ -365,7 +370,9 @@ function brvtalTicketAdminRecordOrderAction(PDO $pdo, int $actorId, string $role
             $event = $q->fetch(PDO::FETCH_ASSOC);
             $date = (string)($event['event_date'] ?? '');
             $start = DateTimeImmutable::createFromFormat(
-                '!Y-m-d H:i:s', $date, new DateTimeZone('America/Bogota')
+                '!Y-m-d H:i:s',
+                $date,
+                new DateTimeZone('America/Bogota')
             );
             // Same +1 day cutoff enforced by buyer QR retrieval. Never queue
             // a recovery that the authenticated account already cannot fulfill.

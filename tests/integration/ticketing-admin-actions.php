@@ -42,8 +42,8 @@ try {
             if(trim($part)!=='') $db->exec($part);
         }
     }
-    $eventStart=(new DateTimeImmutable('now',new DateTimeZone('America/Bogota')))
-        ->modify('-1 hour')->format('Y-m-d H:i:s');
+    $eventClock=new DateTimeImmutable('now',new DateTimeZone('America/Bogota'));
+    $eventStart=$eventClock->modify('-1 hour')->format('Y-m-d H:i:s');
     $eventInsert=$db->prepare("INSERT INTO events(id,title,event_date) VALUES (?, ?, ?)");
     $eventInsert->execute([6,'Synthetic',$eventStart]);
     $eventInsert->execute([7,'Other',$eventStart]);
