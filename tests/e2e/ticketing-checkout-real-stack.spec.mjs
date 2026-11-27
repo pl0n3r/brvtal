@@ -123,7 +123,7 @@ async function run() {
         });
     });
     const [workerResult, ...burst]=await Promise.all([concurrentWorker,...Array.from({length:4},()=>request(confirm))]);
-    check(['idle','not_approved','disabled'].includes(workerResult.reconcile)&&workerResult.issue==='idle',
+    check(['idle','not_approved'].includes(workerResult.reconcile)&&workerResult.issue==='idle',
       'actual worker shares pending reconciliation with public confirmation');
     check(burst.some(r=>r.status===200&&r.body.order?.state==='pending')&&burst.every(r=>r.status===503||r.status===200&&r.body.order?.state==='pending'),'concurrent status returns persisted pending or neutral unavailable');
     check(referenceQueries()===1&&db('SELECT request_count FROM ticket_wompi_reconcile_budget')==='1','one provider query under shared synthetic budget');

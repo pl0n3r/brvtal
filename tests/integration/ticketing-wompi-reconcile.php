@@ -179,6 +179,8 @@ $db->exec("UPDATE ticket_wompi_reconcile_budget SET window_started_at_utc=UTC_TI
 $beforeCalls = count($calls);
 reconcileAssert(brvtal_wompi_reconcile_attempt($other, 3, ['reconcile_requests_per_minute'=>1]+$config, $wompi([])) === 'skipped'
     && count($calls) === $beforeCalls, 'shared budget prevents different attempt');
+reconcileAssert(brvtal_wompi_reconcile_next($other, ['reconcile_requests_per_minute'=>1]+$config, $wompi([])) === 'idle'
+    && count($calls) === $beforeCalls, 'budget contention is idle, not a disabled worker');
 $db->exec("UPDATE ticket_wompi_reconcile_budget SET window_started_at_utc=UTC_TIMESTAMP(6)-INTERVAL 61 SECOND WHERE environment='sandbox'");
 // A suspended caller may return APPROVED after another claimant has replaced it.
 $ref3 = 'BW7-43-PSE-' . str_repeat('e',24);

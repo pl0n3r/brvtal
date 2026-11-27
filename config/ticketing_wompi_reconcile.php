@@ -219,5 +219,8 @@ function brvtal_wompi_reconcile_next(PDO $db, ?array $config = null, ?callable $
     $next = $db->prepare($sql.' AND (c.environment IS NULL OR c.environment=?)'.$order);
     $next->execute([$config['mode']]);
     $id = $next->fetchColumn();
-    return $id === false ? 'idle' : brvtal_wompi_reconcile_attempt($db, (int)$id, $config, $transport);
+    if ($id === false) return 'idle';
+    $result = brvtal_wompi_reconcile_attempt($db, (int)$id, $config, $transport);
+    // A lost claim or exhausted shared budget is idle work, not a disabled provider.
+    return $result === 'skipped' ? 'idle' : $result;
 }
