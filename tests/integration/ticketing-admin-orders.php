@@ -133,3 +133,15 @@ try {
     t18Assert(array_map(intval(...),array_column($legacy,'id'))===[4,3],'legacy buyer creation scope preserved');
 } finally { $root->exec('DROP DATABASE IF EXISTS '.$name); }
 echo "T18 MariaDB synthetic joins, filters, pagination and degraded mail OK.\n";
+
+// #2082: isolate the courtesy read fixture and require the real MariaDB receipt.
+$courtesyProcess = proc_open([PHP_BINARY, __DIR__.'/ticketing-admin-courtesy.php'],
+    [0=>STDIN,1=>['pipe','w'],2=>STDERR], $courtesyPipes);
+t18Assert(is_resource($courtesyProcess),'courtesy read fixture started');
+$courtesyOutput=stream_get_contents($courtesyPipes[1]);
+fclose($courtesyPipes[1]);
+t18Assert(proc_close($courtesyProcess)===0,'courtesy read fixture passed');
+$courtesyReceipt='BRVTAL courtesy admin read MariaDB PASS.';
+t18Assert(is_string($courtesyOutput)
+    && in_array($courtesyReceipt,preg_split('/\R/',trim($courtesyOutput))?:[],true),'courtesy MariaDB receipt required');
+echo $courtesyReceipt."\n";
