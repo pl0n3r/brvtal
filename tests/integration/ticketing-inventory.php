@@ -74,10 +74,54 @@ function inventoryChannelQuoteContract(int $doorPrice = 50000): void
         'INVALID_STAGE_VALUE');
 }
 
+/** Synthetic web purchase limit policy, also invoked by the migration fixture. */
+function inventoryPurchaseLimitsContract(): void
+{
+    $allow = [10 => ['min_per_order' => null, 'max_per_order' => null], 11 => []];
+    $limits = [10 => ['min_per_order' => 2, 'max_per_order' => 4], 11 => ['max_per_order' => 6]];
+    $cases = [
+        [$allow, [10 => 20], null, PHP_INT_MAX, null],
+        [$allow, [10 => 12, 11 => 8], null, 20, null],
+        [$limits, [10 => 1], null, 0, 'below_min'],
+        [$limits, [10 => 5], null, 0, 'above_type_max'],
+        [$limits, [10 => 2, 11 => 6], 10, 2, null],
+        [$limits, [10 => 2, 11 => 6], 10, 3, 'above_buyer_max'],
+        [$limits, [10 => 2], 10, PHP_INT_MAX, 'above_buyer_max'],
+        [$limits, [11 => 7, 10 => 1], 10, 20, 'below_min'],
+        [$limits, [10 => 4], 4, 0, null],
+        [$limits, [11 => 1], null, 0, null],
+    ];
+    foreach ($cases as [$config, $cart, $max, $used, $reason]) {
+        inventoryAssert(brvtal_ticket_inventory_purchase_limits($config, $cart, $max, $used)
+            === ['allowed' => $reason === null, 'reason' => $reason], 'web purchase limit policy');
+    }
+    $invalid = [
+        [$allow, [], null, 0],
+        [$allow, [10 => 11, 11 => 10], null, 0],
+        [$allow, [10 => '2'], null, 0],
+        [$allow, [12 => 1], null, 0],
+        [$allow, [10 => 1], null, -1],
+        [$allow, [10 => 1], 0, 0],
+        [[10 => ['min_per_order' => 3, 'max_per_order' => 2]], [10 => 1], null, 0],
+        [[10 => ['max_per_order' => 0]], [10 => 1], null, 0],
+        [[10 => ['min_per_order' => '2']], [10 => 1], null, 0],
+    ];
+    foreach ($invalid as [$config, $cart, $max, $used]) {
+        try {
+            brvtal_ticket_inventory_purchase_limits($config, $cart, $max, $used);
+        } catch (InvalidArgumentException $error) {
+            inventoryAssert($error->getMessage() === 'INVALID_PURCHASE_LIMIT_INPUT', 'invalid limit input');
+            continue;
+        }
+        inventoryAssert(false, 'invalid web purchase limit input accepted');
+    }
+}
+
 if (defined('BRVTAL_INVENTORY_PRICE_CONTRACT_ONLY')) {
     return;
 }
 inventoryChannelQuoteContract();
+inventoryPurchaseLimitsContract();
 $zone = new DateTimeZone('America/Bogota');
 $clock = new DateTimeImmutable('2026-12-04 20:00:00', $zone);
 $event = ['status'=>'published','event_date'=>'2026-12-04 21:00:00',
