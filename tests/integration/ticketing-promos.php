@@ -216,6 +216,39 @@ if (getenv('BRVTAL_INTEGRATION_TESTS')==='1') {
             $db->rollBack();
         }
     }
+    // Paused rule with spare quota and no redemptions, independent of exhausted rule.
+    $pausedId=brvtalPromoCreate($db,array_replace($rule,[
+        'code'=>'PAUSED2026','max_uses'=>8,'buyer_limit'=>2]));
+    brvtalPromoDeactivate($db,$pausedId);
+    $db->beginTransaction();
+    try {
+        brvtalPromoQuote($db,1,10,3,1,15000,'PAUSED2026',[],$now);
+        throw new RuntimeException('paused rule accepted');
+    } catch (DomainException $e) {
+        promoAssert($e->getMessage()==='PROMO_UNAVAILABLE','paused rule denied');
+    } finally { $db->rollBack(); }
+    promoAssert((int)$db->query('SELECT uses_count FROM ticket_promo_rules WHERE id=' . $pausedId)->fetchColumn()===0,
+        'paused rule consumes no quota');
+    $beforeRules=(int)$db->query('SELECT COUNT(*) FROM ticket_promo_rules')->fetchColumn();
+    $beforeRedemptions=(int)$db->query('SELECT COUNT(*) FROM ticket_promo_redemptions')->fetchColumn();
+    $beforeUses=(int)$db->query('SELECT SUM(uses_count) FROM ticket_promo_rules')->fetchColumn();
+    putenv('BRVTAL_INTEGRATION_TESTS');
+    try {
+        foreach ([
+            fn()=>brvtalPromoCreate($db,array_replace($rule,['code'=>'GUARDOFF26'])),
+            fn()=>brvtalPromoQuote($db,1,10,3,1,15000,'PERCENT2026',[],$now),
+            fn()=>brvtalPromoDeactivate($db,$pausedId)
+        ] as $reject) {
+            try { $reject(); throw new RuntimeException('non-synthetic promo accepted'); }
+            catch (DomainException $e) {
+                promoAssert($e->getMessage()==='PROMOS_NOT_ENABLED','non-synthetic operation denied');
+            }
+        }
+    } finally { putenv('BRVTAL_INTEGRATION_TESTS=1'); }
+    promoAssert((int)$db->query('SELECT COUNT(*) FROM ticket_promo_rules')->fetchColumn()===$beforeRules &&
+        (int)$db->query('SELECT COUNT(*) FROM ticket_promo_redemptions')->fetchColumn()===$beforeRedemptions &&
+        (int)$db->query('SELECT SUM(uses_count) FROM ticket_promo_rules')->fetchColumn()===$beforeUses,
+        'non-synthetic rejection has no persistent side effects');
 }
 echo "T23 promo windows, quotas, lock, snapshots and integer COP OK (synthetic).".PHP_EOL;
 // Run coupon Wompi ledger regression under the same isolated T23 MariaDB matrix.
