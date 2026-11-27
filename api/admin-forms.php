@@ -52,7 +52,9 @@ try {
     if (!is_array($settings) || !brvtalFormsAdminEnabled($settings)) {
         json_response(['ok' => false, 'error' => 'FORMS_ADMIN_UNAVAILABLE'], 503);
     }
-    json_response(['ok' => true, 'data' => brvtalFormsAdminRead($pdo, $_GET)]);
+    $data = brvtalFormsAdminRead($pdo, $_GET);
+    $data['management_enabled'] = ($settings['forms']['admin_manage_enabled'] ?? null) === true;
+    json_response(['ok' => true, 'data' => $data]);
 } catch (InvalidArgumentException) {
     json_response(['ok' => false, 'error' => $method === 'POST' ? 'INVALID_ACTION' : 'INVALID_FILTER'], 422);
 } catch (DomainException $e) {

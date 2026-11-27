@@ -98,9 +98,17 @@ async function login(request,role) {
 }
 async function openShell(page){
   await page.goto(origin+'/discadmin/',{waitUntil:'domcontentloaded'});
-  await page.locator('[data-admin-nav="ticketing"]').click();
+  const menu=page.locator('.admin-menu-toggle');
+  const ticketing=page.locator('[data-admin-nav="ticketing"]');
+  if ((page.viewportSize()?.width ?? 1440)<=850) {
+    await expect(menu).toBeVisible();
+    await menu.click();
+    await expect(menu).toHaveAttribute('aria-expanded','true');
+  }
+  await expect(ticketing).toBeVisible();
+  await ticketing.click();
   await page.locator('[data-ticketing-group="money"]').click();
-  await page.getByRole('tab',{name:'Finanzas',exact:true}).click();
+  await expect(page.getByRole('tab',{name:'Finanzas',exact:true})).toHaveAttribute('aria-selected','true');
 }
 test.describe('2109 authenticated real stack',()=>{
   test.skip(process.env.BRVTAL_FINANCE_2109_HTTP!=='1','Disposable MariaDB HTTP fixture required');
