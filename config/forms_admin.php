@@ -90,7 +90,7 @@ function brvtalFormsAdminHistorical(array $row): array
             || preg_match('/password|secret|token|csrf|credential|authorization|payment|card|qr|api[_-]?key/i', $id)
             || !in_array($type, ['text', 'email', 'textarea', 'select', 'radio', 'checkbox', 'date', 'consent', 'tel'], true)) continue;
         $value=$payload[$id] ?? null;
-        if (is_array($value)) $value=array_values(array_filter($value, static fn($v) => is_scalar($v)));
+        if (is_array($value)) $value=array_values(array_filter($value, is_scalar(...)));
         elseif ($value !== null && !is_scalar($value)) $value=null;
         $fields[]=['id' => $id, 'label' => is_string($field['label'] ?? null)?$field['label']:$id,
             'type' => $type, 'value' => $value];
