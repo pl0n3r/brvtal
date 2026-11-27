@@ -579,7 +579,8 @@ function brvtalMigrationValidateFileRequirements(mixed $requirements): array
     $qualified = $id . '[.]' . $id;
     $patterns = [
         '/^(?:table|trigger):' . $id . '$/D',
-        '/^(?:column|index|check-constraint|column-nullable|column-unsigned-nullable|column-unsigned-bigint-nullable):' . $qualified . '$/D',
+        '/^(?:column|index|check-constraint|column-nullable|'
+            . 'column-unsigned-nullable|column-unsigned-bigint-nullable):' . $qualified . '$/D',
         '/^unique-index:' . $qualified . '=' . $id . '(?:,' . $id . ')*$/D',
         '/^column-not-null-default:' . $qualified . '=' . $id . '$/D',
         "/^column-type:" . $qualified . "=[A-Za-z0-9_(),'.-]+$/D",
