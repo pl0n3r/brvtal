@@ -101,6 +101,15 @@
 .buyer-account .access-brand{min-height:44px;justify-content:center}
 .account-footer a{display:inline-flex;align-items:center;min-height:44px;padding:8px 0}
 
+/* #2188: invitations are not purchases. Reuse account typography and actions. */
+.account-courtesies{margin-top:26px;padding-top:24px;border-top:1px solid var(--access-line)}
+.account-courtesy h3{margin:0 0 8px;color:var(--access-bone);font:700 clamp(23px,3vw,31px)/1.15 "Barlow Condensed","Arial Narrow",Arial,sans-serif;overflow-wrap:anywhere}
+.account-courtesy .account-courtesy-meta{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 12px}
+.account-courtesy .account-courtesy-kind{font-size:16px;color:var(--access-bone)}
+.account-courtesy-meta span{font-size:16px;color:#d5cfc4}
+.account-courtesies .account-orders>p{margin:0;color:#d5cfc4;font-size:17px;line-height:1.4}
+#more:not([hidden]){margin-top:20px}
+
 /* #2184: reuse the authorized account QR; only the selected pass prints. */
 .account-ticket-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .account-order .account-ticket-actions .account-secondary{background:transparent;border-color:var(--access-line);color:var(--access-bone)}
