@@ -159,6 +159,7 @@ function brvtalFormsSubmit(PDO $pdo, array $config, string $id, int $version, st
     try {
         [$definition,$digest,$policy,$actions,$days] = brvtalFormsPublished($pdo,$config,$id,$version);
         $values = brvtalFormPayloadValidate($definition,$definition['form_key'],$version,$raw);
+        foreach ($values as $value) if (is_string($value) && preg_match('~[<>]|(?:https?|javascript|data|vbscript|file):|//~iu', $value) !== 0) brvtalFormPayloadFail();
         $json = json_encode((object)$values, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
         $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
         brvtalFormEntryPersist($pdo, ['entry_id'=>random_bytes(16),'form_key'=>$definition['form_key'],

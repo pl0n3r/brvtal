@@ -8,14 +8,14 @@ window.BRVTALTicketing = (() => {
   const descriptions = {
     dashboard:'Aquí verás ventas, ingresos y lo que necesita atención de cada evento.',
     orders:'Busca pedidos por evento, estado o comprador.', entries:'Consulta y gestiona las boletas emitidas.',
-    buyers:'Busca compradores y su historial.', door:'Abre el lector para validar boletas en la entrada.',
+    buyers:'Busca compradores y su historial.', door:'Abre el lector para validar boletas en la entrada.', courtesies:'Consulta y gestiona invitaciones sin cobro.',
     finance:'Concilia pagos, comisiones y caja por evento.', promos:'Crea y gestiona los cupones de descuento de cada evento.',
     promoters:'Todavía no hay promotores configurados.', mail:'Edita los correos que reciben los compradores.',
     recovery:'Recuerda a quien dejó una compra sin terminar.'
   };
   const titles = {
     dashboard:'Resumen', orders:'Pedidos', entries:'Boletas', buyers:'Compradores',
-    door:'Puerta', finance:'Finanzas', promos:'Cupones', promoters:'Promotores',
+    door:'Puerta', courtesies:'Cortesías', finance:'Finanzas', promos:'Cupones', promoters:'Promotores',
     mail:'Correos', recovery:'Recuperación de compras'
   };
   let stopDoor = null;
@@ -91,6 +91,15 @@ window.BRVTALTicketing = (() => {
         }
       });
       panel.appendChild(launch);
+    }
+    if (key === 'courtesies') {
+      const current = () => panel.isConnected && generation === selectionGeneration
+        && panel.getAttribute('aria-labelledby') === active.id;
+      import(modulePath('ticketing-courtesy')).then(mod => {
+        if (current()) mod.mount(panel, current, root.dataset.ticketingCsrf || '');
+      }).catch(() => {
+        if (current()) panel.replaceChildren(element('p', 'Cortesías no disponibles.', 'ticketing-error'));
+      });
     }
     if (key === 'entries') {
       import(modulePath('ticketing-entries')).then(mod => {
@@ -191,14 +200,14 @@ window.BRVTALTicketing = (() => {
     if (!list) return;
     list.addEventListener('click', e => {
       const tab = e.target.closest('[data-ticketing-tab]');
-      if (tab && list.contains(tab) && select(root, tab.dataset.ticketingTab)) rememberTab(tab.dataset.ticketingTab);
+      if (tab && list.contains(tab) && select(root, tab.dataset.ticketingTab)) rememberTab(tab.dataset.ticketingTab, true);
     });
     // #1964: a group opens its first section; Configurar jumps to Configuración › Integraciones.
     root.querySelector('.ticketing-groups')?.addEventListener('click', e => {
       const button = e.target.closest('[data-ticketing-group]');
       if (!button) return;
       const firstTab = list.querySelector(`[data-ticketing-tab-group="${button.dataset.ticketingGroup}"]`);
-      if (firstTab && select(root, firstTab.dataset.ticketingTab)) rememberTab(firstTab.dataset.ticketingTab);
+      if (firstTab && select(root, firstTab.dataset.ticketingTab)) rememberTab(firstTab.dataset.ticketingTab, true);
     });
     root.querySelector('[data-ticketing-configure]')?.addEventListener('click', async () => {
       if (typeof window.go !== 'function') return;
@@ -218,7 +227,7 @@ window.BRVTALTicketing = (() => {
         case 'ArrowRight': next = (current + 1) % tabs.length; break;
         case 'ArrowLeft': next = (current - 1 + tabs.length) % tabs.length; break;
       }
-      if (select(root, tabs[next].dataset.ticketingTab, true)) rememberTab(tabs[next].dataset.ticketingTab);
+      if (select(root, tabs[next].dataset.ticketingTab, true)) rememberTab(tabs[next].dataset.ticketingTab, true);
     });
     // #1892: el menú abre una pestaña concreta con ?module=ticketing&tab=…; solo
     // se aceptan pestañas que el servidor ya filtró por rol.
@@ -231,16 +240,17 @@ window.BRVTALTicketing = (() => {
       detail:{tabs:tabs.map(tab => tab.dataset.ticketingTab)}
     }));
   }
-  function rememberTab(key) {
+  function rememberTab(key, push = false) {
     const url = new URL(location.href);
     if (url.searchParams.get('module') !== 'ticketing') return;
+    if (url.searchParams.get('tab') === key) return;
     url.searchParams.set('tab', key);
-    history.replaceState(history.state, '', url);
+    history[push ? 'pushState' : 'replaceState']({brvtalAdminRoute:'ticketing'}, '', url);
   }
   function selectTab(key) {
     const root = document.querySelector('#admin-module-host [data-admin-module="ticketing"]');
     if (!root || !select(root, key)) return false;
-    rememberTab(key);
+    rememberTab(key, true);
     return true;
   }
   async function mount() {

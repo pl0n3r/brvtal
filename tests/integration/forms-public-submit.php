@@ -73,6 +73,7 @@ try {
     $h=$challenge($intent,time()-3);
     $http('POST',$id,1,$intent,403,$payload,$h+['Origin'=>'https://other.invalid']);
     $http('POST',$id,1,$intent,422,'{"message":"a","message":"b","consent_ok":true}',$h);
+    foreach (['<script>alert(1)</script>','https://example.invalid','javascript:alert(1)'] as $bad) $http('POST',$id,1,$intent,422,json_encode(['message'=>$bad,'consent_ok'=>true],JSON_THROW_ON_ERROR),$h);
     $http('POST',$other,1,$intent,422,$payload,$h);
     $http('POST',$id,1,str_repeat('d',32),422,$payload,$h);
     $http('POST',$id,1,$intent,422,$payload,$challenge($intent,time()-601));
