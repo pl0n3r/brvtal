@@ -55,6 +55,14 @@ const reply = (response, status, data) => {
 
 https.createServer(tls, (request, response) => {
   const url = new URL(request.url, 'https://sandbox.wompi.co');
+  if (request.method === 'GET' && url.pathname === '/v1/transactions') {
+    const value = dynamicRecord();
+    const authorized = request.headers.authorization === 'Bearer prv_test_fixture_only_123456';
+    const status = authorized ? 200 : 401;
+    writeAudit('GET','reference-query',status);
+    const records = value && url.searchParams.get('reference') === value.reference ? [value] : [];
+    return setTimeout(() => reply(response,status,authorized ? JSON.stringify({data:records}) : '{"error":"unauthorized"}'),250);
+  }
   const id = url.pathname.startsWith('/v1/transactions/')
     ? url.pathname.slice('/v1/transactions/'.length) : '';
   if (request.method !== 'GET' || !/^tx-[a-z-]+$/.test(id)) {
