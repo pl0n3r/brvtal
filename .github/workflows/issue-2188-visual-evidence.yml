@@ -1,0 +1,294 @@
+name: BRVTAL 2188 courtesy account visual evidence
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/issue-2188-visual-evidence.yml'
+      - 'buyer/index.php'
+      - 'css/buyer-account.css'
+      - 'css/buyer-access.css'
+      - 'tests/e2e/buyer-account.spec.mjs'
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  courtesy-account-visual:
+    if: >-
+      github.repository == 'pl0n3r/brvtal' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (github.head_ref == 'work/issue-2266' || github.head_ref == 'work/issue-2188')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      TRIGGER_PR: ${{ github.event.pull_request.number }}
+      TRIGGER_REF: ${{ github.head_ref }}
+      TRIGGER_BASE: ${{ github.event.pull_request.base.sha }}
+      TRIGGER_HEAD: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - name: Resolve exact PR identities with authenticated read-only API
+        id: sources
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$TRIGGER_PR" =~ ^[0-9]+$ ]]
+          gh api "repos/pl0n3r/brvtal/pulls/$TRIGGER_PR" > "$RUNNER_TEMP/trigger.json"
+          gh api --method GET repos/pl0n3r/brvtal/pulls -f state=open -f base=main \
+            -f head=pl0n3r:work/issue-2188 -f per_page=100 > "$RUNNER_TEMP/candidates.json"
+          python3 - <<'PY'
+          import json, os, re
+          from pathlib import Path
+          temp = Path(os.environ["RUNNER_TEMP"])
+          trigger = json.loads((temp / "trigger.json").read_text())
+          candidates = json.loads((temp / "candidates.json").read_text())
+
+          def identity(pr, branch):
+              if not (pr["state"] == "open" and pr["base"]["ref"] == "main"
+                      and pr["head"]["ref"] == branch
+                      and pr["head"]["repo"]["full_name"] == "pl0n3r/brvtal"
+                      and pr["base"]["repo"]["full_name"] == "pl0n3r/brvtal"
+                      and type(pr["number"]) is int and pr["number"] > 0):
+                  raise SystemExit("Unexpected PR identity")
+              base, head = pr["base"]["sha"], pr["head"]["sha"]
+              if base == head or not all(re.fullmatch(r"[0-9a-f]{40}", sha) for sha in (base, head)):
+                  raise SystemExit("Invalid immutable source pair")
+              return str(pr["number"]), base, head
+
+          ref = os.environ["TRIGGER_REF"]
+          if ref not in ("work/issue-2266", "work/issue-2188"):
+              raise SystemExit("Unexpected trigger branch")
+          if identity(trigger, ref) != tuple(os.environ[k] for k in
+                  ("TRIGGER_PR", "TRIGGER_BASE", "TRIGGER_HEAD")):
+              raise SystemExit("Trigger PR changed since event")
+          if not isinstance(candidates, list) or len(candidates) > 1:
+              raise SystemExit("Ambiguous courtesy candidate")
+          if candidates:
+              source, base, head = identity(candidates[0], "work/issue-2188")
+              if not re.search(r"(?i)\b(?:closes|fixes|resolves)\s+#2188\b", candidates[0].get("body") or ""):
+                  raise SystemExit("Candidate does not close issue #2188")
+              if ref == "work/issue-2188" and (source, base, head) != identity(trigger, ref):
+                  raise SystemExit("Candidate does not match triggering PR")
+              mode = "comparison"
+          elif ref == "work/issue-2266":
+              source, base, head = identity(trigger, ref)
+              mode = "baseline"
+          else:
+              raise SystemExit("Missing target PR")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
+              out.write(f"source_pr={source}\nbase_sha={base}\nhead_sha={head}\nmode={mode}\n")
+          print(f"{mode}: PR {source} base={base} head={head}")
+          PY
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.sources.outputs.base_sha }}
+          path: base-source
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.sources.outputs.head_sha }}
+          path: candidate-source
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.sources.outputs.head_sha != github.event.pull_request.head.sha
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: wiring-source
+          persist-credentials: false
+      - name: Verify checkouts and workflow safety
+        env:
+          BASE_SHA: ${{ steps.sources.outputs.base_sha }}
+          HEAD_SHA: ${{ steps.sources.outputs.head_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C base-source rev-parse HEAD)" = "$BASE_SHA"
+          test "$(git -C candidate-source rev-parse HEAD)" = "$HEAD_SHA"
+          python3 candidate-source/scripts/ci_self_audit.py
+          if [[ "$HEAD_SHA" != "$TRIGGER_HEAD" ]]; then
+            test "$(git -C wiring-source rev-parse HEAD)" = "$TRIGGER_HEAD"
+            python3 wiring-source/scripts/ci_self_audit.py
+          fi
+      - name: Install pinned Chromium test runner
+        working-directory: candidate-source
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --ignore-scripts --no-save --package-lock=false --no-audit --no-fund @playwright/test@1.63.0
+          npx --no-install playwright install chromium
+          if ! node --input-type=module -e "import { chromium } from '@playwright/test'; const b=await chromium.launch(); await b.close();"; then
+            npx --no-install playwright install-deps chromium
+            node --input-type=module -e "import { chromium } from '@playwright/test'; const b=await chromium.launch(); await b.close();"
+          fi
+      - name: Run real CSS with synthetic account fixtures
+        working-directory: candidate-source
+        env:
+          CAPTURE_MODE: ${{ steps.sources.outputs.mode }}
+          PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ runner.temp }}/courtesy-report.json
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m http.server 4173 --bind 127.0.0.1 > "$RUNNER_TEMP/courtesy-http.log" 2>&1 &
+          server=$!
+          trap 'kill "$server" 2>/dev/null || true' EXIT
+          for attempt in {1..20}; do
+            if curl --fail --silent http://127.0.0.1:4173/css/buyer-account.css >/dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:4173/css/buyer-account.css | cmp - css/buyer-account.css
+          curl --fail --silent http://127.0.0.1:4173/css/buyer-access.css | cmp - css/buyer-access.css
+          if [[ "$CAPTURE_MODE" == comparison ]]; then
+            export BRVTAL_COURTESY_VISUAL_BASE_DIR="$GITHUB_WORKSPACE/base-source"
+            pattern='#2188'
+          else
+            pattern='mobile: empty orders|desktop: pending|API read failure'
+          fi
+          npx --no-install playwright test tests/e2e/buyer-account.spec.mjs --project=chromium \
+            --grep "$pattern" --workers=1 --retries=0 --reporter=list,json \
+            --output "$RUNNER_TEMP/courtesy-results"
+      - name: Recheck exact authenticated PR identities before publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_SHA: ${{ steps.sources.outputs.base_sha }}
+          HEAD_SHA: ${{ steps.sources.outputs.head_sha }}
+          SOURCE_PR: ${{ steps.sources.outputs.source_pr }}
+          CAPTURE_MODE: ${{ steps.sources.outputs.mode }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          verify() {
+            gh api "repos/pl0n3r/brvtal/pulls/$1" | jq -e --argjson number "$1" \
+              --arg ref "$2" --arg base "$3" --arg head "$4" \
+              '.number == $number and .state == "open" and .base.ref == "main"
+                and .head.ref == $ref and .base.repo.full_name == "pl0n3r/brvtal"
+                and .head.repo.full_name == "pl0n3r/brvtal"
+                and .base.sha == $base and .head.sha == $head' >/dev/null
+          }
+          verify "$TRIGGER_PR" "$TRIGGER_REF" "$TRIGGER_BASE" "$TRIGGER_HEAD"
+          if [[ "$CAPTURE_MODE" == comparison ]]; then
+            verify "$SOURCE_PR" work/issue-2188 "$BASE_SHA" "$HEAD_SHA"
+          else
+            gh api --method GET repos/pl0n3r/brvtal/pulls -f state=open -f base=main \
+              -f head=pl0n3r:work/issue-2188 -f per_page=100 | jq -e 'type == "array" and length == 0' >/dev/null
+          fi
+      - name: Verify successful test results, PNGs and manifest SHA
+        env:
+          BASE_SHA: ${{ steps.sources.outputs.base_sha }}
+          HEAD_SHA: ${{ steps.sources.outputs.head_sha }}
+          SOURCE_PR: ${{ steps.sources.outputs.source_pr }}
+          CAPTURE_MODE: ${{ steps.sources.outputs.mode }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64, hashlib, json, os, struct, zlib
+          from pathlib import Path
+
+          temp = Path(os.environ["RUNNER_TEMP"])
+          report = json.loads((temp / "courtesy-report.json").read_text())
+          stats = report["stats"]
+          comparison = os.environ["CAPTURE_MODE"] == "comparison"
+          if (stats["unexpected"] or stats["flaky"] or stats["skipped"] or stats["expected"] < 1
+                  or (not comparison and stats["expected"] != 3)):
+              raise SystemExit("Missing or unsuccessful synthetic tests")
+          required = {f"2188-{stage}-{width}.png": (stage, width)
+                      for stage in ("before", "after") for width in (390, 1440)}
+          attachments, passed = {}, 0
+          results_root = (temp / "courtesy-results").resolve()
+
+          def visit(suite):
+              global passed
+              for spec in suite.get("specs", []):
+                  for test in spec["tests"]:
+                      results = test["results"]
+                      if test["status"] != "expected" or len(results) != 1 or results[0]["status"] != "passed":
+                          raise SystemExit("Non-passing test in evidence report")
+                      passed += 1
+                      for item in results[0].get("attachments", []):
+                          name = item.get("name", "")
+                          if name + ".png" in required:
+                              name += ".png"
+                          if name not in required:
+                              continue
+                          if name in attachments or item.get("contentType") != "image/png":
+                              raise SystemExit("Duplicate or invalid capture attachment")
+                          if isinstance(item.get("body"), str):
+                              data = base64.b64decode(item["body"], validate=True)
+                          else:
+                              path = (Path("candidate-source") / item["path"]).resolve()
+                              if not path.is_relative_to(results_root) or not path.is_file():
+                                  raise SystemExit("Capture outside isolated test output")
+                              data = path.read_bytes()
+                          attachments[name] = data
+              for child in suite.get("suites", []):
+                  visit(child)
+
+          for suite in report["suites"]:
+              visit(suite)
+          if passed != stats["expected"]:
+              raise SystemExit("Report test count mismatch")
+          if comparison and attachments.keys() != required.keys():
+              raise SystemExit("Missing exact four #2188 PNG attachments")
+          if not comparison and attachments:
+              raise SystemExit("Baseline must not claim A/B captures")
+
+          out = Path("courtesy-account-evidence")
+          out.mkdir()
+          captures = []
+          for name, data in sorted(attachments.items()):
+              stage, width = required[name]
+              if data[:8] != b"\x89PNG\r\n\x1a\n" or len(data) > 20 * 1024 * 1024:
+                  raise SystemExit("Invalid PNG signature or size")
+              offset, dimensions, has_data, ended = 8, None, False, False
+              while offset + 12 <= len(data):
+                  size, kind = struct.unpack_from(">I4s", data, offset)
+                  end = offset + 12 + size
+                  if end > len(data):
+                      raise SystemExit("Truncated PNG")
+                  payload = data[offset + 8:end - 4]
+                  if zlib.crc32(kind + payload) != struct.unpack_from(">I", data, end - 4)[0]:
+                      raise SystemExit("Invalid PNG CRC")
+                  if offset == 8:
+                      if kind != b"IHDR" or size != 13:
+                          raise SystemExit("Missing PNG header")
+                      dimensions = struct.unpack_from(">II", payload)
+                  has_data |= kind == b"IDAT" and size > 0
+                  offset = end
+                  if kind == b"IEND":
+                      ended = size == 0
+                      break
+              if not dimensions or dimensions[0] != width or dimensions[1] < 720 or not has_data or not ended or offset != len(data):
+                  raise SystemExit("Invalid PNG dimensions or structure")
+              (out / name).write_bytes(data)
+              captures.append({"name": name, "stage": stage, "width": width, "height": dimensions[1],
+                               "source_sha": os.environ["BASE_SHA" if stage == "before" else "HEAD_SHA"],
+                               "sha256": hashlib.sha256(data).hexdigest()})
+          for width in (390, 1440):
+              if comparison and attachments[f"2188-before-{width}.png"] == attachments[f"2188-after-{width}.png"]:
+                  raise SystemExit("Identical before/after capture")
+          manifest = {"issue": 2188, "wiring_issue": 2266, "mode": os.environ["CAPTURE_MODE"],
+                      "target_pr": int(os.environ["SOURCE_PR"]) if comparison else None,
+                      "source_pr": int(os.environ["SOURCE_PR"]),
+                      "trigger_pr": int(os.environ["TRIGGER_PR"]), "workflow_head_sha": os.environ["TRIGGER_HEAD"],
+                      "base_sha": os.environ["BASE_SHA"], "head_sha": os.environ["HEAD_SHA"],
+                      "run_id": os.environ["GITHUB_RUN_ID"], "run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+                      "passed_tests": passed, "captures": captures}
+          path = out / "manifest.json"
+          path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+          receipt = {"status": "CAPTURES_VERIFIED" if comparison else "BASELINE_ONLY",
+                     "manifest_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                     "visual_review": "NOT_PERFORMED", "production_validation": "NOT_PERFORMED"}
+          (out / "receipt.json").write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
+          print(receipt["status"], receipt["manifest_sha256"])
+          PY
+      - name: Publish verified evidence without production claims
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: brvtal-2188-${{ steps.sources.outputs.mode }}-${{ steps.sources.outputs.head_sha }}-${{ github.run_id }}
+          path: courtesy-account-evidence/
+          if-no-files-found: error
+          retention-days: 14
