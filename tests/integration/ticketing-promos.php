@@ -251,9 +251,7 @@ if (getenv('BRVTAL_INTEGRATION_TESTS')==='1') {
         (int)$db->query('SELECT COUNT(*) FROM ticket_promo_redemptions')->fetchColumn()===$beforeRedemptions &&
         (int)$db->query('SELECT SUM(uses_count) FROM ticket_promo_rules')->fetchColumn()===$beforeUses,
         'non-synthetic rejection has no persistent side effects');
-}
 
-if (getenv('BRVTAL_INTEGRATION_TESTS')==='1') {
     // T26: use the existing disposable T23 namespace; no real identities/providers.
     $db->exec('ALTER TABLE ticket_orders ADD COLUMN currency CHAR(3) NOT NULL DEFAULT "COP"');
     $db->exec((string)file_get_contents(__DIR__.'/../../database/migration_ticketing_promoters_01.sql'));
