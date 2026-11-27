@@ -158,7 +158,7 @@ const V3_CHILDREN = {
   website:['PÁGINAS','BLOG','MULTIMEDIA','BANNERS','APARIENCIA','SEO','FORMULARIOS'],
   settings:['GENERAL','REDES SOCIALES Y CONTACTO','INTEGRACIONES','SEGURIDAD','ESTADO DEL SISTEMA','COPIAS DE SEGURIDAD']
 };
-const ALL_TICKETING_TABS = ['dashboard','orders','entries','buyers','door','finance','promos','promoters','mail','settings'];
+const ALL_TICKETING_TABS = ['dashboard','orders','entries','buyers','door','courtesies','finance','promos','promoters','mail','settings'];
 
 // El servidor filtra las pestañas de Boletería por rol en este fragmento existente.
 async function serveTicketingTabs(page, tabs = ALL_TICKETING_TABS) {
@@ -254,12 +254,18 @@ test('#1892 Boletería solo muestra las pestañas que el servidor permite al rol
   await page.goto(harnessUrl);
   await expect(page.locator('#brvtal-nav-ticketing > button')).toHaveCount(1);
   await expect(page.locator('[data-ia-key="ticketing:door"]')).toHaveCount(1);
-  for (const hidden of ['orders','entries','buyers','finance','refunds','promos','promoters']) {
+  for (const hidden of ['orders','entries','buyers','finance','refunds','promos','promoters','courtesies']) {
     await expect(page.locator(`[data-ia-key="ticketing:${hidden}"]`)).toHaveCount(0);
   }
   await expect(page.locator('[data-ia-key="mail:history"]')).toHaveCount(0);
 });
 
+test('Cortesías solo aparece como destino real si el servidor concede la pestaña',async({page})=>{
+  await serveTicketingTabs(page,ALL_TICKETING_TABS.filter(tab=>tab!=='courtesies'));
+  await serveHarness(page);await page.goto(harnessUrl);
+  await expect(page.locator('[data-ia-key="ticketing:orders"]')).toHaveCount(1);
+  await expect(page.locator('[data-ia-key="ticketing:courtesies"]')).toHaveCount(0);
+});
 test('#1892 Boletería oculta sus hojas si no puede verificar permisos', async ({ page }) => {
   await page.route('**/discadmin/ticketing.php', route => route.fulfill({status:403, body:'no'}));
   await serveHarness(page);

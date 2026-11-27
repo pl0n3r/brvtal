@@ -152,6 +152,9 @@ window.BRVTALForms = (() => {
       return read({view:'catalog'},data => {
         heading('Formularios disponibles',focus);
         rows(data.items,catalogRow);
+        const controller=active;
+        void window.BRVTALFormsEditor?.offer(content,status,{current:()=>current(controller),signal:controller.signal,
+          token:()=>csrfToken(controller),back:()=>catalog(true)});
       },()=>catalog(true));
     }
     function controls() {

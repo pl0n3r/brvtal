@@ -562,14 +562,15 @@ window.BRVTALAdminModules = (() => {
     ['releases', ['brvtal-releases-script','/discadmin/releases.js','BRVTALReleases']],
     ['blog', ['brvtal-blog-script','/discadmin/blog.js','BRVTALBlog']],
     ['seo', ['brvtal-seo-workspace-script','/discadmin/seo-workspace.js','BRVTALSEOWorkspace']],
-    ['forms', ['brvtal-forms-script','/discadmin/forms.js','BRVTALForms']]
+    ['forms', ['brvtal-forms-script','/discadmin/forms.js','BRVTALForms']],
+    ['forms-editor', ['brvtal-forms-editor-script','/discadmin/forms-editor.js','BRVTALFormsEditor']]
   ]);
   const sectionDependencies = new Map([
     ['media', ['media']],
     ['releases', ['media','releases']],
     ['blog', ['media','blog']],
     ['seo', ['seo']],
-    ['forms', ['forms']]
+    ['forms', ['forms','forms-editor']]
   ]);
   const scriptReady = new Map();
   const sectionReady = new Map();
@@ -609,7 +610,10 @@ window.BRVTALAdminModules = (() => {
   const modules = {
     'content-core': {url:'/discadmin/content-core.php', mount:root=>BRVTALContentCore.mount(root)},
     security: {url:'/discadmin/totp-status.php', mount:root=>BRVTALSecurity.mount(root)},
-    forms: {url:'/discadmin/forms.php', mount:root=>BRVTALForms.mount(root)},
+    forms: {url:'/discadmin/forms.php', mount:root=>{
+      ensureStyle('brvtal-forms-editor-style','/discadmin/forms-editor.css');
+      return BRVTALForms.mount(root);
+    }},
     media: {url:'/discadmin/media-library.php', mount:async root=>{
       try { await mediaPermissions.repair(); }
       catch (e) { Feedback.error('Media thumbnail access check failed: ' + e.message,'media-permissions'); }
