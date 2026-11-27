@@ -67,24 +67,107 @@ function brvtal_contact_capture(PDO $pdo, array $data, mixed $key, array $config
             ->execute([$definitionDigest,$definition,$now]);
         $version = $pdo->query("SELECT definition_sha256 FROM form_definition_versions WHERE form_key='contact' AND version_number=1 FOR UPDATE")->fetchColumn();
         if (!is_string($version) || !hash_equals($definitionDigest,$version)) throw new RuntimeException('CONTACT_CAPTURE_UNAVAILABLE');
-        $pdo->prepare("INSERT INTO form_entries (entry_id,form_key,version_number,definition_sha256,idempotency_digest,payload_json,created_at_utc,purpose_key,notice_version,retention_policy_key,retention_until_utc,state) VALUES (?,'contact',1,?,?,?,?,'contact_capture',?,?,?,'received') ON DUPLICATE KEY UPDATE entry_id=entry_id")
-            ->execute([$entryId,$definitionDigest,$digest,$json,$now,$policy['notice_version'],$policy['retention_policy_key'],$until]);
-        $select = $pdo->prepare("SELECT entry_id,payload_json,state FROM form_entries WHERE form_key='contact' AND idempotency_digest=? FOR UPDATE");
-        $select->execute([$digest]);
-        $row = $select->fetch(PDO::FETCH_ASSOC);
-        if (!$row || $row['state'] === 'redacted' || !is_string($row['payload_json']) || !hash_equals($row['payload_json'],$json)) {
-            throw new DomainException('CONTACT_INTENT_CONFLICT');
-        }
-        $fresh = hash_equals($entryId,$row['entry_id']);
-        if ($fresh) {
-            $pdo->prepare("INSERT INTO form_notification_intents VALUES (?,'contact_notify','pending',?)")->execute([$entryId,$now]);
-        } else {
-            $intent = $pdo->prepare("SELECT state FROM form_notification_intents WHERE entry_id=? AND action_key='contact_notify'");
-            $intent->execute([$row['entry_id']]);
-            if ($intent->fetchColumn() === false) throw new RuntimeException('CONTACT_CAPTURE_UNAVAILABLE');
-        }
+        $fresh = brvtalFormEntryPersist($pdo, ['entry_id'=>$entryId,'form_key'=>'contact','version_number'=>1,
+            'definition_sha256'=>$definitionDigest,'idempotency_digest'=>$digest,'payload_json'=>$json,
+            'created_at_utc'=>$now,'purpose_key'=>'contact_capture','notice_version'=>$policy['notice_version'],
+            'retention_policy_key'=>$policy['retention_policy_key'],'retention_until_utc'=>$until], ['contact_notify']);
         $pdo->commit();
         return $fresh;
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
+}
+
+/** Called inside the transaction holding the immutable version/registry lock. */
+function brvtalFormEntryPersist(PDO $pdo, array $entry, array $actions): bool
+{
+    $pdo->prepare("INSERT INTO form_entries (entry_id,form_key,version_number,definition_sha256,idempotency_digest,
+        payload_json,created_at_utc,purpose_key,notice_version,retention_policy_key,retention_until_utc,state)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,'received') ON DUPLICATE KEY UPDATE entry_id=entry_id")
+        ->execute(array_values($entry));
+    $q = $pdo->prepare("SELECT * FROM form_entries WHERE form_key=? AND idempotency_digest=? FOR UPDATE");
+    $q->execute([$entry['form_key'], $entry['idempotency_digest']]);
+    $row = $q->fetch(PDO::FETCH_ASSOC);
+    $conflict = $entry['form_key'] === 'contact' ? 'CONTACT_INTENT_CONFLICT' : 'FORM_INTENT_CONFLICT';
+    if (!$row || $row['state'] === 'redacted' || (int)$row['version_number'] !== $entry['version_number']) throw new DomainException($conflict);
+    foreach (['definition_sha256','payload_json','purpose_key','notice_version','retention_policy_key'] as $key) {
+        if (!is_string($row[$key]) || !hash_equals($row[$key], $entry[$key])) throw new DomainException($conflict);
+    }
+    $fresh = hash_equals($entry['entry_id'], $row['entry_id']);
+    if ($fresh) {
+        $q = $pdo->prepare("INSERT INTO form_notification_intents VALUES (?,?,'pending',?)");
+        foreach ($actions as $action) $q->execute([$row['entry_id'], $action, $entry['created_at_utc']]);
+    } else {
+        $q = $pdo->prepare("SELECT action_key FROM form_notification_intents WHERE entry_id=? ORDER BY action_key");
+        $q->execute([$row['entry_id']]);
+        if ($q->fetchAll(PDO::FETCH_COLUMN) !== $actions) throw new RuntimeException('FORM_CAPTURE_UNAVAILABLE');
+    }
+    return $fresh;
+}
+
+function brvtalFormsCaptureEnabled(array $config): bool
+{
+    return ($config['forms']['public_submit_enabled'] ?? null) === true
+        && ($config['forms']['privacy_approved'] ?? null) === true;
+}
+
+/** Server allowlist is tied to one version and approved immutable policy, never a client-supplied scope. */
+function brvtalFormsPublished(PDO $pdo, array $config, string $id, int $version): array
+{
+    $approved = $config['forms']['public_submit_policies'][$id] ?? null;
+    if (!brvtalFormsCaptureEnabled($config) || !is_array($approved)
+        || !is_int($approved['retention_days'] ?? null) || $approved['retention_days'] < 1
+        || $approved['retention_days'] > 36500) throw new RuntimeException('FORM_CAPTURE_UNAVAILABLE');
+    $q = $pdo->prepare("SELECT r.form_key,r.state,r.published_version_number,v.definition_json,v.definition_sha256,
+        p.notice_version,p.privacy_policy_json,p.delivery_policy_json FROM form_definition_registry r
+        JOIN form_definition_versions v ON v.form_key=r.form_key AND v.version_number=r.published_version_number
+        JOIN form_publication_policies p ON p.form_key=v.form_key AND p.version_number=v.version_number
+        AND p.definition_sha256=v.definition_sha256 WHERE r.public_id=UNHEX(?)"
+        . ($pdo->inTransaction() ? ' FOR UPDATE' : ''));
+    $q->execute([$id]);
+    $row = $q->fetch(PDO::FETCH_ASSOC);
+    if (!$row || $row['state'] !== 'active' || (int)$row['published_version_number'] !== $version) throw new DomainException('FORM_VERSION_CONFLICT');
+    if ($row['form_key'] === 'contact' || ($approved['version_number'] ?? null) !== $version
+        || !hash_equals($row['definition_sha256'], hash('sha256', $row['definition_json'], true))) throw new RuntimeException('FORM_CAPTURE_UNAVAILABLE');
+    require_once __DIR__ . '/form_schema.php';
+    $definition = json_decode($row['definition_json'], true, 16, JSON_THROW_ON_ERROR);
+    $policy = json_decode($row['privacy_policy_json'], true, 16, JSON_THROW_ON_ERROR);
+    $delivery = json_decode($row['delivery_policy_json'], true, 16, JSON_THROW_ON_ERROR);
+    try { $fields = brvtalFormSchemaValidate($definition); }
+    catch (InvalidArgumentException) { throw new RuntimeException('FORM_CAPTURE_UNAVAILABLE'); }
+    if ($definition['form_key'] !== $row['form_key'] || $definition['version_number'] !== $version
+        || !is_array($policy) || count($policy) !== 5 || !brvtalFormSchemaCopy($policy['form_title'] ?? null, 120)
+        || !brvtalFormSchemaCopy($policy['notice_text'] ?? null, 4000)
+        || ($policy['notice_version'] ?? null) !== $row['notice_version']
+        || !in_array($delivery, [['actions'=>[]], ['actions'=>['form_entry_received']]], true)) throw new RuntimeException('FORM_CAPTURE_UNAVAILABLE');
+    foreach (['purpose_key','retention_policy_key','notice_version'] as $key) {
+        if (!is_string($policy[$key] ?? null) || !preg_match('/\A[A-Za-z0-9][A-Za-z0-9_.-]{0,63}\z/D', $policy[$key])
+            || $policy[$key] !== ($approved[$key] ?? null)) throw new RuntimeException('FORM_CAPTURE_UNAVAILABLE');
+    }
+    $consent = array_filter($fields, static fn(array $f): bool => $f['type'] === 'consent'
+        && $f['purpose'] === 'privacy' && $f['notice_version'] === $policy['notice_version']);
+    if (count($consent) !== 1) throw new RuntimeException('FORM_CAPTURE_UNAVAILABLE');
+    return [$definition, $row['definition_sha256'], $policy, $delivery['actions'], $approved['retention_days']];
+}
+
+function brvtalFormsSubmit(PDO $pdo, array $config, string $id, int $version, string $key, string $raw): void
+{
+    if ($pdo->inTransaction() || !preg_match('/\A[a-f0-9]{32}\z/D', $id)
+        || !preg_match('/\A[a-f0-9]{32}\z/D', $key)) throw new InvalidArgumentException('FORM_PAYLOAD_INVALID');
+    $pdo->beginTransaction();
+    try {
+        [$definition,$digest,$policy,$actions,$days] = brvtalFormsPublished($pdo,$config,$id,$version);
+        $values = brvtalFormPayloadValidate($definition,$definition['form_key'],$version,$raw);
+        foreach ($values as $value) if (is_string($value) && preg_match('~[<>]|(?:https?|javascript|data|vbscript|file):|//~iu', $value) !== 0) brvtalFormPayloadFail();
+        $json = json_encode((object)$values, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+        $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+        brvtalFormEntryPersist($pdo, ['entry_id'=>random_bytes(16),'form_key'=>$definition['form_key'],
+            'version_number'=>$version,'definition_sha256'=>$digest,'idempotency_digest'=>hash('sha256','forms:'.$id.':'.$key,true),
+            'payload_json'=>$json,'created_at_utc'=>$now->format('Y-m-d H:i:s.u'),'purpose_key'=>$policy['purpose_key'],
+            'notice_version'=>$policy['notice_version'],'retention_policy_key'=>$policy['retention_policy_key'],
+            'retention_until_utc'=>$now->modify('+'.$days.' days')->format('Y-m-d H:i:s.u')], $actions);
+        $pdo->commit();
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         throw $e;

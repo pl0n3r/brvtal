@@ -44,6 +44,15 @@ try {
         $db->prepare("INSERT INTO form_definition_registry(form_key,public_id,slug,draft_json,state,published_version_number,created_at_utc,updated_at_utc)
             VALUES (?,UNHEX(?),?,'{}','active',1,UTC_TIMESTAMP(6),UTC_TIMESTAMP(6))")->execute([$key,$publicId,str_replace('_','-',$key)]);
     }
+    require_once __DIR__.'/../../config/page_content.php';
+    $approval=['forms'=>['public_submit_enabled'=>true,'privacy_approved'=>true,'public_submit_policies'=>[
+        $id=>['version_number'=>1,'notice_version'=>'fixture-v1','purpose_key'=>'fixture','retention_policy_key'=>'fixture','retention_days'=>3]]]];
+    cmsCheck(!isset(brvtal_page_form_resolve($db,$id)['submit']), 'default inert');
+    $public=brvtal_page_form_resolve($db,$id,$approval)['submit'] ?? [];
+    cmsCheck(($public['id']??null)===$id && ($public['version']??null)===1 && count($public['fields']??[])===2
+        && !isset($public['form_key']) && !isset($public['retention_policy_key']), 'approved immutable public schema');
+    $approval['forms']['privacy_approved']=false;
+    cmsCheck(!isset(brvtal_page_form_resolve($db,$id,$approval)['submit']), 'revoked approval inert');
     $db->prepare("INSERT INTO form_definition_registry(form_key,public_id,slug,draft_json,created_at_utc,updated_at_utc)
         VALUES ('cms_draft',UNHEX(?),'cms-draft','{}',UTC_TIMESTAMP(6),UTC_TIMESTAMP(6))")->execute([$draftId]);
     cmsCheck(mkdir($root,0700),'fixture root');
