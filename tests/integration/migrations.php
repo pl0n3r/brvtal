@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../../config/migrations.php';
+require_once __DIR__ . '/../../config/migration_reconcile.php';
 
 function migrations_it_assert(bool $condition, string $message): void
 {
@@ -121,6 +122,148 @@ try {
 
 $cleanup();
 echo "BRVTAL migration-state MariaDB integration passed.\n";
+
+
+/** #2062: isolated schema fixture. No real payloads or mail transport. */
+function forms_migration_fixture(PDO $server, string $dsn, string $user, string $pass): void
+{
+    $formsDb = 'brvtal_test_forms_' . bin2hex(random_bytes(6));
+    $server->exec('CREATE DATABASE ' . $formsDb . ' CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
+    try {
+        $forms = new PDO($dsn . ';dbname=' . $formsDb, $user, $pass, [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES => false,
+        ]);
+        $path = __DIR__ . '/../../database/migration_forms_entries_01.sql';
+        $name = basename($path);
+        $sql = (string)file_get_contents($path);
+        $disposition = static fn(): string => brvtalMigrationProofDisposition($name, brvtalMigrationSchemaProof($forms, $name));
+        migrations_it_assert($disposition() === 'apply', 'forms schema initially absent');
+        brvtalMigrationAssertReconciliationSql($name, $sql, brvtalMigrationSchemaProof($forms, $name));
+        $parts = preg_split('/;\s*(?=CREATE TABLE|$)/i', $sql);
+        $forms->exec($parts[0]);
+        migrations_it_assert($disposition() === 'blocked', 'partial forms schema must fail closed');
+        $forms->exec('DROP TABLE form_definition_versions');
+        brvtal_migration_apply_file($forms, __DIR__ . '/../../database/migration_schema_migrations_01.sql', 'ci', 'abcdef1');
+        migrations_it_assert(brvtal_migration_apply_file($forms, $path, 'ci', 'abcdef1')['status'] === 'applied', 'forms migration applied');
+        migrations_it_assert($disposition() === 'baseline', 'complete structural proof');
+        migrations_it_assert(brvtal_migration_apply_file($forms, $path, 'ci', 'abcdef1')['status'] === 'already_applied', 'forms checksum guard');
+        $reject = static function (callable $action, string $reason): void {
+            try {
+                $action();
+            } catch (PDOException $exception) {
+                migrations_it_assert(in_array((int)($exception->errorInfo[1] ?? 0), [1062, 1451, 1452, 4025, 3819], true), $reason . ': expected constraint violation');
+                return;
+            }
+            migrations_it_assert(false, $reason);
+        };
+        $created = '2026-01-01 00:00:00';
+        $until = '2026-01-02 00:00:00'; // Synthetic dates, not a retention policy.
+        $definition = '{"fields":["subject"]}';
+        $digest = hash('sha256', $definition, true);
+        $version = $forms->prepare('INSERT INTO form_definition_versions VALUES (?,?,?,?,?)');
+        foreach ([['contact',1],['contact',2],['other',1]] as [$key,$number]) {
+            $version->execute([$key,$number,$digest,$definition,$created]);
+        }
+        $reject(static fn() => $version->execute(['bad',1,str_repeat('z',32),$definition,$created]), 'version digest mismatch');
+        $insert = $forms->prepare('INSERT INTO form_entries (entry_id,form_key,version_number,definition_sha256,idempotency_digest,payload_json,created_at_utc,purpose_key,notice_version,retention_policy_key,retention_until_utc,state,redacted_at_utc) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)');
+        $entry = static fn(string $id, string $key = 'contact', int $version = 1, ?string $hash = null, ?string $idem = null, ?string $payload = '{"subject":"fixture"}', ?string $retention = null, string $state = 'received', ?string $redacted = null): array => [$id,$key,$version,$hash ?? $digest,$idem ?? str_repeat('k',32),$payload,$created,'fixture','fixture-notice','fixture-policy',$retention ?? $until,$state,$redacted];
+        $a = str_repeat('a',16);
+        $b = str_repeat('b',16);
+        $c = str_repeat('c',16);
+        $insert->execute($entry($a));
+        $reject(static fn() => $insert->execute($entry($b, version:2)), 'idempotency scoped to form not version');
+        $insert->execute($entry($b, 'other'));
+        $reject(static fn() => $insert->execute($entry($a, 'other', idem:str_repeat('x',32))), 'opaque id unique');
+        $idem = str_repeat('x',32);
+        $reject(static fn() => $insert->execute($entry($c, version:99, idem:$idem)), 'missing definition version');
+        $reject(static fn() => $insert->execute($entry($c, hash:str_repeat('z',32), idem:$idem)), 'wrong definition digest');
+        $reject(static fn() => $insert->execute($entry($c, idem:$idem, payload:'[]')), 'payload object required');
+        $reject(static fn() => $insert->execute($entry($c, idem:$idem, retention:$created)), 'retention must follow capture');
+        $reject(static fn() => $insert->execute($entry($c, idem:$idem, state:'redacted')), 'redaction must remove payload');
+        $intent = $forms->prepare('INSERT INTO form_notification_intents VALUES (?, ?, ?, ?)');
+        $intent->execute([$a,'notify','pending',$created]);
+        $reject(static fn() => $intent->execute([$a,'notify','pending',$created]), 'one intent per entry/action');
+        $reject(static fn() => $intent->execute([$c,'notify','pending',$created]), 'orphan intent rejected');
+        $reject(static fn() => $forms->exec("DELETE FROM form_definition_versions WHERE form_key='contact' AND version_number=1"), 'referenced definition cannot be deleted');
+        $update = $forms->prepare("UPDATE form_definition_versions SET definition_json=?, definition_sha256=? WHERE form_key='contact' AND version_number=1");
+        $reject(static fn() => $update->execute(['{}',hash('sha256','{}',true)]), 'referenced definition cannot be rewritten');
+        $reject(static fn() => $forms->exec("DELETE FROM form_entries WHERE form_key='contact'"), 'intent evidence cannot cascade');
+        $forms->beginTransaction();
+        try {
+            $insert->execute($entry($c, idem:$idem));
+            $intent->execute([$c,'notify','pending',$created]);
+        } finally {
+            $forms->rollBack();
+        }
+        migrations_it_assert((int)$forms->query('SELECT COUNT(*) FROM form_entries')->fetchColumn() === 2, 'entry rollback');
+        migrations_it_assert((int)$forms->query('SELECT COUNT(*) FROM form_notification_intents')->fetchColumn() === 1, 'intent rollback');
+        $forms->exec($sql);
+        migrations_it_assert((int)$forms->query('SELECT COUNT(*) FROM form_entries')->fetchColumn() === 2, 'repeat DDL preserves entries');
+        $redact = $forms->prepare("UPDATE form_entries SET state='redacted', payload_json=NULL, redacted_at_utc=? WHERE entry_id=?");
+        $forms->beginTransaction();
+        try {
+            $redact->execute([$until,$a]);
+            $suppress = $forms->prepare("UPDATE form_notification_intents SET state='suppressed' WHERE entry_id=? AND state='pending'");
+            $suppress->execute([$a]);
+            $forms->commit();
+        } catch (Throwable $exception) {
+            $forms->rollBack();
+            throw $exception;
+        }
+        migrations_it_assert((int)$forms->query("SELECT COUNT(*) FROM form_entries WHERE state='redacted' AND payload_json IS NULL")->fetchColumn() === 1, 'redaction removes only payload');
+        migrations_it_assert((int)$forms->query('SELECT COUNT(*) FROM form_notification_intents')->fetchColumn() === 1, 'redaction preserves intent identity');
+        migrations_it_assert($forms->query('SELECT state FROM form_notification_intents')->fetchColumn() === 'suppressed', 'redaction suppresses pending intent atomically');
+    } finally {
+        $server->exec('DROP DATABASE ' . $formsDb);
+    }
+}
+
+$formsDsn = sprintf('mysql:host=%s;port=%d;charset=utf8mb4',
+    (string)(getenv('BRVTAL_TEST_DB_HOST') ?: '127.0.0.1'),
+    (int)(getenv('BRVTAL_TEST_DB_PORT') ?: 3306));
+$formsUser = (string)(getenv('BRVTAL_TEST_DB_USER') ?: 'root');
+$formsPass = (string)(getenv('BRVTAL_TEST_DB_PASS') ?: '');
+$formsServer = new PDO($formsDsn, $formsUser, $formsPass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+forms_migration_fixture($formsServer, $formsDsn, $formsUser, $formsPass);
+echo "BRVTAL forms-entry schema MariaDB integration passed.\n";
+
+// #2175: exercise the real additive DDL twice on a disposable pre-migration table.
+$doorDb = 'brvtal_test_door_' . bin2hex(random_bytes(6));
+$formsServer->exec('CREATE DATABASE ' . $doorDb . ' CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
+try {
+    $doorPdo = new PDO($formsDsn . ';dbname=' . $doorDb, $formsUser, $formsPass, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES => false,
+    ]);
+    $doorPdo->exec('CREATE TABLE event_ticket_types (id INT UNSIGNED PRIMARY KEY, price DECIMAL(12,2) NULL)');
+    $doorPdo->exec('INSERT INTO event_ticket_types (id,price) VALUES (1,20000),(2,35000)');
+    $doorMigration = 'migration_ticketing_door_price_01.sql';
+    $doorSql = (string)file_get_contents(__DIR__ . '/../../database/' . $doorMigration);
+    $doorProof = brvtalMigrationSchemaProof($doorPdo, $doorMigration);
+    migrations_it_assert(brvtalMigrationProofDisposition($doorMigration, $doorProof) === 'apply', 'door column absent');
+    brvtalMigrationAssertReconciliationSql($doorMigration, $doorSql, $doorProof);
+    $doorPdo->exec($doorSql);
+    migrations_it_assert(brvtalMigrationSchemaProof($doorPdo, $doorMigration)['complete'], 'door nullable unsigned INT proof');
+    migrations_it_assert((int)$doorPdo->query('SELECT COUNT(*) FROM event_ticket_types WHERE door_price_cop IS NULL')->fetchColumn() === 2,
+        'existing types default to NULL');
+    $doorPdo->exec('UPDATE event_ticket_types SET door_price_cop=50000 WHERE id=1');
+    $doorPdo->exec($doorSql);
+    migrations_it_assert((int)$doorPdo->query('SELECT door_price_cop FROM event_ticket_types WHERE id=1')->fetchColumn() === 50000,
+        'repeat DDL preserves explicit door tariff');
+    migrations_it_assert((int)$doorPdo->query('SELECT COUNT(*) FROM event_ticket_types WHERE id=2 AND door_price_cop IS NULL AND price=35000')->fetchColumn() === 1,
+        'repeat DDL preserves existing type and fallback');
+    migrations_it_assert(brvtalMigrationProofDisposition($doorMigration, brvtalMigrationSchemaProof($doorPdo, $doorMigration)) === 'baseline',
+        'repeated migration has complete proof');
+    define('BRVTAL_INVENTORY_PRICE_CONTRACT_ONLY', true);
+    require_once __DIR__ . '/ticketing-inventory.php';
+    inventoryChannelQuoteContract((int)$doorPdo->query('SELECT door_price_cop FROM event_ticket_types WHERE id=1')->fetchColumn());
+} finally {
+    $formsServer->exec('DROP DATABASE ' . $doorDb);
+}
+echo "BRVTAL door tariff migration and channel quote MariaDB integration passed.\n";
 
 // #1886: synthetic, isolated mail-template schema and transactional store tests.
 require __DIR__ . '/mail-template-store.php';

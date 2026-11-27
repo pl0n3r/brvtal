@@ -1,0 +1,212 @@
+name: BRVTAL 2054 finance channel visual evidence
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [main]
+    paths:
+      - '.github/workflows/issue-2054-visual-evidence.yml'
+      - 'tests/e2e/discadmin-information-architecture.spec.mjs'
+      - 'discadmin/ticketing-finance.php'
+      - 'discadmin/ticketing-finance.js'
+      - 'discadmin/ticketing.css'
+      - 'discadmin/ticketing.js'
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  finance-2054-visual:
+    if: >-
+      github.repository == 'pl0n3r/brvtal' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (github.head_ref == 'work/issue-2255' || github.head_ref == 'work/issue-2054')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      WIRING_HEAD: ${{ github.event.pull_request.head.sha }}
+      TRIGGER_PR: ${{ github.event.pull_request.number }}
+      TRIGGER_BASE: ${{ github.event.pull_request.base.sha }}
+      TRIGGER_REF: ${{ github.head_ref }}
+    steps:
+      - name: Resolve authenticated exact target PR identities
+        id: sources
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api repos/pl0n3r/brvtal/pulls/2253 > "$RUNNER_TEMP/target-pr.json"
+          python3 - <<'PY'
+          import json, os, re
+          from pathlib import Path
+          pr = json.loads((Path(os.environ["RUNNER_TEMP"]) / "target-pr.json").read_text())
+          if not (pr["number"] == 2253 and pr["state"] == "open"
+                  and pr["base"]["ref"] == "main"
+                  and pr["head"]["ref"] == "work/issue-2054"
+                  and pr["head"]["repo"]["full_name"] == "pl0n3r/brvtal"
+                  and pr["base"]["repo"]["full_name"] == "pl0n3r/brvtal"):
+              raise SystemExit("Unexpected target PR identity")
+          base, head = pr["base"]["sha"], pr["head"]["sha"]
+          if base == head or not all(re.fullmatch(r"[0-9a-f]{40}", sha) for sha in (base, head)):
+              raise SystemExit("Invalid target SHA pair")
+          if os.environ["TRIGGER_REF"] == "work/issue-2054":
+              if (os.environ["TRIGGER_PR"], os.environ["TRIGGER_BASE"], os.environ["WIRING_HEAD"]) != ("2253", base, head):
+                  raise SystemExit("Target PR changed since event")
+          elif os.environ["TRIGGER_REF"] != "work/issue-2255":
+              raise SystemExit("Unexpected wiring branch")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
+              out.write(f"base_sha={base}\nhead_sha={head}\n")
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as out:
+              out.write(f"BASE_SHA={base}\nCANDIDATE_SHA={head}\n")
+          print(f"Exact target source pair: {base} / {head}")
+          PY
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.sources.outputs.base_sha }}
+          path: base-source
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.sources.outputs.head_sha }}
+          path: candidate-source
+          persist-credentials: false
+      - name: Verify immutable source identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ && "$CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ && "$WIRING_HEAD" =~ ^[0-9a-f]{40}$ ]]
+          test "$BASE_SHA" != "$CANDIDATE_SHA"
+          test "$(git -C base-source rev-parse HEAD)" = "$BASE_SHA"
+          test "$(git -C candidate-source rev-parse HEAD)" = "$CANDIDATE_SHA"
+          python3 candidate-source/scripts/ci_self_audit.py
+      - name: Install pinned Chromium test runner
+        working-directory: candidate-source
+        run: |
+          npm install --ignore-scripts --no-save --package-lock=false --no-audit --no-fund @playwright/test@1.63.0
+          npx --no-install playwright install --with-deps chromium
+      - name: Run existing synthetic exact-source capture tests
+        working-directory: candidate-source
+        shell: bash
+        run: |
+          set -euo pipefail
+          export BRVTAL_FINANCE_VISUAL_BASE_DIR="$GITHUB_WORKSPACE/base-source"
+          export PLAYWRIGHT_JSON_OUTPUT_FILE="$RUNNER_TEMP/finance2054-report.json"
+          npx --no-install playwright test tests/e2e/discadmin-information-architecture.spec.mjs --project=chromium --grep '#2054 real Finance mount' --workers=1 --reporter=list,json
+      - name: Verify authenticated target PR still matches evidence identities
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api repos/pl0n3r/brvtal/pulls/2253 > "$RUNNER_TEMP/target-pr.json"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          pr = json.loads((Path(os.environ["RUNNER_TEMP"]) / "target-pr.json").read_text())
+          if not (pr["number"] == 2253 and pr["state"] == "open"
+                  and pr["base"]["ref"] == "main"
+                  and pr["head"]["ref"] == "work/issue-2054"
+                  and pr["head"]["repo"]["full_name"] == "pl0n3r/brvtal"
+                  and pr["base"]["repo"]["full_name"] == "pl0n3r/brvtal"
+                  and pr["base"]["sha"] == os.environ["BASE_SHA"]
+                  and pr["head"]["sha"] == os.environ["CANDIDATE_SHA"]):
+              raise SystemExit("Target PR identity changed; do not publish stale evidence")
+          PY
+      - name: Verify four PNGs and write manifest and receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64, hashlib, json, os, struct, zlib
+          from pathlib import Path
+
+          out = Path("finance-2054-evidence")
+          required = {f"2054-{stage}-{width}.png": (stage, width)
+                      for stage in ("before", "after") for width in (390, 1440)}
+          report = json.loads((Path(os.environ["RUNNER_TEMP"]) / "finance2054-report.json").read_text())
+          stats = report["stats"]
+          if tuple(stats[key] for key in ("expected", "unexpected", "flaky", "skipped")) != (2, 0, 0, 0):
+              raise SystemExit("Expected two successful capture tests")
+          root = Path("candidate-source").resolve()
+          attachments = {}
+          def visit(value):
+              if isinstance(value, list):
+                  for child in value:
+                      visit(child)
+              elif isinstance(value, dict):
+                  for item in value.get("attachments", []):
+                      name = item.get("name")
+                      if name not in required:
+                          continue
+                      if name in attachments or item.get("contentType") != "image/png":
+                          raise SystemExit("Duplicate or invalid capture attachment")
+                      if isinstance(item.get("body"), str):
+                          data = base64.b64decode(item["body"], validate=True)
+                      else:
+                          path = (root / item["path"]).resolve()
+                          if not path.is_relative_to(root):
+                              raise SystemExit("Attachment outside candidate checkout")
+                          data = path.read_bytes()
+                      attachments[name] = data
+                  for key, child in value.items():
+                      if key != "attachments":
+                          visit(child)
+          visit(report)
+          if attachments.keys() != required.keys():
+              raise SystemExit("Expected exactly four capture PNGs")
+          out.mkdir()
+          for name, data in attachments.items():
+              (out / name).write_bytes(data)
+          captures = []
+          for name, (stage, expected_width) in sorted(required.items()):
+              data = (out / name).read_bytes()
+              if data[:8] != b"\x89PNG\r\n\x1a\n":
+                  raise SystemExit(f"Invalid PNG signature: {name}")
+              offset, dimensions, has_data, ended = 8, None, False, False
+              while offset + 12 <= len(data):
+                  size, kind = struct.unpack_from(">I4s", data, offset)
+                  end = offset + 12 + size
+                  if end > len(data):
+                      raise SystemExit(f"Truncated PNG: {name}")
+                  payload = data[offset + 8:end - 4]
+                  crc, = struct.unpack_from(">I", data, end - 4)
+                  if zlib.crc32(kind + payload) != crc:
+                      raise SystemExit(f"Invalid PNG checksum: {name}")
+                  if offset == 8:
+                      if kind != b"IHDR" or size != 13:
+                          raise SystemExit(f"Missing PNG header: {name}")
+                      dimensions = struct.unpack_from(">II", payload)
+                  has_data |= kind == b"IDAT" and size > 0
+                  offset = end
+                  if kind == b"IEND":
+                      ended = size == 0
+                      break
+              if not dimensions or dimensions[0] != expected_width or dimensions[1] < 900 or not has_data or not ended or offset != len(data):
+                  raise SystemExit(f"Invalid PNG dimensions or structure: {name}")
+              captures.append({"name": name, "stage": stage, "width": expected_width,
+                               "height": dimensions[1], "size_bytes": len(data),
+                               "source_sha": os.environ["BASE_SHA" if stage == "before" else "CANDIDATE_SHA"],
+                               "sha256": hashlib.sha256(data).hexdigest()})
+          manifest = {"issue": 2054, "target_pr": 2253, "wiring_issue": 2255,
+                      "trigger_pr": int(os.environ["TRIGGER_PR"]),
+                      "workflow_head_sha": os.environ["WIRING_HEAD"],
+                      "base_sha": os.environ["BASE_SHA"], "head_sha": os.environ["CANDIDATE_SHA"],
+                      "run_id": os.environ["GITHUB_RUN_ID"], "run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+                      "source": "existing Chromium spec; synthetic fixtures; separate exact checkouts",
+                      "captures": captures}
+          path = out / "manifest.json"
+          path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+          receipt = {"status": "CAPTURES_VERIFIED", "manifest_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                     "visual_review": "NOT_PERFORMED", "production_validation": "NOT_PERFORMED"}
+          (out / "receipt.json").write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
+          print("Four exact-source PNGs verified; human/agent visual review remains separate.")
+          PY
+      - name: Publish verified synthetic captures for PR 2253
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: brvtal-2054-visual-${{ env.CANDIDATE_SHA }}-${{ github.run_id }}
+          path: finance-2054-evidence/
+          if-no-files-found: error
+          retention-days: 14

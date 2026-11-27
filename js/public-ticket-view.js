@@ -7,10 +7,13 @@
   const error = document.getElementById('ticket-error');
   const code = document.getElementById('ticket-code');
   const ref = document.getElementById('ticket-ref');
+  const printButton = document.getElementById('ticket-print');
+  let renderedHash = null;
 
   function show(valid) {
     pass.hidden = !valid;
     error.hidden = valid;
+    printButton.disabled = !valid;
   }
 
   function render() {
@@ -21,6 +24,8 @@
       payload = '';
     }
     const match = pattern.exec(payload);
+    renderedHash = null;
+    ref.textContent = '';
     code.replaceChildren();
     if (!match || typeof window.QRCode !== 'function') {
       show(false);
@@ -40,9 +45,14 @@
     code.querySelectorAll('[title]').forEach((node) => node.removeAttribute('title'));
     code.querySelectorAll('img').forEach((img) => { img.alt = ''; });
     ref.textContent = match[1].slice(0, 8).toUpperCase();
+    renderedHash = location.hash;
     show(true);
   }
 
+  printButton.addEventListener('click', () => {
+    if (pass.hidden || renderedHash !== location.hash) return;
+    window.print();
+  });
   window.addEventListener('hashchange', render);
   render();
 })();

@@ -2,10 +2,82 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../../config/ticketing_inventory.php';
+require_once __DIR__ . '/../../config/ticketing_stages.php';
 
 function inventoryAssert(bool $ok,string $message): void {
     if (!$ok) throw new RuntimeException('T05 inventory: '.$message);
 }
+/** Synthetic channel policy, also invoked by the canonical database suite. */
+function inventoryChannelQuoteContract(int $doorPrice = 50000): void
+{
+    $clock = new DateTimeImmutable('2026-12-04 19:30:00', new DateTimeZone('America/Bogota'));
+    $stages = [
+        ['code'=>'preventa','price_cop'=>25000,'cumulative_capacity'=>5,
+            'opens_at_local'=>'2026-12-04 19:00:00','closes_at_local'=>'2026-12-04 21:00:00'],
+        ['code'=>'general','price_cop'=>35000,'cumulative_capacity'=>10,
+            'opens_at_local'=>'2026-12-04 20:00:00','closes_at_local'=>'2026-12-04 22:00:00'],
+    ];
+    $quote = static fn(string $channel, ?int $door = null, int $used = 0,
+        int $quantity = 1, int $free = 10, ?DateTimeImmutable $at = null): array =>
+        brvtalTicketChannelQuote($channel, $stages, 20000, $door, $used, $quantity, $free, $at ?? $clock);
+    $reject = static function (callable $action, string $reason): void {
+        try {
+            $action();
+        } catch (InvalidArgumentException|DomainException $error) {
+            inventoryAssert($error->getMessage() === $reason, $reason);
+            return;
+        }
+        inventoryAssert(false, 'quote must reject ' . $reason);
+    };
+    $web = brvtalTicketStageQuote($stages, 0, 1, 10, $clock);
+    inventoryAssert($quote('web', $doorPrice) === $web + ['source'=>'stage'], 'web unchanged');
+    inventoryAssert($quote('manual', $doorPrice) === $web + ['source'=>'stage'], 'manual uses stage');
+    inventoryAssert($quote('door') === $web + ['source'=>'stage'], 'null door uses stage');
+    $door = $quote('door', $doorPrice, 0, 2);
+    inventoryAssert($door === ['code'=>'preventa','unit_price_cop'=>$doorPrice,
+        'subtotal_cop'=>$doorPrice*2,'available'=>5,'source'=>'door'], 'explicit door tariff');
+    $later = $clock->modify('+1 hour');
+    inventoryAssert($quote('web', null, 0, 1, 10, $later)['code'] === 'general', 'stage by date');
+    inventoryAssert($quote('door', null, 5, 1, 10, $later)['unit_price_cop'] === 35000,
+        'stage by remaining cumulative allocation');
+    inventoryAssert($quote('door', $doorPrice, 5, 1, 10, $later)['code'] === 'general',
+        'door preserves stage identity');
+    inventoryAssert($quote('web', null, 0, 1, 10, $clock->setTimezone(new DateTimeZone('UTC'))) ===
+        $web + ['source'=>'stage'], 'Bogota clock conversion');
+    $reject(static fn() => $quote('door', $doorPrice, 5), 'STAGE_NOT_SALEABLE');
+    $reject(static fn() => $quote('door', $doorPrice, 4, 2), 'STAGE_SOLD_OUT');
+    $reject(static fn() => $quote('door', $doorPrice, 0, 2, 1), 'STAGE_SOLD_OUT');
+    $reject(static fn() => $quote('door', 0), 'STAGE_PRICE_LIMIT');
+    $reject(static fn() => $quote('door', 6000000, 0, 2), 'STAGE_PRICE_LIMIT');
+    $reject(static fn() => $quote('unknown'), 'INVALID_CHANNEL_QUOTE');
+    $reject(static fn() => $quote('web', null, 0, 21), 'INVALID_CHANNEL_QUOTE');
+    $reject(static fn() => $quote('door', $doorPrice, 0, 1, 10, $clock->modify('+4 hours')),
+        'STAGE_NOT_SALEABLE');
+    inventoryAssert(brvtalTicketChannelQuote('door', [], 20000, $doorPrice, 0, 2, 3)['subtotal_cop']
+        === $doorPrice*2, 'door override without stage');
+    inventoryAssert(brvtalTicketChannelQuote('door', [], 20000, null, 0, 2, 3)['source']
+        === 'base', 'legacy base without stages');
+    inventoryAssert(brvtalTicketChannelQuote('web', [], 20000, $doorPrice, 0, 2, 3)['subtotal_cop']
+        === 40000, 'web base unaffected');
+    $expensive = $stages;
+    $expensive[0]['price_cop'] = 6000000;
+    inventoryAssert(brvtalTicketChannelQuote('door', $expensive, null, $doorPrice, 0, 2, 10, $clock)['subtotal_cop']
+        === $doorPrice*2, 'price limit applies to actual door tariff');
+    $reject(static fn() => brvtalTicketChannelQuote('web', $expensive, null, $doorPrice, 0, 2, 10, $clock),
+        'STAGE_PRICE_LIMIT');
+    inventoryAssert(brvtalTicketChannelQuote('web', $stages, null, null, 0, 1, 10, $clock)['unit_price_cop']
+        === 25000, 'stage independent of base');
+    $reject(static fn() => brvtalTicketChannelQuote('web', [], null, null, 0, 1, 10), 'STAGE_PRICE_LIMIT');
+    $invalid = $stages;
+    $invalid[0]['price_cop'] = 0;
+    $reject(static fn() => brvtalTicketChannelQuote('door', $invalid, 20000, $doorPrice, 0, 1, 10, $clock),
+        'INVALID_STAGE_VALUE');
+}
+
+if (defined('BRVTAL_INVENTORY_PRICE_CONTRACT_ONLY')) {
+    return;
+}
+inventoryChannelQuoteContract();
 $zone = new DateTimeZone('America/Bogota');
 $clock = new DateTimeImmutable('2026-12-04 20:00:00', $zone);
 $event = ['status'=>'published','event_date'=>'2026-12-04 21:00:00',

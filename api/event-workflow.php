@@ -12,7 +12,7 @@ function brvtal_event_workflow_reject_composite_fields(array $input): void
         foreach ([
             'id','title','slug','event_date','venue','venue_address','city','description','skin','accent','cover_image',
             'ticket_url','ticket_instructions','ticket_qr','featured','archive_year','status','sort_order',
-            'seo_title','seo_description',
+            'seo_title','seo_description','visibility',
         ] as $field) {
             if (array_key_exists($field, $event) && (is_array($event[$field]) || is_object($event[$field]))) {
                 throw new InvalidArgumentException('INVALID_FIELD_TYPE');

@@ -223,6 +223,8 @@ CREATE TABLE analytics_events (
 -- Fresh installs apply migration_schema_migrations_01.sql to initialize the
 -- migration registry, then migration_content_core_01.sql, and finally
 -- migration_ticketing_orders_01.sql using the migration runner.
+-- migration_ticketing_door_price_01.sql adds nullable door_price_cop (INT UNSIGNED)
+-- to event_ticket_types; NULL keeps the active web stage as the door tariff.
 INSERT INTO settings(setting_key, setting_value, is_json) VALUES
 ('site', '{"name":"BRVTAL","tagline":"RAVE TILL GRAVE","default_locale":"es","available_locales":["es","en"]}', 1),
 ('social', '{"instagram":"","soundcloud":"","youtube":"","spotify":""}', 1),

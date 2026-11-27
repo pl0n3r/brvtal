@@ -240,7 +240,7 @@ function buyerAuthMissingMailKeyHttpCheck(
         $challenge = brvtal_public_abuse_challenge($fixture, 'register', time() - 3);
         preg_match('/^(\d+) \+ (\d+) = \?$/', $challenge['question'], $answer);
         buyerAuthAssert(count($answer) === 3, 'synthetic challenge was generated');
-        $payload = $input;
+        $payload = array_diff_key($input, ['password'=>true]);
         $payload['action'] = 'register';
         $payload['website'] = '';
         $payload['privacy_accepted'] = true;
@@ -341,7 +341,7 @@ register_shutdown_function(static function () use ($rateDirectory): void {
 $input = ['name'=>'Persona Sintética', 'email'=>'buyer@example.test',
     'password'=>'SynthETIC-9345-safe-Long', 'terms_accepted'=>true,'consent_version'=>'0.1.277'];
 buyerAuthMissingMailKeyHttpCheck($db, $dbName, $host, $port, $user, $pass, $input);
-$deniedInput = $input;
+$deniedInput = array_diff_key($input, ['password'=>true]);
 $deniedInput['email'] = 'privacy-denied@example.test';
 try {
     brvtalBuyerAuthRegister($db, $deniedInput);
@@ -355,14 +355,14 @@ buyerAuthAssert((int)$db->query('SELECT COUNT(*) FROM ticket_buyers')->fetchColu
     && (int)$db->query('SELECT COUNT(*) FROM ticket_mail_outbox')->fetchColumn() === 0,
     'privacy rejection atomically rolls back buyer, token and outbox');
 $GLOBALS['config']['ticketing']['mail']['privacy_approved'] = '1';
-$a = brvtalBuyerAuthRegister($db, $input);
+$a = brvtalBuyerAuthRegister($db, array_diff_key($input, ['password'=>true]));
 // Use private synthetic mode for the rest of the multi-mail test suite.
 $GLOBALS['config']['ticketing']['mail']['testing'] = '1';
 $b = brvtalBuyerAuthRegister($db, $input);
 buyerAuthAssert($a === $b && $a === ['ok'=>true], 'duplicate is neutral');
 buyerAuthAssert((int)$db->query('SELECT COUNT(*) FROM ticket_buyers')->fetchColumn() === 1,
     'one buyer after duplicate');
-$row = $db->query('SELECT id,full_name,password_hash,email_verified_at,security_epoch FROM ticket_buyers')->fetch();
+$row = $db->query('SELECT id,full_name,password_hash,email_verified_at,security_epoch,status FROM ticket_buyers')->fetch();
 // Match the 12..4096-character policy without silent bcrypt 72-byte truncation.
 if (defined('PASSWORD_ARGON2ID')) {
     $longPassword = str_repeat('SYNTHETIC-secure-4829-', 7);
@@ -372,9 +372,8 @@ if (defined('PASSWORD_ARGON2ID')) {
         'long password preserves all bytes with Argon2id');
 }
 buyerAuthAssert($row['full_name'] === $input['name']
-    && $row['password_hash'] !== $input['password']
-    && password_verify($input['password'], $row['password_hash'])
-    && $row['email_verified_at'] === null, 'unverified hashed buyer and profile');
+    && $row['password_hash'] === null && $row['status'] === 'active'
+    && $row['email_verified_at'] === null, 'unverified buyer has no credential and is not guest');
 buyerAuthAssert($db->query('SELECT consent_version FROM ticket_buyers')->fetchColumn()
     === BRVTAL_APP_VERSION, 'recorded consent version is canonical server value');
 buyerAuthAssert($db->query('SELECT consent_recorded_at FROM ticket_buyers')->fetchColumn() !== null,
@@ -454,6 +453,16 @@ try {
 } catch (DomainException) {}
 buyerAuthAssert($db->query('SELECT email_verified_at FROM ticket_buyers')->fetchColumn() !== null,
     'verification persisted');
+$activeBefore = $db->query('SELECT * FROM ticket_buyers')->fetch();
+$activeTokens = $db->query('SELECT COUNT(*) FROM ticket_buyer_tokens')->fetchColumn();
+$activeMail = $db->query('SELECT COUNT(*) FROM ticket_mail_outbox')->fetchColumn();
+buyerAuthAssert(brvtalBuyerAuthRegister($db, array_replace($input, [
+    'name'=>'Duplicate attempt', 'password'=>['ignored'],
+])) === ['ok'=>true]
+    && $db->query('SELECT * FROM ticket_buyers')->fetch() === $activeBefore
+    && $db->query('SELECT COUNT(*) FROM ticket_buyer_tokens')->fetchColumn() === $activeTokens
+    && $db->query('SELECT COUNT(*) FROM ticket_mail_outbox')->fetchColumn() === $activeMail,
+    'duplicate active account remains neutral without changing credentials or consent');
 $neutralKnown = brvtalBuyerAuthRequest($db,'buyer@example.test','reset_password',$rateDirectory);
 $neutralUnknown = brvtalBuyerAuthRequest($db,'unknown@example.test','reset_password',$rateDirectory);
 buyerAuthAssert($neutralKnown === $neutralUnknown && $neutralKnown === ['ok'=>true],
@@ -555,6 +564,18 @@ $otherId=(int)$db->lastInsertId();
 $db->prepare("INSERT INTO ticket_orders VALUES (198501,?,'paid'),(198502,?,'pending')")
     ->execute([$guestId,$otherId]);
 $db->exec("INSERT INTO ticket_issue_outbox VALUES (198501,'done'),(198502,'done')");
+$guestBefore = $db->query("SELECT * FROM ticket_buyers WHERE id=$guestId")->fetch();
+$guestMail = $db->query('SELECT COUNT(*) FROM ticket_mail_outbox')->fetchColumn();
+$guestTokens = $db->query('SELECT COUNT(*) FROM ticket_buyer_tokens')->fetchColumn();
+buyerAuthAssert(brvtalBuyerAuthRegister($db, array_replace($input, [
+    'email'=>'guest-1985@example.test', 'name'=>'Duplicate attempt',
+])) === ['ok'=>true]
+    && $db->query("SELECT * FROM ticket_buyers WHERE id=$guestId")->fetch() === $guestBefore
+    && (int)$db->query("SELECT COUNT(*) FROM ticket_orders WHERE buyer_id=$guestId AND status='paid'")
+        ->fetchColumn() === 1
+    && $db->query('SELECT COUNT(*) FROM ticket_buyer_tokens')->fetchColumn() === $guestTokens
+    && $db->query('SELECT COUNT(*) FROM ticket_mail_outbox')->fetchColumn() === $guestMail,
+    'duplicate paid guest preserves original identity, consent and order');
 try {
     brvtalBuyerAuthGuestPurchaseLink($db,198501);
     buyerAuthAssert(false,'guest purchase must be inside issuance transaction');
@@ -620,6 +641,29 @@ buyerAuthAssert($db->query("SELECT status FROM ticket_buyers WHERE id=$guestId")
 buyerAuthAssert(brvtalBuyerAuthRequest($db,'guest-1985@example.test',
     'reset_password',$rateDirectory)===['ok'=>true],
     'paid guest may request a replacement link under existing throttle');
+
+// #2118: old clients may still send a password, but it must never be stored.
+$legacy = array_replace($input, ['email'=>'legacy-2118@example.test','password'=>['ignored']]);
+buyerAuthAssert(brvtalBuyerAuthRegister($db, $legacy) === ['ok'=>true], 'legacy payload is accepted');
+$legacyRow = $db->query("SELECT id,status,password_hash,email_verified_at FROM ticket_buyers
+    WHERE email='legacy-2118@example.test'")->fetch();
+buyerAuthAssert(is_array($legacyRow) && $legacyRow['password_hash'] === null && $legacyRow['status'] === 'active'
+    && $legacyRow['email_verified_at'] === null, 'legacy password ignored for new account');
+// Simulate a pending record created before #2118 without altering its consent or token.
+$historicalPassword = 'Synthetic-old-pending-2118';
+$db->prepare('UPDATE ticket_buyers SET password_hash=? WHERE id=?')
+    ->execute([brvtalBuyerAuthPassword($historicalPassword), (int)$legacyRow['id']]);
+$legacyMail = (string)$db->query('SELECT body_text FROM ticket_mail_outbox ORDER BY id DESC LIMIT 1')->fetchColumn();
+preg_match('/token=([A-Za-z0-9_-]{43})/', (string)brvtalBuyerMailUnseal($legacyMail), $legacyMatches);
+$legacyToken = $legacyMatches[1] ?? '';
+$chosen = 'Synthetic-verified-owner-2118';
+brvtalBuyerAuthConsume($db, $legacyToken, 'verify_email', $chosen);
+$legacyAfter = $db->query("SELECT password_hash,email_verified_at FROM ticket_buyers
+    WHERE id=".(int)$legacyRow['id'])->fetch();
+buyerAuthAssert($legacyAfter['email_verified_at'] !== null
+    && password_verify($chosen, $legacyAfter['password_hash'])
+    && !password_verify($historicalPassword, $legacyAfter['password_hash']),
+    'historical pending hash never becomes a verified credential');
 
 // #1877: 72h retention in a disposable DB, with production mutation opt-in.
 foreach (['old-expiring@example.test' => 73, 'young-expiring@example.test' => 71] as $address => $age) {

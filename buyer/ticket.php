@@ -15,7 +15,7 @@ header('X-Robots-Tag: noindex, nofollow');
 <meta name="robots" content="noindex,nofollow">
 <title>Tu boleta | BRVTAL</title>
 <link rel="stylesheet" href="/css/buyer-access.css?v=1">
-<link rel="stylesheet" href="/css/public-ticket-view.css?v=1">
+<link rel="stylesheet" href="/css/public-ticket-view.css?v=2">
 </head>
 <body class="buyer-access buyer-ticket">
 <header class="access-topbar">
@@ -25,10 +25,16 @@ header('X-Robots-Tag: noindex, nofollow');
 <main class="access-main">
   <div class="access-shell ticket-shell">
     <section class="ticket-pass" id="ticket-pass" aria-labelledby="ticket-heading" hidden>
+      <p class="ticket-print-brand">BRVTAL · RAVE TILL GRAVE</p>
       <h1 id="ticket-heading" class="ticket-title">Tu boleta</h1>
       <p class="ticket-lead">Muestra este código en la puerta.</p>
       <div class="ticket-code" id="ticket-code" role="img" aria-label="Código QR de ingreso"></div>
       <p class="ticket-ref">Boleta <span id="ticket-ref" class="ticket-ref-id"></span></p>
+      <div class="ticket-actions ticket-print-actions">
+        <button type="button" id="ticket-print" class="access-submit" aria-describedby="ticket-print-help" disabled>Descargar pase (PDF)</button>
+        <p id="ticket-print-help" class="access-hint">Elige Guardar como PDF y desactiva los encabezados y pies de página en la ventana de impresión. Guarda el archivo en privado.</p>
+      </div>
+      <p class="ticket-print-private">Código de un solo uso. Guarda este pase en privado.</p>
       <ul class="ticket-tips">
         <li>Sube el brillo de la pantalla antes de llegar a la fila.</li>
         <li>Cada código entra una sola vez. No compartas este enlace ni capturas del QR.</li>
@@ -44,6 +50,6 @@ header('X-Robots-Tag: noindex, nofollow');
 </main>
 <footer class="access-footer"><span>RAVE TILL GRAVE</span><a href="/">← Volver al inicio</a></footer>
 <script src="/js/vendor/qrcode-generator.js?v=1"></script>
-<script src="/js/public-ticket-view.js?v=1"></script>
+<script src="/js/public-ticket-view.js?v=2"></script>
 </body>
 </html>

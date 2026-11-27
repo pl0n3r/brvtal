@@ -179,6 +179,16 @@ foreach (['pull_request', 'push'] as $event) {
     ci_scope_expect_flags(ci_scope_run([$providerFixturePaths[0], $browser], $event), [
         'run_realstack' => 'true', 'run_browser' => 'true', 'deploy_bound' => 'false',
     ], "Wompi and browser union {$event}");
+    $runner = 'tests/e2e/run-ticketing-real-stack.sh';
+    ci_scope_expect_flags(ci_scope_run([$runner], $event), [
+        'run_realstack' => 'true', 'run_browser' => 'false', 'deploy_bound' => 'false',
+    ], "T31 runner only {$event}");
+    ci_scope_expect_flags(ci_scope_run([$runner, $browser], $event), [
+        'run_realstack' => 'true', 'run_browser' => 'true', 'deploy_bound' => 'false',
+    ], "T31 runner and browser union {$event}");
+    ci_scope_expect_flags(ci_scope_run([$runner, 'docs/ticketing/T31-provider-fixture.md'], $event), [
+        'run_realstack' => 'true', 'run_browser' => 'false', 'deploy_bound' => 'false',
+    ], "T31 runner and docs union {$event}");
 }
 
 ci_scope_expect_flags(ci_scope_run(['discadmin/global-search.js'], 'workflow_dispatch'), [
