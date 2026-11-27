@@ -6,8 +6,8 @@ require_once __DIR__ . '/ticketing_mail_events.php';
 require_once __DIR__ . '/public_abuse_guard.php';
 require_once __DIR__ . '/mail_template_renderer.php';
 
-// A distinct outer namespace keeps waitlist envelopes out of the buyer-auth
-// compatibility path. The inner AES-GCM primitive and key remain unchanged.
+// The waitlist namespace derives its key from the validated buyer-mail key.
+// A distinct key and authenticated context prevent cross-protocol opening.
 const BRVTAL_WAITLIST_MAIL_PREFIX = 'BRVTAL_WAITLIST_SEALED_V1:';
 
 function brvtal_ticket_waitlist_mail_is(array $job): bool
@@ -32,7 +32,27 @@ function brvtal_ticket_waitlist_mail_context(array $job, string $part): ?string
     // NULL is the code-owned template, not a published registry revision.
     return hash('sha256', json_encode(['waitlist-v1', $job['message_key'],
         $job['related_ref'], $job['template_key'], $job['recipient_email'],
-        $job['subject'], $part], JSON_THROW_ON_ERROR))."\n";
+        $job['subject'], $part], JSON_THROW_ON_ERROR));
+}
+
+function brvtal_ticket_waitlist_mail_key(): string
+{
+    return hash_hmac('sha256', 'brvtal-waitlist-mail:v1', brvtalBuyerMailCipherKey(), true);
+}
+
+function brvtal_ticket_waitlist_mail_seal(string $content, string $context): string
+{
+    if ($content === '' || strlen($content) > 12000) {
+        throw new InvalidArgumentException('MAIL_WAITLIST_INVALID_BODY');
+    }
+    $nonce = random_bytes(12);
+    $tag = '';
+    $cipher = openssl_encrypt($content, 'aes-256-gcm', brvtal_ticket_waitlist_mail_key(),
+        OPENSSL_RAW_DATA, $nonce, $tag, $context, 16);
+    if (!is_string($cipher) || strlen($tag) !== 16) {
+        throw new RuntimeException('MAIL_WAITLIST_SEAL_FAILED');
+    }
+    return BRVTAL_WAITLIST_MAIL_PREFIX.base64_encode($nonce.$tag.$cipher);
 }
 
 /** Only queue validation and the in-memory delivery path open an envelope. */
@@ -43,15 +63,22 @@ function brvtal_ticket_waitlist_mail_open(array $job): ?array
         $context = brvtal_ticket_waitlist_mail_context($job, $part);
         $stored = $job[$part] ?? null;
         if ($context === null || !is_string($stored)
-            || !str_starts_with($stored, BRVTAL_WAITLIST_MAIL_PREFIX.BRVTAL_BUYER_MAIL_SEAL_PREFIX)) {
+            || !str_starts_with($stored, BRVTAL_WAITLIST_MAIL_PREFIX)) {
             return null;
         }
-        $plain = brvtalBuyerMailUnseal(substr($stored, strlen(BRVTAL_WAITLIST_MAIL_PREFIX)));
-        if ($plain === null || !hash_equals($context, substr($plain, 0, strlen($context)))) {
+        $payload = base64_decode(substr($stored, strlen(BRVTAL_WAITLIST_MAIL_PREFIX)), true);
+        if (!is_string($payload) || strlen($payload) <= 28 || strlen($payload) > 12028) {
             return null;
         }
-        $opened[$part] = substr($plain, strlen($context));
-        if ($opened[$part] === '') return null;
+        try {
+            $plain = openssl_decrypt(substr($payload, 28), 'aes-256-gcm',
+                brvtal_ticket_waitlist_mail_key(), OPENSSL_RAW_DATA,
+                substr($payload, 0, 12), substr($payload, 12, 16), $context);
+        } catch (Throwable) {
+            return null;
+        }
+        if (!is_string($plain) || $plain === '') return null;
+        $opened[$part] = $plain;
     }
     return str_starts_with($opened['body_html'], '<!doctype html>') ? $opened : null;
 }
@@ -85,7 +112,7 @@ function brvtal_ticket_waitlist_mail_enqueue(
     foreach (['body_text'=>$text,'body_html'=>$html] as $part=>$content) {
         $context = brvtal_ticket_waitlist_mail_context($job, $part);
         if ($context === null) throw new DomainException('MAIL_WAITLIST_CONTEXT_INVALID');
-        $job[$part] = BRVTAL_WAITLIST_MAIL_PREFIX.brvtalBuyerMailSeal($context.$content, 12000);
+        $job[$part] = brvtal_ticket_waitlist_mail_seal($content, $context);
     }
     return brvtal_ticket_mail_enqueue($pdo, $job['message_key'], $job['related_ref'],
         $recipient, $subject, $job['body_text'], $job['body_html'], $job['template_key']);

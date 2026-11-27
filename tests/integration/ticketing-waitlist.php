@@ -128,6 +128,10 @@ wlAssert(brvtal_waitlist_subscribe($db,1,10,2,'waitlist-v1','',$now)==='waiting'
     'second interest');
 wlAssert((int)$db->query('SELECT COUNT(*) FROM ticket_waitlist_entries')->fetchColumn()===2,
     'no double signup');
+// AUTO_INCREMENT advances even when the failed enrollment transaction rolls back.
+$firstEntry=(int)$db->query("SELECT id FROM ticket_waitlist_entries WHERE event_id=1 AND buyer_id=1")->fetchColumn();
+$secondEntry=(int)$db->query("SELECT id FROM ticket_waitlist_entries WHERE event_id=1 AND buyer_id=2")->fetchColumn();
+wlAssert($firstEntry>0 && $secondEntry>$firstEntry,'fixture preserves FIFO identity');
 // T10 Resend transient retry is tested end-to-end through T28's own outbox message.
 $attempts=0;
 $sendSynthetic=static function (array $payload, array $headers) use (&$attempts): array {
@@ -172,7 +176,7 @@ wlAssert((int)$db->query("SELECT COUNT(*) FROM ticket_waitlist_entries WHERE sta
     && (int)$db->query("SELECT COUNT(*) FROM ticket_mail_outbox")->fetchColumn()===2,
     'offer and queue rollback together');
 $GLOBALS['config']['security']['encryption_key']=$fixtureCipher;
-wlAssert(brvtal_waitlist_offer($db,1,10,$now)['entry_id']===1,'FIFO invitation');
+wlAssert(brvtal_waitlist_offer($db,1,10,$now)['entry_id']===$firstEntry,'FIFO invitation');
 wlAssert(brvtal_waitlist_offer($db,1,10,$now)===null,'single capacity cannot over-offer');
 $clock=brvtal_waitlist_clock($now)->format('Y-m-d H:i:s.u');
 $usage=brvtal_ticket_inventory_usage($db,1,10,$clock);
@@ -180,27 +184,27 @@ wlAssert($usage['held']===1,'checkout counts offered capacity');
 wlAssert((int)$db->query('SELECT COUNT(*) FROM ticket_orders')->fetchColumn()===0,
     'no order, charge or ticket from signup/offer');
 $body=$readMail("SELECT * FROM ticket_mail_outbox
-    WHERE related_ref='waitlist:1' ORDER BY id LIMIT 1");
+    WHERE related_ref='waitlist:{$firstEntry}' ORDER BY id LIMIT 1");
 wlAssert(str_contains($body,'/api/ticketing/waitlist.php?token='),
     'email has actionable unsubscribe confirmation link');
 wlAssert((bool)preg_match('/[A-Za-z0-9_-]{43}$/D',$body,$parts),
     'unsubscribe delivered by outbox');
-$storedJoin=$db->query("SELECT * FROM ticket_mail_outbox WHERE related_ref='waitlist:1' ORDER BY id LIMIT 1")->fetch();
+$storedJoin=$db->query("SELECT * FROM ticket_mail_outbox WHERE related_ref='waitlist:{$firstEntry}' ORDER BY id LIMIT 1")->fetch();
 foreach (['body_text','body_html','subject','message_key','related_ref','payload_hash'] as $field) {
     wlAssert(!str_contains((string)$storedJoin[$field],$parts[0]),'no persisted unsubscribe bearer');
 }
 wlAssert(brvtal_waitlist_unsubscribe($db,$parts[0]),'unsubscribe');
 wlAssert((int)$db->query("SELECT COUNT(*) FROM ticket_mail_outbox
-    WHERE related_ref='waitlist:1' AND state IN ('queued','retry','sending')")->fetchColumn()===0,
+    WHERE related_ref='waitlist:{$firstEntry}' AND state IN ('queued','retry','sending')")->fetchColumn()===0,
     'unsubscribe atomically cancels all pending/retryable notifications');
 wlAssert((int)$db->query("SELECT COUNT(*) FROM ticket_mail_outbox
-    WHERE related_ref='waitlist:1' AND state='failed'
+    WHERE related_ref='waitlist:{$firstEntry}' AND state='failed'
     AND last_error_code='consent_revoked'")->fetchColumn()>=1,
     'revoked consent is not automatically retried');
 wlAssert(!brvtal_waitlist_unsubscribe($db,$parts[0]),'unsubscribe replay');
 wlAssert(brvtal_ticket_inventory_usage($db,1,10,$clock)['held']===0,
     'unsubscribe releases offer');
-wlAssert(brvtal_waitlist_offer($db,1,10,$now)['entry_id']===2,'next eligible entry');
+wlAssert(brvtal_waitlist_offer($db,1,10,$now)['entry_id']===$secondEntry,'next eligible entry');
 wlAssert(brvtal_waitlist_offer($db,1,10,$now->modify('+11 minutes'))!==null,
     'expired offers return to inventory');
 // A checkout may redeem a consented one-time invitation for exactly one
@@ -210,11 +214,11 @@ $db->exec("INSERT INTO ticket_orders(id,event_id,buyer_id,status)
 $db->exec("INSERT INTO ticket_order_items (order_id,ticket_type_id,quantity)
     VALUES (42,10,1),(43,10,1)");
 $offerBody=$readMail("SELECT * FROM ticket_mail_outbox
-    WHERE related_ref='waitlist:2' AND subject='Cupo liberado en BRVTAL'
+    WHERE related_ref='waitlist:{$secondEntry}' AND subject='Cupo liberado en BRVTAL'
     ORDER BY id DESC LIMIT 1");
 wlAssert(preg_match('/Código: ([A-Za-z0-9_-]{43})[.]/',$offerBody,$offerCode)===1,
     'offer token issued only to opted-in buyer');
-$storedOffer=$db->query("SELECT * FROM ticket_mail_outbox WHERE related_ref='waitlist:2'
+$storedOffer=$db->query("SELECT * FROM ticket_mail_outbox WHERE related_ref='waitlist:{$secondEntry}'
     AND template_key='waitlist_offer' ORDER BY id DESC LIMIT 1")->fetch();
 foreach (['body_text','body_html','subject','message_key','related_ref','payload_hash'] as $field) {
     wlAssert(!str_contains((string)$storedOffer[$field],$offerCode[1]),'no persisted invitation bearer');
@@ -311,9 +315,11 @@ $db->exec('INSERT INTO ticket_inventory_events VALUES (2,1)');
 $db->exec('INSERT INTO ticket_inventory_types VALUES (20,2,1,0)');
 wlAssert(brvtal_waitlist_subscribe($db,2,20,2,'waitlist-v1')==='waiting',
     'buyer opts in before checkout');
-wlAssert(brvtal_waitlist_offer($db,2,20)!==null, 'exclusive invitation offered');
+$thirdEntry=(int)$db->query("SELECT id FROM ticket_waitlist_entries WHERE event_id=2 AND buyer_id=2")->fetchColumn();
+wlAssert($thirdEntry>0 && brvtal_waitlist_offer($db,2,20)['entry_id']===$thirdEntry,
+    'exclusive invitation offered to the correct entry');
 $mail=$readMail("SELECT * FROM ticket_mail_outbox
-    WHERE related_ref='waitlist:3' AND subject='Cupo liberado en BRVTAL'
+    WHERE related_ref='waitlist:{$thirdEntry}' AND subject='Cupo liberado en BRVTAL'
     ORDER BY id DESC LIMIT 1");
 wlAssert(preg_match('/Código: ([A-Za-z0-9_-]{43})[.]/', $mail, $offerCode2)===1,
     'checkout invitation token comes from mock outbox');

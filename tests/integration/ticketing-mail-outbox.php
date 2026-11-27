@@ -339,8 +339,17 @@ $sealedId = brvtal_ticket_waitlist_mail_enqueue($pdo, 2126, 'offer',
 $pdo->commit();
 $sealedJob = $pdo->query("SELECT * FROM ticket_mail_outbox WHERE id=$sealedId")->fetch(PDO::FETCH_ASSOC);
 mail_assert(brvtal_ticket_waitlist_mail_open($sealedJob)!==null,'waitlist envelope opens');
+$renamed = BRVTAL_BUYER_MAIL_SEAL_PREFIX.substr($sealedJob['body_text'], strlen(BRVTAL_WAITLIST_MAIL_PREFIX));
+mail_assert(brvtalBuyerMailUnseal($renamed)===null,'buyer-auth cannot open re-prefixed waitlist ciphertext');
+$bytes=base64_decode(substr($sealedJob['body_text'],strlen(BRVTAL_WAITLIST_MAIL_PREFIX)),true);
+if (!is_string($bytes) || strlen($bytes) <= 28) throw new RuntimeException('fixture envelope missing');
+$bytes[28]=chr(ord($bytes[28]) ^ 1);
+mail_assert(brvtal_ticket_waitlist_mail_open(array_replace($sealedJob,
+    ['body_text'=>BRVTAL_WAITLIST_MAIL_PREFIX.base64_encode($bytes)]))===null,
+    'modified ciphertext rejected');
 foreach (['related_ref'=>'waitlist:2127','recipient_email'=>'other@example.test',
-    'subject'=>'Other','template_key'=>'waitlist_join','message_key'=>'waitlist:offer:2126:0000000000',
+    'subject'=>'Other','template_key'=>'waitlist_join','template_version'=>1,
+    'message_key'=>'waitlist:offer:2126:0000000000',
     'body_html'=>$sealedJob['body_text']] as $field=>$value) {
     mail_assert(brvtal_ticket_waitlist_mail_open(array_replace($sealedJob,[$field=>$value]))===null,
         'envelope rejects altered context or part');
