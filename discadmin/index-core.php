@@ -1340,7 +1340,8 @@ function render(){
   seo:'SEO',forms:'FORMULARIOS','content-core':'GESTIÓN DE CONTENIDO',security:'SEGURIDAD / 2FA'
  };
  const moduleTitle=moduleTitles[state.section]||state.section.toUpperCase();
- const moduleBody=['content-core','security','ticketing','forms'].includes(state.section)
+ const moduleBody=state.section==='content-core'||state.section==='security'
+  ||state.section==='ticketing'||state.section==='forms'
   ?'<div id="admin-module-host" aria-live="polite">CARGANDO…</div>'
   :content();
  root.innerHTML=`
