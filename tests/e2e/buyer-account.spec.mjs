@@ -358,7 +358,7 @@ test('#2188 courtesy-only pagination, filtering and empty state',async ({page})=
   await page.getByRole('button',{name:'Ver más entradas'}).click();
   await expect(section.getByText('Anulada')).toBeVisible();
   expect(queries.some(q=>q.get('page')==='1')).toBe(true);
-  await page.getByLabel('Evento',{exact:true}).selectOption('91');
+  await page.locator('#event-select').selectOption('91');
   await page.getByRole('button',{name:'Aplicar filtros'}).click();
   await expect(section).toContainText('No tienes cortesías en esta vista.');
   expect(queries.some(q=>q.get('event_id')==='91'&&q.get('page')==='0')).toBe(true);
