@@ -400,3 +400,87 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
 echo "T20 finance + POS synthetic invariants OK\n";
 // T21 synthetic MariaDB regressions execute in the existing finance integration harness.
 require __DIR__.'/ticketing-refunds.php';
+
+// #2190: real, disposable database; no live or provider credentials.
+if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
+    t20((bool)preg_match('/^brvtal_test[a-zA-Z0-9_]*$/D', (string)getenv('BRVTAL_TEST_DB_NAME')),
+        'ledger regression requires a disposable database');
+    $ledgerDsn = sprintf('mysql:host=%s;port=%d;charset=utf8mb4',
+        getenv('BRVTAL_TEST_DB_HOST') ?: '127.0.0.1', (int)(getenv('BRVTAL_TEST_DB_PORT') ?: 3306));
+    $ledgerUser = (string)(getenv('BRVTAL_TEST_DB_USER') ?: 'root');
+    $ledgerPass = (string)(getenv('BRVTAL_TEST_DB_PASS') ?: '');
+    $ledgerOptions = [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC, PDO::ATTR_EMULATE_PREPARES=>false];
+    $ledgerServer = new PDO($ledgerDsn, $ledgerUser, $ledgerPass, $ledgerOptions);
+    $ledgerName = 'brvtal_test_ledger_' . bin2hex(random_bytes(6));
+    $ledgerServer->exec('CREATE DATABASE ' . $ledgerName . ' CHARACTER SET utf8mb4');
+    try {
+        $ledger = new PDO($ledgerDsn . ';dbname=' . $ledgerName, $ledgerUser, $ledgerPass, $ledgerOptions);
+        $ledger->exec('CREATE TABLE events (id INT UNSIGNED PRIMARY KEY) ENGINE=InnoDB');
+        $ledger->exec('CREATE TABLE admins (id INT UNSIGNED PRIMARY KEY, staff_role VARCHAR(32), is_active TINYINT) ENGINE=InnoDB');
+        $ledger->exec("INSERT INTO events VALUES (1),(2)");
+        $ledger->exec("INSERT INTO admins VALUES (1,'admin',1),(2,'door',1),(3,'admin',0)");
+        foreach (['migration_admin_activity_01.sql','migration_ticketing_finance_expenses_01.sql'] as $file) {
+            $ledger->exec((string)file_get_contents(__DIR__.'/../../database/'.$file));
+        }
+        $expense = ['category'=>'artistas','concept'=>'Synthetic artist','amount_cop'=>150000,
+            'entry_date'=>'2026-11-27','status'=>'committed'];
+        $first = brvtalFinanceLedgerWrite($ledger,'expense',1,1,'create',null,$expense,'initial');
+        $paid = array_replace($expense,['status'=>'paid','amount_cop'=>160000]);
+        $second = brvtalFinanceLedgerWrite($ledger,'expense',1,1,'adjust',$first,$paid,'corrected');
+        $third = brvtalFinanceLedgerWrite($ledger,'expense',1,1,'void',$second,[],'cancelled');
+        $rows = $ledger->query('SELECT * FROM event_expenses ORDER BY id')->fetchAll();
+        t20(count($rows)===3 && (int)$rows[0]['amount_cop']===150000
+            && (int)$rows[1]['supersedes_id']===$first && $rows[1]['status']==='paid'
+            && (int)$rows[2]['supersedes_id']===$second && $rows[2]['status']==='void'
+            && (int)$rows[2]['amount_cop']===160000 && $rows[0]['entry_date']==='2026-11-27',
+            'expense history and Bogotá calendar date preserved');
+        $audit = $ledger->query("SELECT * FROM admin_activity_log WHERE resource='event_expenses' ORDER BY id")->fetchAll();
+        t20(count($audit)===3 && (int)$audit[1]['admin_id']===1
+            && (int)$audit[2]['resource_id']===$third
+            && json_decode($audit[1]['meta_json'],true)['reason']==='corrected','atomic actor and reason audit');
+        $budget = ['category'=>'artistas','amount_cop'=>200000,'entry_date'=>'2026-11-27','status'=>'active'];
+        $b = brvtalFinanceLedgerWrite($ledger,'budget',1,1,'create',null,$budget,'initial');
+        $b2 = brvtalFinanceLedgerWrite($ledger,'budget',1,1,'adjust',$b,array_replace($budget,['amount_cop'=>0]),'adjusted');
+        brvtalFinanceLedgerWrite($ledger,'budget',1,1,'create',null,array_replace($budget,['category'=>'lugar']),'venue');
+        brvtalFinanceLedgerWrite($ledger,'budget',2,1,'create',null,$budget,'other event');
+        t20((int)$ledger->query('SELECT COUNT(*) FROM event_budgets')->fetchColumn()===4,'budget per event/category and revisions');
+        $reject = static function (callable $f, string $expected): void {
+            try { $f(); } catch (InvalidArgumentException|DomainException $e) {
+                t20($e->getMessage()===$expected,'ledger rejection '.$expected); return;
+            }
+            throw new RuntimeException('T20: ledger unexpectedly accepted '.$expected);
+        };
+        foreach ([0,-1,1.5,'100',true,PHP_INT_MAX+1] as $bad) {
+            $reject(fn()=>brvtalFinanceLedgerWrite($ledger,'expense',1,1,'create',null,
+                array_replace($expense,['amount_cop'=>$bad]),'bad amount'),'INVALID_LEDGER_VALUES');
+        }
+        $reject(fn()=>brvtalFinanceLedgerWrite($ledger,'expense',1,1,'create',null,
+            array_replace($expense,['entry_date'=>'2026-02-30']),'bad date'),'INVALID_DATE');
+        $reject(fn()=>brvtalFinanceLedgerWrite($ledger,'expense',1,1,'adjust',$first,$paid,'stale'),'LEDGER_STALE_REVISION');
+        $reject(fn()=>brvtalFinanceLedgerWrite($ledger,'expense',2,1,'void',$third,[],'wrong event'),'LEDGER_STALE_REVISION');
+        $reject(fn()=>brvtalFinanceLedgerWrite($ledger,'budget',1,1,'create',null,$budget,'duplicate'),'LEDGER_BUDGET_EXISTS');
+        $reject(fn()=>brvtalFinanceLedgerWrite($ledger,'budget',1,1,'adjust',$b2,
+            array_replace($budget,['category'=>'lugar']),'wrong category'),'LEDGER_BUDGET_CATEGORY_IMMUTABLE');
+        $b3 = brvtalFinanceLedgerWrite($ledger,'budget',1,1,'void',$b2,[],'budget void');
+        $budgetRows = $ledger->query("SELECT * FROM event_budgets WHERE id IN ($b,$b2,$b3) ORDER BY id")->fetchAll();
+        t20(count($budgetRows)===3 && (int)$budgetRows[0]['amount_cop']===200000
+            && (int)$budgetRows[1]['amount_cop']===0 && $budgetRows[2]['status']==='void',
+            'budget void preserves original and zero revision');
+        brvtalFinanceLedgerWrite($ledger,'budget',1,1,'create',null,$budget,'new budget after void');
+        foreach ([2,3] as $actor) {
+            $reject(fn()=>brvtalFinanceLedgerWrite($ledger,'expense',1,$actor,'create',null,$expense,'forbidden'),'LEDGER_FORBIDDEN');
+        }
+        $ledger->exec('RENAME TABLE admin_activity_log TO ledger_audit_unavailable');
+        try {
+            brvtalFinanceLedgerWrite($ledger,'expense',1,1,'create',null,$expense,'must roll back');
+            throw new RuntimeException('T20: audit missing but write committed');
+        } catch (PDOException $e) {
+            t20($e->getCode()==='42S02' && !$ledger->inTransaction()
+                && (int)$ledger->query('SELECT COUNT(*) FROM event_expenses')->fetchColumn()===3,
+                'missing audit rolls back ledger write');
+        }
+    } finally {
+        $ledgerServer->exec('DROP DATABASE ' . $ledgerName);
+    }
+}
