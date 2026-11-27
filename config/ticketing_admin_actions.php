@@ -129,6 +129,127 @@ function brvtalTicketAdminRecordAction(PDO $pdo, int $actorId, string $role, arr
 }
 
 
+
+/**
+ * Internal metadata only, for #2101. Caller must already have a trusted staff
+ * session and keep the transaction open through the eventual delivery decision.
+ * The recipient is a candidate to validate, not an address to override.
+ * @return array{buyer_id:int,entries:list<array{entry_id:int,state:string,version:?int}>}
+ */
+function brvtalTicketAdminRecoveryProjection(
+    PDO $pdo, int $actorId, string $role, int $orderId, int $eventId, string $recipient
+): array {
+    if ($actorId < 1 || !brvtalTicketAdminCanAction($role, 'resend')) {
+        throw new DomainException('FORBIDDEN');
+    }
+    if (!$pdo->inTransaction()) throw new LogicException('RECOVERY_TRANSACTION_REQUIRED');
+    if ($orderId < 1 || $eventId < 1 || !filter_var($recipient, FILTER_VALIDATE_EMAIL)) {
+        throw new DomainException('RECOVERY_ORDER_UNAVAILABLE');
+    }
+    require_once __DIR__ . '/ticketing_issue.php';
+    try {
+        // Order before outbox, payment, items, entries and credentials.
+        $q = $pdo->prepare('SELECT event_id,buyer_id,status FROM ticket_orders WHERE id=? FOR UPDATE');
+        $q->execute([$orderId]);
+        $order = $q->fetch(PDO::FETCH_ASSOC);
+        if (!$order || $order['status'] !== 'paid' || (int)$order['event_id'] !== $eventId) {
+            throw new DomainException('RECOVERY_ORDER_UNAVAILABLE');
+        }
+        $q = $pdo->prepare('SELECT email,status FROM ticket_buyers WHERE id=? FOR UPDATE');
+        $q->execute([(int)$order['buyer_id']]);
+        $buyer = $q->fetch(PDO::FETCH_ASSOC);
+        if (!$buyer || !in_array($buyer['status'], ['guest','active'], true)
+            || !is_string($buyer['email']) || strtolower($buyer['email']) !== strtolower($recipient)) {
+            throw new DomainException('RECOVERY_ORDER_UNAVAILABLE');
+        }
+        $q = $pdo->prepare("SELECT payment_attempt_id FROM ticket_issue_outbox
+            WHERE order_id=? AND state='done' FOR UPDATE");
+        $q->execute([$orderId]);
+        $job = $q->fetch(PDO::FETCH_ASSOC);
+        if (!$job) throw new DomainException('RECOVERY_PAYMENT_UNVERIFIED');
+        if ($job['payment_attempt_id'] === null) {
+            $verified = brvtal_ticket_pos_verified($pdo, $orderId);
+        } else {
+            // Same exact outbox/attempt/signed journal relationship as the mail gate.
+            $q = $pdo->prepare("SELECT a.id FROM ticket_payment_attempts a
+                JOIN ticket_payment_webhook_events w ON w.attempt_id=a.id
+                  AND w.provider_transaction_id=a.provider_transaction_id
+                WHERE a.id=? AND a.order_id=? AND a.provider='wompi'
+                  AND a.status='approved' AND a.provider_transaction_id IS NOT NULL
+                  AND w.signed_status='APPROVED' LIMIT 1 FOR UPDATE");
+            $q->execute([(int)$job['payment_attempt_id'], $orderId]);
+            $verified = $q->fetchColumn() !== false;
+        }
+        if (!$verified) throw new DomainException('RECOVERY_PAYMENT_UNVERIFIED');
+        $q = $pdo->prepare('SELECT id,event_id,ticket_type_id,quantity FROM ticket_order_items
+            WHERE order_id=? ORDER BY id FOR UPDATE');
+        $q->execute([$orderId]);
+        $items = $q->fetchAll(PDO::FETCH_ASSOC);
+        $entries = [];
+        $total = 0;
+        $encrypted = brvtal_ticket_issue_has_encrypted_column($pdo);
+        foreach ($items as $item) {
+            $quantity = (int)$item['quantity'];
+            $total += $quantity;
+            if ($quantity < 1 || $quantity > 200 || $total > 400 || (int)$item['event_id'] !== $eventId) {
+                throw new DomainException('RECOVERY_INCONSISTENT');
+            }
+            $q = $pdo->prepare('SELECT id,public_id,event_id,ticket_type_id,unit_number,status
+                FROM ticket_entries WHERE order_item_id=? ORDER BY unit_number FOR UPDATE');
+            $q->execute([(int)$item['id']]);
+            $rows = $q->fetchAll(PDO::FETCH_ASSOC);
+            if (count($rows) !== $quantity) throw new DomainException('RECOVERY_INCONSISTENT');
+            foreach ($rows as $offset => $entry) {
+                if ((int)$entry['event_id'] !== $eventId
+                    || (int)$entry['ticket_type_id'] !== (int)$item['ticket_type_id']
+                    || (int)$entry['unit_number'] !== $offset + 1) {
+                    throw new DomainException('RECOVERY_INCONSISTENT');
+                }
+                $entries[] = brvtalTicketAdminRecoveryEntry($pdo, $entry, $encrypted);
+            }
+        }
+        if ($total < 1) throw new DomainException('RECOVERY_INCONSISTENT');
+        return ['buyer_id'=>(int)$order['buyer_id'], 'entries'=>$entries];
+    } catch (PDOException) {
+        throw new RuntimeException('RECOVERY_STORAGE_UNAVAILABLE');
+    }
+}
+
+/** @return array{entry_id:int,state:string,version:?int} */
+function brvtalTicketAdminRecoveryEntry(PDO $pdo, array $entry, bool $encrypted): array
+{
+    $result = ['entry_id'=>(int)$entry['id'], 'state'=>'inconsistent', 'version'=>null];
+    if (in_array($entry['status'], ['used','revoked','refunded'], true)) {
+        $result['state'] = $entry['status'];
+        return $result;
+    }
+    if ($entry['status'] !== 'issued') return $result;
+    $q = $pdo->prepare('SELECT version,status,token_algorithm,token_hash,'
+        . ($encrypted ? 'token_encrypted' : 'NULL AS token_encrypted')
+        . ' FROM ticket_entry_credentials WHERE entry_id=? ORDER BY version DESC FOR UPDATE');
+    $q->execute([(int)$entry['id']]);
+    $credentials = $q->fetchAll(PDO::FETCH_ASSOC);
+    $active = array_values(array_filter($credentials, static fn(array $row): bool => $row['status'] === 'active'));
+    if (count($active) !== 1 || (int)$active[0]['version'] < 1
+        || $active[0]['version'] !== $credentials[0]['version']
+        || $active[0]['token_algorithm'] !== 'sha256-v1') return $result;
+    $credential = $active[0];
+    $result['version'] = (int)$credential['version'];
+    if ($credential['token_encrypted'] === null) {
+        $result['state'] = 'historical';
+        return $result;
+    }
+    try {
+        $raw = brvtal_ticket_issue_open_token((string)$credential['token_encrypted'], (string)$entry['public_id']);
+        $valid = hash_equals((string)$credential['token_hash'], hash('sha256', $raw, true));
+        unset($raw);
+        $result['state'] = $valid ? 'recoverable' : 'invalid_ciphertext';
+    } catch (DomainException) {
+        $result['state'] = 'invalid_ciphertext';
+    }
+    return $result;
+}
+
 /**
  * #1979: production-capable order-only actions. The order row is the serialization
  * point for concurrent staff, payment webhooks and inventory changes. No provider
