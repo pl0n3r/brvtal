@@ -343,19 +343,24 @@ function brvtal_ticket_issue_has_courtesy_table(PDO $db): bool
  */
 function brvtal_ticket_issue_courtesy_rows(PDO $db, int $buyerId, ?string $ticketId = null, array $filters = []): array
 {
-    if ($buyerId < 1 || session_status() !== PHP_SESSION_ACTIVE
+    // Build-ahead: do not activate recovery of real customer credentials
+    // until the owner resolves the privacy/go-live gate.
+    if (getenv('BRVTAL_TICKET_COURTESY_ACCOUNT_ENABLED') !== '1'
+        || $buyerId < 1 || session_status() !== PHP_SESSION_ACTIVE
         || (int)($_SESSION['buyer_id'] ?? 0) !== $buyerId
         || !empty($_SESSION['buyer_checkout_new_order'])
         || !brvtal_ticket_issue_has_courtesy_table($db)) {
         return [];
     }
     $stored = brvtal_ticket_issue_has_encrypted_column($db);
-    $secret = $stored && $ticketId !== null ? 'cred.token_encrypted' : 'NULL';
-    $hasStored = $stored ? 'cred.token_encrypted IS NOT NULL' : '0';
+    if ($ticketId !== null && !$stored) return [];
+    $secret = $ticketId !== null ? 'cred.token_encrypted' : 'NULL';
+    $hash = $ticketId !== null ? 'cred.token_hash' : 'NULL';
+    $hasStored = $stored ? 'cred.token_encrypted IS NOT NULL AND cred.token_hash IS NOT NULL' : '0';
     $args = [$buyerId, hash('sha256', session_id())];
     $extra = '';
     if ($ticketId !== null) {
-        $extra = " AND t.public_id=UNHEX(?) AND ci.status='issued' AND cred.id IS NOT NULL";
+        $extra = " AND t.public_id=UNHEX(?) AND ci.status='issued' AND cred.id IS NOT NULL AND cred.token_encrypted IS NOT NULL";
         $args[] = $ticketId;
     } else {
         if ($filters['event_id'] !== null) { $extra .= ' AND o.event_id=?'; $args[] = $filters['event_id']; }
@@ -365,7 +370,7 @@ function brvtal_ticket_issue_courtesy_rows(PDO $db, int $buyerId, ?string $ticke
     try {
         $q = $db->prepare("SELECT LOWER(HEX(t.public_id)) AS ticket_id,t.public_id,
             ci.status,e.id AS event_id,e.title AS event_title,e.event_date,e.venue,e.status AS event_status,
-            i.ticket_name_snapshot AS name,o.created_at_utc,cred.token_hash,
+            i.ticket_name_snapshot AS name,o.created_at_utc,$hash AS token_hash,
             $secret AS token_encrypted,($hasStored) AS qr_stored
             FROM ticket_courtesy_invites ci
             JOIN ticket_orders o ON o.id=ci.order_id AND o.event_id=ci.event_id
@@ -439,7 +444,9 @@ function brvtal_ticket_issue_qr_payload(
     if ($courtesy !== null) {
         $cutoff = brvtal_ticket_issue_courtesy_cutoff($courtesy);
         if (!$cutoff || $cutoff <= $nowUtc || !is_string($courtesy['token_hash'])
-            || !hash_equals($courtesy['token_hash'], hash('sha256',$raw,true))) {
+            || !hash_equals($courtesy['token_hash'], hash('sha256',$raw,true))
+            || !is_string($courtesy['token_encrypted']) || !is_string($courtesy['public_id'])
+            || !hash_equals(brvtal_ticket_issue_open_token($courtesy['token_encrypted'], $courtesy['public_id']), $raw)) {
             throw new DomainException('TICKET_UNAVAILABLE');
         }
         return 'BRVTAL:T1:' . $publicId . ':' . $token;

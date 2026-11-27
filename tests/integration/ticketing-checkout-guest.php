@@ -348,12 +348,19 @@ $makeCourtesy = static function(int $buyer, string $email) use ($db): array {
 };
 [$courtesyOrder,$courtesyEntry,$courtesyTicket,$courtesyToken]=$makeCourtesy($memberId,'socia@example.test');
 [$foreignOrder,$foreignEntry,$foreignTicket,$foreignToken]=$makeCourtesy($guestId,'nueva@example.test');
+putenv('BRVTAL_TICKET_COURTESY_ACCOUNT_ENABLED');
+$disabled=brvtalBuyerAccountOrders($db,$memberId,$filters);
+guestAssert($disabled['courtesies']===[] && array_column($disabled['orders'],'order_number')===[$existingOrder],
+    'pre-live default denies new courtesy access without misclassifying purchases');
+guestRejects(fn()=>brvtalBuyerAccountStoredQr($db,$memberId,$courtesyTicket),'TICKET_UNAVAILABLE','default off stored QR');
+guestRejects(fn()=>brvtalBuyerAccountQr($db,$memberId,$courtesyTicket,$courtesyToken),'TICKET_UNAVAILABLE','default off original QR');
+putenv('BRVTAL_TICKET_COURTESY_ACCOUNT_ENABLED=1');
 $view=brvtalBuyerAccountOrders($db,$memberId,$filters);
 guestAssert(array_column($view['orders'],'order_number')===[$existingOrder]
     && count($view['courtesies'])===1 && !$view['courtesies_has_more'], 'courtesy separate from purchase ledger');
 $c=$view['courtesies'][0];
 guestAssert($c['origin']==='courtesy' && $c['ticket_id']===$courtesyTicket && $c['status']==='issued'
-    && $c['qr_stored'] && !$c['refundable'] && !isset($c['payment_status'],$c['total_cop'],$c['token_hash'],$c['token_encrypted']),
+    && $c['qr_stored'] && !$c['refundable'] && array_intersect(array_keys($c), ['payment_status','total_cop','token_hash','token_encrypted'])===[],
     'authorized receipt has safe projection, no payment or secret');
 $expected='BRVTAL:T1:'.$courtesyTicket.':'.$courtesyToken;
 guestAssert(brvtalBuyerAccountStoredQr($db,$memberId,$courtesyTicket)['content']===$expected
@@ -385,6 +392,16 @@ guestRejects(fn()=>brvtalBuyerAccountQr($db,$memberId,$courtesyTicket,$courtesyT
 $newToken=rtrim(strtr(base64_encode($newRaw),'+/','-_'),'=');
 guestAssert(brvtalBuyerAccountStoredQr($db,$memberId,$courtesyTicket)['content']==='BRVTAL:T1:'.$courtesyTicket.':'.$newToken,
     'recovery follows active rotated credential');
+$sealed=brvtal_ticket_issue_seal_token($newRaw,hex2bin($courtesyTicket));
+$db->exec("UPDATE ticket_entry_credentials SET token_encrypted=NULL WHERE entry_id=$courtesyEntry AND version=2");
+guestAssert(!brvtalBuyerAccountOrders($db,$memberId,$filters)['courtesies'][0]['qr_stored'], 'legacy NULL has no recoverable QR');
+guestRejects(fn()=>brvtalBuyerAccountStoredQr($db,$memberId,$courtesyTicket),'TICKET_UNAVAILABLE','legacy NULL recovery');
+guestRejects(fn()=>brvtalBuyerAccountQr($db,$memberId,$courtesyTicket,$newToken),'TICKET_UNAVAILABLE','legacy NULL original path');
+$db->exec("UPDATE ticket_entry_credentials SET token_encrypted=RANDOM_BYTES(61) WHERE entry_id=$courtesyEntry AND version=2");
+guestRejects(fn()=>brvtalBuyerAccountStoredQr($db,$memberId,$courtesyTicket),'TICKET_UNAVAILABLE','corrupt ciphertext');
+guestRejects(fn()=>brvtalBuyerAccountQr($db,$memberId,$courtesyTicket,$newToken),'TICKET_UNAVAILABLE','corrupt ciphertext original path');
+$db->prepare("UPDATE ticket_entry_credentials SET token_encrypted=? WHERE entry_id=? AND version=2")
+    ->execute([$sealed,$courtesyEntry]);
 $db->exec("UPDATE ticket_entry_credentials SET token_hash=RANDOM_BYTES(32) WHERE entry_id=$courtesyEntry AND version=2");
 guestRejects(fn()=>brvtalBuyerAccountStoredQr($db,$memberId,$courtesyTicket),'TICKET_UNAVAILABLE','ciphertext hash mismatch');
 $db->prepare("UPDATE ticket_entry_credentials SET token_hash=? WHERE entry_id=? AND version=2")
@@ -417,7 +434,8 @@ $db->prepare("UPDATE ticket_buyer_sessions SET expires_at_utc=UTC_TIMESTAMP(6)+I
 guestAssert((int)$db->query("SELECT COUNT(*) FROM ticket_payment_attempts WHERE order_id=$courtesyOrder")->fetchColumn()===0
     && (int)$db->query("SELECT COUNT(*) FROM ticket_entry_credentials WHERE entry_id=$courtesyEntry")->fetchColumn()===2,
     'recovery never pays, emits or rotates');
-echo "BRVTAL #2187 courtesy account scope, rotation and read-only recovery passed.\n";
+putenv('BRVTAL_TICKET_COURTESY_ACCOUNT_ENABLED');
+echo "BRVTAL #2187 courtesy account scope, activation guard, rotation and read-only recovery passed.\n";
 
 $memberCookie = session_id();
 session_write_close();

@@ -84,13 +84,13 @@ function brvtalBuyerAccountCourtesies(PDO $db, int $buyerId, array $filters): ar
         $cutoff = brvtal_ticket_issue_courtesy_cutoff($row);
         $status = $row['status'];
         if ($status === 'issued' && (!$cutoff || $cutoff <= $now)) $status = 'expired';
-        $active = $status === 'issued' && is_string($row['token_hash']);
+        $active = $status === 'issued' && (bool)$row['qr_stored'];
         $courtesies[] = [
             'origin'=>'courtesy', 'status'=>$status, 'ticket_id'=>$row['ticket_id'],
             'event_id'=>(int)$row['event_id'], 'event_title'=>$row['event_title'],
             'event_date'=>$row['event_date'], 'venue'=>$row['venue'], 'name'=>$row['name'],
             'created_at_utc'=>$row['created_at_utc'],
-            'qr_requires_original_token'=>$active, 'qr_stored'=>$active && (bool)$row['qr_stored'],
+            'qr_requires_original_token'=>$active, 'qr_stored'=>$active,
             'refundable'=>false,
         ];
     }
