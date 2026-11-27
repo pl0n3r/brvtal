@@ -6,6 +6,7 @@ require_once __DIR__ . '/ticketing_admin_actions.php';
 require_once __DIR__ . '/ticketing_inventory.php';
 require_once __DIR__ . '/ticketing_stages.php';
 require_once __DIR__ . '/ticketing_issue.php';
+require_once __DIR__ . '/ticketing_pos_receipts.php';
 
 /** T24: only authorized financial staff in a disposable integration database. */
 function brvtalPosCan(string $role): bool {
@@ -39,6 +40,7 @@ function brvtalPosInput(array $raw): array {
     $expected=$shape[$action];
     if ($action==='confirm' && array_key_exists('buyer_email',$raw)) $expected[]='buyer_email';
     if ($action==='manual_order' && array_key_exists('quote_token',$raw)) $expected[]='quote_token';
+    if ($action==='manual_order' && array_key_exists('destination_id',$raw)) $expected[]='destination_id';
     if ($action==='manual_order' && array_key_exists('received_amount_cop',$raw)) {
         $expected=array_merge($expected,['received_amount_cop','received_reason','received_reference']);
     }
@@ -94,6 +96,9 @@ function brvtalPosInput(array $raw): array {
         $result+=['buyer_name'=>$name,'buyer_email'=>strtolower($email),
             'method'=>$method,'payment_reference'=>$reference,
             'idempotency_key'=>$key,'confirm'=>true];
+        if (array_key_exists('destination_id',$raw)) {
+            $result['destination_id']=brvtalPosInt($raw['destination_id']);
+        }
         if (array_key_exists('received_amount_cop',$raw)) {
             // Zero is a separate courtesy flow. Preserve the existing integer-COP
             // unit × quantity invariant rather than silently rounding a receipt.
@@ -138,11 +143,74 @@ function brvtalPosInput(array $raw): array {
     }
     return $result;
 }
+function brvtalPosOwner(string $role): bool {
+    return in_array(strtolower(trim($role)), ['superadmin','root','owner','platform_owner'], true);
+}
+
+/** Missing or explicitly disabled setting preserves the existing flow. Invalid state fails closed. */
+function brvtalPosReceiptEnabled(PDO $db): bool {
+    $q=$db->prepare("SELECT setting_value,is_json FROM settings WHERE setting_key=?");
+    $q->execute(['pos.receipt_identity.enabled']);
+    $row=$q->fetch(PDO::FETCH_ASSOC);
+    if (!$row) return false;
+    $value=(string)$row['setting_value'];
+    if ((int)$row['is_json']===1) {
+        $value=json_decode($value,true);
+        if (is_bool($value)) return $value;
+    } elseif (in_array($value,['0','1','false','true'],true)) {
+        return in_array($value,['1','true'],true);
+    }
+    throw new DomainException('POS_RECEIPT_REVIEW_REQUIRED');
+}
+
+/** No bank details or reference history leave the server. */
+function brvtalPosReceiptCatalog(PDO $db, int $actor, string $role): array {
+    if ($actor<1 || !brvtalPosOwner($role)) throw new DomainException('FORBIDDEN');
+    $enabled=brvtalPosReceiptEnabled($db);
+    $destinations=[];
+    if ($enabled) {
+        foreach (['transfer','nequi','daviplata','terminal'] as $method) {
+            $destinations[$method]=brvtalPosDestinations($db,$method);
+        }
+    }
+    return ['enabled'=>$enabled,'destinations'=>$destinations];
+}
+
+/** Current reads under destination lock prevent cross-actor/event reuse. */
+function brvtalPosReceiptScope(PDO $db, array $i): ?string {
+    $destination=$i['destination_id']??null;
+    if ($i['method']==='cash' || !brvtalPosReceiptEnabled($db)) {
+        if ($destination!==null) throw new DomainException('POS_RECEIPT_REVIEW_REQUIRED');
+        return null;
+    }
+    if ($destination===null || isset($i['received_amount_cop'])) {
+        // Additional/adjusted payment evidence may represent a split payment.
+        throw new DomainException('POS_RECEIPT_REVIEW_REQUIRED');
+    }
+    $reference=brvtalPosReceiptNormalize($i['payment_reference']);
+    $q=$db->prepare('SELECT id FROM ticket_pos_payment_destinations WHERE id=? AND method=? AND is_active=1 FOR UPDATE');
+    $q->execute([$destination,$i['method']]);
+    if (!$q->fetchColumn()) throw new DomainException('POS_RECEIPT_REVIEW_REQUIRED');
+    $q=$db->prepare('SELECT id FROM ticket_pos_payment_receipts
+        WHERE destination_id=? AND normalized_reference=? FOR UPDATE');
+    $q->execute([$destination,$reference]);
+    if ($q->fetchColumn()) throw new DomainException('POS_RECEIPT_DUPLICATE');
+    // Historical notes lack a destination. A consistent read sees note and
+    // registration atomically, without range-locking unrelated audit history.
+    $q=$db->prepare("SELECT n.id FROM ticket_order_notes n
+        WHERE n.note_text LIKE CONCAT('manual-payment|',?,'|%')
+          AND BINARY UPPER(REGEXP_REPLACE(TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(n.note_text,'|',3),'|',-1)),' +',' '))=?
+          AND NOT EXISTS (SELECT 1 FROM ticket_pos_payment_receipts r WHERE r.order_id=n.order_id)
+        LIMIT 1");
+    $q->execute([$i['method'],$reference]);
+    if ($q->fetchColumn()) throw new DomainException('POS_RECEIPT_REVIEW_REQUIRED');
+    return $reference;
+}
+
 function brvtalPosRun(PDO $db, int $actor, string $role, array $raw, ?string $quoteKey=null): array {
     $input=brvtalPosInput($raw);
     $manual=in_array($input['action'], ['manual_order', 'manual_intent', 'manual_quote'], true);
-    $isOwner=in_array(strtolower(trim($role)),
-        ['superadmin','root','owner','platform_owner'],true);
+    $isOwner=brvtalPosOwner($role);
     if ($actor<1 || ($manual ? !$isOwner : !brvtalPosCan($role))) {
         throw new DomainException('FORBIDDEN');
     }
@@ -506,6 +574,7 @@ function brvtalPosManualOrder(PDO $db,int $actor,array $i,?string $quoteKey): ar
     if (isset($i['received_amount_cop'])) {
         $request[]=[$i['received_amount_cop'],$i['received_reason'],$i['received_reference']];
     }
+    if (isset($i['destination_id'])) $request[]=['destination_id'=>$i['destination_id']];
     $digest=hash('sha256',json_encode($request,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE));
     brvtalPosEventLock($db,$i['event_id']);
     $old=$db->prepare('SELECT id,status,total_cop FROM ticket_orders WHERE checkout_key_hash=? FOR UPDATE');
@@ -530,6 +599,7 @@ function brvtalPosManualOrder(PDO $db,int $actor,array $i,?string $quoteKey): ar
             'replayed'=>true];
     }
 
+    $receiptReference=brvtalPosReceiptScope($db,$i);
     if (!isset($i['quote_token'])) throw new DomainException('POS_QUOTE_REQUIRED');
     $expiry=(int)substr($i['quote_token'],0,10);
     if ($expiry<=time() || $expiry>time()+120) throw new DomainException('POS_QUOTE_CHANGED');
@@ -552,6 +622,9 @@ function brvtalPosManualOrder(PDO $db,int $actor,array $i,?string $quoteKey): ar
         VALUES (?,?,?,?,'draft','COP',?)")
         ->execute([random_bytes(16),$buyerId,$i['event_id'],$key,$amount]);
     $orderId=(int)$db->lastInsertId();
+    if ($receiptReference!==null) {
+        brvtalPosReceiptRegister($db,$orderId,$i['method'],$i['destination_id'],$receiptReference,$digest);
+    }
     $db->prepare("INSERT INTO ticket_order_items
         (order_id,event_id,ticket_type_id,ticket_name_snapshot,quantity,unit_price_cop,subtotal_cop,currency)
         VALUES (?,?,?,?,?,?,?,'COP')")

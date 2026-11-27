@@ -6,6 +6,20 @@ require_once __DIR__ . '/../../config/ticketing_pos.php';
 header('Cache-Control: no-store, private');
 header('X-Content-Type-Options: nosniff');
 brvtal_admin_require();
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET')==='GET' && $_GET===['receipt_identity'=>'1']) {
+    try {
+        $pdo=db();
+        $actor=(int)($_SESSION['admin_id']??0);
+        $role=$pdo->prepare('SELECT staff_role FROM admins WHERE id=? AND is_active=1 LIMIT 1');
+        $role->execute([$actor]);
+        json_response(['ok'=>true,'data'=>brvtalPosReceiptCatalog($pdo,$actor,(string)$role->fetchColumn())],200);
+    } catch (DomainException $error) {
+        $code=$error->getMessage();
+        json_response(['ok'=>false,'error'=>$code],$code==='FORBIDDEN'?403:409);
+    } catch (Throwable) {
+        json_response(['ok'=>false,'error'=>'POS_UNAVAILABLE'],503);
+    }
+}
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
     json_response(['ok'=>false,'error'=>'METHOD_NOT_ALLOWED'],405,['Allow'=>'POST']);
 }
