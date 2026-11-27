@@ -5,6 +5,7 @@ require_once __DIR__ . '/ticketing_staff_permissions.php';
 require_once __DIR__ . '/ticketing_inventory.php';
 require_once __DIR__ . '/ticketing_mail_outbox.php';
 require_once __DIR__ . '/ticketing_mail_mode.php';
+require_once __DIR__ . '/ticketing_issue.php';
 
 /** The additive schema, rather than a production escape hatch, owns readiness. */
 function brvtalCourtesyEnabled(PDO $db): bool {
@@ -41,8 +42,8 @@ function brvtalCourtesyValidate(array $input): array {
 }
 
 /**
- * The QR bearer is *only* present in the sealed outbox body; never return it
- * to DISCADMIN or persist it as plaintext. The existing CLI mail worker owns
+ * The QR bearer is encrypted in credential storage and the sealed outbox;
+ * never return it to DISCADMIN or persist it as plaintext. The existing CLI mail worker owns
  * provider delivery and its test/live gates.
  */
 function brvtalCourtesyQueue(
@@ -180,8 +181,9 @@ function brvtalCourtesyIssue(PDO $db,int $actor,string $role,array $data): array
         $db->prepare('INSERT INTO ticket_entries(public_id,order_item_id,event_id,ticket_type_id,unit_number,issued_at_utc)
             VALUES (?,?,?,?,1,UTC_TIMESTAMP(6))')->execute([$public,$item,$event,$type]);
         $entry=(int)$db->lastInsertId();
-        $db->prepare("INSERT INTO ticket_entry_credentials(entry_id,version,token_hash,created_at_utc)
-            VALUES (?,1,?,UTC_TIMESTAMP(6))")->execute([$entry,hash('sha256',$secret,true)]);
+        $db->prepare("INSERT INTO ticket_entry_credentials(entry_id,version,token_hash,token_encrypted,created_at_utc)
+            VALUES (?,1,?,?,UTC_TIMESTAMP(6))")->execute([
+                $entry,hash('sha256',$secret,true),brvtal_ticket_issue_seal_token($secret,$public)]);
         $db->prepare('INSERT INTO ticket_courtesy_invites
             (event_id,ticket_type_id,order_id,entry_id,category,recipient_digest,request_digest,reason,authorized_by)
             VALUES (?,?,?,?,?,?,?,?,?)')->execute([$event,$type,$order,$entry,$data['category'],
@@ -241,8 +243,9 @@ function brvtalCourtesyAction(PDO $db,int $actor,string $role,string $action,int
                 WHERE entry_id=? AND status='active'")->execute([(int)$row['entry_id']]);
             $secret=random_bytes(32);
             $db->prepare("INSERT INTO ticket_entry_credentials
-                (entry_id,version,token_hash,created_at_utc) VALUES (?,?,?,UTC_TIMESTAMP(6))")
-                ->execute([(int)$row['entry_id'],(int)$version+1,hash('sha256',$secret,true)]);
+                (entry_id,version,token_hash,token_encrypted,created_at_utc) VALUES (?,?,?,?,UTC_TIMESTAMP(6))")
+                ->execute([(int)$row['entry_id'],(int)$version+1,hash('sha256',$secret,true),
+                    brvtal_ticket_issue_seal_token($secret,(string)$row['public_id'])]);
             $db->prepare("UPDATE ticket_mail_outbox SET state='failed',last_error_code='courtesy_superseded'
                 WHERE related_ref=? AND state IN ('queued','retry')")->execute(["courtesy:{$invite}"]);
             brvtalCourtesyQueue($db,$invite,(string)$row['email'],(string)$row['public_id'],$secret,$revision);
