@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 
+// @brvtal-ci database
 /** #1929: one order with several ticket types, one hold per type, server prices only. */
 require_once __DIR__ . '/../../config/public_ticket_checkout.php';
 
@@ -63,6 +64,7 @@ foreach ([
     "CREATE TABLE ticket_inventory_events (event_id INT UNSIGNED PRIMARY KEY,capacity INT UNSIGNED)",
     "CREATE TABLE ticket_inventory_types (ticket_type_id INT UNSIGNED PRIMARY KEY,
         event_id INT UNSIGNED,capacity INT UNSIGNED,courtesy_capacity INT UNSIGNED DEFAULT 0)",
+    "CREATE TABLE ticket_buyers (id BIGINT UNSIGNED PRIMARY KEY,status VARCHAR(20),email_verified_at DATETIME(6))",
     "CREATE TABLE ticket_orders (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,event_id INT UNSIGNED,
         buyer_id BIGINT UNSIGNED,status VARCHAR(20),public_id BINARY(16),checkout_key_hash CHAR(64) UNIQUE,
         currency CHAR(3),total_cop BIGINT UNSIGNED,expires_at_utc DATETIME(6),updated_at_utc DATETIME(6))",
@@ -176,5 +178,86 @@ cartAssert($waited < 15, sprintf('lock wait is capped (waited %.1fs)', $waited))
 $after = brvtal_public_ticket_checkout_prepare($db, 1, 12,
     ['lines'=>[['ticket_type_id'=>10,'quantity'=>1]], 'idempotency_key'=>str_repeat('z', 20), 'method'=>'CARD']);
 cartAssert((int)$after['order_id'] > 0, 'the same intent succeeds once the lock is released');
+
+
+// #2120: a read never acquires new inventory, creates an attempt or re-quotes.
+$db->exec("INSERT INTO ticket_buyers VALUES (7,'active',UTC_TIMESTAMP(6)),(10,'guest',NULL),
+    (11,'active',UTC_TIMESTAMP(6)),(12,'active',UTC_TIMESTAMP(6))");
+$token = brvtal_public_ticket_checkout_order_token($db, $orderId);
+$mesaId = (int)$ok['order_id'];
+$mesaToken = brvtal_public_ticket_checkout_order_token($db, $mesaId);
+$mesaIntent = ['lines'=>[['ticket_type_id'=>11,'quantity'=>2],['ticket_type_id'=>12,'quantity'=>1]],
+    'idempotency_key'=>str_repeat('w',20), 'method'=>'NEQUI'];
+$db->exec("UPDATE event_ticket_types SET price=price+10000 WHERE event_id=1");
+$offers = brvtal_public_ticket_checkout_offers($db,1);
+cartAssert(!in_array(12, array_column($offers['offers'] ?? [], 'id'), true), 'last Mesa held: no public capacity');
+$readRows = static function () use ($db): array {
+    return array_map(static fn($table) => $db->query("SELECT * FROM $table ORDER BY id")->fetchAll(),
+        ['ticket_orders','ticket_inventory_holds','ticket_payment_attempts']);
+};
+$beforeRead = $readRows();
+$denied = ['state'=>'unverified','replayed'=>false,'can_start_payment'=>false];
+$_SESSION = ['buyer_id'=>7];
+$recovered = brvtal_public_ticket_checkout_snapshot($db,1,$retry);
+cartAssert($recovered['state']==='reserved' && $recovered['replayed'] && !$recovered['can_start_payment']
+    && $recovered['snapshot']['order_token']===$token
+    && $recovered['snapshot']['total_cop']===110000 && $recovered['snapshot']['method']==='CARD'
+    && array_column($recovered['snapshot']['lines'],'unit_price_cop')===[25000,60000]
+    && array_column($recovered['snapshot']['lines'],'quantity')===[2,1]
+    && $recovered['snapshot']['expires_at_utc']!==null, 'verified lost response returns frozen exact intent');
+$byToken = brvtal_public_ticket_checkout_snapshot($db,1,['order_token'=>$token]);
+cartAssert(!$byToken['replayed'] && $byToken['snapshot']===$recovered['snapshot'], 'token plus verified identity');
+cartAssert(!isset($byToken['checkout']) && !isset($byToken['snapshot']['reference']), 'no widget or provider credentials');
+foreach ([$changed, array_replace($retry,['method'=>'NEQUI']),
+    array_replace($retry,['idempotency_key'=>str_repeat('x',24)])] as $wrong) {
+    cartAssert(brvtal_public_ticket_checkout_snapshot($db,1,$wrong)===$denied, 'different intent rejected');
+}
+cartAssert(brvtal_public_ticket_checkout_snapshot($db,2,['order_token'=>$token])===$denied, 'other event rejected');
+cartAssert(brvtal_public_ticket_checkout_snapshot($db,1,['order_token'=>$mesaToken])===$denied, 'other buyer rejected');
+$_SESSION = ['buyer_id'=>11];
+cartAssert(brvtal_public_ticket_checkout_snapshot($db,1,$retry)===$denied, 'same intent key cannot cross buyers');
+$_SESSION = [];
+cartAssert(brvtal_public_ticket_checkout_snapshot($db,1,['order_token'=>$mesaToken])===$denied, 'bearer alone rejected');
+cartAssert(brvtal_public_ticket_checkout_snapshot($db,1,$mesaIntent)===$denied, 'no anonymous lost-response escalation');
+$grant = ['buyer_id'=>10,'created_new'=>false,'issued_at'=>time()];
+$_SESSION = ['buyer_checkout_orders'=>[$mesaId=>$grant]];
+$mesa = brvtal_public_ticket_checkout_snapshot($db,1,['order_token'=>$mesaToken]);
+cartAssert($mesa['state']==='reserved' && $mesa['snapshot']['method']==='NEQUI'
+    && $mesa['snapshot']['total_cop']===270000 && !$mesa['can_start_payment'], 'own grant restores last reserved unit');
+cartAssert(brvtal_public_ticket_checkout_snapshot($db,1,['order_token'=>$token])===$denied, 'other grant rejected');
+$_SESSION['buyer_checkout_orders'][$mesaId]['issued_at'] = time()-7201;
+cartAssert(brvtal_public_ticket_checkout_snapshot($db,1,['order_token'=>$mesaToken])===$denied, 'expired grant rejected');
+$_SESSION['buyer_checkout_orders'][$mesaId] = array_replace($grant,['buyer_id'=>7]);
+cartAssert(brvtal_public_ticket_checkout_snapshot($db,1,['order_token'=>$mesaToken])===$denied, 'grant buyer mismatch');
+$_SESSION = ['buyer_id'=>10,'buyer_checkout_new_order'=>$mesaId];
+cartAssert(brvtal_public_ticket_checkout_snapshot($db,1,['order_token'=>$mesaToken])===$denied, 'unpaid account grant rejected');
+cartAssert($readRows()===$beforeRead, 'all recovery and denial paths are strictly read-only');
+
+$_SESSION = ['buyer_id'=>7];
+$db->exec("UPDATE ticket_payment_attempts SET status='pending' WHERE order_id=$orderId");
+cartAssert(brvtal_public_ticket_checkout_snapshot($db,1,$retry)['state']==='payment_pending', 'persisted pending payment cannot restart');
+$db->exec("UPDATE ticket_payment_attempts SET status='error' WHERE order_id=$orderId");
+cartAssert(brvtal_public_ticket_checkout_snapshot($db,1,$retry)['state']==='unverified', 'uncertain payment cannot restart');
+$db->exec("UPDATE ticket_payment_attempts SET status='approved' WHERE order_id=$orderId");
+cartAssert(brvtal_public_ticket_checkout_snapshot($db,1,$retry)['state']==='unverified', 'approval without paid order is uncertain');
+$db->exec("UPDATE ticket_orders SET status='paid' WHERE id=$orderId");
+cartAssert(brvtal_public_ticket_checkout_snapshot($db,1,$retry)['state']==='approved', 'terminal paid outcome read only');
+$db->exec("UPDATE ticket_orders SET status='pending' WHERE id=$orderId");
+$db->exec("UPDATE ticket_payment_attempts SET status='created' WHERE order_id=$orderId");
+$db->exec("UPDATE ticket_inventory_holds SET expires_at_utc=UTC_TIMESTAMP(6)-INTERVAL 1 SECOND WHERE order_id=$orderId");
+$expiredRows = $readRows();
+$expired = brvtal_public_ticket_checkout_snapshot($db,1,$retry);
+cartAssert($expired['state']==='expired' && !$expired['can_start_payment'] && $readRows()===$expiredRows,
+    'expired hold not reactivated or mutated');
+$db->exec("UPDATE ticket_payment_attempts SET gross_amount_cop=1 WHERE order_id=$orderId");
+cartAssert(brvtal_public_ticket_checkout_snapshot($db,1,$retry)===$denied, 'attempt amount mismatch');
+$db->exec("UPDATE ticket_orders SET status='paid' WHERE id=$mesaId");
+$db->exec("UPDATE ticket_payment_attempts SET status='approved' WHERE order_id=$mesaId");
+$_SESSION = ['buyer_id'=>10,'buyer_checkout_new_order'=>$mesaId];
+cartAssert(brvtal_public_ticket_checkout_snapshot($db,1,['order_token'=>$mesaToken])['state']==='approved',
+    'paid checkout session reads its own grant');
+cartAssert(brvtal_public_ticket_checkout_snapshot($db,1,['order_token'=>$token])===$denied, 'paid session remains scoped');
+$_SESSION = [];
+echo "BRVTAL_MARKED_DATABASE_PASS: ticketing-checkout-cart.php\n";
 
 echo "BRVTAL #1929 cart: multi-type orders, holds, idempotency, capacity and rollback passed.\n";
