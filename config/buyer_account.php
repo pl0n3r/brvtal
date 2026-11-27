@@ -86,7 +86,7 @@ function brvtalBuyerAccountOrders(PDO $db, int $buyerId, array $f): array
     $causeColumn=(getenv('BRVTAL_TICKET_REFUNDS_POLICY_ENABLED')==='1')
         ? '(SELECT d.cause FROM ticket_refund_event_decisions d WHERE d.event_id=o.event_id) AS refund_cause,'
         : 'NULL AS refund_cause,';
-    $sql = 'SELECT o.id,LOWER(HEX(o.public_id)) AS public_id,o.event_id,e.title AS event_title,
+    $sql = 'SELECT o.id,LOWER(HEX(o.public_id)) AS public_id,o.event_id,e.title AS event_title,e.event_date,e.venue,
             o.status,o.total_cop,o.currency,o.created_at_utc,'
             .$causeColumn.'
             (SELECT a.status FROM ticket_payment_attempts a WHERE a.order_id=o.id ORDER BY a.id DESC LIMIT 1) AS payment_status

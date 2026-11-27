@@ -77,7 +77,7 @@ foreach ([
         buyer_id BIGINT UNSIGNED NOT NULL,session_hash CHAR(64) NOT NULL UNIQUE,
         issued_epoch BIGINT UNSIGNED NOT NULL,expires_at_utc DATETIME(6) NOT NULL,
         revoked_at_utc DATETIME(6) NULL) ENGINE=InnoDB",
-    "CREATE TABLE events (id INT UNSIGNED PRIMARY KEY,status VARCHAR(32),event_date DATETIME,published_at DATETIME)",
+    "CREATE TABLE events (id INT UNSIGNED PRIMARY KEY,status VARCHAR(32),event_date DATETIME,published_at DATETIME,title VARCHAR(180),venue VARCHAR(180))",
     "CREATE TABLE event_ticket_types (id INT UNSIGNED PRIMARY KEY,event_id INT UNSIGNED,name VARCHAR(120) NOT NULL,
         price INT UNSIGNED NOT NULL,sort_order INT NOT NULL DEFAULT 0,status VARCHAR(32),currency VARCHAR(3),
         available_from DATETIME,available_until DATETIME)",
@@ -86,9 +86,12 @@ foreach ([
         courtesy_capacity INT UNSIGNED DEFAULT 0)",
     "CREATE TABLE ticket_orders (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,event_id INT UNSIGNED,buyer_id BIGINT UNSIGNED,
         status VARCHAR(20),public_id BINARY(16),checkout_key_hash CHAR(64) UNIQUE,currency CHAR(3),total_cop BIGINT UNSIGNED,
-        expires_at_utc DATETIME(6),updated_at_utc DATETIME(6))",
-    "CREATE TABLE ticket_order_items (order_id BIGINT UNSIGNED,ticket_type_id INT UNSIGNED,quantity INT,event_id INT UNSIGNED,
+        expires_at_utc DATETIME(6),updated_at_utc DATETIME(6),created_at_utc DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6))",
+    "CREATE TABLE ticket_order_items (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,order_id BIGINT UNSIGNED,ticket_type_id INT UNSIGNED,quantity INT,event_id INT UNSIGNED,
         ticket_name_snapshot VARCHAR(120),unit_price_cop BIGINT UNSIGNED,subtotal_cop BIGINT UNSIGNED,currency CHAR(3))",
+    "CREATE TABLE ticket_entries (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,order_item_id BIGINT UNSIGNED,
+        public_id BINARY(16),status VARCHAR(20),unit_number INT)",
+    "CREATE TABLE ticket_entry_credentials (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,entry_id BIGINT UNSIGNED,status VARCHAR(20))",
     "CREATE TABLE ticket_inventory_holds (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,order_id BIGINT UNSIGNED,event_id INT UNSIGNED,
         ticket_type_id INT UNSIGNED,quantity INT,kind VARCHAR(20),status VARCHAR(20),expires_at_utc DATETIME(6),
         UNIQUE KEY uq_hold(order_id,ticket_type_id))",
@@ -100,7 +103,7 @@ foreach (['BRVTAL_TICKET_WOMPI_MODE=mock','BRVTAL_TICKET_WOMPI_TESTING=1','BRVTA
     'BRVTAL_TICKET_WOMPI_PRIVATE_KEY=prv_test_guest_fixture','BRVTAL_TICKET_WOMPI_INTEGRITY_SECRET=test_integrity_guest_fixture',
     'BRVTAL_TICKET_WOMPI_ENABLED_METHODS=CARD','BRVTAL_TICKET_WOMPI_RETURN_URL=https://example.test/return'] as $setting) putenv($setting);
 $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
-$db->prepare("INSERT INTO events VALUES (1,'published',?,?),(2,'published',?,?)")->execute([
+$db->prepare("INSERT INTO events(id,status,event_date,published_at,title,venue) VALUES (1,'published',?,?,'Noche de prueba','Lugar sintético'),(2,'published',?,?,'Otro evento',NULL)")->execute([
     $now->modify('+5 days')->format('Y-m-d H:i:s'), $now->modify('-1 day')->format('Y-m-d H:i:s'),
     $now->modify('+5 days')->format('Y-m-d H:i:s'), $now->modify('-1 day')->format('Y-m-d H:i:s')]);
 $db->exec("INSERT INTO event_ticket_types(id,event_id,name,price,status,currency) VALUES (10,1,'Preventa',25000,'active','COP')");
@@ -293,9 +296,21 @@ $db->exec("UPDATE ticket_buyers SET email_verified_at=UTC_TIMESTAMP(6) WHERE id=
 $_SESSION = ['buyer_id'=>$memberId];
 guestAssert(brvtal_public_ticket_checkout_state($probe, 1, $memberId, $existingOrder) === 'approved',
     'verified account retains access to its own order');
+$filters = brvtalBuyerAccountFilters([]);
+$memberOrders = brvtalBuyerAccountOrders($db, $memberId, $filters)['orders'];
+guestAssert(count($memberOrders) === 1 && (int)$memberOrders[0]['order_number'] === $existingOrder
+    && $memberOrders[0]['event_title'] === 'Noche de prueba' && $memberOrders[0]['venue'] === 'Lugar sintético'
+    && $memberOrders[0]['event_date'] === $db->query('SELECT event_date FROM events WHERE id=1')->fetchColumn(),
+    'authenticated account returns event metadata only for its own purchase');
+guestAssert(!in_array($paidOrder, array_column($memberOrders, 'order_number'), true),
+    'other buyer order metadata is not returned');
 guestAssert(brvtal_public_ticket_checkout_state($probe, 1, $memberId, $paidOrder) === 'unverified',
     'verified account cannot see other buyers');
 $_SESSION = $guestState;
+$guestOrders = brvtalBuyerAccountOrders($db, $guestId, $filters)['orders'];
+guestAssert(count($guestOrders) === 1 && (int)$guestOrders[0]['order_number'] === $paidOrder
+    && $guestOrders[0]['venue'] === 'Lugar sintético' && $guestOrders[0]['event_title'] === 'Noche de prueba',
+    'guest account metadata remains limited to its paid grant');
 
 // Exercise the actual checkout HTTP handler, session epoch revalidation and
 // JSON response over loopback, not a simulated HTTP response or live provider.
