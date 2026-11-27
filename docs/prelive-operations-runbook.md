@@ -91,6 +91,102 @@ reversion requieren autoridad, backup, plan, auditoria y decisiones
 de seguridad separadas. Este documento NO inventa un comando
 para apagar el hosting.
 
+## Incidencias de pago (#2196) — procedimiento offline
+
+Solo preparación pre-live: NO ACTIVAR. Este procedimiento no habilita cobros,
+reversiones, devoluciones, contracargos, consultas autenticadas a Wompi,
+envíos ni cambios en producción. Los ejemplos son sintéticos. El OWNER
+aprueba explícitamente cualquier acción financiera real por caso; sin su
+aprobación, mantener el caso ABIERTO y no mover dinero.
+
+### Verificación y evidencia común
+
+1. SOPORTE/OPERADOR abre un folio interno, clasifica el escenario y acusa
+   recibo; SRE verifica la identidad del entorno, el intento, la referencia,
+   el importe en centavos y la moneda COP contra el pedido. No confiar en
+   capturas, redirecciones ni avisos sin autenticar.
+2. En una futura operación autorizada, consultar en el backend el estado
+   actual por ID (`GET /v1/transactions/{transaction_id}`), con la llave
+   privada del entorno correcto, o contrastar el Dashboard autorizado. El
+   evento `transaction.updated` requiere firma válida y corroboración;
+   distinguir journal firmado de conciliación verificada por API. No
+   copiar llaves ni realizar estas consultas durante el ensayo.
+3. QA coteja pedido, intento, journal y outbox de emisión; registra solo
+   identificadores internos opacos, entorno, SHA, hora UTC, estado observado,
+   fuente y recibo de evidencia saneado. Una discrepancia, timeout, respuesta
+   ilegible o identidad no verificable es UNKNOWN: ESCALAR AL OWNER, mantener
+   ABIERTO y no inferir cobro, rechazo o devolución.
+
+### Pago duplicado (`duplicate_payment`, #2194)
+
+- SRE distingue la reentrega del mismo ID de transacción (idempotente) de
+  dos transacciones distintas auténticamente APPROVED para el mismo pedido.
+- QA verifica `ticket_payment_incidents` por intento y tipo, su enlace a
+  evidencia del journal y el outbox original: no emitir boletas extra ni
+  modificar el pedido pagado. Conservar ambos intentos y la evidencia.
+- OPERADOR propone al OWNER qué intento excedente corresponde revisar y
+  contrasta con el proveedor si ya existe una reversión/disputa. No devolver
+  automáticamente ni repetir una devolución. Si corresponde una acción,
+  seguir la puerta y el cierre indicados abajo.
+
+### Reversión y disputa / contracargo
+
+- Wompi distingue APPROVED, DECLINED, VOIDED, ERROR y PENDING. VOIDED es
+  anulación de tarjeta; una solicitud de reversión o disputa no es por sí
+  sola un estado financiero ni prueba de devolución efectiva.
+- SRE verifica medio de pago, modelo comercial y estado real. La anulación
+  el mismo día depende de la red y de la elegibilidad de la transacción;
+  si no está disponible, usar el canal oficial vigente para el modelo
+  contratado (soporte Wompi o red adquirente en Gateway). No asumir que
+  todos los medios permiten anulación. Evitar doble reembolso si ya hay
+  contracargo o devolución en trámite.
+- En una disputa de tarjeta, OPERADOR verifica el caso y su plazo en
+  Disputas del Dashboard (modelo Agregador); en Gateway, confirma el
+  canal de la red. QA preserva la evidencia de entrega y pago en custodia
+  restringida, con minimización; no publicarla en GitHub. Escalar al OWNER
+  antes del plazo. Una evidencia enviada o un reclamo abierto no son una
+  resolución; esperar el dictamen auténtico y conciliar el resultado.
+
+### Pendiente vencido (`stale_pending`, #2195)
+
+- SRE usa la conciliación acotada existente en `config/ticketing_wompi_reconcile.php`.
+  Los intentos de más de 48 h siguen siendo elegibles con backoff; a partir
+  de 168 h, `stale_pending` es una señal operativa, no un estado financiero.
+  No programar un cron ni ampliar los límites de consulta en este runbook.
+- Proveedor caído, ausencia de resultado o PENDING no acreditan rechazo:
+  mantener el intento y su evidencia, no liberar aforo ante cobro incierto
+  ni repetir el cobro. OPERADOR registra la siguiente revisión autorizada
+  y escala si sigue UNKNOWN.
+- Un APPROVED tardío solo se acredita por el flujo transaccional existente,
+  con idempotencia. `approved_unfulfilled` exige intervención del OWNER;
+  no emitir por fuera del outbox ni prometer una devolución automática.
+
+### Decisión y cierre con evidencia
+
+- OPERADOR registra el folio, escenario, estado ABIERTO, rol responsable,
+  acuse, siguiente revisión UTC y `evidence_ref` opaco. Sin datos reales ni
+  PII, PAN, CVV, credenciales, payloads o logs crudos en el registro público.
+- OWNER deja una decisión específica por caso (sin acción, o autorización
+  explícita de la operación financiera por importe, moneda e intento);
+  referencia de decisión y responsable, antes de ejecutar. No es una
+  autorización general: sin aprobación, no ejecutar. El presente PR no
+  ejecuta ni autoriza operaciones financieras reales.
+- QA verifica recibo terminal del proveedor cuando corresponda, resultado
+  conciliado con intento, pedido, journal, outbox y ausencia de doble
+  efecto; conserva evidencia original. CERRADO solo con evidencia terminal
+  y decisión OWNER registrada; si falta una de ellas, mantener ABIERTO.
+  El cierre operativo del folio no implica un campo de cierre en la tabla
+  de incidencias ni autoriza modificar filas mediante SQL directo.
+
+Fuentes oficiales Wompi Colombia (consultadas el 27-nov-2026; volver a
+verificar vigencia antes de cualquier operación autorizada):
+
+- [Transacciones](https://docs.wompi.co/docs/colombia/transacciones/) y
+  [Eventos](https://docs.wompi.co/docs/colombia/eventos/).
+- [Reversión con tarjeta](https://soporte.wompi.co/hc/es-419/articles/360046916653)
+  y [Reversión Gateway](https://soporte.wompi.co/hc/es-419/articles/360054848754).
+- [Disputas](https://soporte.wompi.co/hc/es-419/articles/360020767034).
+
 ## Go-live de boletería (#2193) — preparación sin activación
 
 **Estado de todas las puertas: NO ACTIVAR.** Plan offline para #1739, no
@@ -165,7 +261,7 @@ no modifica flags y no constituye go-live ni certificación de producción.
 ## Validacion, evidencia y reversibilidad
 
 python3 -m unittest -v tests.test_prelive_operations_runbook valida
-AC-01 a AC-03 y el contrato de go-live #2193 con datos sintéticos y casos negativos. Despues se
+AC-01 a AC-03 y los contratos de incidencias #2196 y go-live #2193 con datos sintéticos y casos negativos. Despues se
 requiere BRVTAL CI / validate en SHA exacto, reserva V3, evidencia
 de seguridad y PR protegido. Verde offline NO CERTIFICA GO-LIVE,
 SMOKE PRODUCTIVO, alertas activas ni soporte real.
