@@ -6,7 +6,7 @@
 
 ## Procedencia
 
-- Proyecto `pl0n3r/brvtal`, versión declarada `0.1.364`.
+- Proyecto `pl0n3r/brvtal`.
 - Fuentes canónicas `docs/privacidad/` y `datos.yml`. Última modificación de contenido registrada: 2026-11-25; huella SHA-256 de las fuentes: `b4e8483b5569f16c3c82b1859fc02f94fdb41031cb046238dbe995c135f0ba0a`.
 - Los seis documentos incluidos son copias byte a byte de sus fuentes. Las correcciones jurídicas se hacen en las fuentes, y luego se regenera.
 
