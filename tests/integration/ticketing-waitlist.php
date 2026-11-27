@@ -65,10 +65,26 @@ foreach ([
 ] as $ddl) $db->exec($ddl);
 $db->exec((string)file_get_contents(__DIR__.'/../../database/migration_ticketing_waitlist_01.sql'));
 $db->exec((string)file_get_contents(__DIR__.'/../../database/migration_ticketing_mail_outbox_01.sql'));
-$db->exec("INSERT INTO events VALUES (1,'published','2026-12-05 21:00:00','2026-11-01 09:00:00')");
-$db->exec("INSERT INTO event_ticket_types
+$db->exec((string)file_get_contents(__DIR__.'/../../database/migration_ticket_mail_html_01.sql'));
+$db->exec((string)file_get_contents(__DIR__.'/../../database/migration_ticketing_mail_history_01.sql'));
+$GLOBALS['config']['security']['encryption_key'] = str_repeat('t28-synthetic-', 4);
+$readMail = static function (string $sql) use ($db): string {
+    $job = $db->query($sql)->fetch(PDO::FETCH_ASSOC);
+    wlAssert(is_array($job), 'fixture mail exists');
+    $plain = brvtal_ticket_waitlist_mail_open($job);
+    wlAssert($plain !== null, 'valid contextual text and HTML envelope');
+    wlAssert(str_starts_with($job['body_text'], BRVTAL_WAITLIST_MAIL_PREFIX)
+        && str_starts_with($job['body_html'], BRVTAL_WAITLIST_MAIL_PREFIX), 'both stored parts sealed');
+    return $plain['body_text'];
+};
+$now=new DateTimeImmutable('now',new DateTimeZone('America/Bogota'));
+$publishedAt=$now->modify('-1 day')->format('Y-m-d H:i:s');
+$db->prepare("INSERT INTO events VALUES (1,'published',?,?)")
+    ->execute([$now->modify('+1 day')->format('Y-m-d H:i:s'),$publishedAt]);
+$db->prepare("INSERT INTO event_ticket_types
     (id,event_id,status,currency,available_from,available_until) VALUES
-    (10,1,'active','COP','2026-12-04 19:00:00','2026-12-04 22:00:00')");
+    (10,1,'active','COP',?,?)")->execute([
+        $now->modify('-1 hour')->format('Y-m-d H:i:s'),$now->modify('+2 hours')->format('Y-m-d H:i:s')]);
 $db->exec("INSERT INTO ticket_inventory_events VALUES (1,1)");
 $db->exec("INSERT INTO ticket_inventory_types VALUES (10,1,1,0)");
 $db->exec("INSERT INTO ticket_buyers VALUES
@@ -83,9 +99,9 @@ try {
 brvtal_waitlist_assert_test_storage($db);
 putenv('BRVTAL_TICKET_MAIL_TESTING=1');
 putenv('BRVTAL_TICKET_MAIL_MODE=mock');
-$now=new DateTimeImmutable('2026-12-04 20:00:00',new DateTimeZone('America/Bogota'));
 // A future publication is not a public event or a valid opt-in target.
-$db->exec("UPDATE events SET published_at='2026-12-06 09:00:00' WHERE id=1");
+$db->prepare("UPDATE events SET published_at=? WHERE id=1")
+    ->execute([$now->modify('+2 days')->format('Y-m-d H:i:s')]);
 wlAssert(brvtal_waitlist_public_types($db,1)===[],
     'pre-publication catalog cannot leak ticket types');
 try {
@@ -96,7 +112,19 @@ try {
 }
 wlAssert((int)$db->query('SELECT COUNT(*) FROM ticket_waitlist_entries')->fetchColumn()===0,
     'unpublished signup must roll back');
-$db->exec("UPDATE events SET published_at='2026-11-01 09:00:00' WHERE id=1");
+$db->prepare("UPDATE events SET published_at=? WHERE id=1")->execute([$publishedAt]);
+$fixtureCipher = $GLOBALS['config']['security']['encryption_key'];
+unset($GLOBALS['config']['security']['encryption_key']);
+try {
+    brvtal_waitlist_subscribe($db,1,10,1,'waitlist-v1','',$now);
+    wlAssert(false,'missing key must abort signup');
+} catch (RuntimeException $error) {
+    wlAssert($error->getMessage()==='BUYER_MAIL_KEY_UNAVAILABLE','missing cipher key');
+}
+wlAssert((int)$db->query('SELECT COUNT(*) FROM ticket_waitlist_entries')->fetchColumn()===0
+    && (int)$db->query('SELECT COUNT(*) FROM ticket_mail_outbox')->fetchColumn()===0,
+    'signup and enqueue roll back together');
+$GLOBALS['config']['security']['encryption_key']=$fixtureCipher;
 wlAssert(brvtal_waitlist_subscribe($db,1,10,1,'waitlist-v1','',$now)==='waiting',
     'verified opt-in');
 wlAssert(brvtal_waitlist_subscribe($db,1,10,1,'waitlist-v1','',$now)==='already_registered',
@@ -105,12 +133,19 @@ wlAssert(brvtal_waitlist_subscribe($db,1,10,2,'waitlist-v1','',$now)==='waiting'
     'second interest');
 wlAssert((int)$db->query('SELECT COUNT(*) FROM ticket_waitlist_entries')->fetchColumn()===2,
     'no double signup');
+// AUTO_INCREMENT advances even when the failed enrollment transaction rolls back.
+$firstEntry=(int)$db->query("SELECT id FROM ticket_waitlist_entries WHERE event_id=1 AND buyer_id=1")->fetchColumn();
+$secondEntry=(int)$db->query("SELECT id FROM ticket_waitlist_entries WHERE event_id=1 AND buyer_id=2")->fetchColumn();
+wlAssert($firstEntry>0 && $secondEntry>$firstEntry,'fixture preserves FIFO identity');
 // T10 Resend transient retry is tested end-to-end through T28's own outbox message.
 $attempts=0;
 $sendSynthetic=static function (array $payload, array $headers) use (&$attempts): array {
     $attempts++;
     wlAssert($headers[0]==='Authorization: Bearer ', 'mock cannot expose API credentials');
     wlAssert($payload['to']===['first@example.test'], 'only the consented recipient');
+    wlAssert(str_contains($payload['text'],'/api/ticketing/waitlist.php?token=')
+        && str_contains($payload['html'],'href="https://www.brvtal.com.co/api/ticketing/waitlist.php?token='),
+        'transport receives actionable text and HTML only after authenticated opening');
     return match ($attempts) {
         1 => ['status'=>429,'body'=>'{}','retry_after'=>1],
         2 => ['status'=>503,'body'=>'{}'],
@@ -135,31 +170,46 @@ foreach ([[3,'waitlist-v1',''],[1,'no',''],[1,'waitlist-v1','bot']] as [$buyer,$
         wlAssert(false,'invalid signup denied');
     } catch (InvalidArgumentException|DomainException) {}
 }
-wlAssert(brvtal_waitlist_offer($db,1,10,$now)['entry_id']===1,'FIFO invitation');
+unset($GLOBALS['config']['security']['encryption_key']);
+try {
+    brvtal_waitlist_offer($db,1,10,$now);
+    wlAssert(false,'missing key must abort offer');
+} catch (RuntimeException $error) {
+    wlAssert($error->getMessage()==='BUYER_MAIL_KEY_UNAVAILABLE','offer cipher failure');
+}
+wlAssert((int)$db->query("SELECT COUNT(*) FROM ticket_waitlist_entries WHERE status='offered'")->fetchColumn()===0
+    && (int)$db->query("SELECT COUNT(*) FROM ticket_mail_outbox")->fetchColumn()===2,
+    'offer and queue rollback together');
+$GLOBALS['config']['security']['encryption_key']=$fixtureCipher;
+wlAssert(brvtal_waitlist_offer($db,1,10,$now)['entry_id']===$firstEntry,'FIFO invitation');
 wlAssert(brvtal_waitlist_offer($db,1,10,$now)===null,'single capacity cannot over-offer');
 $clock=brvtal_waitlist_clock($now)->format('Y-m-d H:i:s.u');
 $usage=brvtal_ticket_inventory_usage($db,1,10,$clock);
 wlAssert($usage['held']===1,'checkout counts offered capacity');
 wlAssert((int)$db->query('SELECT COUNT(*) FROM ticket_orders')->fetchColumn()===0,
     'no order, charge or ticket from signup/offer');
-$body=(string)$db->query("SELECT body_text FROM ticket_mail_outbox
-    WHERE related_ref='waitlist:1' ORDER BY id LIMIT 1")->fetchColumn();
+$body=$readMail("SELECT * FROM ticket_mail_outbox
+    WHERE related_ref='waitlist:{$firstEntry}' ORDER BY id LIMIT 1");
 wlAssert(str_contains($body,'/api/ticketing/waitlist.php?token='),
     'email has actionable unsubscribe confirmation link');
 wlAssert((bool)preg_match('/[A-Za-z0-9_-]{43}$/D',$body,$parts),
     'unsubscribe delivered by outbox');
+$storedJoin=$db->query("SELECT * FROM ticket_mail_outbox WHERE related_ref='waitlist:{$firstEntry}' ORDER BY id LIMIT 1")->fetch();
+foreach (['body_text','body_html','subject','message_key','related_ref','payload_hash'] as $field) {
+    wlAssert(!str_contains((string)$storedJoin[$field],$parts[0]),'no persisted unsubscribe bearer');
+}
 wlAssert(brvtal_waitlist_unsubscribe($db,$parts[0]),'unsubscribe');
 wlAssert((int)$db->query("SELECT COUNT(*) FROM ticket_mail_outbox
-    WHERE related_ref='waitlist:1' AND state IN ('queued','retry','sending')")->fetchColumn()===0,
+    WHERE related_ref='waitlist:{$firstEntry}' AND state IN ('queued','retry','sending')")->fetchColumn()===0,
     'unsubscribe atomically cancels all pending/retryable notifications');
 wlAssert((int)$db->query("SELECT COUNT(*) FROM ticket_mail_outbox
-    WHERE related_ref='waitlist:1' AND state='failed'
+    WHERE related_ref='waitlist:{$firstEntry}' AND state='suppressed'
     AND last_error_code='consent_revoked'")->fetchColumn()>=1,
     'revoked consent is not automatically retried');
 wlAssert(!brvtal_waitlist_unsubscribe($db,$parts[0]),'unsubscribe replay');
 wlAssert(brvtal_ticket_inventory_usage($db,1,10,$clock)['held']===0,
     'unsubscribe releases offer');
-wlAssert(brvtal_waitlist_offer($db,1,10,$now)['entry_id']===2,'next eligible entry');
+wlAssert(brvtal_waitlist_offer($db,1,10,$now)['entry_id']===$secondEntry,'next eligible entry');
 wlAssert(brvtal_waitlist_offer($db,1,10,$now->modify('+11 minutes'))!==null,
     'expired offers return to inventory');
 // A checkout may redeem a consented one-time invitation for exactly one
@@ -168,11 +218,32 @@ $db->exec("INSERT INTO ticket_orders(id,event_id,buyer_id,status)
     VALUES (42,1,2,'draft'),(43,1,1,'draft')");
 $db->exec("INSERT INTO ticket_order_items (order_id,ticket_type_id,quantity)
     VALUES (42,10,1),(43,10,1)");
-$offerBody=(string)$db->query("SELECT body_text FROM ticket_mail_outbox
-    WHERE related_ref='waitlist:2' AND subject='Cupo liberado en BRVTAL'
-    ORDER BY id DESC LIMIT 1")->fetchColumn();
+$offerBody=$readMail("SELECT * FROM ticket_mail_outbox
+    WHERE related_ref='waitlist:{$secondEntry}' AND subject='Cupo liberado en BRVTAL'
+    ORDER BY id DESC LIMIT 1");
 wlAssert(preg_match('/Código: ([A-Za-z0-9_-]{43})[.]/',$offerBody,$offerCode)===1,
     'offer token issued only to opted-in buyer');
+$storedOffer=$db->query("SELECT * FROM ticket_mail_outbox WHERE related_ref='waitlist:{$secondEntry}'
+    AND template_key='waitlist_offer' ORDER BY id DESC LIMIT 1")->fetch();
+foreach (['body_text','body_html','subject','message_key','related_ref','payload_hash'] as $field) {
+    wlAssert(!str_contains((string)$storedOffer[$field],$offerCode[1]),'no persisted invitation bearer');
+}
+// Select exact fixture jobs without introducing sleeps or changing worker order.
+$readyMail=static function (int $id) use ($db): void {
+    $db->exec("UPDATE ticket_mail_outbox SET next_attempt_at=DATE_ADD(UTC_TIMESTAMP(),INTERVAL 1 DAY)
+        WHERE state IN ('queued','retry')");
+    $db->prepare('UPDATE ticket_mail_outbox SET next_attempt_at=UTC_TIMESTAMP() WHERE id=?')->execute([$id]);
+};
+$forbiddenCalls=0;
+$noTransport=static function () use (&$forbiddenCalls): array {
+    $forbiddenCalls++;
+    return ['status'=>200,'body'=>'{"id":"unexpected"}'];
+};
+$staleOffer=(int)$db->query("SELECT id FROM ticket_mail_outbox WHERE related_ref='waitlist:{$secondEntry}'
+    AND template_key='waitlist_offer' ORDER BY id ASC LIMIT 1")->fetchColumn();
+$readyMail($staleOffer);
+wlAssert(brvtal_ticket_mail_deliver_one($db,$noTransport)==='suppressed' && $forbiddenCalls===0,
+    'replaced invitation never reaches transport while a different offer is live');
 $redeemAt=$now->modify('+12 minutes');
 // An expired but still-stored token must never redeem even before cleanup.
 $db->beginTransaction();
@@ -265,10 +336,12 @@ $db->exec('INSERT INTO ticket_inventory_events VALUES (2,1)');
 $db->exec('INSERT INTO ticket_inventory_types VALUES (20,2,1,0)');
 wlAssert(brvtal_waitlist_subscribe($db,2,20,2,'waitlist-v1')==='waiting',
     'buyer opts in before checkout');
-wlAssert(brvtal_waitlist_offer($db,2,20)!==null, 'exclusive invitation offered');
-$mail=(string)$db->query("SELECT body_text FROM ticket_mail_outbox
-    WHERE related_ref='waitlist:3' AND subject='Cupo liberado en BRVTAL'
-    ORDER BY id DESC LIMIT 1")->fetchColumn();
+$thirdEntry=(int)$db->query("SELECT id FROM ticket_waitlist_entries WHERE event_id=2 AND buyer_id=2")->fetchColumn();
+wlAssert($thirdEntry>0 && brvtal_waitlist_offer($db,2,20)['entry_id']===$thirdEntry,
+    'exclusive invitation offered to the correct entry');
+$mail=$readMail("SELECT * FROM ticket_mail_outbox
+    WHERE related_ref='waitlist:{$thirdEntry}' AND subject='Cupo liberado en BRVTAL'
+    ORDER BY id DESC LIMIT 1");
 wlAssert(preg_match('/Código: ([A-Za-z0-9_-]{43})[.]/', $mail, $offerCode2)===1,
     'checkout invitation token comes from mock outbox');
 $normal=['ticket_type_id'=>20,'quantity'=>1,'idempotency_key'=>str_repeat('n',20),'method'=>'CARD'];
@@ -312,5 +385,112 @@ wlAssert((int)$db->query("SELECT COUNT(*) FROM ticket_inventory_holds
 wlAssert((int)$db->query("SELECT COUNT(*) FROM ticket_orders
     WHERE event_id=2 AND status='paid'")->fetchColumn()===0,
     'mock checkout cannot cause a paid state or issue tickets');
-echo "T28 MariaDB: opt-in, unsubscribe, FIFO, reservation, checkout redemption, replay and safety passed.\n";
+$redeemedMail=(int)$db->query("SELECT id FROM ticket_mail_outbox WHERE related_ref='waitlist:{$thirdEntry}'
+    AND template_key='waitlist_offer' ORDER BY id DESC LIMIT 1")->fetchColumn();
+$readyMail($redeemedMail);
+wlAssert(brvtal_ticket_mail_deliver_one($db,$noTransport)==='suppressed' && $forbiddenCalls===0,
+    'already redeemed invitation never reaches transport');
+
+// Independent live-clock event for dispatch negatives and two-connection fencing.
+$db->prepare("INSERT INTO events(id,status,event_date,published_at) VALUES (3,'published',?,?)")
+    ->execute([$eventAt,$windowStart]);
+$db->prepare("INSERT INTO event_ticket_types
+    (id,event_id,status,currency,available_from,available_until) VALUES (30,3,'active','COP',?,?)")
+    ->execute([$windowStart,$windowEnd]);
+$db->exec('INSERT INTO ticket_inventory_events VALUES (3,1)');
+$db->exec('INSERT INTO ticket_inventory_types VALUES (30,3,1,0)');
+$db->exec("UPDATE ticket_buyers SET email_verified_at=UTC_TIMESTAMP() WHERE id=3");
+wlAssert(brvtal_waitlist_subscribe($db,3,30,3,'waitlist-v1')==='waiting','dispatch fixture signup');
+$dispatchEntry=(int)$db->query("SELECT id FROM ticket_waitlist_entries WHERE event_id=3 AND buyer_id=3")->fetchColumn();
+$newOffer=static function () use ($db,$dispatchEntry): int {
+    $db->prepare("UPDATE ticket_waitlist_entries SET offer_expires_at_utc=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND)
+        WHERE id=? AND status='offered'")->execute([$dispatchEntry]);
+    wlAssert(brvtal_waitlist_offer($db,3,30)!==null,'fresh dispatch fixture offer');
+    return (int)$db->query("SELECT id FROM ticket_mail_outbox WHERE related_ref='waitlist:{$dispatchEntry}'
+        AND template_key='waitlist_offer' ORDER BY id DESC LIMIT 1")->fetchColumn();
+};
+$joinToken=static function () use ($readMail,$dispatchEntry): string {
+    $body=$readMail("SELECT * FROM ticket_mail_outbox WHERE related_ref='waitlist:{$dispatchEntry}'
+        AND template_key='waitlist_join' ORDER BY id DESC LIMIT 1");
+    wlAssert(preg_match('/[A-Za-z0-9_-]{43}$/D',$body,$match)===1,'current consent token');
+    return $match[0];
+};
+$stateOf=static fn(int $id): array => $db->query("SELECT state,last_error_code,provider_message_id
+    FROM ticket_mail_outbox WHERE id=$id")->fetch(PDO::FETCH_ASSOC);
+$historyOf=static fn(int $id): string => (string)$db->query("SELECT delivery_state
+    FROM ticket_mail_history WHERE outbox_id=$id")->fetchColumn();
+$offerId=$newOffer();
+brvtal_mail_history_record($db,$offerId,['template_key'=>'waitlist_offer','event_id'=>3,'buyer_id'=>3]);
+$db->prepare("UPDATE ticket_waitlist_entries SET offer_expires_at_utc=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND)
+    WHERE id=?")->execute([$dispatchEntry]);
+$readyMail($offerId);
+wlAssert(brvtal_ticket_mail_deliver_one($db,$noTransport)==='suppressed'
+    && $stateOf($offerId)['last_error_code']==='waitlist_expired'
+    && $historyOf($offerId)==='suppressed','delayed expired invitation suppressed in outbox and history');
+$offerId=$newOffer();
+$db->exec("UPDATE events SET status='cancelled' WHERE id=3");
+$readyMail($offerId);
+wlAssert(brvtal_ticket_mail_deliver_one($db,$noTransport)==='suppressed'
+    && $stateOf($offerId)['last_error_code']==='waitlist_event_closed','cancelled event suppressed');
+$db->exec("UPDATE events SET status='published' WHERE id=3");
+$offerId=$newOffer();
+$db->exec("UPDATE ticket_buyers SET email='changed@example.test' WHERE id=3");
+$readyMail($offerId);
+wlAssert(brvtal_ticket_mail_deliver_one($db,$noTransport)==='suppressed'
+    && $stateOf($offerId)['last_error_code']==='waitlist_buyer_ineligible','changed recipient suppressed');
+$db->exec("UPDATE ticket_buyers SET email='unverified@example.test' WHERE id=3");
+$offerId=$newOffer();
+putenv('BRVTAL_WAITLIST_TESTING=0');
+$readyMail($offerId);
+wlAssert(brvtal_ticket_mail_deliver_one($db,$noTransport)==='suppressed'
+    && $stateOf($offerId)['last_error_code']==='waitlist_disabled','closed activation gate suppresses');
+putenv('BRVTAL_WAITLIST_TESTING=1');
+
+$second=new PDO("mysql:host=$host;port=$port;dbname=$name;charset=utf8mb4",$user,$pass,$opt);
+$offerId=$newOffer();
+$readyMail($offerId);
+$claimedJob=brvtal_ticket_mail_claim($db);
+wlAssert((int)$claimedJob['id']===$offerId,'claim exact invitation');
+$second->prepare('UPDATE ticket_mail_outbox SET locked_until=DATE_SUB(UTC_TIMESTAMP(),INTERVAL 1 SECOND)
+    WHERE id=?')->execute([$offerId]);
+wlAssert(brvtal_ticket_mail_prepare_dispatch($db,$claimedJob)==='lease_lost','expired generation cannot dispatch');
+wlAssert(brvtal_ticket_mail_reconcile_stale($second)>=1
+    && $stateOf($offerId)['state']==='uncertain','stale generation stays uncertain');
+
+$offerId=$newOffer();
+$readyMail($offerId);
+$claimedJob=brvtal_ticket_mail_claim($db);
+wlAssert((int)$claimedJob['id']===$offerId && brvtal_waitlist_unsubscribe($second,$joinToken()),
+    'other connection revokes after claim and before boundary');
+wlAssert(brvtal_ticket_mail_prepare_dispatch($db,$claimedJob)==='suppressed'
+    && $stateOf($offerId)['state']==='suppressed','revocation before boundary is proven local');
+wlAssert(!brvtal_ticket_mail_redrive($db,$offerId) && $forbiddenCalls===0,'no replay or transport');
+
+wlAssert(brvtal_waitlist_subscribe($db,3,30,3,'waitlist-v1')==='waiting','new explicit consent');
+$offerId=$newOffer();
+brvtal_mail_history_record($db,$offerId,['template_key'=>'waitlist_offer','event_id'=>3,'buyer_id'=>3]);
+$token=$joinToken();
+$readyMail($offerId);
+$sent=0;
+$afterBoundary=static function (array $payload,array $headers) use ($second,$token,&$sent): array {
+    $sent++;
+    wlAssert($payload['to']===['unverified@example.test'] && str_contains($payload['text'],'Código: ')
+        && str_starts_with($headers[2],'Idempotency-Key: waitlist:offer:'),'valid sealed invitation reaches fixture');
+    wlAssert(brvtal_waitlist_unsubscribe($second,$token),'revocation after transport boundary');
+    return ['status'=>200,'body'=>'{"id":"synthetic-waitlist-boundary"}'];
+};
+wlAssert(brvtal_ticket_mail_deliver_one($db,$afterBoundary)==='accepted' && $sent===1
+    && $stateOf($offerId)['provider_message_id']==='synthetic-waitlist-boundary'
+    && $historyOf($offerId)==='accepted','in-flight acceptance is not falsely cancelled or overwritten');
+
+wlAssert(brvtal_waitlist_subscribe($db,3,30,3,'waitlist-v1')==='waiting','consent after prior offer');
+$offerId=$newOffer();
+$readyMail($offerId);
+wlAssert(brvtal_ticket_mail_deliver_one($db,static fn()=>['status'=>503,'body'=>'{}'])==='retry',
+    'provider may have accepted earlier ambiguous attempt');
+wlAssert(brvtal_waitlist_unsubscribe($second,$joinToken()) && $stateOf($offerId)['state']==='uncertain'
+    && !brvtal_ticket_mail_redrive($db,$offerId),'revocation preserves uncertainty instead of replay');
+wlAssert($forbiddenCalls===0,'all stale and ineligible jobs made zero provider requests');
+
+echo "T28 MariaDB: opt-in, unsubscribe, FIFO, reservation, checkout redemption, replay, dispatch fencing and safety passed.\n";
 

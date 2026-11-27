@@ -1,0 +1,147 @@
+name: BRVTAL 2101 recovery evidence
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/issue-2101-recovery-evidence.yml'
+      - 'tests/e2e/run-ticketing-real-stack.sh'
+      - 'tests/e2e/ticketing-checkout-real-stack.spec.mjs'
+      - 'tests/e2e/issue-2101-recovery-visual.spec.mjs'
+      - 'config/ticketing_admin_actions.php'
+      - 'discadmin/ticketing-orders.js'
+permissions:
+  contents: read
+  pull-requests: read
+jobs:
+  sources:
+    if: >-
+      github.repository == 'pl0n3r/brvtal' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (github.head_ref == 'work/issue-2269' || github.head_ref == 'work/issue-2101')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      base: ${{ steps.identity.outputs.base }}
+      head: ${{ steps.identity.outputs.head }}
+    steps:
+      - id: identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRIGGER: ${{ github.event.pull_request.number }}
+          WIRING: ${{ github.event.pull_request.head.sha }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          REF: ${{ github.head_ref }}
+        run: |
+          set -euo pipefail
+          gh api "repos/pl0n3r/brvtal/pulls/$TRIGGER" | jq -e --arg h "$WIRING" --arg b "$BASE" --arg r "$REF" '.state=="open" and .head.sha==$h and .base.sha==$b and .head.ref==$r and .base.ref=="main" and .head.repo.full_name=="pl0n3r/brvtal" and .base.repo.full_name=="pl0n3r/brvtal"'
+          pr="$(gh api repos/pl0n3r/brvtal/pulls/2265)"
+          jq -e '.state=="open" and .head.ref=="work/issue-2101" and .base.ref=="main" and .head.repo.full_name=="pl0n3r/brvtal" and .base.repo.full_name=="pl0n3r/brvtal" and (.head.sha|test("^[a-f0-9]{40}$")) and (.base.sha|test("^[a-f0-9]{40}$")) and .head.sha!=.base.sha' <<<"$pr"
+          if [[ "$REF" == work/issue-2101 ]]; then test "$TRIGGER" = 2265; fi
+          echo "head=$(jq -r .head.sha <<<"$pr")" >> "$GITHUB_OUTPUT"
+          echo "base=$(jq -r .base.sha <<<"$pr")" >> "$GITHUB_OUTPUT"
+  evidence:
+    needs: sources
+    name: resend-2101-${{ matrix.kind }}
+    strategy:
+      fail-fast: false
+      matrix:
+        kind: [real-stack, visual]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      BASE_SHA: ${{ needs.sources.outputs.base }}
+      CANDIDATE_SHA: ${{ needs.sources.outputs.head }}
+      WIRING_SHA: ${{ github.event.pull_request.head.sha }}
+      WIRING_BASE: ${{ github.event.pull_request.base.sha }}
+      TRIGGER: ${{ github.event.pull_request.number }}
+      TRIGGER_REF: ${{ github.head_ref }}
+      KIND: ${{ matrix.kind }}
+      OUTPUT: ${{ github.workspace }}/recovery-evidence
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.sources.outputs.base }}
+          path: baseline
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.sources.outputs.head }}
+          path: candidate
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: wiring
+          persist-credentials: false
+      - name: Verify immutable source identities
+        run: |
+          set -euo pipefail
+          test "$(git -C baseline rev-parse HEAD)" = "$BASE_SHA"
+          test "$(git -C candidate rev-parse HEAD)" = "$CANDIDATE_SHA"
+          test "$(git -C wiring rev-parse HEAD)" = "$WIRING_SHA"
+          mkdir "$OUTPUT"
+      - name: Run isolated HTTP recovery
+        if: matrix.kind == 'real-stack'
+        run: |
+          set -euo pipefail
+          if [[ "$TRIGGER_REF" == work/issue-2269 ]]; then
+            for f in run-ticketing-real-stack.sh ticketing-checkout-real-stack.spec.mjs; do
+              cp "wiring/tests/e2e/$f" "candidate/tests/e2e/$f"
+            done
+            if [[ -f candidate/tests/e2e/ticketing-checkin-real-stack.spec.mjs ]]; then
+              cmp candidate/tests/e2e/ticketing-checkin-real-stack.spec.mjs wiring/tests/e2e/ticketing-checkin-real-stack.mjs
+              mv candidate/tests/e2e/ticketing-checkin-real-stack.spec.mjs candidate/tests/e2e/ticketing-checkin-real-stack.mjs
+            fi
+            git -C candidate add -- tests/e2e
+            git -C candidate -c user.name=Fixture -c user.email=fixture@example.test commit --allow-empty -m 'Synthetic harness overlay only'
+            git -C candidate diff --exit-code "$CANDIDATE_SHA" HEAD -- config api database ops templates partials scripts index.php discadmin
+          else
+            test "$CANDIDATE_SHA" = "$WIRING_SHA"
+          fi
+          git -C candidate rev-parse HEAD > "$OUTPUT/executed-tree.txt"
+          cd candidate
+          BRVTAL_T31_RECOVERY_REQUIRED=1 bash tests/e2e/run-ticketing-real-stack.sh | tee "$OUTPUT/real-stack.log"
+          grep -Fxq 'T31_RESEND_STACK_PASS: authenticated recovery, concurrent rotation, immutable mail and single admission' "$OUTPUT/real-stack.log"
+      - name: Render exact-source Chromium captures
+        if: matrix.kind == 'visual'
+        working-directory: wiring
+        run: |
+          set -euo pipefail
+          npm install --ignore-scripts --no-save --package-lock=false --no-audit --no-fund @playwright/test@1.63.0
+          npx --no-install playwright install --with-deps chromium
+          export BRVTAL_RECOVERY_BASE_DIR="$GITHUB_WORKSPACE/baseline"
+          export BRVTAL_RECOVERY_CANDIDATE_DIR="$GITHUB_WORKSPACE/candidate"
+          export BRVTAL_RECOVERY_CAPTURE_DIR="$OUTPUT"
+          export PLAYWRIGHT_JSON_OUTPUT_FILE="$RUNNER_TEMP/2101-report.json"
+          npx --no-install playwright test tests/e2e/issue-2101-recovery-visual.spec.mjs --project=chromium --workers=1 --reporter=list,json
+          jq -e '.stats.expected==4 and .stats.unexpected==0 and .stats.skipped==0 and .stats.flaky==0' "$RUNNER_TEMP/2101-report.json"
+      - name: Revalidate identities and publish evidence manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api "repos/pl0n3r/brvtal/pulls/$TRIGGER" | jq -e --arg h "$WIRING_SHA" --arg b "$WIRING_BASE" --arg r "$TRIGGER_REF" '.state=="open" and .head.sha==$h and .base.sha==$b and .head.ref==$r and .base.ref=="main" and .head.repo.full_name=="pl0n3r/brvtal" and .base.repo.full_name=="pl0n3r/brvtal"'
+          gh api repos/pl0n3r/brvtal/pulls/2265 | jq -e --arg h "$CANDIDATE_SHA" --arg b "$BASE_SHA" '.state=="open" and .head.sha==$h and .base.sha==$b and .head.ref=="work/issue-2101" and .base.ref=="main" and .head.repo.full_name=="pl0n3r/brvtal" and .base.repo.full_name=="pl0n3r/brvtal"'
+          python3 - <<'PY'
+          import hashlib, json, os, struct
+          from pathlib import Path
+          env=os.environ; root=Path(env["OUTPUT"]); captures=[]
+          if env["KIND"]=="visual":
+              for stage in ("before","after","loading","error","forbidden"):
+                  for width in (390,1440):
+                      p=root/f"{stage}-{width}.png"; data=p.read_bytes()
+                      assert len(data)>1500 and data[:8]==b"\x89PNG\r\n\x1a\n"
+                      w,h=struct.unpack(">II",data[16:24]); assert w==width and h>=200
+                      captures.append(dict(name=p.name,width=w,height=h,sha256=hashlib.sha256(data).hexdigest(),source=env["BASE_SHA"] if stage=="before" else env["CANDIDATE_SHA"]))
+          else:
+              for p in (root/"real-stack.log",root/"executed-tree.txt"):
+                  captures.append(dict(name=p.name,sha256=hashlib.sha256(p.read_bytes()).hexdigest()))
+          (root/"manifest.json").write_text(json.dumps(dict(issue=2101,pr=2265,kind=env["KIND"],base_sha=env["BASE_SHA"],head_sha=env["CANDIDATE_SHA"],harness_sha=env["WIRING_SHA"],mode="integrated" if env["TRIGGER_REF"]=="work/issue-2101" else "overlay",run=env["GITHUB_RUN_ID"],attempt=env["GITHUB_RUN_ATTEMPT"],captures=captures,visual_review="NOT_PERFORMED",production_validation="NOT_PERFORMED"),indent=2)+"\n")
+          PY
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: recovery-2101-${{ matrix.kind }}-${{ env.CANDIDATE_SHA }}-${{ github.run_id }}
+          path: ${{ env.OUTPUT }}
+          if-no-files-found: error
+          retention-days: 14

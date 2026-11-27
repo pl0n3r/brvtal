@@ -9,7 +9,7 @@
 <meta name="robots" content="noindex,follow">
 <title>Mis compras · BRVTAL</title>
 <link rel="stylesheet" href="/css/buyer-access.css?v=1">
-<link rel="stylesheet" href="/css/buyer-account.css?v=2184">
+<link rel="stylesheet" href="/css/buyer-account.css?v=2188">
 </head>
 <body class="buyer-access buyer-account">
 <a class="account-skip" href="#contenido">Ir al contenido</a>
@@ -26,7 +26,7 @@
   <div class="account-wrap">
     <section class="account-hero" aria-labelledby="account-title">
       <h1 id="account-title">Mis <em>compras</em></h1>
-      <p>Las noches que llevas contigo. Consulta tus entradas, pedidos y devoluciones en un mismo lugar.</p>
+      <p>Las noches que llevas contigo. Consulta tus entradas, cortesías, pedidos y devoluciones en un mismo lugar.</p>
     </section>
     <div class="account-layout">
       <aside class="account-sidebar">
@@ -53,6 +53,10 @@
           <div class="account-section-head"><h2 id="purchases-title">Tus pedidos</h2></div>
           <p id="feedback" class="account-feedback" role="status" aria-live="polite" aria-atomic="true"></p>
           <div id="orders" class="account-orders" aria-label="Pedidos"><p class="account-loading">Cargando compras…</p></div>
+          <section id="courtesies" class="account-courtesies" aria-labelledby="courtesies-title" hidden>
+            <div class="account-section-head"><h2 id="courtesies-title">Tus cortesías</h2></div>
+            <div id="courtesy-items" class="account-orders"></div>
+          </section>
           <button id="more" class="account-secondary" hidden type="button">Ver más pedidos</button>
         </section>
         <section id="refund-list" class="account-panel account-refunds" aria-labelledby="refund-title">
@@ -88,6 +92,7 @@
   const $ = id => document.getElementById(id), api='/api/buyer/account.php';
   const filters=$('filters'),orders=$('orders'),feedback=$('feedback'),more=$('more'),qr=$('qr');
   const eventSelect=$('event-select'),eventNames=new Map();
+  const courtesies=$('courtesies'),courtesyItems=$('courtesy-items');
   const scopedPurchases = (() => {
     try {
       const data = JSON.parse(document.getElementById('checkout-scoped-purchases')?.textContent || '[]');
@@ -122,7 +127,7 @@
     const link=el('a','Ver la cartelera');link.href='/';link.className='account-action';
     box.append(link);return box;
   }
-  let csrf='',page=0,ticket='',payload='',qrRequest=0,passContext=null;
+  let csrf='',page=0,ticket='',payload='',qrRequest=0,passContext=null,storedOnly=false,accountRequest=0;
   const el=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=String(text);return n;};
   // The server scopes these orders to a paid checkout plus its original cookie.
   // Do not call unrestricted account or refunds APIs in this anonymous mode.
@@ -136,6 +141,7 @@
     content.style.maxWidth = '50rem';
     content.style.margin = '0 auto';
     $('refund-list').hidden = true;
+    courtesies.hidden = true;
     // Guest access cannot request account-wide refunds: remove the dead nav target.
     document.querySelector('.account-nav a[href="#refund-list"]')?.remove();
     const description = document.querySelector('.account-hero > p');
@@ -247,8 +253,8 @@
       el('p','Boleta '+ticket.slice(0,8).toUpperCase()),el('p','Código de un solo uso. No compartas este pase.'));
     details.hidden=false;$('pass-actions').hidden=false;document.body.classList.add('account-pass-ready');
   }
-  function resetQr(){clearPass();passContext=null;qrRequest++;$('qr-form').querySelector('button').disabled=false;ticket='';payload='';qr.hidden=true;$('qr-form').hidden=false;$('token').value='';$('qr-output').replaceChildren();$('qr-output').hidden=true;$('download').hidden=true;$('qr-feedback').textContent='';}
-  function showQr(id, stored=false, context=null){resetQr();ticket=id;passContext=context;qr.hidden=false;if(stored){$('qr-form').hidden=true;qr.setAttribute('tabindex','-1');qr.focus();loadQr(true);}else $('token').focus();}
+  function resetQr(){clearPass();passContext=null;storedOnly=false;qrRequest++;$('qr-form').querySelector('button').disabled=false;ticket='';payload='';qr.hidden=true;$('qr-form').hidden=false;$('token').value='';$('qr-output').replaceChildren();$('qr-output').hidden=true;$('download').hidden=true;$('qr-feedback').textContent='';}
+  function showQr(id, stored=false, context=null, onlyStored=false){resetQr();ticket=id;passContext=context;storedOnly=onlyStored;qr.hidden=false;if(stored){$('qr-form').hidden=true;qr.setAttribute('tabindex','-1');qr.focus();loadQr(true);}else $('token').focus();}
   function card(order){
     const box=el('article'),title=el('h2',order.event_title||'Evento');box.className='account-order';box.append(title,
       el('p',(order.order_number?'Pedido #'+order.order_number+' · ':'')+(statuses[order.status]||order.status)+' · Pago: '+(statuses[order.payment_status]||order.payment_status||'Sin intento')),
@@ -271,18 +277,59 @@
     const refund=refundForm(order);if(refund)box.append(refund);
     return box;
   }
+  const courtesyStatuses=new Map([['issued','Vigente'],['used','Usada'],['revoked','Anulada'],['expired','Vencida']]);
+  function courtesyCard(entry){
+    const box=el('article');box.className='account-order account-courtesy';
+    const title=el('h3',entry.event_title||'Evento');
+    const detail=el('div');detail.className='ticket';
+    const meta=el('p');meta.className='account-courtesy-meta';
+    const kind=el('strong','Cortesía');kind.className='account-courtesy-kind';
+    const state=el('span',courtesyStatuses.get(entry.status)||'Estado por confirmar');
+    meta.append(kind,state);
+    detail.append(meta,el('strong',entry.name||'Entrada'));
+    if(entry.status==='issued'&&entry.qr_stored===true&&/^[a-f0-9]{32}$/.test(entry.ticket_id||'')){
+      const button=el('button','Ver QR');button.type='button';
+      button.addEventListener('click',()=>showQr(entry.ticket_id,true,null,true));
+      detail.append(button);
+    }
+    box.append(title,el('small','Recibida el '+purchaseDate(entry.created_at_utc)),detail);
+    return box;
+  }
   async function load(append=false){
-    more.disabled=true;feedback.textContent='Cargando compras…';feedback.dataset.tone='neutral';if(!append){orders.replaceChildren();resetQr();}
-    const query=new URLSearchParams({page:String(page)});for(const name of ['event_id','from','to']){
+    const request=++accountRequest,nextPage=append?page+1:0;
+    more.disabled=true;feedback.textContent='Cargando compras…';feedback.dataset.tone='neutral';
+    if(!append){orders.replaceChildren();courtesyItems.replaceChildren();courtesies.hidden=true;resetQr();more.hidden=true;}
+    const query=new URLSearchParams({page:String(nextPage)});for(const name of ['event_id','from','to']){
       const value=String(filters.elements.namedItem(name).value||'');if(value)query.set(name,value);
     }
-    try{const r=await fetch(api+'?'+query,{credentials:'same-origin',cache:'no-store'});if(r.status===401){location.href='/buyer/login.php';return;}
-      if(!r.ok)throw Error('API');const result=(await r.json()).data;if(!result||!Array.isArray(result.orders))throw Error('API');
-      rememberEvents(result.orders);
-      if(!result.orders.length&&!append)orders.append(emptyState(Boolean(filters.elements.namedItem('event_id').value||filters.elements.namedItem('from').value||filters.elements.namedItem('to').value)));
-      for(const order of result.orders)orders.append(card(order));more.hidden=!result.has_more;feedback.textContent=result.orders.length?'Compras cargadas.':(append?'Llegaste al final de tus pedidos.':'');
-    }catch(_){feedback.textContent='No pudimos cargar tus compras. Revisa tu conexión y vuelve a aplicar los filtros.';feedback.dataset.tone='error';more.hidden=true;}
-    finally{more.disabled=false;}
+    try{const r=await fetch(api+'?'+query,{credentials:'same-origin',cache:'no-store'});
+      if(request!==accountRequest)return;
+      if(r.status===401){location.href='/buyer/login.php';return;}
+      if(!r.ok)throw Error('API');const result=(await r.json()).data;if(request!==accountRequest)return;
+      if(!result||!Array.isArray(result.orders))throw Error('API');
+      const invitations=Array.isArray(result.courtesies)?result.courtesies.filter(entry=>entry?.origin==='courtesy'):[];
+      rememberEvents([...result.orders,...invitations]);
+      if(!result.orders.length&&!append){
+        orders.append(invitations.length?el('p','No tienes compras en esta vista.'):
+          emptyState(Boolean(query.get('event_id')||query.get('from')||query.get('to'))));
+      }
+      for(const order of result.orders)orders.append(card(order));
+      if(invitations.length||result.courtesies_has_more){
+        courtesies.hidden=false;
+        for(const entry of invitations)courtesyItems.append(courtesyCard(entry));
+      }
+      if(Array.isArray(result.courtesies)&&!append&&!invitations.length&&!result.courtesies_has_more){
+        courtesies.hidden=false;courtesyItems.append(el('p','No tienes cortesías en esta vista.'));
+      }
+      if(append&&invitations.length&&courtesyItems.firstElementChild?.tagName==='P')courtesyItems.firstElementChild.remove();
+      page=nextPage;
+      more.hidden=!(result.has_more||result.courtesies_has_more);
+      more.textContent=result.courtesies_has_more?'Ver más entradas':'Ver más pedidos';
+      feedback.textContent=result.orders.length||invitations.length?(invitations.length?'Entradas cargadas.':'Compras cargadas.'):(append?'Llegaste al final de tus pedidos.':'');
+    }catch(_){if(request===accountRequest){
+      feedback.textContent='No pudimos cargar tus compras y cortesías. Revisa tu conexión y vuelve a aplicar los filtros.';
+      feedback.dataset.tone='error';if(!append)more.hidden=true;
+    }}finally{if(request===accountRequest)more.disabled=false;}
   }
   filters.addEventListener('submit',e=>{
     e.preventDefault();
@@ -303,7 +350,7 @@
     }catch(_){feedback.textContent='No pudimos cerrar sesión. Inténtalo de nuevo.';feedback.dataset.tone='error';}
     finally{button.disabled=false;}
   });
-  more.addEventListener('click',()=>{page++;load(true);});
+  more.addEventListener('click',()=>{if(!more.disabled)load(true);});
   // Fixed QR version 5-L, byte mode, mask 0. Offline encoding: never send credentials to a third party.
   function qrSvg(value){
     const bytes=Array.from(new TextEncoder().encode(value));if(bytes.length>106)throw Error('QR_LENGTH');
@@ -355,10 +402,10 @@
     }catch(_){
       if(request!==qrRequest)return;
       $('qr-feedback').textContent='No se pudo autorizar esta entrada. Revisa la credencial y su vigencia.';
-      if(stored){$('qr-form').hidden=false;}
+      if(stored&&!storedOnly){$('qr-form').hidden=false;}
     }finally{if(request===qrRequest)button.disabled=false;}
   }
-  $('qr-form').addEventListener('submit',e=>{e.preventDefault();loadQr(false);});
+  $('qr-form').addEventListener('submit',e=>{e.preventDefault();if(!storedOnly)loadQr(false);});
   $('print-pass').addEventListener('click',()=>{
     if(passContext&&payload&&document.body.classList.contains('account-pass-ready')&&!$('pass-actions').hidden)window.print();
   });
