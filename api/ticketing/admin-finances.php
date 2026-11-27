@@ -136,7 +136,7 @@ try {
         fputcsv($out,$columns, escape: '\\');
         foreach ($rows as $row) {
             // Keep the exact read-only evidence projection, including unknown amounts.
-            $row['discrepancies']=json_encode($row['discrepancies'],JSON_THROW_ON_ERROR);
+            $row['discrepancies']=json_encode($row['discrepancies'], JSON_THROW_ON_ERROR);
             foreach ($categories as $category) foreach ($categoryFields as $field) {
                 $row[$category.'_'.$field]=$row['budget_vs_actual'][$category][$field]??null;
             }

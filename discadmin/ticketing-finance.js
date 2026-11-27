@@ -209,6 +209,34 @@ export async function mount(panel) {
       }
       if (options.has(selected)) event.value=selected;
     }
+    function renderDetails(row) {
+      const incidents=row.discrepancies;
+      const count=Array.isArray(incidents)?incidents.length:0;
+      let caption='Ver desglose';
+      if (count) caption+=' · '+count+(count===1?' incidencia':' incidencias');
+      const details=make('details'),summary=make('summary',caption);
+      const list=make('ul');
+      for (const [label,value] of [
+        ['Bruto histórico',cash(row.gross_cop)],['Descuentos',cash(row.discount_cop)],
+        ['Devoluciones confirmadas del corte',cash(row.refund_in_period_cop)],
+        ['Pendientes',quantity(row.pending_orders)],['Rechazados',quantity(row.declined_orders)],
+        ['Reembolsados',quantity(row.refunded_orders)],['Boletas',quantity(row.tickets)],
+        ['Cupos',quantity(row.capacity)],['Ingresos a puerta',quantity(row.checkins)],
+        ['Caja presencial (POS)',cash(row.pos_cop)],['Ventas de caja',quantity(row.pos_orders)],
+        ['Pedidos sin verificar',quantity(row.unverified_orders)],
+        ['Comisión Wompi',cash(row.fee_cop)],['IVA',cash(row.fee_vat_cop)],
+        ['Retenciones',cash(row.withheld_cop)],['Diferencia estimada',cash(row.difference_cop)]
+      ]) list.append(make('li',label+': '+value));
+      const types=Array.isArray(row.types)?row.types:[];
+      const transactions=Array.isArray(row.transactions)?row.transactions:[];
+      list.append(make('li','Boletas vendidas por tipo: '+(types.length
+        ? types.map(x=>typeLabel(x)+' · '+quantity(x.quantity)+' boletas · '+cash(x.gross_cop)).join('; ')
+        : 'Sin ventas registradas')));
+      list.append(make('li','Referencias de transacciones: '+(transactions.length
+        ? transactions.map(x=>String(x.transaction_id||'Sin referencia')).join('; ')
+        : 'Sin registros')));
+      details.append(summary,discrepancyList(incidents),list);return details;
+    }
     function renderRows(rows) {
       results.replaceChildren();
       if (!rows.length) { results.append(make('p','No hay movimientos para los filtros seleccionados.')); return; }
@@ -229,34 +257,10 @@ export async function mount(panel) {
           ['Abono Wompi informado',payoutLabel(row)],
         ];
         for (const [label,value] of fields) {
-          const td=make('td',value);td.dataset.label=label;tr.append(td);
+          const td=make('td',value);td.dataset.label=label;td.style.verticalAlign='top';tr.append(td);
         }
         const detailCell=make('td');detailCell.dataset.label='Detalle';
-        const incidents=row.discrepancies;
-        const count=Array.isArray(incidents)?incidents.length:0;
-        const details=make('details'),summary=make('summary',count
-          ?'Ver desglose · '+count+(count===1?' incidencia':' incidencias'):'Ver desglose');
-        const list=make('ul');
-        for (const [label,value] of [
-          ['Bruto histórico',cash(row.gross_cop)],['Descuentos',cash(row.discount_cop)],
-          ['Devoluciones confirmadas del corte',cash(row.refund_in_period_cop)],
-          ['Pendientes',quantity(row.pending_orders)],['Rechazados',quantity(row.declined_orders)],
-          ['Reembolsados',quantity(row.refunded_orders)],['Boletas',quantity(row.tickets)],
-          ['Cupos',quantity(row.capacity)],['Ingresos a puerta',quantity(row.checkins)],
-          ['Caja presencial (POS)',cash(row.pos_cop)],['Ventas de caja',quantity(row.pos_orders)],
-          ['Pedidos sin verificar',quantity(row.unverified_orders)],
-          ['Comisión Wompi',cash(row.fee_cop)],['IVA',cash(row.fee_vat_cop)],
-          ['Retenciones',cash(row.withheld_cop)],['Diferencia estimada',cash(row.difference_cop)]
-        ]) list.append(make('li',label+': '+value));
-        const types=Array.isArray(row.types)?row.types:[];
-        const transactions=Array.isArray(row.transactions)?row.transactions:[];
-        list.append(make('li','Boletas vendidas por tipo: '+(types.length
-          ? types.map(x=>typeLabel(x)+' · '+quantity(x.quantity)+' boletas · '+cash(x.gross_cop)).join('; ')
-          : 'Sin ventas registradas')));
-        list.append(make('li','Referencias de transacciones: '+(transactions.length
-          ? transactions.map(x=>String(x.transaction_id||'Sin referencia')).join('; ')
-          : 'Sin registros')));
-        details.append(summary,discrepancyList(incidents),list);detailCell.append(details);tr.append(detailCell);
+        detailCell.append(renderDetails(row));tr.append(detailCell);
       }
       results.append(table);
     }

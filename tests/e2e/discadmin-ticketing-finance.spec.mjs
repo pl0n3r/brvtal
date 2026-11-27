@@ -155,11 +155,13 @@ test.describe('2109 authenticated real stack',()=>{
       await openShell(page);
       await page.locator('[data-finance-results] summary').filter({hasText:'Ver desglose'}).click();
       await expect(page.getByText('Incidencias de pago',{exact:true})).toHaveCount(0);
+      await page.evaluate(()=>window.scrollTo(0,0));
       await page.screenshot({path:'artifacts/issue-2109/before-'+width+'.png',fullPage:true});
       await page.unroute(jsRoute);
       await openShell(page);
       await openEvidence(page);
       expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+      await page.evaluate(()=>window.scrollTo(0,0));
       await page.screenshot({path:'artifacts/issue-2109/after-'+width+'.png',fullPage:true});
     }
   });
