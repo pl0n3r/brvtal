@@ -42,8 +42,8 @@ try {
     $input = json_decode($raw, true, 8, JSON_THROW_ON_ERROR);
     json_response(['ok'=>true] + brvtal_ticket_inventory_admin_save($pdo, $eventId, $input));
 } catch (InvalidArgumentException $e) {
-    $code = $e->getMessage() === 'INVENTORY_INVALID_DOOR_PRICE'
-        ? 'INVENTORY_INVALID_DOOR_PRICE' : 'INVENTORY_INVALID_INPUT';
+    $code = in_array($e->getMessage(), ['INVENTORY_INVALID_DOOR_PRICE','INVENTORY_INVALID_PURCHASE_LIMIT'], true)
+        ? $e->getMessage() : 'INVENTORY_INVALID_INPUT';
     json_response(['ok'=>false,'error'=>$code], 422);
 } catch (JsonException) {
     json_response(['ok'=>false,'error'=>'INVENTORY_INVALID_INPUT'], 422);
