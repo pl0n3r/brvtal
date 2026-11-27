@@ -258,6 +258,16 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
                 throw new RuntimeException('T20: accepted invalid calendar range');
             } catch (InvalidArgumentException) { /* expected */ }
         }
+        // A missing POS ledger cannot be treated as empty when checking Wompi.
+        $db->exec('RENAME TABLE ticket_pos_sales TO ticket_pos_sales_unavailable');
+        foreach (['all','wompi','pos'] as $channel) {
+            try {
+                brvtalFinanceReport($db,4,null,null,$channel);
+                throw new RuntimeException('T20: finance accepted missing POS evidence');
+            } catch (PDOException $e) {
+                t20($e->getCode()==='42S02','missing POS table must fail closed for every channel');
+            }
+        }
     } finally {
         $server->exec('DROP DATABASE IF EXISTS '.$name);
     }

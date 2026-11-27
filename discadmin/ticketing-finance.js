@@ -2,6 +2,12 @@
 const peso = new Intl.NumberFormat('es-CO', {style:'currency',currency:'COP',maximumFractionDigits:0});
 const cash = value => value == null ? 'Sin dato' : peso.format(Number(value));
 const quantity = value => value == null ? 'Sin dato' : String(value);
+function payoutLabel(row) {
+  if (row.approved_cop == null) return 'Sin dato';
+  const hasWompi=Array.isArray(row.transactions)&&row.transactions.some(x=>x.provider==='wompi');
+  if (Number(row.approved_cop)>0 || hasWompi) return cash(row.payout_cop);
+  return Number(row.unverified_orders)>0?'Sin dato':'No aplica';
+}
 const make = (tag, text) => { const el=document.createElement(tag); if(text!==undefined) el.textContent=String(text); return el; };
 
 export async function mount(panel) {
@@ -66,7 +72,7 @@ export async function mount(panel) {
           ['Pagos',quantity(row.paid_orders)],
           ['Devuelto',cash(row.refund_cop)],
           ['Neto tras devolución',cash(row.net_after_refunds_cop)],
-          ['Abono Wompi informado',Number(row.approved_cop)>0?cash(row.payout_cop):'No aplica'],
+          ['Abono Wompi informado',payoutLabel(row)],
         ];
         for (const [label,value] of fields) {
           const td=make('td',value);td.dataset.label=label;tr.append(td);
