@@ -454,7 +454,9 @@ function brvtalFinanceLedgerValues(string $kind, array $input): array
     }
     brvtalFinanceCalendarBound($date, false);
     $result = ['category'=>$category,'amount_cop'=>$amount,'entry_date'=>$date,'status'=>$status];
-    if ($expense) $result['concept'] = brvtalFinanceLedgerText($input['concept'] ?? null, 180);
+    if ($expense) {
+        $result['concept'] = brvtalFinanceLedgerText($input['concept'] ?? null, 180);
+    }
     return $result;
 }
 
@@ -463,9 +465,16 @@ function brvtalFinanceLedgerValues(string $kind, array $input): array
  * New revisions and the existing admin audit journal commit atomically.
  * The event lock serializes budget creation and competing corrections.
  */
-function brvtalFinanceLedgerWrite(PDO $db, string $kind, int $eventId, int $actorId,
-    string $action, ?int $previousId, array $input, string $reason): int
-{
+function brvtalFinanceLedgerWrite(
+    PDO $db,
+    string $kind,
+    int $eventId,
+    int $actorId,
+    string $action,
+    ?int $previousId,
+    array $input,
+    string $reason
+): int {
     require_once __DIR__ . '/ticketing_staff_permissions.php';
     if (!in_array($kind, ['expense','budget'], true)
         || !in_array($action, ['create','adjust','void'], true)
@@ -477,7 +486,9 @@ function brvtalFinanceLedgerWrite(PDO $db, string $kind, int $eventId, int $acto
     $reason = brvtalFinanceLedgerText($reason, 320);
     $values = $action === 'void' ? [] : brvtalFinanceLedgerValues($kind, $input);
     $table = $kind === 'expense' ? 'event_expenses' : 'event_budgets';
-    if ($db->inTransaction()) throw new LogicException('LEDGER_REQUIRES_OWN_TRANSACTION');
+    if ($db->inTransaction()) {
+        throw new LogicException('LEDGER_REQUIRES_OWN_TRANSACTION');
+    }
     $db->beginTransaction();
     try {
         $q = $db->prepare('SELECT staff_role FROM admins WHERE id=? AND is_active=1 FOR UPDATE');
@@ -488,7 +499,9 @@ function brvtalFinanceLedgerWrite(PDO $db, string $kind, int $eventId, int $acto
         }
         $q = $db->prepare('SELECT id FROM events WHERE id=? FOR UPDATE');
         $q->execute([$eventId]);
-        if (!$q->fetchColumn()) throw new DomainException('LEDGER_EVENT_NOT_FOUND');
+        if (!$q->fetchColumn()) {
+            throw new DomainException('LEDGER_EVENT_NOT_FOUND');
+        }
         $old = null;
         if ($previousId !== null) {
             $q = $db->prepare("SELECT * FROM $table WHERE id=? AND event_id=? FOR UPDATE");
@@ -500,7 +513,8 @@ function brvtalFinanceLedgerWrite(PDO $db, string $kind, int $eventId, int $acto
                 throw new DomainException('LEDGER_STALE_REVISION');
             }
             if ($action === 'void') {
-                $values = array_intersect_key($old, array_flip(['category','amount_cop','entry_date','status','concept']));
+                $fields = ['category','amount_cop','entry_date','status','concept'];
+                $values = array_intersect_key($old, array_flip($fields));
                 $values['status'] = 'void';
             } elseif ($kind === 'budget' && $old['category'] !== $values['category']) {
                 throw new DomainException('LEDGER_BUDGET_CATEGORY_IMMUTABLE');
@@ -511,16 +525,19 @@ function brvtalFinanceLedgerWrite(PDO $db, string $kind, int $eventId, int $acto
                 AND NOT EXISTS (SELECT 1 FROM event_budgets n WHERE n.supersedes_id=b.id)
                 FOR UPDATE");
             $q->execute([$eventId,$values['category']]);
-            if ($q->fetchColumn()) throw new DomainException('LEDGER_BUDGET_EXISTS');
+            if ($q->fetchColumn()) {
+                throw new DomainException('LEDGER_BUDGET_EXISTS');
+            }
         }
         $columns = ['event_id','category','amount_cop','entry_date','status','supersedes_id'];
-        $params = [$eventId,$values['category'],$values['amount_cop'],$values['entry_date'],$values['status'],$previousId];
+        $params = [$eventId, $values['category'], $values['amount_cop'],
+            $values['entry_date'], $values['status'], $previousId];
         if ($kind === 'expense') {
             $columns[] = 'concept';
             $params[] = $values['concept'];
         }
-        $q = $db->prepare("INSERT INTO $table (".implode(',',$columns).",created_at_utc) VALUES ("
-            .implode(',',array_fill(0,count($params),'?')).",UTC_TIMESTAMP(6))");
+        $q = $db->prepare("INSERT INTO $table (".implode(',', $columns).",created_at_utc) VALUES ("
+            .implode(',', array_fill(0, count($params), '?')).",UTC_TIMESTAMP(6))");
         $q->execute($params);
         $id = (int)$db->lastInsertId();
         // Reuse the existing admin audit treatment; no duplicate identity columns in the ledger.
@@ -533,7 +550,9 @@ function brvtalFinanceLedgerWrite(PDO $db, string $kind, int $eventId, int $acto
         $db->commit();
         return $id;
     } catch (Throwable $e) {
-        if ($db->inTransaction()) $db->rollBack();
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
         throw $e;
     }
 }
