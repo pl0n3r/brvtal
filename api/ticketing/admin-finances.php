@@ -132,8 +132,11 @@ try {
         $categories=['artistas','lugar','produccion','publicidad','logistica','otros'];
         $categoryFields=['budget_cop','paid_cop','committed_cop','variance_cop'];
         foreach ($categories as $category) foreach ($categoryFields as $field) $columns[]=$category.'_'.$field;
+        $columns[]='discrepancies';
         fputcsv($out,$columns, escape: '\\');
         foreach ($rows as $row) {
+            // Keep the exact read-only evidence projection, including unknown amounts.
+            $row['discrepancies']=json_encode($row['discrepancies'], JSON_THROW_ON_ERROR);
             foreach ($categories as $category) foreach ($categoryFields as $field) {
                 $row[$category.'_'.$field]=$row['budget_vs_actual'][$category][$field]??null;
             }
