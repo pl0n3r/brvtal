@@ -26,21 +26,26 @@ function brvtalMarketingConsentEmail(string $email): string
  * to the trusted caller; never log or persist it. Not a public endpoint.
  */
 function brvtalMarketingConsentGrant(
-    PDO $db, string $email, string $version, string $origin, bool $optIn
+    PDO $db,
+    string $email,
+    string $version,
+    string $origin,
+    bool $optIn
 ): string {
     if (!brvtalMarketingConsentFixture($db)) {
         throw new DomainException('MARKETING_CONSENT_DISABLED');
     }
     if (!$optIn || !preg_match('/^[A-Za-z0-9._-]{1,64}$/D', $version)
-        || !in_array($origin, ['checkout','registration','account'], true)) {
+        || !in_array($origin, ['checkout', 'registration', 'account'], true)) {
         throw new InvalidArgumentException('MARKETING_CONSENT_INVALID');
     }
     $email = brvtalMarketingConsentEmail($email);
     $token = bin2hex(random_bytes(32));
-    $stmt = $db->prepare('INSERT INTO marketing_consents (email,consent_version,origin,unsubscribe_hash) VALUES (?,?,?,?)');
+    $stmt = $db->prepare('INSERT INTO marketing_consents
+        (email,consent_version,origin,unsubscribe_hash) VALUES (?,?,?,?)');
     // Database uniqueness serializes parallel grants, including independent connections.
     // A duplicate active grant cannot silently replace the consent or its token.
-    $stmt->execute([$email,$version,$origin,hash('sha256',$token)]);
+    $stmt->execute([$email, $version, $origin, hash('sha256', $token)]);
     return $token;
 }
 
