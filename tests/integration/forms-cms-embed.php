@@ -2,7 +2,7 @@
 declare(strict_types=1);
 // @brvtal-ci database
 function cmsCheck(bool $ok, string $message): void {
-    if (!$ok) throw new RuntimeException('CMS fixture: '.$message, debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS,1)[0]['line']);
+    if (!$ok) throw new RuntimeException('CMS fixture: '.$message, (debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS,2)[1]['line'] ?? debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS,1)[0]['line']));
 }
 $prefix=(string)getenv('BRVTAL_TEST_DB_NAME');
 cmsCheck(getenv('BRVTAL_INTEGRATION_TESTS')==='1' && getenv('BRVTAL_TEST_DB_HOST')==='127.0.0.1'
@@ -104,7 +104,7 @@ try {
     cmsCheck((int)$db->query('SELECT COUNT(*) FROM form_entries')->fetchColumn()===0,'no capture');
     echo "BRVTAL_MARKED_DATABASE_PASS: forms-cms-embed.php\n";
 } catch (Throwable $error) {
-    $failedLine = $error->getFile() === __FILE__ ? ($error->getCode() ?: $error->getLine()) : 200;
+    $failedLine = $error->getFile() === __FILE__ ? (str_starts_with($error->getMessage(),'CMS fixture: ') ? $error->getCode() : $error->getLine()) : 200;
 } finally {
     if(is_resource($process)){proc_terminate($process);proc_close($process);}
     $server->exec('DROP DATABASE '.$name);
