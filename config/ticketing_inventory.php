@@ -292,3 +292,46 @@ function brvtal_ticket_inventory_reconcile(PDO $db, int $limit = 200): int
     }
     return $expiredHolds;
 }
+
+/**
+ * Web purchase limits only. Quantities are the validated cart map (type ID =>
+ * units); type limits are keyed by the same IDs, with normalized nullable ints.
+ * Buyer usage is the caller's deduplicated paid/active-held units for this event,
+ * excluding the current replay. This function does not read stock or persist it.
+ * @return array{allowed:bool,reason:?string}
+ */
+function brvtal_ticket_inventory_purchase_limits(
+    array $typeLimits, array $quantities, ?int $maxPerBuyer, int $buyerUsage
+): array {
+    if ($quantities === [] || $buyerUsage < 0 || ($maxPerBuyer !== null && $maxPerBuyer < 1)) {
+        throw new InvalidArgumentException('INVALID_PURCHASE_LIMIT_INPUT');
+    }
+    $total = 0;
+    $reason = null;
+    ksort($quantities);
+    foreach ($quantities as $typeId => $quantity) {
+        if (!is_int($typeId) || $typeId < 1 || !is_int($quantity) || $quantity < 1 || $quantity > 20
+            || $total > 20 - $quantity || !isset($typeLimits[$typeId]) || !is_array($typeLimits[$typeId])) {
+            throw new InvalidArgumentException('INVALID_PURCHASE_LIMIT_INPUT');
+        }
+        $total += $quantity;
+        $min = $typeLimits[$typeId]['min_per_order'] ?? null;
+        $max = $typeLimits[$typeId]['max_per_order'] ?? null;
+        if (($min !== null && (!is_int($min) || $min < 1))
+            || ($max !== null && (!is_int($max) || $max < 1))
+            || ($min !== null && $max !== null && $min > $max)) {
+            throw new InvalidArgumentException('INVALID_PURCHASE_LIMIT_INPUT');
+        }
+        if ($reason === null) {
+            if ($min !== null && $quantity < $min) {
+                $reason = 'below_min';
+            } elseif ($max !== null && $quantity > $max) {
+                $reason = 'above_type_max';
+            }
+        }
+    }
+    if ($reason === null && $maxPerBuyer !== null && $buyerUsage > $maxPerBuyer - $total) {
+        $reason = 'above_buyer_max';
+    }
+    return ['allowed' => $reason === null, 'reason' => $reason];
+}

@@ -557,3 +557,32 @@ migrations_it_run_fixtures(
     $formsPass
 );
 echo "BRVTAL migration fixture order and discovery MariaDB integration passed.\n";
+
+// #2190: structural proof, repeated additive DDL and preservation in isolation.
+$ledgerDb = 'brvtal_test_expense_migration_' . bin2hex(random_bytes(5));
+$formsServer->exec('CREATE DATABASE ' . $ledgerDb);
+try {
+    $ledgerPdo = new PDO($formsDsn.';dbname='.$ledgerDb, $formsUser, $formsPass,
+        [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
+    $ledgerPdo->exec('CREATE TABLE events (id INT UNSIGNED PRIMARY KEY) ENGINE=InnoDB');
+    $ledgerPdo->exec('INSERT INTO events VALUES (7)');
+    $ledgerMigration = 'migration_ticketing_finance_expenses_01.sql';
+    $ledgerSql = (string)file_get_contents(__DIR__.'/../../database/'.$ledgerMigration);
+    $ledgerProof = brvtalMigrationSchemaProof($ledgerPdo,$ledgerMigration);
+    migrations_it_assert(brvtalMigrationProofDisposition($ledgerMigration,$ledgerProof)==='apply','ledger absent');
+    brvtalMigrationAssertReconciliationSql($ledgerMigration,$ledgerSql,$ledgerProof);
+    $ledgerPdo->exec($ledgerSql);
+    migrations_it_assert(brvtalMigrationSchemaProof($ledgerPdo,$ledgerMigration)['complete'],'ledger structural proof');
+    $ledgerPdo->exec("INSERT INTO event_expenses(event_id,category,concept,amount_cop,entry_date,status,created_at_utc)
+        VALUES(7,'artistas','Synthetic',25000,'2026-11-27','paid',UTC_TIMESTAMP(6))");
+    $ledgerPdo->exec("INSERT INTO event_budgets(event_id,category,amount_cop,entry_date,status,created_at_utc)
+        VALUES(7,'artistas',30000,'2026-11-27','active',UTC_TIMESTAMP(6))");
+    $ledgerPdo->exec($ledgerSql);
+    migrations_it_assert((int)$ledgerPdo->query('SELECT amount_cop FROM event_expenses')->fetchColumn()===25000
+        && (int)$ledgerPdo->query('SELECT amount_cop FROM event_budgets')->fetchColumn()===30000
+        && (int)$ledgerPdo->query('SELECT COUNT(*) FROM events')->fetchColumn()===1,'ledger reapply preserves records');
+    migrations_it_assert(brvtalMigrationProofDisposition($ledgerMigration,
+        brvtalMigrationSchemaProof($ledgerPdo,$ledgerMigration))==='baseline','complete ledger after reapply');
+} finally {
+    $formsServer->exec('DROP DATABASE '.$ledgerDb);
+}

@@ -159,6 +159,28 @@ require_once __DIR__ . '/../config/deployment.php';
 .lineup-published-status{font-size:12px;color:#bbf7d0;line-height:1.4}
 .lineup-save-warning{position:fixed;top:12px;left:50%;transform:translateX(-50%);width:min(540px,calc(100vw - 24px));z-index:45;background:#292018;color:#fff2d3;border:2px solid #ffcb82;padding:14px 18px;font-size:14px;line-height:1.5;box-shadow:0 8px 24px #0009}
 @media(max-width:560px){.lineitem .role{max-width:100%}.lineup-draft-actions{align-items:flex-start;flex-direction:column}.lineup-publish-artist{width:100%}}
+.forms-workspace{margin-top:24px;min-width:0;color:var(--admin-text,#f4f6f8);overflow-wrap:anywhere}
+.forms-workspace h2{font-size:var(--admin-font-lg,18px);margin:0 0 8px;text-wrap:balance}
+.forms-workspace p{line-height:1.5;margin:8px 0 16px}
+.forms-workspace .forms-list{display:grid;gap:8px;list-style:none;padding:0;margin:16px 0}
+.forms-workspace .forms-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;
+  border:1px solid var(--admin-border,#34383d);border-radius:10px;padding:14px;
+  background:var(--admin-surface,#090a0b)}
+.forms-workspace .forms-row strong,.forms-workspace .forms-row span{display:block}
+.forms-workspace .forms-row span,.forms-workspace dt{color:var(--admin-muted-strong,#aab1b7);font-size:13px}
+.forms-workspace .forms-actions,.forms-workspace form{
+  display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin:16px 0}
+.forms-workspace label{display:grid;gap:6px;flex:1;min-width:min(140px,100%)}
+.forms-workspace input,.forms-workspace select{min-height:44px;min-width:0;width:100%;color:var(--admin-text,#fff);
+  background:var(--admin-input,#090a0b);border:1px solid var(--admin-border,#34383d);padding:8px;border-radius:8px}
+.forms-workspace button{min-height:44px;white-space:normal}
+.forms-workspace :focus-visible{outline:2px solid var(--admin-focus,#fff);outline-offset:3px}
+.forms-workspace dl{margin:16px 0;display:grid;gap:6px}
+.forms-workspace dd{margin:0 0 10px;white-space:pre-wrap;overflow-wrap:anywhere}
+@media(max-width:650px){.forms-workspace .forms-row{grid-template-columns:minmax(0,1fr)}
+  .forms-workspace form label{flex-basis:100%}}
+@media(min-width:851px){.forms-workspace dl{grid-template-columns:minmax(160px,220px) minmax(0,1fr);align-items:baseline}
+  .forms-workspace dd{margin:0 0 6px}}
 </style>
 <link rel="stylesheet" href="/discadmin/admin-modules.css?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>">
 <link rel="stylesheet" href="/discadmin/content-core.css?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>">
@@ -1315,10 +1337,11 @@ function render(){
   events:'EVENTOS',artists:'ARTISTAS',releases:'RELEASES',
   sets:'SETS',ticketing:'BOLETERÍA','hero-slider':'BANNERS',
   theme:'APARIENCIA',settings:'CONFIGURACIÓN',system:'ESTADO DEL SISTEMA',backups:'COPIAS DE SEGURIDAD',
-  seo:'SEO','content-core':'GESTIÓN DE CONTENIDO',security:'SEGURIDAD / 2FA'
+  seo:'SEO',forms:'FORMULARIOS','content-core':'GESTIÓN DE CONTENIDO',security:'SEGURIDAD / 2FA'
  };
  const moduleTitle=moduleTitles[state.section]||state.section.toUpperCase();
- const moduleBody=state.section==='content-core'||state.section==='security'||state.section==='ticketing'
+ const moduleBody=state.section==='content-core'||state.section==='security'
+  ||state.section==='ticketing'||state.section==='forms'
   ?'<div id="admin-module-host" aria-live="polite">CARGANDO…</div>'
   :content();
  root.innerHTML=`
