@@ -1,4 +1,5 @@
 import {test,expect} from '@playwright/test';
+import {execFileSync} from 'node:child_process';
 import {readFileSync, mkdirSync, writeFileSync} from 'node:fs';
 const js = readFileSync('discadmin/ticketing-orders.js','utf8');
 const css = readFileSync('discadmin/ticketing.css','utf8');
@@ -557,6 +558,68 @@ test('#2041: POS/Wompi/courtesy/unknown and true payment conflicts agree in list
       await info.attach('2041-'+stage+'-'+width+'px.png',{body:image,contentType:'image/png'});
       if(stage==='despues')
         expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    }
+  }
+});
+
+test('#2043: filtro aplicado, cursor de página, snapshot completo, límite y permiso', async({page})=>{
+  const requests=[];let mode='ok';
+  const html=fixture.replace('data-ticketing-records>','data-ticketing-records data-ticketing-csrf="synthetic-csrf">');
+  await start(page,route=>{
+    const p=new URL(route.request().url()).searchParams;
+    if(p.get('format')==='csv'){
+      requests.push({params:Object.fromEntries(p),csrf:route.request().headers()['x-csrf-token']});
+      if(mode!=='ok')return route.fulfill({status:mode==='limit'?422:403,contentType:'application/json',
+        body:JSON.stringify({ok:false,error:mode==='limit'?'EXPORT_LIMIT':'EXPORT_FORBIDDEN'})});
+      return route.fulfill({contentType:'text/csv',headers:{'X-BRVTAL-Export-Count':'2','X-BRVTAL-Export-Snapshot':'2026-11-19T10:00:00-05:00'},
+        body:'id,status\n91,paid\n90,paid\n'});
+    }
+    return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:{
+      rows:[order],has_more:!p.has('cursor'),next_cursor:p.has('cursor')?null:91,export_all_enabled:true,export_max:1000}})});
+  },'orders',js,css,html);
+  const all=page.getByRole('button',{name:'Exportar todos (máx. 1000)'});
+  await expect(all).toBeEnabled();
+  await page.locator('[name=event_id]').fill('6');
+  await expect(all).toBeDisabled();
+  await page.getByRole('button',{name:'Consultar'}).click();
+  await expect(all).toBeEnabled();
+  await page.getByRole('button',{name:'Cargar más'}).click();
+  await expect(page.locator('table tbody tr')).toHaveCount(2);
+  const downloadPage=page.waitForEvent('download');
+  await page.getByRole('button',{name:'Exportar CSV de esta página'}).click();
+  expect((await downloadPage).suggestedFilename()).toBe('brvtal-ticketing-page.csv');
+  expect(requests.at(-1).params.cursor).toBe('91');
+  await all.focus();const downloadAll=page.waitForEvent('download');await page.keyboard.press('Enter');
+  const file=await downloadAll;
+  expect(file.suggestedFilename()).toBe('brvtal-ticketing-all.csv');
+  expect(readFileSync(await file.path(),'utf8').trim().split('\n')).toHaveLength(3);
+  expect(requests.at(-1).params).toMatchObject({event_id:'6',export_scope:'all'});
+  expect(requests.at(-1).params.cursor).toBeUndefined();
+  expect(requests.at(-1).csrf).toBe('synthetic-csrf');
+  await expect(page.getByRole('status')).toContainText('2 resultados');
+  mode='limit';await all.click();await expect(page.getByRole('status')).toContainText('Acota los filtros');
+  mode='forbidden';await all.click();await expect(page.getByRole('status')).toContainText('no autorizada');
+  expect(await page.locator('[name=event_id]').inputValue()).toBe('6');
+});
+test('#2043: capturas exactas del cambio de exportación 390/1440',async({page},info)=>{
+  const baseline=execFileSync('git',['show','42c595501d5be92211ba944b4912c420a48d1bb6:discadmin/ticketing-orders.js'],{encoding:'utf8'});
+  const html=fixture.replace('data-ticketing-records-form>','data-ticketing-records-form class="ticketing-records-form tk-form">')
+    .replace('data-ticketing-export>Exportar CSV','data-ticketing-export class="tk-button">Exportar CSV de esta página');
+  const mock=route=>route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:{
+    rows:[order],has_more:false,next_cursor:null,export_all_enabled:true,export_max:1000}})});
+  for(const width of [390,1440]){
+    await page.setViewportSize({width,height:900});
+    for(const [stage,source] of [['antes',baseline],['despues',js]]){
+      await start(page,mock,'orders',source,css,html);
+      await expect(page.locator('table tbody tr')).toHaveCount(1);
+      await expect(page.getByRole('button',{name:'Exportar todos (máx. 1000)'})).toHaveCount(stage==='antes'?0:1);
+      const png=await page.screenshot({fullPage:true});
+      await info.attach('2043-'+stage+'-'+width+'.png',{body:png,contentType:'image/png'});
+      if(process.env.GITHUB_HEAD_REF==='work/issue-2043'){
+        const chunks=png.toString('base64').match(/.{1,1200}/g)||[];
+        chunks.forEach((chunk,index)=>console.log('VISUAL-2043-'+stage+'-'+width+':'+index+':'+chunk));
+      }
+      expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
     }
   }
 });

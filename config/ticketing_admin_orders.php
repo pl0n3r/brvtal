@@ -6,7 +6,7 @@ require_once __DIR__ . '/ticketing_issue.php';
 function brvtalTicketAdminFilters(array $raw): array
 {
     foreach ($raw as $key => $value) {
-        if (!in_array($key, ['kind','event_id','status','from','to','email','q','cursor','limit','order_id','format'], true)
+        if (!in_array($key, ['kind','event_id','status','from','to','email','q','cursor','limit','order_id','format','export_scope'], true)
             || !is_string($value)) throw new InvalidArgumentException('INVALID_FILTER');
     }
     $kind = $raw['kind'] ?? 'orders';
@@ -48,6 +48,12 @@ function brvtalTicketAdminFilters(array $raw): array
     }
     $out['format'] = $raw['format'] ?? 'json';
     if (!in_array($out['format'], ['json','csv'], true)) throw new InvalidArgumentException('INVALID_FORMAT');
+    $out['export_scope'] = $raw['export_scope'] ?? 'page';
+    if (!in_array($out['export_scope'], ['page','all'], true)
+        || ($out['export_scope'] === 'all' && ($out['format'] !== 'csv' || $out['cursor'] !== null))
+        || ($out['format'] === 'csv' && $out['order_id'] !== null)) {
+        throw new InvalidArgumentException('INVALID_EXPORT_SCOPE');
+    }
     return $out;
 }
 
@@ -156,7 +162,7 @@ function brvtalTicketAdminPaymentEvidence(PDO $pdo, array $order, ?array $schema
 }
 
 /** One row per buyer/order; correlated aggregates avoid multiplying monetary totals. */
-function brvtalTicketAdminPage(PDO $pdo, array $f): array
+function brvtalTicketAdminPage(PDO $pdo, array $f, bool $includeEvidence = true): array
 {
     $isOrder = $f['kind'] === 'orders';
     $params = []; $where = [];
@@ -211,7 +217,7 @@ function brvtalTicketAdminPage(PDO $pdo, array $f): array
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
     $more = count($rows) > $f['limit'];
     if ($more) array_pop($rows);
-    if ($isOrder && $rows) {
+    if ($includeEvidence && $isOrder && $rows) {
         $schema = brvtalTicketAdminPaymentSchema($pdo);
         foreach ($rows as &$row) {
             $row['payment_evidence'] = brvtalTicketAdminPaymentEvidence($pdo,$row,$schema);
@@ -220,6 +226,76 @@ function brvtalTicketAdminPage(PDO $pdo, array $f): array
     }
     return ['rows'=>$rows,'kind'=>$f['kind'],'has_more'=>$more,
         'next_cursor'=>$more && $rows ? (int)end($rows)['id'] : null];
+}
+
+// New full export is OFF until OWNER's privacy activation decision (#1671).
+const BRVTAL_TICKET_EXPORT_MAX = 1000;
+
+function brvtalTicketAdminFullExportEnabled(): bool
+{
+    return ($GLOBALS['config']['ticketing']['filtered_export_enabled'] ?? false) === true;
+}
+
+function brvtalTicketAdminCsvCell(mixed $value): string
+{
+    $text = (string)($value ?? '');
+    if (preg_match('//u', $text) !== 1) {
+        throw new RuntimeException('EXPORT_ENCODING');
+    }
+    // Neutralize spreadsheet formulas, including leading whitespace and controls.
+    return preg_match('/^(?:[\t\r\n]|[\s\p{Cc}\x{FEFF}]*[=+@\-＝＋＠－])/u', $text) === 1
+        ? "'" . $text : $text;
+}
+
+function brvtalTicketAdminCsv(array $rows, string $kind): string
+{
+    $columns = $kind === 'orders'
+        ? ['id','buyer_id','event_id','status','currency','total_cop','units','approvals','last_payment_state','mail_state']
+        : ['id','status','order_count','paid_total_cop'];
+    $out = fopen('php://memory', 'w+b');
+    if ($out === false) throw new RuntimeException('EXPORT_BUFFER');
+    try {
+        if (fputcsv($out, $columns, escape: '') === false) throw new RuntimeException('EXPORT_BUFFER');
+        foreach ($rows as $row) {
+            $cells = array_map(static fn(string $key): string => brvtalTicketAdminCsvCell($row[$key] ?? null), $columns);
+            if (fputcsv($out, $cells, escape: '') === false) throw new RuntimeException('EXPORT_BUFFER');
+        }
+        rewind($out);
+        $csv = stream_get_contents($out);
+        if ($csv === false) throw new RuntimeException('EXPORT_BUFFER');
+        return $csv;
+    } finally {
+        fclose($out);
+    }
+}
+
+/** One bounded consistent read, then audit before releasing any CSV bytes. */
+function brvtalTicketAdminExport(PDO $pdo, array $filter, callable $audit): array
+{
+    $all = $filter['export_scope'] === 'all';
+    if ($all) {
+        $filter['cursor'] = null;
+        $filter['limit'] = BRVTAL_TICKET_EXPORT_MAX;
+    }
+    $pdo->exec('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
+    $pdo->beginTransaction();
+    try {
+        $snapshot = (new DateTimeImmutable('now', new DateTimeZone('America/Bogota')))->format(DATE_ATOM);
+        $page = brvtalTicketAdminPage($pdo, $filter, false);
+        if ($all && $page['has_more']) throw new LengthException('EXPORT_LIMIT');
+        $count = count($page['rows']);
+        $csv = brvtalTicketAdminCsv($page['rows'], $filter['kind']);
+        $pdo->commit();
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $error;
+    }
+    $audit([
+        'kind'=>$filter['kind'], 'scope'=>$filter['export_scope'], 'event_id'=>$filter['event_id'],
+        'status'=>$filter['status'], 'from'=>$filter['from'], 'to'=>$filter['to'],
+        'count'=>$count, 'snapshot'=>$snapshot,
+    ]);
+    return ['csv'=>$csv, 'count'=>$count, 'snapshot'=>$snapshot];
 }
 
 function brvtalTicketAdminDetail(PDO $pdo, int $orderId): array
