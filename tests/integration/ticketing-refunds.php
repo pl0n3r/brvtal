@@ -202,6 +202,21 @@ try {
     foreach(explode(';',$incidentMigration) as $sql) {
         if(trim($sql)!=='')$pdo->exec($sql);
     }
+    // #2074: use the same additive schema and version store as DISCADMIN.
+    foreach (['migration_ticket_mail_html_01.sql','migration_mail_templates_01.sql'] as $migration) {
+        foreach (explode(';',(string)file_get_contents(__DIR__.'/../../database/'.$migration)) as $sql) {
+            if (trim($sql)!=='') $pdo->exec($sql);
+        }
+    }
+    require_once __DIR__.'/../../config/mail_template_store.php';
+    $refundDoc=brvtal_mail_template_catalog()['refund']['defaults'];
+    $refundDoc['subject']='Devolución publicada de prueba';
+    $refundDoc['message']='Confirmación sintética para {{event_name}}';
+    $refundDoc['theme']['accent']='#aabbcc';
+    $draft=brvtal_mail_template_save_draft($pdo,'refund','ticketing',$refundDoc,7,0);
+    $published=brvtal_mail_template_publish($pdo,'refund','ticketing',$draft['version_id'],7,1);
+    $refundDoc['subject']='Borrador no publicado';
+    brvtal_mail_template_save_draft($pdo,'refund','ticketing',$refundDoc,7,2);
     putenv('BRVTAL_TICKET_MAIL_TESTING=1');
     foreach ([
         "INSERT INTO events VALUES (1,'Evento sintético cancelado')",
@@ -334,6 +349,26 @@ try {
         'REFUND_RECEIPT_CONFLICT');
     t21((int)$pdo->query("SELECT COUNT(*) FROM ticket_mail_outbox WHERE message_key LIKE 'order:%:refund:%'")->fetchColumn()===1,
         'one refund email enqueued for confirmed manual claim');
+    $refundSnapshot=static function(int $order,int $refund)use($pdo):array {
+        $q=$pdo->prepare('SELECT message_key,related_ref,recipient_email,subject,body_text,body_html,
+            template_key,template_version FROM ticket_mail_outbox WHERE message_key=?');
+        $q->execute(["order:{$order}:refund:{$refund}"]);
+        $row=$q->fetch(PDO::FETCH_ASSOC);
+        t21(is_array($row),'refund notification snapshot exists');
+        return $row;
+    };
+    $assertPublished=static function(array $mail)use($published):void {
+        t21($mail['recipient_email']==='comprador@brvtal.invalid'
+            && $mail['subject']==='Devolución publicada de prueba'
+            && $mail['template_key']==='refund'
+            && (int)$mail['template_version']===$published['version_id']
+            && str_contains($mail['body_text'],'Confirmación sintética para Evento sintético cancelado')
+            && str_contains($mail['body_html'],'Confirmación sintética para Evento sintético cancelado')
+            && str_contains($mail['body_html'],'#aabbcc')
+            && str_contains($mail['body_html'],'https://www.brvtal.com.co/mi-cuenta'),
+            'published refund copy, HTML and real revision; draft ignored');
+    };
+    $assertPublished($refundSnapshot(92,$id3));
     t21($pdo->query('SELECT provider_refund_id FROM ticket_refunds WHERE id='.$id3)->fetchColumn()
         ==='manual:WOMPI-TEST-02','reference stored with audited refund');
     t21($pdo->query('SELECT status FROM ticket_orders WHERE id=92')->fetchColumn()==='refunded',
@@ -662,6 +697,58 @@ try {
         }
         return [$ref,$refs];
     };
+    // #2074: two independent partial manual refunds on one synthetic paid order.
+    [$mailOrderRef,$mailEntryRefs]=$newOrder(899,900,[300,300,300]);
+    $pdo->exec("INSERT INTO ticket_payment_attempts
+        (id,order_id,provider,provider_transaction_id,status,gross_amount_cop,provider_reference)
+        VALUES (6899,899,'wompi','trx_test_899','approved',900,'ref899')");
+    $pdo->exec("INSERT INTO ticket_payment_webhook_events VALUES (6899,'trx_test_899','APPROVED')");
+    $pdo->exec("INSERT INTO ticket_entry_credentials VALUES (8990,'active',NULL),(8991,'active',NULL)");
+    $mailIds=[];
+    foreach ([0,1] as $index) {
+        $claim=brvtalRefundRequest($pdo,3,[
+            'order_id'=>$mailOrderRef,'entry_ids'=>[$mailEntryRefs[$index]],
+            'reason'=>'Devolución parcial sintética','idempotency_key'=>'t2074-partial-refund-'.$index,
+        ]);
+        $rid=(int)$claim['id']; $mailIds[]=$rid;
+        t21($claim['amount_cop']===300,'partial refund amount unchanged');
+        brvtalRefundStaff($pdo,7,'superadmin',$rid,'approve');
+        $reference='WOMPI-T2074-'.$index;
+        if ($index===1) {
+            // Corruption must retain the existing atomic rollback, not fake a
+            // successful confirmation or silently fall back to another version.
+            $revision=$published['version_id'];
+            $q=$pdo->prepare('SELECT document_json FROM mail_template_versions WHERE id=?');
+            $q->execute([$revision]); $original=$q->fetchColumn();
+            $update=$pdo->prepare('UPDATE mail_template_versions SET document_json=? WHERE id=?');
+            $update->execute(['{"invalid":true}',$revision]);
+            $beforeMailFailure=$snapshot();
+            try {
+                brvtalRefundStaff($pdo,7,'superadmin',$rid,'manual_confirm','',$reference);
+                t21(false,'corrupt published refund must fail closed');
+            } catch (RuntimeException $error) {
+                t21($error->getMessage()==='MAIL_TEMPLATE_DOCUMENT_CORRUPTED','opaque renderer failure');
+            } finally {
+                $update->execute([$original,$revision]);
+            }
+            t21($snapshot()===$beforeMailFailure&&!$pdo->inTransaction()
+                && $pdo->query('SELECT status FROM ticket_entries WHERE id=8991')->fetchColumn()==='issued'
+                && $pdo->query('SELECT status FROM ticket_entry_credentials WHERE entry_id=8991')->fetchColumn()==='active',
+                'render failure rolls back adjustment, state and QR revocation');
+        }
+        t21(brvtalRefundStaff($pdo,7,'superadmin',$rid,'manual_confirm','',$reference)['status']==='refunded',
+            'confirmed synthetic partial refund');
+        $mail=$refundSnapshot(899,$rid);
+        $assertPublished($mail);
+        t21($mail['related_ref']==='order:899','server-side related reference');
+        t21(brvtalRefundStaff($pdo,7,'superadmin',$rid,'manual_confirm','',$reference)['replayed']
+            && $refundSnapshot(899,$rid)===$mail,'same receipt preserves snapshot');
+    }
+    t21($mailIds[0]!==$mailIds[1]
+        && (int)$pdo->query("SELECT COUNT(*) FROM ticket_mail_outbox WHERE message_key LIKE 'order:899:refund:%'")->fetchColumn()===2
+        && $pdo->query('SELECT status FROM ticket_orders WHERE id=899')->fetchColumn()==='paid',
+        'two partial refund keys, no duplicate, remaining order paid');
+
     // Rejected claims are deliberately not released, even for mixed selections.
     [$rejectedRef,$rejectedEntries]=$newOrder(900,600,[300,300]);
     $rejectedInput=['order_id'=>$rejectedRef,'entry_ids'=>[$rejectedEntries[0]],

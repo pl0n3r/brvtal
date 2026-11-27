@@ -341,10 +341,10 @@ function brvtalRefundQueueMail(PDO $db,int $id,int $orderId):void {
     if(!is_array($row)||!filter_var($row[0],FILTER_VALIDATE_EMAIL))
         throw new DomainException('REFUND_MAIL_UNAVAILABLE');
     $mail=brvtal_ticket_mail_render('refund',[
-        'event'=>(string)$row[1],'link'=>'https://www.brvtal.com.co/mi-cuenta']);
+        'event'=>(string)$row[1],'link'=>'https://www.brvtal.com.co/mi-cuenta'],$db);
     brvtal_ticket_mail_enqueue($db,"order:{$orderId}:refund:{$id}",
         "order:{$orderId}",(string)$row[0],$mail['subject'],$mail['text'],
-        $mail['html'],'refund');
+        $mail['html'],$mail['template_key'],$mail['template_version']);
 }
 function brvtalRefundStaff(PDO $db,int $actor,string $role,int $id,string $action,string $note='',string $receipt=''):array {
     brvtalRefundGuard($db);
