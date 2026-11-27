@@ -8,7 +8,7 @@ const roles = readFileSync('config/ticketing_staff_permissions.php', 'utf8');
 // #1964 (A): sections live in four groups; only the active group's sections show.
 const sections = [
   ['dashboard','Resumen','sale'], ['orders','Pedidos','sale'], ['entries','Boletas','sale'], ['buyers','Compradores','sale'],
-  ['door','Puerta','live'], ['finance','Finanzas','money'],
+  ['door','Puerta','live'], ['courtesies','Cortesías','live'], ['finance','Finanzas','money'],
   ['promos','Cupones','marketing'], ['promoters','Promotores','marketing'], ['recovery','Recuperación','marketing'], ['mail','Correos','marketing'],
 ];
 const groupNames = {sale:'Venta', live:'En vivo', money:'Dinero', marketing:'Marketing'};
@@ -17,7 +17,7 @@ const fixture = (visible = ids) => {
   const shown = sections.filter(([id]) => visible.includes(id));
   const firstGroup = shown[0][2];
   const groups = [...new Set(shown.map(([, , group]) => group))];
-  return '<section class="ticketing" data-admin-module="ticketing" data-ticketing-role="superadmin">'
+  return '<section class="ticketing" data-admin-module="ticketing" data-ticketing-role="superadmin"' + (visible.includes('courtesies')?' data-ticketing-csrf="synthetic-csrf"':'') + '>'
     + '<p class="ticketing-status"><span data-ticketing-sale-status>Venta en línea: pruebas</span>'
     + '<span data-ticketing-mail-status>Correo: apagado</span>'
     + '<button type="button" class="ticketing-link" data-ticketing-configure>Configurar en Integraciones</button></p>'
@@ -77,7 +77,7 @@ test('Boletería groups its sections, keeps keyboard and deep links, and shows r
   // A deep link opens its group directly.
   await page.evaluate(() => window.BRVTALTicketing.selectTab('door'));
   await expect(page.getByRole('button',{name:'En vivo'})).toHaveAttribute('aria-pressed','true');
-  await expect(page.getByRole('tab')).toHaveText(['Puerta']);
+  await expect(page.getByRole('tab')).toHaveText(['Puerta','Cortesías']);
 });
 
 test('door role sees only Puerta, and denied fragment cannot mount data', async ({page}) => {
@@ -91,12 +91,35 @@ test('door role sees only Puerta, and denied fragment cannot mount data', async 
   await expect(page.getByRole('tab')).toHaveCount(0);
 });
 
+test('Cortesías: ruta canónica, contexto Pedidos y Back/Forward',async({page})=>{
+  await setup(page);
+  await page.route('**/discadmin/ticketing-courtesy.js*',route=>route.fulfill({contentType:'text/javascript',body:readFileSync('discadmin/ticketing-courtesy.js','utf8')}));
+  await page.route('**/api/ticketing/admin-courtesy-list.php*',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:{rows:[],catalog:[],totals:{},has_more:false,next_cursor:null}})}));
+  await page.route('**/discadmin/ticketing-orders.js*',route=>route.fulfill({contentType:'text/javascript',body:readFileSync('discadmin/ticketing-orders.js','utf8')}));
+  await page.route('**/discadmin/ticketing-orders.php*',route=>route.fulfill({contentType:'text/html',body:'<section data-ticketing-records><form data-ticketing-records-form><input name="kind" value="orders"><select name="status"></select></form><p data-ticketing-records-status></p><div data-ticketing-records-results></div><button data-ticketing-records-more></button><div data-ticketing-records-detail></div></section>'}));
+  await page.route('**/api/ticketing/admin-orders.php*',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:{rows:[],has_more:false,next_cursor:null}})}));
+  await page.evaluate(()=>{history.replaceState({},'', '?module=ticketing&tab=courtesies');return window.BRVTALTicketing.open({replace:true});});
+  await expect(page.getByRole('tab',{name:'Cortesías'})).toHaveAttribute('aria-selected','true');
+  await expect(page.locator('[data-ticketing-courtesy]')).toHaveCount(1);
+  await page.getByRole('button',{name:'Venta'}).click();
+  await page.getByRole('tab',{name:'Pedidos'}).click();
+  await expect(page.getByRole('button',{name:'Gestionar cortesías'})).toBeVisible();
+  await expect(page.locator('[data-ticketing-courtesy]')).toHaveCount(0);
+  await page.getByRole('button',{name:'Gestionar cortesías'}).click();
+  await expect(page.locator('[data-ticketing-courtesy]')).toHaveCount(1);
+  await page.goBack();
+  await expect(page.getByRole('tab',{name:'Pedidos'})).toHaveAttribute('aria-selected','true');
+  await page.goForward();
+  await expect(page.getByRole('tab',{name:'Cortesías'})).toHaveAttribute('aria-selected','true');
+  await expect(page.locator('[data-ticketing-courtesy]')).toHaveCount(1);
+});
 test('server-side permissions refuse buyer and sensitive staff operations', async () => {
   const evaluated = JSON.parse(execFileSync('php',['-r',
-    "require 'config/ticketing_staff_permissions.php'; echo json_encode([brvtalTicketingCan('buyer','view'),brvtalTicketingCan('door','finance'),brvtalTicketingCan('admin','refund'),brvtalTicketingCan('superadmin','refund'),brvtalTicketingCan('root','settings'),brvtalTicketingCan('untrusted','view'),brvtalTicketingProviderStatus()]);"
+    "require 'config/ticketing_staff_permissions.php'; echo json_encode([brvtalTicketingCan('buyer','view'),brvtalTicketingCan('door','finance'),brvtalTicketingCan('admin','refund'),brvtalTicketingCan('superadmin','refund'),brvtalTicketingCan('root','settings'),brvtalTicketingCan('untrusted','view'),brvtalTicketingProviderStatus(),brvtalTicketingCan('owner','courtesy'),brvtalTicketingCan('admin','courtesy'),brvtalTicketingCan('door','courtesy')]);"
   ],{encoding:'utf8'}));
   expect(evaluated.slice(0,6)).toEqual([false,false,false,true,true,false]);
   expect(evaluated[6]).toEqual({wompi:'disabled',resend:'disabled',health:'not_checked'});
+  expect(evaluated.slice(7)).toEqual([true,false,false]);
   expect(core).toContain("['ticketing','BOLETERÍA']");
   expect(core).toContain("window.BRVTALTicketing.mount()");
   expect(php).toContain('brvtal_admin_require();');
