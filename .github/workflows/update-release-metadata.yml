@@ -519,6 +519,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Cache npm downloads
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -573,10 +575,77 @@ jobs:
           await browser.close();
           JS
 
+      - name: Prepare exact status-budget baseline (#2219)
+        id: status_evidence
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          if ! grep -q 'BRVTAL_STATUS_BASELINE_SCRIPT' tests/e2e/public-order-status.spec.mjs; then
+            ! grep -q 'function retryDelay' js/public-order-status.js
+            echo 'Status budget contract absent; no A/B evidence.'
+            echo 'required=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          grep -q 'function retryDelay' js/public-order-status.js
+          baseline=62c83dc89fea34bda38b111a596def1ea82a34a0
+          git merge-base --is-ancestor "$baseline" HEAD
+          test "$(git rev-parse "$baseline:js/public-order-status.js")" = 482d02829fcd58152da8e0863ac1766c5e797172
+          umask 077
+          mkdir -p "$RUNNER_TEMP/status-budget-evidence"
+          git show "$baseline:js/public-order-status.js" > "$RUNNER_TEMP/status-budget-baseline.js"
+          echo "BRVTAL_STATUS_BASELINE_SCRIPT=$RUNNER_TEMP/status-budget-baseline.js" >> "$GITHUB_ENV"
+          echo "BRVTAL_VISUAL_EVIDENCE=$RUNNER_TEMP/status-budget-evidence" >> "$GITHUB_ENV"
+          echo 'required=true' >> "$GITHUB_OUTPUT"
+
       - name: Run Chromium browser tests
         env:
           PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ runner.temp }}/c05-playwright-report.json
         run: npx playwright test --project=chromium --reporter=list,json
+
+      - name: Verify four status-budget captures and exact SHA
+        if: success() && steps.status_evidence.outputs.required == 'true'
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, struct
+          root = pathlib.Path(os.environ["BRVTAL_VISUAL_EVIDENCE"])
+          captures = {}
+          for width in (390, 1440):
+              for stage in ("before", "after"):
+                  name = f"status-budget-{stage}-{width}.png"
+                  data = (root / name).read_bytes()
+                  assert data[:8] == b'\x89PNG\r\n\x1a\n' and len(data) > 24
+                  actual_width, height = struct.unpack(">II", data[16:24])
+                  assert actual_width == width and height > 0, name
+                  captures[name] = {"sha256": hashlib.sha256(data).hexdigest(), "width": width, "height": height}
+          for width in (390, 1440):
+              assert captures[f"status-budget-before-{width}.png"]["sha256"] != captures[f"status-budget-after-{width}.png"]["sha256"]
+          (root / "manifest.json").write_text(json.dumps({
+              "head_sha": os.environ["EXPECTED_HEAD"],
+              "baseline_sha": "62c83dc89fea34bda38b111a596def1ea82a34a0",
+              "captures": captures, "visual_review": "NOT_PERFORMED",
+              "production_validation": "NOT_PERFORMED"
+          }, indent=2) + "\n")
+          PY
+
+      - name: Upload status-budget A/B evidence (#2219)
+        if: success() && steps.status_evidence.outputs.required == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: status-budget-ab-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/status-budget-evidence/status-budget-before-390.png
+            ${{ runner.temp }}/status-budget-evidence/status-budget-after-390.png
+            ${{ runner.temp }}/status-budget-evidence/status-budget-before-1440.png
+            ${{ runner.temp }}/status-budget-evidence/status-budget-after-1440.png
+            ${{ runner.temp }}/status-budget-evidence/manifest.json
+          if-no-files-found: error
+          retention-days: 14
 
       # #2033 exact-main vs PR-head: four browser PNGs, synthetic data only.
       # This exports no credentials/production data and does not deploy.
@@ -715,9 +784,10 @@ jobs:
           BRVTAL_INTEGRATION_TESTS: '1'
         run: php tests/integration/buyer-auth-flows.php
 
-      - name: Verify checkout guest scope over isolated real HTTP
+      - name: Verify checkout guest scope and status budget over isolated real HTTP
         env:
           BRVTAL_INTEGRATION_TESTS: '1'
+          BRVTAL_STATUS_REAL_BROWSER: '1'
         run: php tests/integration/ticketing-checkout-guest.php
 
       - name: Verify T15 scanner concurrency against isolated real-stack MariaDB
