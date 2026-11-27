@@ -195,6 +195,71 @@ function brvtal_ticket_mail_claim(PDO $pdo): ?array
     }
 }
 
+/**
+ * Fence recovery dispatch at the last local authorization point. Lock the
+ * order/consent before the outbox (producer lock order), then commit BEFORE
+ * the provider call. A payment/opt-out after this boundary cannot revoke an
+ * already authorized/in-flight request.
+ */
+function brvtal_ticket_mail_prepare_dispatch(PDO $pdo, array $job): string
+{
+    if (!preg_match('/^order:.*:(abandoned_checkout|reminder)$/D', (string)$job['message_key'])) {
+        return 'ready';
+    }
+    require_once __DIR__ . '/ticketing_recovery.php';
+    $pdo->beginTransaction();
+    try {
+        $historyReady = (int)$pdo->query("SELECT COUNT(*) FROM information_schema.TABLES
+            WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='ticket_mail_history'")->fetchColumn() === 1;
+        $reason = brvtalRecoveryDispatchReason($pdo, $job, $historyReady);
+        $fence = $pdo->prepare("SELECT id FROM ticket_mail_outbox
+            WHERE id=? AND attempts=? AND state='sending' AND locked_until>=UTC_TIMESTAMP()
+              AND provider_message_id IS NULL AND accepted_at IS NULL FOR UPDATE");
+        $fence->execute([$job['id'], $job['attempts']]);
+        if (!$fence->fetchColumn()) {
+            $pdo->rollBack();
+            return 'lease_lost';
+        }
+        if ($reason === null) {
+            $pdo->commit();
+            return 'ready';
+        }
+        // An earlier attempt may have reached the provider, even on 5xx.
+        // Do not manufacture proof that no message was sent in that case.
+        $state = (int)$job['attempts'] === 1 ? 'suppressed' : 'uncertain';
+        if ($historyReady) {
+            $history = $pdo->prepare('SELECT delivery_state,resend_email_id FROM ticket_mail_history
+                WHERE outbox_id=? AND message_key=? FOR UPDATE');
+            $history->execute([$job['id'], $job['message_key']]);
+            $receipt = $history->fetch(PDO::FETCH_ASSOC);
+            if ($receipt && ($receipt['resend_email_id'] !== null || $receipt['delivery_state'] !== 'queued')) {
+                $state = 'uncertain';
+            }
+            if ($state === 'suppressed' && $receipt) {
+                $audit = $pdo->prepare("UPDATE ticket_mail_history
+                    SET delivery_state='suppressed',state_at=UTC_TIMESTAMP()
+                    WHERE outbox_id=? AND message_key=? AND delivery_state='queued' AND resend_email_id IS NULL");
+                $audit->execute([$job['id'], $job['message_key']]);
+            }
+        }
+        $update = $pdo->prepare("UPDATE ticket_mail_outbox
+            SET state=?,last_error_code=?,locked_until=NULL,updated_at=UTC_TIMESTAMP()
+            WHERE id=? AND attempts=? AND state='sending' AND locked_until>=UTC_TIMESTAMP()
+              AND provider_message_id IS NULL AND accepted_at IS NULL");
+        $update->execute([$state, $state === 'uncertain' ? 'receipt_unknown' : $reason,
+            $job['id'], $job['attempts']]);
+        if ($update->rowCount() !== 1) {
+            $pdo->rollBack();
+            return 'lease_lost';
+        }
+        $pdo->commit();
+        return $state;
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $error;
+    }
+}
+
 /** One attempt per worker invocation, no caller-visible PII. */
 function brvtal_ticket_mail_deliver_one(PDO $pdo, ?callable $request = null): string
 {
@@ -203,6 +268,8 @@ function brvtal_ticket_mail_deliver_one(PDO $pdo, ?callable $request = null): st
     if ($job === null) {
         return 'idle';
     }
+    $dispatch = brvtal_ticket_mail_prepare_dispatch($pdo, $job);
+    if ($dispatch !== 'ready') return $dispatch;
     try {
         $result = brvtal_ticket_resend_send($job, $request);
     } catch (Throwable) {

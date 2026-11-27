@@ -211,6 +211,81 @@ function brvtalRecoveryReminder(string $event, string $token): array
     return ['subject'=>$subject, 'text'=>$body, 'html'=>$html, 'link'=>$link];
 }
 
+
+/** The producer and pre-transport gate use the same locked order/consent snapshot. */
+function brvtalRecoveryLockedOrder(PDO $db, int|string $orderId): array|false
+{
+    $q = $db->prepare('SELECT o.id,o.buyer_id,o.event_id,o.status,o.created_at_utc,o.expires_at_utc,
+        LOWER(HEX(o.public_id)) AS public_token,b.email,b.status AS buyer_status,
+        b.email_verified_at,c.policy_version,c.consented_at_utc,c.revoked_at_utc,
+        c.expires_at_utc AS consent_expires,e.title AS event_title
+        FROM ticket_orders o JOIN ticket_buyers b ON b.id=o.buyer_id
+        JOIN events e ON e.id=o.event_id
+        LEFT JOIN ticket_recovery_consents c ON c.buyer_id=o.buyer_id AND c.event_id=o.event_id
+        WHERE o.id=? FOR UPDATE');
+    $q->execute([$orderId]);
+    return $q->fetch(PDO::FETCH_ASSOC);
+}
+
+function brvtalRecoveryEligibilityReason(PDO $db, array|false $order, int $minAge, int $maxAge): ?string
+{
+    if (!$order || $order['status'] !== 'pending') return 'order_not_pending';
+    if (empty($order['expires_at_utc'])) return 'checkout_expired';
+    if (empty($order['created_at_utc'])) return 'outside_window';
+    $utc = new DateTimeZone('UTC');
+    $now = new DateTimeImmutable('now', $utc);
+    $created = new DateTimeImmutable((string)$order['created_at_utc'], $utc);
+    $expiry = new DateTimeImmutable((string)$order['expires_at_utc'], $utc);
+    if ($expiry <= $now) return 'checkout_expired';
+    if ($created > $now->modify("-{$minAge} minutes")
+        || $created < $now->modify("-{$maxAge} minutes")) {
+        return 'outside_window';
+    }
+    $nowText = $now->format('Y-m-d H:i:s.u');
+    if ($order['buyer_status'] !== 'active' || !$order['email_verified_at']
+        || !filter_var($order['email'], FILTER_VALIDATE_EMAIL)
+        || !is_string($order['policy_version'])
+        || !preg_match('/^marketing-[a-z0-9._-]{1,30}$/D', $order['policy_version'])
+        || !$order['consented_at_utc'] || (string)$order['consented_at_utc'] > $nowText
+        || $order['revoked_at_utc'] !== null
+        || !$order['consent_expires'] || (string)$order['consent_expires'] <= $nowText) {
+        return 'consent_unavailable';
+    }
+    $payment = $db->prepare("SELECT id FROM ticket_payment_attempts
+        WHERE order_id=? AND status='approved' LIMIT 1 FOR UPDATE");
+    $payment->execute([$order['id']]);
+    if ($payment->fetchColumn()) return 'payment_confirmed';
+    return null;
+}
+
+/** Only a scoped transactional receipt disambiguates the historical shared key. */
+function brvtalRecoveryDispatchReason(PDO $db, array $job, bool $historyReady): ?string
+{
+    if (!preg_match('/^order:([1-9][0-9]*):(abandoned_checkout|reminder)$/D',
+        (string)$job['message_key'], $match)
+        || $job['related_ref'] !== 'order:' . $match[1]) {
+        return 'recovery_relation_invalid';
+    }
+    if ($match[2] === 'reminder') {
+        if (!$historyReady) return 'legacy_reminder_undetermined';
+        $proof = $db->prepare("SELECT 1 FROM ticket_mail_history h
+            JOIN ticket_orders o ON o.id=h.order_id AND o.event_id=h.event_id AND o.buyer_id=h.buyer_id
+            WHERE h.outbox_id=? AND h.message_key=? AND h.order_id=?
+              AND h.template_key='reminder' AND h.actor_kind='system' LIMIT 1 FOR UPDATE");
+        $proof->execute([$job['id'], $job['message_key'], $match[1]]);
+        return $proof->fetchColumn() ? null : 'legacy_reminder_undetermined';
+    }
+    if (!brvtalRecoveryEnabled()) return 'recovery_disabled';
+    [$minAge, $maxAge] = brvtalRecoveryWindow();
+    if ($minAge === 0) return 'window_unavailable';
+    $order = brvtalRecoveryLockedOrder($db, $match[1]);
+    $reason = brvtalRecoveryEligibilityReason($db, $order, $minAge, $maxAge);
+    if ($reason !== null) return $reason;
+    // Never send to a stale queued address after the current buyer email changes.
+    return strcasecmp((string)$order['email'], (string)$job['recipient_email']) === 0
+        ? null : 'recovery_recipient_changed';
+}
+
 /** Only queue. The CLI mail worker performs delivery under existing transport gates. */
 function brvtalRecoverySend(PDO $db, int $actor, string $role, array $input, ?array $mailState = null): array
 {
@@ -233,40 +308,9 @@ function brvtalRecoverySend(PDO $db, int $actor, string $role, array $input, ?ar
             $db->commit();
             return ['state'=>'suppressed','reason'=>$reason,'queued'=>false];
         };
-        $q = $db->prepare('SELECT o.id,o.status,o.created_at_utc,o.expires_at_utc,
-            LOWER(HEX(o.public_id)) AS public_token,b.email,b.status AS buyer_status,
-            b.email_verified_at,c.policy_version,c.consented_at_utc,c.revoked_at_utc,
-            c.expires_at_utc AS consent_expires,e.title AS event_title
-            FROM ticket_orders o JOIN ticket_buyers b ON b.id=o.buyer_id
-            JOIN events e ON e.id=o.event_id
-            LEFT JOIN ticket_recovery_consents c ON c.buyer_id=o.buyer_id AND c.event_id=o.event_id
-            WHERE o.id=? FOR UPDATE');
-        $q->execute([$input['order_id']]);
-        $order = $q->fetch(PDO::FETCH_ASSOC);
-        if (!$order || $order['status'] !== 'pending') return $suppress('order_not_pending');
-        $utc = new DateTimeZone('UTC');
-        $now = new DateTimeImmutable('now', $utc);
-        $created = new DateTimeImmutable((string)$order['created_at_utc'], $utc);
-        $expiry = new DateTimeImmutable((string)$order['expires_at_utc'], $utc);
-        if ($expiry <= $now) return $suppress('checkout_expired');
-        if ($created > $now->modify("-{$minAge} minutes")
-            || $created < $now->modify("-{$maxAge} minutes")) {
-            return $suppress('outside_window');
-        }
-        $nowText = $now->format('Y-m-d H:i:s.u');
-        if ($order['buyer_status'] !== 'active' || !$order['email_verified_at']
-            || !filter_var($order['email'], FILTER_VALIDATE_EMAIL)
-            || !is_string($order['policy_version'])
-            || !preg_match('/^marketing-[a-z0-9._-]{1,30}$/D', $order['policy_version'])
-            || !$order['consented_at_utc'] || (string)$order['consented_at_utc'] > $nowText
-            || $order['revoked_at_utc'] !== null
-            || !$order['consent_expires'] || (string)$order['consent_expires'] <= $nowText) {
-            return $suppress('consent_unavailable');
-        }
-        $payment = $db->prepare("SELECT id FROM ticket_payment_attempts
-            WHERE order_id=? AND status='approved' LIMIT 1 FOR UPDATE");
-        $payment->execute([$input['order_id']]);
-        if ($payment->fetchColumn()) return $suppress('payment_confirmed');
+        $order = brvtalRecoveryLockedOrder($db, $input['order_id']);
+        $reason = brvtalRecoveryEligibilityReason($db, $order, $minAge, $maxAge);
+        if ($reason !== null) return $suppress($reason);
         $key = 'order:' . $input['order_id'] . ':abandoned_checkout';
         $prior = $db->prepare('SELECT id FROM ticket_mail_outbox WHERE message_key=? LIMIT 1 FOR UPDATE');
         $prior->execute([$key]);
