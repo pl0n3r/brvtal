@@ -56,5 +56,22 @@ class WorkCoordinationRenewalTests(unittest.TestCase):
         self.assertNotIn("github.event.comment.body != ''", condition)
 
 
+    def test_orphan_repair_routes_preserve_exact_command_guard(self) -> None:
+        expected = (
+            "github.event_name == 'issue_comment' && "
+            "github.event.issue.pull_request == null && "
+            "github.event.sender.login != 'github-actions[bot]' && "
+            "(github.event.comment.body == '/take' || "
+            "github.event.comment.body == '/force-release' || "
+            "startsWith(github.event.comment.body, '/release ') || "
+            "startsWith(github.event.comment.body, '/transfer ') || "
+            "startsWith(github.event.comment.body, '/recover ') || "
+            "github.event.comment.body == '/adopt-orphan-contract' || "
+            "startsWith(github.event.comment.body, '/recover-orphan-lock ') || "
+            "startsWith(github.event.comment.body, '/renovar-contrato '))"
+        )
+        self.assertEqual(" ".join(self.command_condition().split()), expected)
+
+
 if __name__ == "__main__":
     unittest.main()

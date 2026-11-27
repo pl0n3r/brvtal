@@ -120,6 +120,96 @@ try {
     $pdo->exec('DROP TEMPORARY TABLE events');
 }
 
+/** #2246: same real information_schema probes for a file proof and a central entry. */
+function migrations_it_file_proofs(PDO $pdo, string $directory): void
+{
+    $proofs = $directory . '/proofs';
+    $name = 'migration_file_probe_01.sql';
+    $table = 'brvtal_file_probe_' . bin2hex(random_bytes(6));
+    $sql = "CREATE TABLE $table (id INT PRIMARY KEY)";
+    $requirements = brvtalMigrationObjectRequirements($table, ['id'], [], true);
+    $path = $proofs . '/' . $name . '.php';
+    $source = '<?php return ' . var_export($requirements, true) . ';';
+    $reject = static function (array $central, string $error) use ($directory): void {
+        try {
+            brvtalMigrationLoadProofFiles($central, $directory);
+        } catch (RuntimeException $exception) {
+            migrations_it_assert($exception->getMessage() === $error, 'file proof failure code');
+            return;
+        }
+        migrations_it_assert(false, 'invalid file proof accepted');
+    };
+    $central = ['migration_central_fixture.sql' => ['table:central_fixture']];
+    migrations_it_assert(brvtalMigrationLoadProofFiles($central, $directory) === $central, 'missing proof directory preserves central map');
+    migrations_it_assert(mkdir($proofs, 0700), 'create disposable proof directory');
+    try {
+        migrations_it_assert(file_put_contents($proofs . '/README.md', 'fixture') !== false, 'write fixture README');
+        migrations_it_assert(file_put_contents($directory . '/' . $name, $sql) !== false, 'write fixture SQL');
+        migrations_it_assert(file_put_contents($path, $source) !== false, 'write fixture proof');
+        $loaded = brvtalMigrationLoadProofFiles($central, $directory);
+        migrations_it_assert($loaded === $central + [$name => $requirements], 'file adds only its own entry');
+        $probe = static fn(string $requirement): bool => brvtalMigrationProbeRequirement($pdo, $requirement);
+        $evaluate = static fn(): array => brvtalMigrationEvaluateRequirements($loaded[$name], $probe);
+        $absent = $evaluate();
+        migrations_it_assert($absent === brvtalMigrationEvaluateRequirements($requirements, $probe), 'absent proof equals central proof');
+        migrations_it_assert(brvtalMigrationProofDisposition($name, $absent) === 'apply', 'file proof permits absent additive schema');
+        brvtalMigrationAssertReconciliationSql($name, $sql, $absent);
+        $pdo->exec("CREATE TABLE $table (other_id INT PRIMARY KEY)");
+        migrations_it_assert(brvtalMigrationProofDisposition($name, $evaluate()) === 'blocked', 'partial file proof blocks reconciliation');
+        $pdo->exec("DROP TABLE $table");
+        $pdo->exec($sql);
+        $complete = $evaluate();
+        migrations_it_assert($complete === brvtalMigrationEvaluateRequirements($requirements, $probe), 'complete proof equals central proof');
+        migrations_it_assert(brvtalMigrationProofDisposition($name, $complete) === 'baseline', 'file proof baselines complete schema');
+        $reject($central + [$name => $requirements], 'MIGRATION_SCHEMA_PROOF_DUPLICATE:' . $name);
+
+        $earlier = 'migration_a_fixture.sql';
+        file_put_contents($directory . '/' . $earlier, $sql);
+        file_put_contents($proofs . '/' . $earlier . '.php', $source);
+        migrations_it_assert(array_keys(brvtalMigrationLoadProofFiles($central, $directory))
+            === ['migration_central_fixture.sql', $earlier, $name], 'file order is deterministic');
+        unlink($proofs . '/' . $earlier . '.php');
+        unlink($directory . '/' . $earlier);
+
+        unlink($directory . '/' . $name);
+        $reject($central, 'MIGRATION_SCHEMA_PROOF_ORPHAN:' . $name);
+        migrations_it_assert(symlink($path, $directory . '/' . $name), 'create synthetic SQL symlink');
+        $reject($central, 'MIGRATION_SCHEMA_PROOF_ORPHAN:' . $name);
+        unlink($directory . '/' . $name);
+        file_put_contents($directory . '/' . $name, $sql);
+
+        foreach (['false', '[]', "['key' => 'table:x']", '[1]', "['column:x']", "['table:x.y']",
+            "['unknown:x']", "['table:x', 'table:x']", 'array_fill(0, 201, "table:x")',
+            "['table:' . str_repeat('x', 180)]"] as $invalid) {
+            file_put_contents($path, '<?php return ' . $invalid . ';');
+            $reject($central, 'MIGRATION_SCHEMA_PROOF_FILE_INVALID');
+        }
+        file_put_contents($path, '<?php return [;');
+        $reject($central, 'MIGRATION_SCHEMA_PROOF_FILE_INVALID');
+        unlink($path);
+        migrations_it_assert(symlink($directory . '/' . $name, $path), 'create synthetic proof symlink');
+        $reject($central, 'MIGRATION_SCHEMA_PROOF_FILE_INVALID');
+        unlink($path);
+        file_put_contents($proofs . '/unexpected.php', $source);
+        $reject($central, 'MIGRATION_SCHEMA_PROOF_FILE_INVALID');
+    } finally {
+        $pdo->exec("DROP TABLE IF EXISTS $table");
+        foreach (glob($proofs . '/*') ?: [] as $fixture) {
+            unlink($fixture);
+        }
+        rmdir($proofs);
+        if (is_file($directory . '/' . $name)) {
+            unlink($directory . '/' . $name);
+        }
+        if (isset($earlier) && is_file($directory . '/' . $earlier)) {
+            unlink($directory . '/' . $earlier);
+        }
+    }
+}
+
+migrations_it_file_proofs($pdo, $tempDir);
+echo "BRVTAL migration proof-file MariaDB integration passed.\n";
+
 $cleanup();
 echo "BRVTAL migration-state MariaDB integration passed.\n";
 
@@ -228,6 +318,42 @@ $formsPass = (string)(getenv('BRVTAL_TEST_DB_PASS') ?: '');
 $formsServer = new PDO($formsDsn, $formsUser, $formsPass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
 forms_migration_fixture($formsServer, $formsDsn, $formsUser, $formsPass);
 echo "BRVTAL forms-entry schema MariaDB integration passed.\n";
+
+// #2175: exercise the real additive DDL twice on a disposable pre-migration table.
+$doorDb = 'brvtal_test_door_' . bin2hex(random_bytes(6));
+$formsServer->exec('CREATE DATABASE ' . $doorDb . ' CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
+try {
+    $doorPdo = new PDO($formsDsn . ';dbname=' . $doorDb, $formsUser, $formsPass, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES => false,
+    ]);
+    $doorPdo->exec('CREATE TABLE event_ticket_types (id INT UNSIGNED PRIMARY KEY, price DECIMAL(12,2) NULL)');
+    $doorPdo->exec('INSERT INTO event_ticket_types (id,price) VALUES (1,20000),(2,35000)');
+    $doorMigration = 'migration_ticketing_door_price_01.sql';
+    $doorSql = (string)file_get_contents(__DIR__ . '/../../database/' . $doorMigration);
+    $doorProof = brvtalMigrationSchemaProof($doorPdo, $doorMigration);
+    migrations_it_assert(brvtalMigrationProofDisposition($doorMigration, $doorProof) === 'apply', 'door column absent');
+    brvtalMigrationAssertReconciliationSql($doorMigration, $doorSql, $doorProof);
+    $doorPdo->exec($doorSql);
+    migrations_it_assert(brvtalMigrationSchemaProof($doorPdo, $doorMigration)['complete'], 'door nullable unsigned INT proof');
+    migrations_it_assert((int)$doorPdo->query('SELECT COUNT(*) FROM event_ticket_types WHERE door_price_cop IS NULL')->fetchColumn() === 2,
+        'existing types default to NULL');
+    $doorPdo->exec('UPDATE event_ticket_types SET door_price_cop=50000 WHERE id=1');
+    $doorPdo->exec($doorSql);
+    migrations_it_assert((int)$doorPdo->query('SELECT door_price_cop FROM event_ticket_types WHERE id=1')->fetchColumn() === 50000,
+        'repeat DDL preserves explicit door tariff');
+    migrations_it_assert((int)$doorPdo->query('SELECT COUNT(*) FROM event_ticket_types WHERE id=2 AND door_price_cop IS NULL AND price=35000')->fetchColumn() === 1,
+        'repeat DDL preserves existing type and fallback');
+    migrations_it_assert(brvtalMigrationProofDisposition($doorMigration, brvtalMigrationSchemaProof($doorPdo, $doorMigration)) === 'baseline',
+        'repeated migration has complete proof');
+    define('BRVTAL_INVENTORY_PRICE_CONTRACT_ONLY', true);
+    require_once __DIR__ . '/ticketing-inventory.php';
+    inventoryChannelQuoteContract((int)$doorPdo->query('SELECT door_price_cop FROM event_ticket_types WHERE id=1')->fetchColumn());
+} finally {
+    $formsServer->exec('DROP DATABASE ' . $doorDb);
+}
+echo "BRVTAL door tariff migration and channel quote MariaDB integration passed.\n";
 
 // #1886: synthetic, isolated mail-template schema and transactional store tests.
 require __DIR__ . '/mail-template-store.php';

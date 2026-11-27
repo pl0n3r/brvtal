@@ -1,0 +1,63 @@
+name: "BRVTAL #2184 buyer account pass visual evidence"
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [main]
+    paths:
+      - 'buyer/index.php'
+      - 'css/buyer-access.css'
+      - 'css/buyer-account.css'
+      - 'tests/e2e/buyer-account.spec.mjs'
+      - 'tests/visual/buyer-account-pass.mjs'
+      - '.github/workflows/issue-2184-visual-evidence.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  account-pass-visual:
+    if: >-
+      github.repository == 'pl0n3r/brvtal' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (github.head_ref == 'work/issue-2232' || github.head_ref == 'work/issue-2184')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      CAPTURE_MODE: ${{ github.head_ref == 'work/issue-2232' && 'baseline' || 'comparison' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base-source
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: head-source
+          persist-credentials: false
+      - name: Verify immutable capture sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ && "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git -C base-source rev-parse HEAD)" = "$BASE_SHA"
+          test "$(git -C head-source rev-parse HEAD)" = "$HEAD_SHA"
+          python3 head-source/scripts/ci_self_audit.py
+      - name: Install pinned Chromium test runner
+        working-directory: head-source
+        run: |
+          npm install --ignore-scripts --no-save --package-lock=false --no-audit --no-fund @playwright/test@1.63.0
+          npx --no-install playwright install --with-deps chromium
+      - name: Capture exact base and head using synthetic account
+        working-directory: head-source
+        run: node tests/visual/buyer-account-pass.mjs ../base-source . ../account-pass-evidence
+      - name: Publish verified synthetic captures
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: brvtal-2184-account-pass-${{ github.event.pull_request.head.sha }}-${{ github.run_id }}
+          path: account-pass-evidence/
+          if-no-files-found: error
+          retention-days: 14

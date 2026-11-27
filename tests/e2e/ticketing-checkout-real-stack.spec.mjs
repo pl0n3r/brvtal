@@ -7,6 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync, renameSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { checkinIssued } from './ticketing-checkin-real-stack.mjs';
 
 const check = (condition, label) => assert.ok(Boolean(condition), label);
 const sha = value => createHash('sha256').update(value).digest('hex');
@@ -18,7 +19,7 @@ const worker = () => JSON.parse(execFileSync('php', ['-d', 'curl.cainfo=/fixture
 async function run() {
   check(process.env.BRVTAL_T31_ISOLATED === '1' && /^brvtal_test_t31_[a-f0-9]{12}$/.test(process.env.DB_NAME), 'disposable fixture required');
   const ca = readFileSync('/fixture/ca.pem');
-  const proxy = https.createServer({ key: readFileSync('/fixture/server.key'), cert: readFileSync('/fixture/server.pem') }, (req, res) => {
+  const forward = (req, res) => {
     const upstream = http.request({ host: '127.0.0.1', port: 8080, path: req.url, method: req.method,
       headers: { ...req.headers, host: 'localhost', 'x-fixture-tls': '1' } }, reply => {
       res.writeHead(reply.statusCode, reply.headers);
@@ -26,6 +27,32 @@ async function run() {
     });
     upstream.on('error', () => { res.writeHead(502); res.end('{}'); });
     req.pipe(upstream);
+  };
+  // Transport-only barrier: both genuine TLS POSTs arrive before either is forwarded.
+  let race = null;
+  const armDoorRace = () => {
+    check(race === null, 'one door race at a time');
+    const gate = { pending: [], released: false };
+    gate.timer = setTimeout(() => {
+      race = null;
+      for (const [req, res] of gate.pending) { req.resume(); res.destroy(); }
+    }, 10000);
+    race = gate;
+    return () => gate.released;
+  };
+  const proxy = https.createServer({ key: readFileSync('/fixture/server.key'), cert: readFileSync('/fixture/server.pem') }, (req, res) => {
+    if (race && req.method === 'POST' && req.url === '/api/ticketing/checkin.php') {
+      race.pending.push([req,res]);
+      if (race.pending.length === 2) {
+        const gate = race;
+        clearTimeout(gate.timer);
+        race = null;
+        gate.released = true;
+        for (const [request,response] of gate.pending) forward(request,response);
+      }
+      return;
+    }
+    forward(req,res);
   });
   await new Promise(resolve => proxy.listen(4444, '127.0.0.1', resolve));
   const request = (path, session = {}, body, headers = {}, port = 4444) => new Promise((resolve, reject) => {
@@ -34,7 +61,10 @@ async function run() {
       method: data === undefined ? 'GET' : 'POST',
       headers: { ...headers, ...(session.cookie ? { Cookie: session.cookie } : {}),
         ...(data === undefined ? {} : { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) }) } }, res => {
-      if (res.headers['set-cookie']) session.cookie = res.headers['set-cookie'][0].split(';')[0];
+      if (res.headers['set-cookie']) {
+        const cookies = res.headers['set-cookie'];
+        session.cookie = (cookies.findLast(c => c.startsWith('BRVTAL_ADMIN=')) || cookies[0]).split(';')[0];
+      }
       let raw = '';
       res.setEncoding('utf8');
       res.on('data', chunk => { raw += chunk; });
@@ -119,7 +149,14 @@ async function run() {
       receipt[0].payload.text.includes(qr.body.qr), 'one captured receipt contains same credential');
     check(db("SELECT COUNT(*) FROM ticket_mail_outbox WHERE template_key='payment_approved' AND state='accepted'") === '1', 'mail receipt persisted');
     check(readFileSync('/fixture/audit.jsonl', 'utf8').includes('"id":"tx-dynamic","status":200'), 'independent TLS lookup observed');
-  } finally { proxy.close(); }
+    await checkinIssued({ check, db, request, qr: qr.body.qr, ticketId: item.ticket_id, armDoorRace });
+  } finally {
+    if (race) {
+      clearTimeout(race.timer);
+      for (const [req,res] of race.pending) { req.resume(); res.destroy(); }
+    }
+    proxy.close();
+  }
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

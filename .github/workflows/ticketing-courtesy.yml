@@ -1,0 +1,79 @@
+name: Ticketing courtesy MariaDB
+on:
+  pull_request:
+    branches: [main]
+    paths: &courtesy_paths
+      - config/ticketing_*.php
+      - config/buyer_*.php
+      - config/mail_template*.php
+      - config/integration_secrets_store.php
+      - config/secrets.php
+      - config/bootstrap.php
+      - config/rate_limit_store.php
+      - config/public_abuse_guard.php
+      - config/public_visibility.php
+      - config/public_contact.php
+      - config/password_rate_limit.php
+      - api/ticketing/*courtesy*.php
+      - database/migration_ticketing_*.sql
+      - database/schema.sql
+      - templates/ticketing/**
+      - tests/integration/ticketing-courtesy.php
+      - scripts/ci_self_audit.py
+      - .github/workflows/ticketing-courtesy.yml
+  push:
+    branches: [main]
+    paths: *courtesy_paths
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  database:
+    name: database
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      mariadb:
+        image: ghcr.io/mariadb/mariadb:11.4.13-noble@sha256:3cff57293253c640483e8a19ce506cf68bf8e4529385e64aeec700c02038e7ed
+        env:
+          MARIADB_ROOT_PASSWORD: brvtal_root
+          MARIADB_DATABASE: brvtal_test_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=15
+    env:
+      BRVTAL_INTEGRATION_TESTS: '1'
+      BRVTAL_TEST_DB_HOST: 127.0.0.1
+      BRVTAL_TEST_DB_PORT: '3306'
+      BRVTAL_TEST_DB_NAME: brvtal_test_ci
+      BRVTAL_TEST_DB_USER: root
+      BRVTAL_TEST_DB_PASS: brvtal_root
+    steps:
+      - name: Checkout exact HEAD
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: PHP 8.5 + PDO MySQL
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: '8.5'
+          extensions: pdo_mysql
+          coverage: none
+          ini-file: production
+      - name: Verify courtesy against disposable MariaDB
+        run: |
+          set -euo pipefail
+          php -l config/ticketing_courtesy.php
+          php -l config/ticketing_checkin.php
+          php -l tests/integration/ticketing-courtesy.php
+          receipt="$(mktemp)"
+          trap 'rm -f "$receipt"' EXIT
+          php tests/integration/ticketing-courtesy.php | tee "$receipt"
+          grep -Fxq 'T25 real courtesy: sealed QR email, RBAC, budget, idempotency, resend, revoke, zero revenue passed.' "$receipt"
+      - name: Audit CI safety baseline
+        run: python3 scripts/ci_self_audit.py

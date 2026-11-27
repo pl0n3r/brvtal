@@ -35,6 +35,8 @@
   function errorMessage(code) {
     const messages = {
       TITLE_REQUIRED:'Event name is required.',
+      INVALID_VISIBILITY:'Selecciona una visibilidad válida.',
+      EVENT_VISIBILITY_NOT_PERSISTED:'No se confirmó la visibilidad. Recarga el evento antes de compartir su enlace.',
       EVENT_DATE_REQUIRED:'Date and time are required before leaving draft.',
       EVENT_CITY_REQUIRED:'City is required before leaving draft.',
       TICKET_NAME_REQUIRED:'Every ticket type needs a name.',
@@ -102,6 +104,13 @@
       ticket_qr:value(root, 'e_ticket_qr'),
       ticket_url:value(root, 'e_ticket_url')
     };
+    const visibility=field(root,'e_visibility');
+    const existing=core.getCurrentEvent?.();
+    // Preserve legacy saves when visibility is absent; explicit selection is never discarded.
+    if(visibility&&(visibility.value==='unlisted'||visibility.dataset.changed==='1'||existing?.visibility==='public'||existing?.visibility==='unlisted')){
+      if(!['public','unlisted'].includes(visibility.value))throw new Error('INVALID_VISIBILITY');
+      event.visibility=visibility.value;
+    }
     // The atomic endpoint accepts SEO metadata only when the editor includes
     // it explicitly; otherwise a valid title/description edit would silently
     // save an empty SEO title. Never overwrite stored SEO when the UI is absent.
@@ -272,6 +281,7 @@
       tickets,
       lineup:lineup.map(item => ({artist_id:Number(item.artist_id)}))
     };
+    if (eventData.visibility!==undefined) payload.visibility=eventData.visibility;
     if (Array.isArray(timetable)) payload.timetable = timetable;
     return payload;
   }
@@ -296,6 +306,8 @@
     }
     const eventId = Number(result.data?.event?.id || 0);
     if (!eventId) throw new Error('EVENT_ID_MISSING');
+    if(eventData.visibility!==undefined&&result.data?.event?.visibility!==eventData.visibility)
+      throw new Error('EVENT_VISIBILITY_NOT_PERSISTED');
     return {eventId,result};
   }
 
