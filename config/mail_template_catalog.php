@@ -36,6 +36,21 @@ function brvtal_mail_template_catalog(): array
             ],
         ];
     }
+    // Account-only recovery is not a purchase confirmation or a legacy fallback.
+    $catalog['ticket_recovery'] = [
+        'scope' => 'ticketing',
+        'allowed_variables' => ['event_name'],
+        'server_only' => ['link', 'recipient', 'email', 'buyer_id', 'order_id', 'cta_url'],
+        'defaults' => [
+            'subject' => 'Recupera tus boletas vigentes · BRVTAL',
+            'preheader' => 'Consulta tus boletas desde Mi cuenta.',
+            'title' => 'Recupera tus boletas',
+            'message' => 'Inicia sesión en Mi cuenta para consultar tus pedidos y recuperar tus boletas vigentes.',
+            'cta' => 'Ir a Mi cuenta',
+            'footer' => 'BRVTAL · Mensaje transaccional, no publicitario.',
+            'theme' => brvtal_mail_template_default_theme(),
+        ],
+    ];
     // Existing staff password recovery/changed notices only; no invented event.
     $staff = [
         'staff_password_recovery' => [

@@ -77,6 +77,11 @@ try {
     foreach(preg_split('/;\s*(?=CREATE|$)/i',$schemaCopy)?:[] as $stmt) {
         if(trim($stmt)!=='')$db->exec($stmt);
     }
+    $recovery=brvtal_ticket_mail_render('ticket_recovery',
+        ['event'=>'Noche de prueba','link'=>'https://brvtal.invalid/buyer/'],$db);
+    mail_delivery_assert($recovery['template_key']==='ticket_recovery'
+        && $recovery['template_version']===null
+        && !str_contains($recovery['text'],'código QR'), 'recovery render without delivery');
     $doc=brvtal_mail_template_catalog()['order_pending']['defaults'];
     $doc['message']='Publicado para {{event_name}}';
     $doc['theme']['accent']='#aabbcc';

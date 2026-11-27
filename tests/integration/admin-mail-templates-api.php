@@ -95,7 +95,11 @@ admin_mail_check($active['source']==='catalog' && $active['revision']===0,
 admin_mail_reject(static fn()=>brvtalMailAdminDispatch($pdo,'admin',7,'POST',$draft,$audit),
     'read-only admin cannot mutate',DomainException::class);
 $catalogResponse=brvtalMailAdminDispatch($pdo,'admin',7,'GET',['view'=>'catalog'],$audit);
-admin_mail_check(count($catalogResponse['items'])===13,'catalog includes three #1984 transaction templates');
+admin_mail_check(count($catalogResponse['items'])===14,'catalog includes independent recovery template');
+$recoveryItem = array_values(array_filter($catalogResponse['items'],
+    static fn(array $item): bool => $item['key'] === 'ticket_recovery'));
+admin_mail_check(count($recoveryItem)===1 && $recoveryItem[0]['scope']==='ticketing',
+    'editor discovers recovery through catalog API');
 $previewResponse=brvtalMailAdminDispatch($pdo,'admin',7,'POST',$preview,$audit);
 admin_mail_check($previewResponse['mail_sent']===false && count($events)===0,
     'preview never sends, logs or saves');
@@ -151,4 +155,108 @@ foreach ($events as $entry) {
 }
 admin_mail_check((int)$pdo->query('SELECT COUNT(*) FROM mail_template_versions')->fetchColumn()===3,
     'no duplicate mail or unintended writes');
+// Run the full recovery acceptance in this dedicated MariaDB workflow.
+require_once __DIR__.'/../../config/ticketing_mail_templates.php';
+// Recovery is versioned independently, and does not trigger or transport mail.
+$recoveryData=['event'=>'Noche de prueba','link'=>'https://www.brvtal.com.co/buyer/','order_number'=>9];
+$recoveryDefault=brvtal_ticket_mail_render('ticket_recovery',$recoveryData,$pdo);
+admin_mail_check($recoveryDefault['template_key']==='ticket_recovery'
+    && $recoveryDefault['template_source']==='catalog'
+    && $recoveryDefault['template_version']===null
+    && str_contains($recoveryDefault['text'],'Inicia sesión en Mi cuenta')
+    && str_contains($recoveryDefault['html'],'href="https://www.brvtal.com.co/buyer/"')
+    && !str_contains($recoveryDefault['text'],'código QR'), 'account-only default');
+foreach (['https://www.brvtal.com.co/buyer/?','https://www.brvtal.com.co/buyer/#',
+    'https://www.brvtal.com.co/buyer/?token=x','https://www.brvtal.com.co/buyer/#secret',
+    'https://www.brvtal.com.co/buyer/../','https://www.brvtal.com.co/buyer/%2e%2e/',
+    'https://www.brvtal.com.co/buyer/orders','https://evil.invalid/buyer/',
+    'http://www.brvtal.com.co/buyer/','https://user:pass@www.brvtal.com.co/buyer/',
+    'https://www.brvtal.com.co:443/buyer/','https://brvtal.com.co/buyer/'] as $unsafeLink) {
+    try {
+        brvtal_ticket_mail_render('ticket_recovery',array_replace($recoveryData,['link'=>$unsafeLink]),$pdo);
+        admin_mail_check(false,'recovery URL must be rejected');
+    } catch (InvalidArgumentException $error) {
+        admin_mail_check(in_array($error->getMessage(),['MAIL_LINK_INVALID','MAIL_LINK_NOT_PROTECTED'],true),
+            'opaque recovery URL rejection');
+    }
+}
+foreach (['tickets'=>null,'guest_password_link'=>null,'token'=>'synthetic',
+    'activation_link'=>'https://brvtal.invalid/activation','qr'=>null] as $field=>$value) {
+    try {
+        brvtal_ticket_mail_render('ticket_recovery',$recoveryData+[$field=>$value],$pdo);
+        admin_mail_check(false,'recovery cannot accept credential fields');
+    } catch (InvalidArgumentException $error) {
+        admin_mail_check($error->getMessage()==='MAIL_RECOVERY_FIELDS_INVALID','recovery fields rejected');
+    }
+}
+try {
+    brvtal_ticket_mail_render('ticket_recovery',$recoveryData);
+    admin_mail_check(false,'legacy recovery fallback must be rejected');
+} catch (InvalidArgumentException $error) {
+    admin_mail_check($error->getMessage()==='MAIL_TEMPLATE_UNKNOWN','legacy keys unchanged');
+}
+$recoveryCopy=brvtal_mail_template_catalog()['ticket_recovery']['defaults'];
+$recoveryCopy['message']='Consulta tus boletas vigentes para {{event_name}} desde Mi cuenta.';
+$recoveryDraft=brvtal_mail_template_save_draft($pdo,'ticket_recovery','ticketing',$recoveryCopy,1,0);
+admin_mail_check(brvtal_ticket_mail_render('ticket_recovery',$recoveryData,$pdo)===$recoveryDefault,
+    'recovery draft cannot affect catalog delivery');
+$recoveryPub=brvtal_mail_template_publish($pdo,'ticket_recovery','ticketing',$recoveryDraft['version_id'],1,1);
+$recoverySnapshot=brvtal_ticket_mail_render('ticket_recovery',$recoveryData,$pdo);
+admin_mail_check($recoverySnapshot['template_source']==='published'
+    && $recoverySnapshot['template_version']===$recoveryPub['version_id']
+    && str_contains($recoverySnapshot['text'],'Consulta tus boletas vigentes para Noche de prueba'),
+    'published recovery revision rendered with real version');
+$storedRecovery=$pdo->prepare('SELECT document_json FROM mail_template_versions WHERE id=?');
+$storedRecovery->execute([$recoverySnapshot['template_version']]);
+$originalRecoveryDocument=$storedRecovery->fetchColumn();
+$recoveryCopy['message']='Nuevo texto de recuperación autenticada.';
+$nextRecovery=brvtal_mail_template_save_draft($pdo,'ticket_recovery','ticketing',$recoveryCopy,1,2);
+admin_mail_check(brvtal_ticket_mail_render('ticket_recovery',$recoveryData,$pdo)===$recoverySnapshot,
+    'published recovery snapshot unaffected by later draft');
+brvtal_mail_template_publish($pdo,'ticket_recovery','ticketing',$nextRecovery['version_id'],1,3);
+$updatedRecovery=brvtal_ticket_mail_render('ticket_recovery',$recoveryData,$pdo);
+$storedRecovery->execute([$recoverySnapshot['template_version']]);
+admin_mail_check(is_string($originalRecoveryDocument)
+    && $storedRecovery->fetchColumn()===$originalRecoveryDocument,
+    'old recovery version stored immutably');
+admin_mail_check($updatedRecovery['template_version']===$nextRecovery['version_id']
+    && $updatedRecovery['text']!==$recoverySnapshot['text']
+    && str_contains($recoverySnapshot['text'],'Consulta tus boletas vigentes para Noche de prueba'),
+    'new revision leaves prior rendered snapshot intact');
+$purchase=brvtal_ticket_mail_render('payment_approved',$recoveryData,$pdo);
+$reminder=brvtal_ticket_mail_render('reminder',$recoveryData,$pdo);
+admin_mail_check($purchase['template_version']===null && $reminder['template_version']===null
+    && $purchase['template_key']==='payment_approved' && $reminder['template_key']==='reminder',
+    'recovery publication never changes purchase or reminder identity');
+foreach (['event','link'] as $field) {
+    foreach ([null, [], 123] as $invalid) {
+        admin_mail_reject(static fn()=>brvtal_ticket_mail_render(
+            'ticket_recovery',array_replace($recoveryData,[$field=>$invalid]),$pdo),
+            'recovery rejects malformed input types');
+    }
+}
+$oldRecoveryFixture=getenv('BRVTAL_TICKET_MAIL_TESTING');
+try {
+    putenv('BRVTAL_TICKET_MAIL_TESTING=1');
+    $fixtureRecovery=brvtal_ticket_mail_render('ticket_recovery',
+        array_replace($recoveryData,['link'=>'https://brvtal.invalid/buyer/']),$pdo);
+    admin_mail_check(str_contains($fixtureRecovery['html'],'href="https://brvtal.invalid/buyer/"'),
+        'synthetic recovery CTA permitted in explicit fixture mode');
+} finally {
+    putenv($oldRecoveryFixture===false ? 'BRVTAL_TICKET_MAIL_TESTING'
+        : 'BRVTAL_TICKET_MAIL_TESTING='.$oldRecoveryFixture);
+}
+$ticketUrl='https://www.brvtal.com.co/mi-cuenta/boleta#BRVTAL:T1:'
+    .str_repeat('a',32).':'.str_repeat('B',43);
+$paid=brvtal_ticket_mail_render('payment_approved',$recoveryData+
+    ['tickets'=>[['label'=>'Boleta sintética','url'=>$ticketUrl]]],$pdo);
+admin_mail_check(str_contains($paid['text'],$ticketUrl)
+    && !str_contains($recoverySnapshot['text'],$ticketUrl),'purchase-only QR preserved');
+foreach (['verify_account'=>'verify','reset_password'=>'confirm-reset'] as $key=>$action) {
+    $auth=brvtal_ticket_mail_render($key,['link'=>'https://www.brvtal.com.co/mi-cuenta/restablecer?accion='
+        .$action.'&token='.str_repeat('Z',43)],$pdo);
+    admin_mail_check($auth['template_key']===$key && $auth['template_version']===null
+        && str_contains($auth['text'],'accion='.$action),'auth renderer unchanged');
+}
+echo "BRVTAL recovery renderer synthetic MariaDB contract passed.\n";
 echo "BRVTAL mail admin synthetic MariaDB integration passed.\n";
