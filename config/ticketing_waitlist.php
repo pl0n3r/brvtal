@@ -195,6 +195,70 @@ function brvtal_waitlist_subscribe(
     }
 }
 
+/**
+ * Last local authorization point for a sealed waitlist message. The caller
+ * owns the transaction and fences its outbox lease after locking the event.
+ */
+function brvtal_waitlist_dispatch_reason(PDO $db, array $job, array $plain): ?string
+{
+    $offer = $job['template_key'] === 'waitlist_offer';
+    if ($offer ? !brvtal_waitlist_offers_enabled() : !brvtal_waitlist_enabled()) {
+        return 'waitlist_disabled';
+    }
+    brvtal_waitlist_assert_test_storage($db);
+    $id = (int)substr((string)$job['related_ref'], strlen('waitlist:'));
+    $q = $db->prepare('SELECT event_id FROM ticket_waitlist_entries WHERE id=?');
+    $q->execute([$id]);
+    $eventId = (int)$q->fetchColumn();
+    if ($eventId < 1) return 'waitlist_ineligible';
+    $q = $db->prepare('SELECT status,event_date,published_at FROM events WHERE id=? FOR UPDATE');
+    $q->execute([$eventId]);
+    $event = $q->fetch(PDO::FETCH_ASSOC);
+    $q = $db->prepare('SELECT * FROM ticket_waitlist_entries WHERE id=? AND event_id=? FOR UPDATE');
+    $q->execute([$id,$eventId]);
+    $entry = $q->fetch(PDO::FETCH_ASSOC);
+    if (!$entry || $entry['status'] === 'unsubscribed' || $entry['consent_version'] !== 'waitlist-v1') {
+        return 'consent_revoked';
+    }
+    if (!in_array($entry['status'], ['waiting','offered'], true)
+        || ($offer && $entry['status'] !== 'offered')) return 'waitlist_ineligible';
+    $q = $db->prepare('SELECT email,status,email_verified_at FROM ticket_buyers WHERE id=? FOR UPDATE');
+    $q->execute([(int)$entry['buyer_id']]);
+    $buyer = $q->fetch(PDO::FETCH_ASSOC);
+    if (!$buyer || $buyer['status'] !== 'active' || !$buyer['email_verified_at']
+        || !filter_var($buyer['email'], FILTER_VALIDATE_EMAIL)
+        || !hash_equals((string)$buyer['email'], (string)$job['recipient_email'])) {
+        return 'waitlist_buyer_ineligible';
+    }
+    $q = $db->prepare('SELECT status,currency,available_from,available_until FROM event_ticket_types
+        WHERE id=? AND event_id=? FOR UPDATE');
+    $q->execute([(int)$entry['ticket_type_id'],$eventId]);
+    $type = $q->fetch(PDO::FETCH_ASSOC);
+    $clock = new DateTimeImmutable((string)$db->query('SELECT UTC_TIMESTAMP(6)')->fetchColumn(),
+        new DateTimeZone('UTC'));
+    if (!$event || !$type || $type['status'] !== 'active' || $type['currency'] !== 'COP'
+        || !in_array($event['status'], ['published','sold_out','tickets_available','last_tickets'], true)
+        || !brvtal_waitlist_publication_open($event,$clock)
+        || (string)$event['event_date'] <= $clock->setTimezone(
+            new DateTimeZone('America/Bogota'))->format('Y-m-d H:i:s')
+        || ($offer && !brvtal_ticket_inventory_saleable($event,$type,$clock))) {
+        return 'waitlist_event_closed';
+    }
+    if (!$offer) {
+        return preg_match('~https://www\.brvtal\.com\.co/api/ticketing/waitlist\.php\?token=([A-Za-z0-9_-]{43})$~D',
+            $plain['body_text'], $match) && hash_equals((string)$entry['unsubscribe_hash'],hash('sha256',$match[1]))
+            ? null : 'waitlist_token_stale';
+    }
+    if ((string)$entry['offer_expires_at_utc'] <= $clock->format('Y-m-d H:i:s.u')) {
+        return 'waitlist_expired';
+    }
+    return preg_match('/^Hay una invitación limitada hasta ([0-9-]+ [0-9:.]+) UTC\. Código: ([A-Za-z0-9_-]{43})\./u',
+        $plain['body_text'], $match)
+        && hash_equals((string)$entry['offer_expires_at_utc'],$match[1])
+        && hash_equals((string)$entry['offer_hash'],hash('sha256',$match[2]))
+        ? null : 'waitlist_token_stale';
+}
+
 /** Hashed secret grants only unsubscribe, not login, purchase or an inventory hold. */
 function brvtal_waitlist_unsubscribe(PDO $db, string $token): bool
 {
@@ -219,13 +283,31 @@ function brvtal_waitlist_unsubscribe(PDO $db, string $token): bool
             WHERE id=? AND status<>'unsubscribed'");
         $q->execute([$id]);
         if ($q->rowCount() !== 1) throw new DomainException('WAITLIST_UNSUBSCRIBE_CONFLICT');
-        // Revoke ALL undelivered/retryable messages in the same transaction.
-        // Already accepted provider messages cannot be recalled.
+        // Do not overwrite a sending lease: the worker might already have
+        // crossed the local dispatch boundary. Revoked consent is visible to
+        // its pre-dispatch fence; a later provider receipt remains authoritative.
+        $historyReady = (int)$db->query("SELECT COUNT(*) FROM information_schema.TABLES
+            WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='ticket_mail_history'")->fetchColumn() === 1;
+        $proof = 'attempts=0';
+        if ($historyReady) {
+            $proof .= " AND NOT EXISTS (SELECT 1 FROM ticket_mail_history h
+                WHERE h.outbox_id=ticket_mail_outbox.id
+                AND (h.resend_email_id IS NOT NULL OR h.delivery_state<>'queued'))";
+        }
         $cancel = $db->prepare("UPDATE ticket_mail_outbox
-            SET state='failed',last_error_code='consent_revoked',
+            SET state=IF($proof,'suppressed','uncertain'),
+                last_error_code=IF($proof,'consent_revoked','receipt_unknown'),
                 locked_until=NULL,updated_at=UTC_TIMESTAMP()
-            WHERE related_ref=? AND state IN ('queued','retry','sending')");
+            WHERE related_ref=? AND state IN ('queued','retry')
+            AND provider_message_id IS NULL AND accepted_at IS NULL");
         $cancel->execute(['waitlist:'.$id]);
+        if ($historyReady) {
+            $audit = $db->prepare("UPDATE ticket_mail_history h JOIN ticket_mail_outbox o ON o.id=h.outbox_id
+                SET h.delivery_state='suppressed',h.state_at=UTC_TIMESTAMP()
+                WHERE o.related_ref=? AND o.state='suppressed'
+                AND h.delivery_state='queued' AND h.resend_email_id IS NULL");
+            $audit->execute(['waitlist:'.$id]);
+        }
         $db->commit();
         return true;
     } catch (Throwable $e) {
