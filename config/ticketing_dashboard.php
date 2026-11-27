@@ -40,7 +40,7 @@ function brvtalDashboardCounts(PDO $db,string $sql,array $ids): ?array
     if (!$ids) return [];
     $in=implode(',',array_fill(0,count($ids),'?'));
     $rows=brvtalDashboardQuery($db,str_replace('{ids}',$in,$sql),$ids);
-    return $rows===null?null:array_map('intval',array_column($rows,'n','k'));
+    return $rows===null?null:array_map(intval(...),array_column($rows,'n','k'));
 }
 
 function brvtalDashboardCount(?array $counts,int $id): ?int
@@ -70,7 +70,7 @@ function brvtalDashboardSnapshot(PDO $db,?int $eventId,?string $from,?string $to
         .' ORDER BY id LIMIT 5001',$eventId===null?[]:[$eventId]);
     if ($events===null) throw new RuntimeException('EVENTS_UNAVAILABLE');
     if (count($events)>5000) throw new LengthException('RANGE_TOO_LARGE');
-    $ids=array_map('intval',array_column($events,'id'));
+    $ids=array_map(intval(...),array_column($events,'id'));
     $where=["o.currency='COP'"]; $params=[];
     if ($eventId!==null) { $where[]='o.event_id=?'; $params[]=$eventId; }
     if ($from!==null) { $where[]='o.created_at_utc>=?'; $params[]=brvtalFinanceCalendarBound($from,false); }
@@ -89,7 +89,7 @@ function brvtalDashboardSnapshot(PDO $db,?int $eventId,?string $from,?string $to
     }
     $selected=$proof===null?($channel==='all'?$orders:null)
         :brvtalFinanceFilterOrders($orders,$proof['by_order'],$channel);
-    $orderIds=array_map('intval',array_column($selected??[],'id'));
+    $orderIds=array_map(intval(...),array_column($selected??[],'id'));
     $units=brvtalDashboardCounts($db,'SELECT i.order_id k, SUM(i.quantity) n FROM ticket_order_items i
         WHERE i.order_id IN ({ids}) GROUP BY i.order_id',$orderIds);
     $issued=brvtalDashboardCounts($db,'SELECT i.order_id k, COUNT(e.id) n FROM ticket_order_items i
