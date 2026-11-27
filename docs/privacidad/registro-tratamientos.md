@@ -144,6 +144,16 @@ Producto: `pl0n3r/brvtal`
 - Proveedores: ninguno_declarado
 - Retención: `review_required`
 
+## form_entry_management
+
+- Categoría: `contact`
+- Campos de software: `entry_id`, `revision`, `workflow_state`, `action_kind`, `actor_admin_id`, `created_at_utc`, `note_text`
+- Finalidad: `form_entry_management`
+- Base documentada: `review_required` (revisión jurídica requerida)
+- Consentimiento: `review_required`
+- Proveedores: ninguno_declarado
+- Retención: `review_required`
+
 ## internal_analytics_events
 
 - Categoría: `usage`

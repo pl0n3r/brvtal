@@ -71,6 +71,7 @@ $expectedIds = [
     'contact_capture',
     'contact_delivery',
     'contact_rate_limit',
+    'form_entry_management',
     'internal_analytics_events',
     'legacy_admin_activity_ip',
     'privacy_controller_contact',
@@ -242,6 +243,12 @@ try {
 }
 privacy_expect(str_contains($contactApi, 'brvtal_contact_capture_policy($config) !== null') && str_contains($contactApi, 'brvtal_contact_capture(db()'), 'database capture requires explicit policy gate');
 privacy_expect(str_contains($contactConfig, 'return @mail('), 'contact flow must still use host mail transport without inventing a provider');
+
+$management = privacy_treatment($data, 'form_entry_management');
+privacy_expect($management['fields'] === ['entry_id', 'revision', 'workflow_state', 'action_kind', 'actor_admin_id', 'created_at_utc', 'note_text'], 'form management metadata and internal notes must be documented');
+privacy_expect($management['category'] === 'contact' && $management['purpose'] === 'form_entry_management'
+    && $management['basis'] === 'review_required' && $management['retention'] === 'review_required'
+    && $management['consent'] === 'review_required' && $management['providers'] === [], 'form management remains legally unapproved');
 
 $contactRate = privacy_treatment($data, 'contact_rate_limit');
 privacy_expect($contactRate['fields'] === ['client_key_hash','timestamps'], 'contact rate limit must document hash and timestamps only');

@@ -239,6 +239,24 @@
       "providers": []
     },
     {
+      "id": "form_entry_management",
+      "category": "contact",
+      "fields": [
+        "entry_id",
+        "revision",
+        "workflow_state",
+        "action_kind",
+        "actor_admin_id",
+        "created_at_utc",
+        "note_text"
+      ],
+      "purpose": "form_entry_management",
+      "basis": "review_required",
+      "retention": "review_required",
+      "consent": "review_required",
+      "providers": []
+    },
+    {
       "id": "internal_analytics_events",
       "category": "usage",
       "fields": [

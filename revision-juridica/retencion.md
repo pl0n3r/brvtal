@@ -20,6 +20,7 @@ Producto: `pl0n3r/brvtal`
 | contact_capture | contact | review_required | review_required |
 | contact_delivery | contact | external_mailbox_review_required | review_required |
 | contact_rate_limit | usage | review_required | review_required |
+| form_entry_management | contact | review_required | review_required |
 | internal_analytics_events | usage | review_required | review_required |
 | legacy_admin_activity_ip | usage | review_required | review_required |
 | privacy_controller_contact | contact | review_required | review_required |
