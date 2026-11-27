@@ -15,10 +15,25 @@ jobs:
       domain: https://www.brvtal.com.co
       version_source: config/version.php
       label_language: en
-      phase: live
+      phase: construccion
       php_version: '8.5'
       node_enabled: false
       working_directory: .
+
+  factory-phase-contract:
+    name: Factory CI phase contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact PR HEAD
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5; same pin as concept05-images-contract
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Caller phase matches datos.yml
+        run: python3 -m unittest tests/test_factory_ci_phase_contract.py -v
 
   concept05-images-contract:
     name: Concept 05 images contract
