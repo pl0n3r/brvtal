@@ -56,7 +56,7 @@ $catalogJson=json_encode(['ok'=>true,'events'=>$catalog],
       <div class="tk-field"><label for="tk-finance-event">Evento</label>
         <select id="tk-finance-event" name="event_id"><option value="">Todos los eventos</option></select></div>
       <div class="tk-field"><label for="tk-finance-channel">Canal</label>
-        <select id="tk-finance-channel" name="channel"><option value="all">Todos</option><option value="wompi">Wompi</option></select></div>
+        <select id="tk-finance-channel" name="channel"><option value="all">Todos</option><option value="wompi">Wompi</option><option value="pos">POS (Caja)</option></select></div>
     </fieldset>
     <fieldset class="tk-step">
       <legend>Período</legend>

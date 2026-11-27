@@ -128,7 +128,7 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
                 created_at_utc DATETIME(6) NOT NULL) ENGINE=InnoDB',
             'CREATE TABLE ticket_order_items (
                 order_id INT NOT NULL,ticket_type_id INT NOT NULL,quantity INT NOT NULL,
-                subtotal_cop BIGINT NOT NULL) ENGINE=InnoDB',
+                subtotal_cop BIGINT NOT NULL,ticket_name_snapshot VARCHAR(120) NOT NULL DEFAULT "") ENGINE=InnoDB',
             'CREATE TABLE ticket_payment_attempts (
                 id INT PRIMARY KEY,order_id INT NOT NULL,provider VARCHAR(20) NOT NULL,
                 provider_transaction_id VARCHAR(30),status VARCHAR(20) NOT NULL,
@@ -146,7 +146,7 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
             "INSERT INTO ticket_orders VALUES
                 (41,1,'paid',10000,'COP',UTC_TIMESTAMP(6)),
                 (42,2,'paid',20000,'COP',UTC_TIMESTAMP(6))",
-            'INSERT INTO ticket_order_items VALUES (41,7,1,10000),(42,7,1,20000)',
+            'INSERT INTO ticket_order_items (order_id,ticket_type_id,quantity,subtotal_cop) VALUES (41,7,1,10000),(42,7,1,20000)',
             "INSERT INTO ticket_payment_attempts VALUES
                 (51,41,'wompi','WOMPI-41','approved',10000,300,57,0,9643)",
             'INSERT INTO ticket_pos_shifts VALUES (1,2,7)',
@@ -195,7 +195,7 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
             (44,3,'paid',20000,'COP','2026-11-19 05:00:00.000000'),
             (45,3,'paid',30000,'COP','2026-11-20 04:59:59.999999'),
             (46,3,'paid',40000,'COP','2026-11-20 05:00:00.000000')");
-        $db->exec('INSERT INTO ticket_order_items VALUES (43,7,1,10000),(44,7,1,20000),(45,7,1,30000),(46,7,1,40000)');
+        $db->exec('INSERT INTO ticket_order_items (order_id,ticket_type_id,quantity,subtotal_cop) VALUES (43,7,1,10000),(44,7,1,20000),(45,7,1,30000),(46,7,1,40000)');
         $db->exec("INSERT INTO ticket_payment_attempts VALUES
             (53,43,'wompi','WOMPI-43','approved',10000,0,0,0,10000),
             (54,44,'wompi','WOMPI-44','approved',20000,0,0,0,20000),
@@ -217,6 +217,41 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
         t20($range['paid_orders']===3 && $range['approved_cop']===90000
             && $range['refund_cop']===10000 && $range['refund_in_period_cop']===9000,
             'inclusive two-day range with next-day adjustment');
+        // #2054: same event, two types, renamed historical snapshots and contradictory evidence.
+        $db->exec("INSERT INTO ticket_orders VALUES
+            (47,4,'paid',20000,'COP',UTC_TIMESTAMP(6)),(48,4,'paid',30000,'COP',UTC_TIMESTAMP(6)),
+            (49,4,'paid',10000,'COP',UTC_TIMESTAMP(6)),(50,4,'paid',40000,'COP',UTC_TIMESTAMP(6)),
+            (51,4,'paid',5000,'COP',UTC_TIMESTAMP(6))");
+        $db->exec("INSERT INTO ticket_order_items VALUES
+            (47,8,2,20000,'General'),(48,9,3,30000,'VIP'),
+            (49,8,1,10000,'Preventa'),(50,9,4,40000,'VIP'),(51,8,1,5000,'')");
+        $db->exec("INSERT INTO ticket_payment_attempts VALUES
+            (57,47,'wompi','W-47','approved',20000,0,0,0,20000),
+            (58,48,'wompi',NULL,'pending',30000,NULL,NULL,NULL,NULL),
+            (59,49,'wompi','W-49','approved',10000,0,0,0,10000),
+            (60,50,'wompi','W-50','approved',40000,0,0,0,40000),
+            (61,51,'wompi','W-51','approved',5000,0,0,0,5000)");
+        $db->exec("INSERT INTO ticket_pos_shifts VALUES (2,4,7)");
+        $db->exec("INSERT INTO ticket_pos_sales VALUES
+            (62,2,4,7,48,9,3,30000,'cash','paid',UTC_TIMESTAMP(6)),
+            (63,2,4,7,50,9,4,40000,'cash','paid',UTC_TIMESTAMP(6))");
+        $all=brvtalFinanceReport($db,4,null,null,'all')[0];
+        $wompi=brvtalFinanceReport($db,4,null,null,'wompi')[0];
+        $cash=brvtalFinanceReport($db,4,null,null,'pos')[0];
+        t20($all['approved_cop']===35000 && $all['pos_cop']===30000 && $all['tickets']===7
+            && $all['paid_orders']===4 && $all['unverified_orders']===1,'mixed sources count only verified sales');
+        t20($wompi['approved_cop']===35000 && $wompi['pos_cop']===0 && $wompi['tickets']===4
+            && $cash['approved_cop']===0 && $cash['pos_cop']===30000 && $cash['tickets']===3,
+            'channel membership does not reattribute completed POS to an earlier pending Wompi attempt');
+        foreach ([$all,$wompi,$cash] as $cohort) {
+            t20($cohort['unverified_orders']===1 && $cohort['refund_cop']===null
+                && $cohort['net_after_refunds_cop']===null,'both filters preserve conflicting evidence as UNKNOWN');
+        }
+        t20($all['types'][0]===['ticket_type_id'=>8,'quantity'=>4,'gross_cop'=>35000,
+            'ticket_names'=>['General','Preventa'],'unnamed_quantity'=>1]
+            && $all['types'][1]===['ticket_type_id'=>9,'quantity'=>3,'gross_cop'=>30000,
+            'ticket_names'=>['VIP'],'unnamed_quantity'=>0],
+            'historical aliases and missing names grouped by ID without duplicate quantities');
         foreach ([['2026-02-30','2026-03-01'],['2026-11-20','2026-11-19']] as [$from,$to]) {
             try {
                 brvtalFinanceReport($db,3,$from,$to,'wompi');
