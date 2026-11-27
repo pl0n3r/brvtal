@@ -381,7 +381,7 @@ export function mount(target) {
       }
     }
   }
-  const transaction=async raw=>{
+  const transaction=async(raw,endpoint='/api/ticketing/admin-pos.php')=>{
     if(busy)throw Error('BUSY');busy=true;
     try {
       if(csrf===null){
@@ -393,7 +393,7 @@ export function mount(target) {
         csrf=doc.querySelector('[data-ticketing-records]')?.getAttribute('data-ticketing-csrf');
         if(!csrf||!/^[a-f0-9]{64}$/i.test(csrf))throw Error('AUTH');
       }
-      const response=await fetch('/api/ticketing/admin-pos.php',{
+      const response=await fetch(endpoint,{
         method:'POST',credentials:'same-origin',cache:'no-store',
         headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},
         body:JSON.stringify(raw)
@@ -452,24 +452,152 @@ export function mount(target) {
       shiftId=null;setVisible(sale,false);setVisible(closeForm,false);setVisible(form,true);receipts.replaceChildren();
     });
   });
+  // Owner-only catalog, inside the existing Caja workspace; never changes the payment flag.
+  const destinationApi='/api/ticketing/admin-pos-destinations.php';
+  const destinations=el('section',undefined,'tk-manual');
+  destinations.dataset.posDestinations='1';
+  destinations.style.marginTop='2rem';
+  const destinationHeading=el('h4','Cuentas y datáfonos');
+  const destinationToggle=el('button','Gestionar cuentas y datáfonos','tk-button');
+  destinationToggle.type='button';destinationToggle.setAttribute('aria-expanded','false');
+  const destinationPanel=el('div');destinationPanel.id='tk-pos-destinations-panel';
+  destinationToggle.setAttribute('aria-controls',destinationPanel.id);
+  setVisible(destinationPanel,false);
+  const destinationStatus=el('p','','tk-status');destinationStatus.setAttribute('role','status');
+  const destinationForm=el('form',undefined,'tk-form');
+  const mediumSelect=field(destinationForm,'Medio de pago','destination_method',select());
+  const mediaLabels={transfer:'Transferencia bancaria',nequi:'Nequi',daviplata:'Daviplata',terminal:'Datáfono externo'};
+  for(const [value,label] of Object.entries(mediaLabels)){
+    const option=el('option',label);option.value=value;mediumSelect.append(option);
+  }
+  const aliasInput=el('input');aliasInput.type='text';aliasInput.required=true;aliasInput.maxLength=80;
+  aliasInput.autocomplete='off';
+  const alias=field(destinationForm,'Alias para reconocer el destino','destination_alias',aliasInput,
+    'Ejemplo: Cuenta de puerta ···1234. No escribas números completos, nombres de titulares ni claves.');
+  const addDestination=el('button','Añadir destino','tk-button is-primary');addDestination.type='submit';
+  destinationForm.append(addDestination);
+  const destinationList=el('ul',undefined,'ticketing-empty');
+  destinationList.setAttribute('aria-label','Destinos activos');
+  const retryDestinations=el('button','Volver a consultar','tk-button');retryDestinations.type='button';
+  setVisible(destinationForm,false);setVisible(destinationList,false);setVisible(retryDestinations,false);
+  destinationPanel.append(destinationStatus,destinationForm,destinationList,retryDestinations);
+  destinations.append(destinationHeading,destinationToggle,destinationPanel);
+  area.append(destinations);
+  let destinationRows=null,destinationPending=false;
+  function renderDestinations(){
+    destinationList.replaceChildren();
+    if(!destinationRows)return;
+    const rows=destinationRows[mediumSelect.value];
+    if(!rows.length){destinationList.append(el('li','No hay destinos activos para este medio.'));return;}
+    for(const row of rows){
+      const item=el('li');item.style.overflowWrap='anywhere';
+      const name=el('span',row.alias);
+      const deactivate=el('button','Desactivar','tk-button');deactivate.type='button';
+      deactivate.setAttribute('aria-label','Desactivar '+row.alias);
+      deactivate.disabled=destinationPending;
+      deactivate.addEventListener('click',()=>{
+        if(destinationPending||busy||!active())return;
+        if(!window.confirm('¿Desactivar '+row.alias+'? No estará disponible para ventas nuevas. Sus comprobantes se conservan.'))return;
+        void changeDestination({action:'deactivate',id:Number(row.id)},'Destino desactivado.');
+      });
+      item.append(name,document.createTextNode(' '),deactivate);destinationList.append(item);
+    }
+  }
+  function destinationControls(ready){
+    setVisible(destinationForm,ready);setVisible(destinationList,ready);
+    for(const control of destinationForm.elements)control.disabled=!ready||destinationPending;
+    renderDestinations();
+  }
+  function validDestinationRows(value){
+    return value&&Object.keys(mediaLabels).every(key=>Array.isArray(value[key])
+      &&value[key].every(row=>Number.isSafeInteger(Number(row.id))&&Number(row.id)>0
+        &&row.method===key&&typeof row.alias==='string'));
+  }
+  async function loadDestinations(message=''){
+    if(destinationPending||!active())return;
+    destinationPending=true;destinationRows=null;
+    destinationControls(false);setVisible(retryDestinations,false);
+    destinationStatus.textContent='Consultando destinos…';
+    try{
+      const response=await fetch(destinationApi,{credentials:'same-origin',cache:'no-store'});
+      if(!active())return;
+      if(response.status===401||response.status===403){
+        destinationStatus.textContent='Solo el propietario puede gestionar cuentas y datáfonos.';return;
+      }
+      const payload=await response.json();
+      if(!response.ok||payload.ok!==true||!validDestinationRows(payload.data?.destinations))throw Error('UNAVAILABLE');
+      destinationRows=payload.data.destinations;
+      destinationStatus.textContent=message||'Selecciona un medio para consultar sus destinos activos.';
+    }catch{
+      if(active()){
+        destinationStatus.textContent='No se pudieron consultar los destinos. Vuelve a intentarlo.';
+        setVisible(retryDestinations,true);
+      }
+    }finally{
+      destinationPending=false;
+      if(active())destinationControls(destinationRows!==null);
+    }
+  }
+  async function changeDestination(input,message){
+    if(destinationPending||busy||!active()||destinationRows===null)return;
+    destinationPending=true;destinationControls(true);
+    destinationStatus.textContent='Guardando cambio…';
+    let notice=message;
+    try{
+      await transaction(input,destinationApi);
+      if(!active())return;
+      if(input.action==='create')alias.value='';
+    }catch(error){
+      notice=error.message==='POS_DESTINATION_DUPLICATE'?'Ese alias ya existe para este medio. Elige otro.'
+        :error.message==='INVALID_PAYLOAD'?'Revisa el alias: usa un nombre corto y hasta cuatro dígitos.'
+        :'No se pudo confirmar el cambio. Consulta la lista antes de intentarlo de nuevo.';
+    }finally{
+      destinationPending=false;
+      if(active()){
+        // Invalidate any quote whose selected destination may have changed.
+        reviewGeneration++;
+        if(!manualSubmitted&&!manualPending)clearManualReview();
+        receiptConfig=null;receiptConfigMessage='Consultando destinos actualizados…';updateManualRef();
+        void loadReceiptConfig();
+        await loadDestinations(notice);
+        if(active()&&destinationRows!==null)alias.focus();
+      }
+    }
+  }
+  destinationToggle.addEventListener('click',()=>{
+    const openingPanel=destinationToggle.getAttribute('aria-expanded')==='false';
+    destinationToggle.setAttribute('aria-expanded',String(openingPanel));setVisible(destinationPanel,openingPanel);
+    if(openingPanel)void loadDestinations();
+  });
+  retryDestinations.addEventListener('click',()=>void loadDestinations());
+  mediumSelect.addEventListener('change',renderDestinations);
+  destinationForm.addEventListener('submit',event=>{
+    event.preventDefault();
+    if(!destinationForm.reportValidity())return;
+    void changeDestination({action:'create',method:mediumSelect.value,alias:alias.value.trim()},'Destino añadido.');
+  });
   void loadCatalog();
-  void (async()=>{
+  let receiptLoad=0;
+  async function loadReceiptConfig(){
+    const generation=++receiptLoad;
     try{
       const response=await fetch('/api/ticketing/admin-pos.php?receipt_identity=1',{
         credentials:'same-origin',cache:'no-store'});
       const payload=await response.json();
       if(!response.ok||payload.ok!==true||typeof payload.data?.enabled!=='boolean'
         ||!payload.data.destinations||typeof payload.data.destinations!=='object')throw new Error('NO_RECEIPT_CONFIG');
-      if(!active())return;
+      if(!active()||generation!==receiptLoad)return;
       const wasLoading=manualStatus.textContent===receiptConfigMessage;
       receiptConfig=payload.data;updateManualRef();
       if(wasLoading)manualStatus.textContent='Completa y verifica los datos del pago.';
     }catch{
+      if(!active()||generation!==receiptLoad)return;
       const wasLoading=manualStatus.textContent===receiptConfigMessage;
       receiptConfigMessage='No se pudo verificar la configuración del comprobante. Recarga y verifica antes de registrar.';
       if(active()&&wasLoading)manualStatus.textContent=receiptConfigMessage;
     }
-  })();
+  }
+  void loadReceiptConfig();
   if(!storageAvailable){manualSubmit.disabled=true;
     manualStatus.textContent='No se puede conservar la intención de forma segura. No registres otro pedido.';
   }else if(storedIntent){manualLookup.hidden=false;manualSubmit.disabled=true;void recoverManual();}

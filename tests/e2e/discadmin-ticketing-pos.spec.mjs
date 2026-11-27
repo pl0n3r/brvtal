@@ -661,3 +661,93 @@ test('2100 configuración sin permiso impide confirmar comprobante no efectivo',
   await expect(page.locator('[data-pos-manual]')).toContainText('No se pudo verificar la configuración');
   expect(calls).toHaveLength(0);
 });
+
+for(const width of [390,1440]){
+  test('2317 owner administra destinos, refresca venta manual y captura '+width+' px',async({page},testInfo)=>{
+    await page.setViewportSize({width,height:900});
+    const baselineSha2317='f4682d7f89099ada2910b86aa574b434e6742f3b';
+    const ref=baselineSha2317+':discadmin/ticketing-pos.js';
+    try{execFileSync('git',['cat-file','-e',ref]);}
+    catch{execFileSync('git',['fetch','--no-tags','--depth=1','origin',baselineSha2317],{timeout:60000});}
+    const baseline=await page.context().newPage();
+    await baseline.setViewportSize({width,height:900});
+    await setup(baseline,route=>route.abort('failed'),[],true,'api',finance,
+      execFileSync('git',['show',ref],{encoding:'utf8'}));
+    const dir='artifacts/issue-2017/issue-2317';
+    mkdirSync(dir,{recursive:true});
+    const capture=async(p,phase)=>{
+      const png=await p.screenshot({fullPage:true});
+      expect(png.readUInt32BE(16)).toBe(width);
+      const name='2317-'+phase+'-'+width+'.png';
+      writeFileSync(dir+'/'+name,png);await testInfo.attach(name,{body:png,contentType:'image/png'});
+    };
+    await capture(baseline,'before');await baseline.close();
+    const config={enabled:true,destinations:{transfer:[],nequi:[],daviplata:[],terminal:[]}};
+    let release,first=true;
+    const wait=new Promise(resolve=>{release=resolve;});
+    const calls=[];
+    await page.route('**/api/ticketing/admin-pos-destinations.php',async route=>{
+      if(route.request().method()==='GET'){
+        if(first){first=false;await wait;}
+        return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:{destinations:config.destinations}})});
+      }
+      const body=route.request().postDataJSON();calls.push(body);
+      expect(route.request().headers()['x-csrf-token']).toBe('a'.repeat(64));
+      if(body.action==='create'){
+        expect(body).toEqual({action:'create',method:'nequi',alias:'Billetera puerta'});
+        config.destinations.nequi=[{id:11,method:'nequi',alias:'Billetera puerta'}];
+      }else{
+        expect(body).toEqual({action:'deactivate',id:11});config.destinations.nequi=[];
+      }
+      return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:{id:11}})});
+    });
+    await setup(page,route=>route.abort('failed'),[],true,'api',finance,pos,config);
+    const section=page.locator('[data-pos-destinations]');
+    const toggle=section.getByRole('button',{name:'Gestionar cuentas y datáfonos'});
+    await toggle.focus();await page.keyboard.press('Enter');
+    await expect(section).toContainText('Consultando destinos');
+    release();
+    await expect(section).toContainText('No hay destinos activos');
+    await section.getByLabel('Medio de pago').selectOption('nequi');
+    const alias=section.getByLabel('Alias para reconocer el destino');
+    await alias.fill('Billetera puerta');
+    await section.getByRole('button',{name:'Añadir destino'}).click();
+    await expect(section.getByRole('button',{name:'Desactivar Billetera puerta'})).toBeVisible();
+    await expect(section).toContainText('Destino añadido');
+    const manual=page.locator('[data-pos-manual-form]');
+    await manual.locator('[name="manual_method"]').selectOption('nequi');
+    const destination=manual.locator('[name="manual_destination_id"]');
+    await expect(destination.locator('option[value="11"]')).toHaveText('Billetera puerta');
+    await destination.selectOption('11');
+    await capture(page,'after');
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    const deactivate=section.getByRole('button',{name:'Desactivar Billetera puerta'});
+    page.once('dialog',dialog=>dialog.dismiss());
+    await deactivate.click();expect(calls).toHaveLength(1);
+    page.once('dialog',dialog=>dialog.accept());
+    await deactivate.focus();await page.keyboard.press('Enter');
+    await expect(section).toContainText('Destino desactivado');
+    await expect(section).toContainText('No hay destinos activos');
+    await expect(destination.locator('option[value="11"]')).toHaveCount(0);
+    await expect(alias).toBeFocused();
+    expect(calls).toHaveLength(2);
+    expect(await page.locator('[data-admin-module="ticketing"]').count()).toBe(1);
+    writeFileSync(dir+'/manifest-'+width+'.json',JSON.stringify({issue:2317,before_sha:baselineSha2317,
+      after_head_sha:process.env.ISSUE_2017_PR_HEAD_SHA??null,viewport_width:width,synthetic_fixture:true},null,2));
+  });
+}
+test('2317 error de catálogo, reintento y acceso denegado',async({page})=>{
+  let attempt=0;
+  await page.route('**/api/ticketing/admin-pos-destinations.php',route=>{
+    expect(route.request().method()).toBe('GET');
+    return route.fulfill({status:++attempt===1?503:403,contentType:'application/json',
+      body:'{"ok":false,"error":"DENIED"}'});
+  });
+  await setup(page,route=>route.abort('failed'));
+  const section=page.locator('[data-pos-destinations]');
+  await section.getByRole('button',{name:'Gestionar cuentas y datáfonos'}).click();
+  await expect(section).toContainText('No se pudieron consultar los destinos');
+  await section.getByRole('button',{name:'Volver a consultar'}).click();
+  await expect(section).toContainText('Solo el propietario puede gestionar');
+  await expect(section.getByRole('button',{name:'Añadir destino'})).toBeHidden();
+});
