@@ -40,6 +40,24 @@ posDenies(static fn()=>brvtalPosInput(array_replace($manual,
 posDenies(static fn()=>brvtalPosInput(array_replace($manual,
     ['method'=>'wompi_qr'])),'POS_INVALID_MANUAL_ORDER');
 posDenies(static fn()=>brvtalPosInput($manual+['total_cop'=>'1']),'POS_INVALID_FIELDS');
+$received=['received_amount_cop'=>'42000','received_reason'=>'Pago offline previo',
+    'received_reference'=>'REC-2026-001'];
+posAssert(brvtalPosInput($manual+$received)['received_amount_cop']===42000,'typed received amount');
+foreach (['received_reason','received_reference'] as $field) {
+    $missing=$received; unset($missing[$field]);
+    posDenies(static fn()=>brvtalPosInput($manual+$missing),'POS_INVALID_FIELDS');
+    posDenies(static fn()=>brvtalPosInput($manual+array_replace($received,[$field=>''])),
+        'POS_INVALID_RECEIVED_EVIDENCE');
+}
+foreach (['-1','0','1000000001'] as $bad) {
+    posDenies(static fn()=>brvtalPosInput($manual+array_replace($received,['received_amount_cop'=>$bad])),
+        'POS_INVALID_NUMBER');
+}
+posDenies(static fn()=>brvtalPosInput($manual+array_replace($received,['received_amount_cop'=>'42001'])),
+    'POS_INVALID_RECEIVED_EVIDENCE');
+posDenies(static fn()=>brvtalPosInput($manual+array_replace($received,['received_reason'=>"bad|reason"])),
+    'POS_INVALID_RECEIVED_EVIDENCE');
+posDenies(static fn()=>brvtalPosInput($prepare+$received),'POS_INVALID_FIELDS');
 posAssert(!brvtalPosCan('door')&&!brvtalPosCan('viewer'),'door cannot sell');
 foreach ([
   [$prepare+['payment_approved'=>true],'POS_INVALID_FIELDS'],
@@ -551,6 +569,42 @@ foreach ([[$paidDoor,27000,'preventa','door'],[$paidManual,29000,'general','manu
 posIntentHttp(['host'=>$host,'port'=>$port,'name'=>$name,'user'=>$user,'pass'=>$pass],
     array_replace($quoteInput,['quantity'=>'1','idempotency_key'=>str_repeat('h',32)]),
     ['channel'=>'manual','unit_price_cop'=>31000,'amount_cop'=>31000,'source'=>'stage','stage_code'=>'general']);
+// #2177: exact received amount, evidence, authorization and replay.
+$offline=array_replace($order,['idempotency_key'=>str_repeat('r',32)])+$received;
+$offlineQuote=array_replace($quoteInput,['idempotency_key'=>$offline['idempotency_key']]);
+$offline['quote_token']=brvtalPosRun($db,1,'superadmin',$offlineQuote,$key)['quote_token'];
+$before=$snapshotRead();
+posDenies(static fn()=>brvtalPosRun($db,2,'admin',$offline,$key),'FORBIDDEN');
+$missing=$offline;unset($missing['received_reason']);
+posDenies(static fn()=>brvtalPosRun($db,1,'superadmin',$missing,$key),'POS_INVALID_FIELDS');
+posAssert($snapshotRead()===$before,'received negatives do not create orders');
+$paidOffline=brvtalPosRun($db,1,'superadmin',$offline,$key);
+posAssert($paidOffline['amount_cop']===42000 && !$paidOffline['replayed'],'actual received amount persisted');
+$q=$db->prepare("SELECT s.unit_price_cop,s.amount_cop,s.request_hash,o.total_cop,i.subtotal_cop
+    FROM ticket_pos_sales s JOIN ticket_orders o ON o.id=s.order_id
+    JOIN ticket_order_items i ON i.order_id=o.id WHERE s.id=?");
+$q->execute([$paidOffline['sale_id']]);$row=$q->fetch(PDO::FETCH_ASSOC);
+posAssert((int)$row['unit_price_cop']===21000 && (int)$row['amount_cop']===42000
+    && (int)$row['total_cop']===42000 && (int)$row['subtotal_cop']===42000,'received totals reconcile');
+$evidence=$db->prepare("SELECT actor_admin_id,note_text FROM ticket_order_notes
+    WHERE order_id=? AND note_text LIKE 'manual-received|%'");
+$evidence->execute([$paidOffline['order_id']]);$note=$evidence->fetch(PDO::FETCH_ASSOC);
+posAssert((int)$note['actor_admin_id']===1
+    && $note['note_text']==='manual-received|'.$row['request_hash'].'|62000|42000|REC-2026-001|Pago offline previo',
+    'owner, original quote, amount, reference and reason audited');
+$after=$snapshotRead();
+$replay=brvtalPosRun($db,1,'superadmin',$offline);
+posAssert($replay['replayed'] && $replay['order_id']===$paidOffline['order_id']
+    && $replay['amount_cop']===42000 && $snapshotRead()===$after,'received retry is idempotent');
+foreach (['received_amount_cop'=>'44000','received_reason'=>'Otro motivo','received_reference'=>'REC-OTHER'] as $field=>$value) {
+    posDenies(static fn()=>brvtalPosRun($db,1,'superadmin',array_replace($offline,[$field=>$value])),
+        'POS_IDEMPOTENCY_CONFLICT');
+}
+posAssert($snapshotRead()===$after,'changed received evidence never duplicates sale');
+$intent=['action'=>'manual_intent','idempotency_key'=>$offline['idempotency_key']];
+$found=brvtalPosRun($db,1,'superadmin',$intent);
+posAssert($found['state']==='found' && $found['amount_cop']===42000
+    && brvtal_ticket_pos_verified($db,(int)$paidOffline['order_id']),'received receipt and issuance verified');
 $beforeRepeat=$quoteRows();
 $db->exec($quoteSql);
 posAssert($quoteRows()===$beforeRepeat && $quoteProof()['complete'],'second DDL preserves all rows and proof');

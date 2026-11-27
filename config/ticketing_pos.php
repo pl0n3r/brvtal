@@ -19,7 +19,7 @@ function brvtalPosInt(mixed $value, int $min = 1, int $max = 1000000000): int {
     }
     return (int)$value;
 }
-/** Exact action shapes, no client-provided amount, buyer, provider proof or event status. */
+/** Exact action shapes; only manual orders accept an evidenced received amount. */
 function brvtalPosInput(array $raw): array {
     $shape = [
         'open'=>['action','event_id','opening_cash_cop'],
@@ -39,6 +39,9 @@ function brvtalPosInput(array $raw): array {
     $expected=$shape[$action];
     if ($action==='confirm' && array_key_exists('buyer_email',$raw)) $expected[]='buyer_email';
     if ($action==='manual_order' && array_key_exists('quote_token',$raw)) $expected[]='quote_token';
+    if ($action==='manual_order' && array_key_exists('received_amount_cop',$raw)) {
+        $expected=array_merge($expected,['received_amount_cop','received_reason','received_reference']);
+    }
     sort($expected);
     if ($keys!==$expected) throw new InvalidArgumentException('POS_INVALID_FIELDS');
     $result=['action'=>$action];
@@ -91,6 +94,22 @@ function brvtalPosInput(array $raw): array {
         $result+=['buyer_name'=>$name,'buyer_email'=>strtolower($email),
             'method'=>$method,'payment_reference'=>$reference,
             'idempotency_key'=>$key,'confirm'=>true];
+        if (array_key_exists('received_amount_cop',$raw)) {
+            // Zero is a separate courtesy flow. Preserve the existing integer-COP
+            // unit × quantity invariant rather than silently rounding a receipt.
+            $received=brvtalPosInt($raw['received_amount_cop']);
+            $reason=$raw['received_reason'];
+            $evidence=$raw['received_reference'];
+            if ($received % $result['quantity']!==0
+                || !is_string($reason) || strlen(trim($reason))<3 || strlen($reason)>80
+                || preg_match('//u',$reason)!==1 || preg_match('/[\x00-\x1f\x7f|]/',$reason)
+                || !is_string($evidence)
+                || !preg_match('/^[A-Za-z0-9][A-Za-z0-9 ._\/-]{3,63}$/D',$evidence)) {
+                throw new InvalidArgumentException('POS_INVALID_RECEIVED_EVIDENCE');
+            }
+            $result+=['received_amount_cop'=>$received,'received_reason'=>trim($reason),
+                'received_reference'=>$evidence];
+        }
         if (array_key_exists('quote_token',$raw)) {
             if (!is_string($raw['quote_token']) || !preg_match('/^[0-9]{10}[.][a-f0-9]{64}$/D',$raw['quote_token'])) {
                 throw new InvalidArgumentException('POS_INVALID_QUOTE');
@@ -479,10 +498,15 @@ function brvtalPosManualOrder(PDO $db,int $actor,array $i,?string $quoteKey): ar
     if ($lock->fetchColumn()===false) throw new DomainException('FORBIDDEN');
 
     $key=hash('sha256','manual-order:'.$actor.':'.$i['idempotency_key']);
-    $digest=hash('sha256',json_encode([
+    $request=[
         $i['event_id'],$i['ticket_type_id'],$i['quantity'],$i['buyer_name'],
         $i['buyer_email'],$i['method'],$i['payment_reference']
-    ],JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE));
+    ];
+    // Keep pre-existing order digests byte-for-byte compatible.
+    if (isset($i['received_amount_cop'])) {
+        $request[]=[$i['received_amount_cop'],$i['received_reason'],$i['received_reference']];
+    }
+    $digest=hash('sha256',json_encode($request,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE));
     brvtalPosEventLock($db,$i['event_id']);
     $old=$db->prepare('SELECT id,status,total_cop FROM ticket_orders WHERE checkout_key_hash=? FOR UPDATE');
     $old->execute([$key]);
@@ -514,7 +538,8 @@ function brvtalPosManualOrder(PDO $db,int $actor,array $i,?string $quoteKey): ar
     if ($expiry<=time() || !hash_equals(brvtalPosQuoteProof($quoteKey,$expiry,$fingerprint),$i['quote_token'])) {
         throw new DomainException('POS_QUOTE_CHANGED');
     }
-    $unit=$quote['unit_price_cop'];$amount=$quote['subtotal_cop'];
+    $amount=$i['received_amount_cop']??$quote['subtotal_cop'];
+    $unit=isset($i['received_amount_cop'])?intdiv($amount,$i['quantity']):$quote['unit_price_cop'];
 
     // Never infer marketing consent from an offline ticket sale.
     $buyer=$db->prepare('INSERT INTO ticket_buyers(public_id,email,full_name,status)
@@ -563,6 +588,14 @@ function brvtalPosManualOrder(PDO $db,int $actor,array $i,?string $quoteKey): ar
     $db->prepare('INSERT INTO ticket_order_notes(order_id,actor_admin_id,note_text)
         VALUES (?,?,?)')->execute([$orderId,$actor,
             'manual-payment|'.$i['method'].'|'.$i['payment_reference'].'|'.$digest]);
+    if (isset($i['received_amount_cop'])) {
+        // Separate immutable evidence preserves legacy payment verification and
+        // records both the binding tariff and the actual received amount.
+        $db->prepare('INSERT INTO ticket_order_notes(order_id,actor_admin_id,note_text)
+            VALUES (?,?,?)')->execute([$orderId,$actor,
+                'manual-received|'.$digest.'|'.$quote['subtotal_cop'].'|'.$amount.'|'.
+                $i['received_reference'].'|'.$i['received_reason']]);
+    }
 
     brvtal_ticket_pos_enqueue($db,$orderId);
     return ['order_id'=>$orderId,'sale_id'=>$saleId,'status'=>'paid',
