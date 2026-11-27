@@ -180,6 +180,21 @@ $beforeCalls = count($calls);
 reconcileAssert(brvtal_wompi_reconcile_attempt($other, 3, ['reconcile_requests_per_minute'=>1]+$config, $wompi([])) === 'skipped'
     && count($calls) === $beforeCalls, 'shared budget prevents different attempt');
 $db->exec("UPDATE ticket_wompi_reconcile_budget SET window_started_at_utc=UTC_TIMESTAMP(6)-INTERVAL 61 SECOND WHERE environment='sandbox'");
+// A suspended caller may return APPROVED after another claimant has replaced it.
+$ref3 = 'BW7-43-PSE-' . str_repeat('e',24);
+$expiredResult = $tx('APPROVED', 5000000, $ref3);
+$expiredResult['id'] = 'synthetic-expired-result';
+reconcileAssert(brvtal_wompi_reconcile_attempt($db, 3, $config, static function ($url,$headers) use ($other,$wompi,$expiredResult) {
+    $other->exec("UPDATE ticket_wompi_reconcile_claims SET last_started_at_utc=UTC_TIMESTAMP(6),
+        claim_id=UNHEX(REPEAT('bb',16)),expires_at_utc=UTC_TIMESTAMP(6)+INTERVAL 15 SECOND WHERE attempt_id=3");
+    return $wompi([$expiredResult])($url,$headers);
+}) === 'skipped', 'late approved response cannot apply under a replaced identity');
+reconcileAssert($db->query('SELECT status FROM ticket_payment_attempts WHERE id=3')->fetchColumn() === 'pending'
+    && $count("SELECT COUNT(*) FROM ticket_payment_webhook_events WHERE attempt_id=3") === 0
+    && $count("SELECT COUNT(*) FROM ticket_issue_outbox WHERE order_id=43") === 0
+    && strtolower((string)$db->query('SELECT HEX(claim_id) FROM ticket_wompi_reconcile_claims WHERE attempt_id=3')->fetchColumn()) === str_repeat('bb',16),
+    'old claimant neither applies payment nor clears replacement');
+brvtal_wompi_reconcile_release($db,3,'sandbox',str_repeat('bb',16));
 $db->exec("UPDATE ticket_payment_attempts SET status='declined' WHERE id=3");
 $db->exec("UPDATE ticket_payment_attempts SET created_at_utc=UTC_TIMESTAMP(6)-INTERVAL 8 DAY,
     updated_at_utc=UTC_TIMESTAMP(6)-INTERVAL 7 HOUR,status='pending' WHERE id=2");

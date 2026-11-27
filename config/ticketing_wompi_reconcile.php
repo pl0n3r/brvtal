@@ -18,7 +18,7 @@ const BRVTAL_WOMPI_RECONCILE_STALE_BACKOFF_SECONDS = 21600;
 const BRVTAL_WOMPI_RECONCILE_LEASE_SECONDS = 15;
 const BRVTAL_WOMPI_RECONCILE_BUDGET_SECONDS = 60;
 
-/** Same eligibility for the candidate and its atomic, autocommitted claim. */
+/** Same eligibility for candidate selection and transactional lease acquisition. */
 function brvtal_wompi_reconcile_due_sql(): string
 {
     return "a.provider='wompi' AND a.status IN ('created','pending')
@@ -187,6 +187,12 @@ function brvtal_wompi_reconcile_claimed(PDO $db, int $attemptId, string $mode, s
         '_event_checksum'=>brvtal_wompi_reconcile_checksum($tx['id']), '_event_timestamp'=>time()];
     $db->beginTransaction();
     try {
+        // Lock in the same order as acquisition. Otherwise an expired claimant
+        // can hold the lease row while its successor holds the attempt row.
+        // This mutex covers only local database work, never provider I/O.
+        $mutex = $db->prepare('SELECT environment FROM ticket_wompi_reconcile_budget WHERE environment=? FOR UPDATE');
+        $mutex->execute([$mode]);
+        if ($mutex->fetchColumn() === false) { $db->rollBack(); return 'skipped'; }
         $fence = $db->prepare('SELECT 1 FROM ticket_wompi_reconcile_claims
             WHERE attempt_id=? AND environment=? AND claim_id=UNHEX(?) AND expires_at_utc>UTC_TIMESTAMP(6) FOR UPDATE');
         $fence->execute([$attemptId,$mode,$identity]);

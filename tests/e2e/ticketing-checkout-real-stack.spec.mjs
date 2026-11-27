@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import https from 'node:https';
 import http from 'node:http';
-import { execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import { readFileSync, writeFileSync, renameSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -115,7 +115,16 @@ async function run() {
     const financialTime=db('SELECT updated_at_utc FROM ticket_payment_attempts');
     const confirm='/api/ticketing/order-status.php?t='+token;
     const referenceQueries=()=>existsSync('/fixture/audit.jsonl') ? readFileSync('/fixture/audit.jsonl','utf8').split('\n').filter(x=>x.includes('"id":"reference-query"')).length : 0;
-    const burst=await Promise.all(Array.from({length:4},()=>request(confirm)));
+    const concurrentWorker = new Promise((resolve,reject) => {
+      execFile('php',['-d','curl.cainfo=/fixture/ca.pem','/fixture/worker.php'],
+        {encoding:'utf8',timeout:8000}, (error,stdout) => {
+          if (error && error.code !== 1) return reject(new Error('concurrent worker unavailable'));
+          try { resolve(JSON.parse(stdout)); } catch { reject(new Error('worker response unavailable')); }
+        });
+    });
+    const [workerResult, ...burst]=await Promise.all([concurrentWorker,...Array.from({length:4},()=>request(confirm))]);
+    check(['idle','not_approved','disabled'].includes(workerResult.reconcile)&&workerResult.issue==='idle',
+      'actual worker shares pending reconciliation with public confirmation');
     check(burst.some(r=>r.status===200&&r.body.order?.state==='pending')&&burst.every(r=>r.status===503||r.status===200&&r.body.order?.state==='pending'),'concurrent status returns persisted pending or neutral unavailable');
     check(referenceQueries()===1&&db('SELECT request_count FROM ticket_wompi_reconcile_budget')==='1','one provider query under shared synthetic budget');
     check(db('SELECT updated_at_utc FROM ticket_payment_attempts')===financialTime&&db('SELECT COUNT(*) FROM ticket_issue_outbox')==='0','query preserves finance and issuance');
