@@ -239,7 +239,7 @@ function brvtalRefundRequest(PDO $db,int $buyer,array $input):array {
         if ($scope!==null && $scope!==(int)$order['id']) {
             throw new DomainException('ORDER_NOT_REFUNDABLE');
         }
-        $prior=$db->prepare('SELECT id,status,selection_hash FROM ticket_refunds WHERE order_id=? AND request_hash=?');
+        $prior=$db->prepare('SELECT id,status,selection_hash FROM ticket_refunds WHERE order_id=? AND request_hash=? FOR UPDATE');
         $prior->execute([(int)$order['id'],$request]); $existing=$prior->fetch(PDO::FETCH_ASSOC);
         if ($existing) {
             if (!hash_equals($existing['selection_hash'],$selection)) throw new DomainException('IDEMPOTENCY_CONFLICT');
@@ -253,14 +253,13 @@ function brvtalRefundRequest(PDO $db,int $buyer,array $input):array {
         $q->execute([(int)$order['id']]); $all=$q->fetchAll(PDO::FETCH_ASSOC);
         if (!$all) throw new DomainException('ORDER_NOT_REFUNDABLE');
         $chosen = [];
+        $states = [];
         $prices = [];
         foreach ($all as $row) {
             $entry = (int)$row['id'];
             $prices[$entry] = (int)$row['unit_price_cop'];
             if (!$ids || in_array($row['ref'], $ids, true)) {
-                if ($row['status'] !== 'issued') {
-                    throw new DomainException('ENTRY_NOT_REFUNDABLE');
-                }
+                $states[$entry] = $row['status'];
                 $chosen[] = $entry;
             }
         }
@@ -270,11 +269,12 @@ function brvtalRefundRequest(PDO $db,int $buyer,array $input):array {
         $total = (int)$order['total_cop'];
         $net = brvtalRefundAllocation($total, $prices);
         $claimed = brvtalRefundVerifiedClaims($db, (int)$order['id'], $net);
+        foreach ($chosen as $entry) {
+            if (isset($claimed[$entry])) throw new DomainException('REFUND_CLAIM_CONFLICT');
+        }
         $amount = 0;
         foreach ($chosen as $entry) {
-            if (isset($claimed[$entry])) {
-                throw new DomainException('ENTRY_NOT_REFUNDABLE');
-            }
+            if ($states[$entry] !== 'issued') throw new DomainException('ENTRY_NOT_REFUNDABLE');
             $amount += $net[$entry];
         }
         if ($amount < 1 || $amount > $total) {
@@ -285,7 +285,17 @@ function brvtalRefundRequest(PDO $db,int $buyer,array $input):array {
         $id=(int)$db->lastInsertId();
         $insert=$db->prepare('INSERT INTO ticket_refund_entries(refund_id,entry_id,amount_cop) VALUES(?,?,?)');
         foreach ($chosen as $entry) {
-            $insert->execute([$id, $entry, $net[$entry]]);
+            try {
+                $insert->execute([$id, $entry, $net[$entry]]);
+            } catch (PDOException $error) {
+                $info = $error->errorInfo ?? [];
+                if (($info[0] ?? null) === '23000' && (int)($info[1] ?? 0) === 1062
+                    && preg_match("/ for key '(?:ticket_refund_entries[.])?uq_ticket_refund_claim'$/D",
+                        (string)($info[2] ?? '')) === 1) {
+                    throw new DomainException('REFUND_CLAIM_CONFLICT', 0, $error);
+                }
+                throw $error;
+            }
         }
         brvtalRefundAudit($db,$id,'buyer',$buyer,null,'requested');
         $db->commit(); return ['id'=>$id,'status'=>'requested','amount_cop'=>$amount,'replayed'=>false];
