@@ -25,7 +25,11 @@ try {
     json_response(['ok'=>false,'error'=>'REFUND_INVALID'],422);
 } catch(DomainException $e) {
     $error=$e->getMessage();
-    $status=$error==='REFUND_SANDBOX_ONLY'?423:(in_array($error,['IDEMPOTENCY_CONFLICT','REFUND_CLAIM_CONFLICT'],true)?409:403);
+    $status = match ($error) {
+        'REFUND_SANDBOX_ONLY' => 423,
+        'IDEMPOTENCY_CONFLICT', 'REFUND_CLAIM_CONFLICT' => 409,
+        default => 403,
+    };
     json_response(['ok'=>false,'error'=>$error],$status);
 } catch(Throwable) {
     json_response(['ok'=>false,'error'=>'REFUNDS_UNAVAILABLE'],503);
