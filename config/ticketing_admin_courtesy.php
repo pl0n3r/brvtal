@@ -73,6 +73,28 @@ function brvtalCourtesyAdminRead(PDO $db, int $actor, array $raw): array
         throw new DomainException('FORBIDDEN');
     }
     $f = brvtalCourtesyAdminFilters($raw);
+    $ownsTransaction = !$db->inTransaction();
+    if ($ownsTransaction) {
+        // Do not depend on the session's default isolation level.
+        $db->exec('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
+        $db->beginTransaction();
+    }
+    try {
+        $result = brvtalCourtesyAdminSnapshot($db, $f);
+        if ($ownsTransaction) {
+            $db->commit();
+        }
+        return $result;
+    } catch (Throwable $e) {
+        if ($ownsTransaction && $db->inTransaction()) {
+            $db->rollBack();
+        }
+        throw $e;
+    }
+}
+
+function brvtalCourtesyAdminSnapshot(PDO $db, array $f): array
+{
     $from = ' FROM ticket_courtesy_invites i JOIN events ev ON ev.id=i.event_id
         JOIN event_ticket_types t ON t.id=i.ticket_type_id AND t.event_id=i.event_id
         LEFT JOIN ticket_entries e ON e.id=i.entry_id

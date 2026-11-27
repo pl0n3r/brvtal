@@ -11,6 +11,17 @@ foreach ([['event_id'=>'0'],['ticket_type_id'=>'1 OR 1=1'],['invite_id'=>'-1'],
     try { brvtalCourtesyAdminFilters($bad); throw new RuntimeException('invalid accepted'); }
     catch (InvalidArgumentException) {}
 }
+// Interleave a writer immediately after totals, without timing-dependent sleeps.
+class CourtesySnapshotStatement extends PDOStatement {
+    protected function __construct(private Closure $afterTotals) {}
+    public function execute(?array $params = null): bool {
+        $ok = parent::execute($params);
+        if (str_contains($this->queryString, 'GROUP BY effective_status')) {
+            ($this->afterTotals)();
+        }
+        return $ok;
+    }
+}
 if (getenv('BRVTAL_INTEGRATION_TESTS') !== '1') {
     echo "Courtesy read filters OK; database fixture skipped.\n"; exit(0);
 }
@@ -141,6 +152,29 @@ try {
         'provider103','public_id','recipient_hint'] as $secret)
         courtesyReadAssert(!str_contains($json,$secret),'no secrets or PII');
     courtesyReadAssert($before===$snapshot(),'read-only database snapshot');
+    $reader=new PDO($dsn.';dbname='.$name,$user,$pass,$opts);
+    $reader->exec('SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED');
+    $reader->setAttribute(PDO::ATTR_STATEMENT_CLASS,[CourtesySnapshotStatement::class,
+        [static function () use ($db,$reader): void {
+            courtesyReadAssert($reader->inTransaction(),'owned transaction active');
+            $db->exec("UPDATE ticket_entries SET status='used' WHERE id=101");
+        }]]);
+    $consistent=brvtalCourtesyAdminRead($reader,7,[]);
+    courtesyReadAssert($consistent===$all && !$reader->inTransaction(),'concurrent snapshot consistency');
+    courtesyReadAssert(brvtalCourtesyAdminRead($db,7,[])['totals']['used']===3,'writer committed');
+    $db->exec("UPDATE ticket_entries SET status='issued' WHERE id=101");
+    $db->beginTransaction();
+    courtesyReadAssert(brvtalCourtesyAdminRead($db,7,[])===$all && $db->inTransaction(),'caller owns transaction');
+    $db->rollBack();
+    $reader->setAttribute(PDO::ATTR_STATEMENT_CLASS,[CourtesySnapshotStatement::class,[static function (): void {
+        throw new RuntimeException('snapshot test failure');
+    }]]);
+    try { brvtalCourtesyAdminRead($reader,7,[]); throw new RuntimeException('failure not raised'); }
+    catch (RuntimeException $e) {
+        courtesyReadAssert($e->getMessage()==='snapshot test failure' && !$reader->inTransaction(),'owned rollback');
+    }
+    unset($reader);
+    courtesyReadAssert($before===$snapshot(),'snapshot fixture restored');
     $db->exec('DROP TABLE ticket_mail_history');
     courtesyReadAssert(brvtalCourtesyAdminRead($db,7,['invite_id'=>'103'])['rows'][0]['mail_state']==='accepted',
         'missing history does not invent delivery');
