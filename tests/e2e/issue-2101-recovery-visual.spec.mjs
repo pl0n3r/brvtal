@@ -3,7 +3,6 @@ import { readFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 const base=process.env.BRVTAL_RECOVERY_BASE_DIR, candidate=process.env.BRVTAL_RECOVERY_CANDIDATE_DIR;
 const output=process.env.BRVTAL_RECOVERY_CAPTURE_DIR;
-test.skip(!base||!candidate||!output,'Dedicated exact-source evidence job only');
 const fragment='<section data-ticketing-records data-ticketing-csrf="fixture-csrf">'
  +'<form data-ticketing-records-form><input type="hidden" name="kind" value="orders">'
  +'<input name="q"><input name="email"><input name="event_id"><select name="status"></select>'
@@ -16,6 +15,7 @@ const detail={order:{status:'paid',event_title:'Evento sintético',total_cop:850
  issue:{state:'done',attempts:1},entries:{total:1,used:0,first_issued_at:'2026-11-24 16:05:00'},mail:[{delivery_state:'failed',created_at:'2026-11-24 16:06:00'}],notes:[]};
 for(const width of [390,1440]) for(const stage of ['before','after']) {
  test('2101 '+stage+' '+width,async({page})=>{
+  test.skip(!base||!candidate||!output,'Dedicated exact-source evidence job only');
   await page.setViewportSize({width,height:900});
   const source=stage==='before'?base:candidate;
   const js=readFileSync(join(source,'discadmin/ticketing-orders.js'),'utf8');
