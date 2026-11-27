@@ -21,12 +21,13 @@ export async function mount(panel, initialKind = 'orders') {
   const results = panel.querySelector('[data-ticketing-records-results]');
   const status = panel.querySelector('[data-ticketing-records-status]');
   const detail = panel.querySelector('[data-ticketing-records-detail]');
-  // T25 mounts only in the existing Orders workspace; no second admin shell.
-  if (initialKind === 'orders' && ['superadmin','root','owner','platform_owner']
-    .includes(panel.closest('[data-admin-module="ticketing"]')?.dataset.ticketingRole)) {
-    import('/discadmin/ticketing-courtesy.js' + new URL(import.meta.url).search)
-      .then(({mount}) => {if (active()) mount(panel);})
-      .catch(() => {if (active()) status.textContent='Cortesías no disponibles.';});
+  // Keep the contextual route, not a second copy of the invitation workspace.
+  if (initialKind === 'orders' && panel.closest('[data-admin-module="ticketing"]')
+    ?.querySelector('[data-ticketing-tab="courtesies"]')) {
+    const link=document.createElement('button');link.type='button';link.className='tk-button';
+    link.textContent='Gestionar cortesías';
+    link.addEventListener('click',()=>window.BRVTALTicketing?.selectTab('courtesies'));
+    form.before(link);
   }
   const more = panel.querySelector('[data-ticketing-records-more]');
   const kind = form.elements.namedItem('kind');
