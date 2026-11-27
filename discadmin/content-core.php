@@ -216,6 +216,23 @@ brvtal_admin_require();
     <div class="event-publish-checklist" id="e_publish_checklist" role="status" aria-live="polite"></div>
     <div class="form">
       <div class="field"><label for="e_status">Publicación</label><select id="e_status" aria-describedby="e_status_help"><option value="draft">Borrador</option><option value="published">Publicado</option><option value="scheduled">Programado</option><option value="cancelled">Cancelado</option></select><small id="e_status_help">El estado de venta y la finalización se calculan por fecha y boletas.</small></div>
+      <div class="field full">
+        <label for="e_visibility">Visibilidad</label>
+        <select id="e_visibility" aria-describedby="e_visibility_help">
+          <option value="public">Público</option>
+          <option value="unlisted">Privado (solo con enlace)</option>
+        </select>
+        <small id="e_visibility_help">Privado: no aparece en el listado público ni en buscadores.
+          Cualquiera con el enlace puede verlo cuando esté publicado.</small>
+      </div>
+      <div class="field full" id="e_private_share" hidden>
+        <label for="e_private_url">Enlace del evento</label>
+        <input id="e_private_url" type="url" readonly aria-describedby="e_private_feedback">
+        <button id="e_private_copy" type="button" class="btn" disabled>Copiar enlace</button>
+        <output id="e_private_feedback" aria-live="polite">
+          Guarda el evento privado para obtener su enlace.
+        </output>
+      </div>
       <div class="field" id="e_publish_schedule_field"><label for="e_publish_at">Publicar a partir de</label><input id="e_publish_at" type="datetime-local" aria-describedby="e_publish_at_help" disabled><small id="e_publish_at_help" role="status" aria-live="polite">Elige Programado para configurar la fecha.</small></div>
       <div class="event-derived"><span>Fecha (calculada)</span><output id="e_date_state" aria-live="polite">Por definir</output></div>
     </div>

@@ -77,10 +77,29 @@ try {
 }
 event_workflow_assert($duplicateTicket, 'same Ticket ID cannot appear twice in one workflow save');
 
+foreach (['public', 'unlisted'] as $visibility) {
+    $normalized = brvtal_event_workflow_event(['title'=>'Visibility test','visibility'=>$visibility]);
+    event_workflow_assert($normalized['visibility'] === $visibility, 'explicit visibility must survive normalization');
+}
+foreach (['private', '', 'PUBLIC', null, 0, false, [], new stdClass()] as $invalidVisibility) {
+    $rejected = false;
+    try {
+        brvtal_event_workflow_event(['visibility'=>$invalidVisibility]);
+    } catch (InvalidArgumentException $e) {
+        $rejected = $e->getMessage() === 'INVALID_VISIBILITY';
+    }
+    event_workflow_assert($rejected, 'invalid visibility must fail closed');
+}
+$legacyPatch = brvtal_event_workflow_event(['title'=>'Legacy client']);
+event_workflow_assert(!array_key_exists('visibility', $legacyPatch), 'omitted visibility must not overwrite the stored value');
+event_workflow_assert(array_replace(['visibility'=>'unlisted'], $legacyPatch)['visibility'] === 'unlisted', 'legacy edits must keep private visibility');
+
 $endpoint = (string)file_get_contents(__DIR__ . '/../api/event-workflow.php');
 $bridge = (string)file_get_contents(__DIR__ . '/../discadmin/event-workflow.js');
 $admin = (string)file_get_contents(__DIR__ . '/../discadmin/index.php');
 event_workflow_assert(str_contains($endpoint, 'brvtal_admin_require_csrf'), 'workflow mutation must require CSRF');
+event_workflow_assert(str_contains($endpoint, 'brvtal_admin_require();'), 'workflow must require administrator authentication');
+event_workflow_assert(str_contains($endpoint, "'seo_title','seo_description','visibility'"), 'visibility participates in composite input rejection');
 event_workflow_assert(str_contains($endpoint, 'brvtal_activity_record'), 'workflow must retain Admin Activity');
 event_workflow_assert(str_contains($bridge, '/api/event-workflow.php'), 'Event editor must call the atomic workflow endpoint');
 event_workflow_assert(str_contains($bridge, 'TICKETS_NOT_READY') && str_contains($bridge, 'LINEUP_NOT_READY'), 'workflow must refuse unknown ticket/lineup state');
