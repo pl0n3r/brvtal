@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import https from 'node:https';
 import http from 'node:http';
 import { execFileSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { readFileSync, writeFileSync, renameSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { checkinIssued } from './ticketing-checkin-real-stack.mjs';
@@ -30,9 +30,9 @@ async function run() {
   };
   // Transport-only barrier: both genuine TLS POSTs arrive before either is forwarded.
   let race = null;
-  const armDoorRace = () => {
+  const armDoorRace = (paths = ['/api/ticketing/checkin.php']) => {
     check(race === null, 'one door race at a time');
-    const gate = { pending: [], released: false };
+    const gate = { pending: [], released: false, paths };
     gate.timer = setTimeout(() => {
       race = null;
       for (const [req, res] of gate.pending) { req.resume(); res.destroy(); }
@@ -41,7 +41,7 @@ async function run() {
     return () => gate.released;
   };
   const proxy = https.createServer({ key: readFileSync('/fixture/server.key'), cert: readFileSync('/fixture/server.pem') }, (req, res) => {
-    if (race && req.method === 'POST' && req.url === '/api/ticketing/checkin.php') {
+    if (race && req.method === 'POST' && race.paths.includes(req.url)) {
       race.pending.push([req,res]);
       if (race.pending.length === 2) {
         const gate = race;
@@ -149,7 +149,59 @@ async function run() {
       receipt[0].payload.text.includes(qr.body.qr), 'one captured receipt contains same credential');
     check(db("SELECT COUNT(*) FROM ticket_mail_outbox WHERE template_key='payment_approved' AND state='accepted'") === '1', 'mail receipt persisted');
     check(readFileSync('/fixture/audit.jsonl', 'utf8').includes('"id":"tx-dynamic","status":200'), 'independent TLS lookup observed');
-    await checkinIssued({ check, db, request, qr: qr.body.qr, ticketId: item.ticket_id, armDoorRace });
+    if (process.env.BRVTAL_T31_RECOVERY === '1') {
+      const actions = '/api/ticketing/admin-actions.php', entries = '/api/ticketing/admin-entries.php';
+      const staff = async name => {
+        const session = {};
+        const start = await request('/api/index.php/auth', session);
+        check(start.status === 200 && start.body.authenticated === false, 'staff challenge');
+        const response = await request('/api/index.php/auth', session, {email: name+'@example.test', password:'T31 staff fixture only!'});
+        check(response.status === 200 && response.body.ok && /^[a-f0-9]{64}$/.test(response.body.csrf), 'staff login');
+        session.csrf=response.body.csrf; return session;
+      };
+      const a=await staff('support-a'), b=await staff('support-b'), door=await staff('door-a');
+      const post=(path,session,data)=>request(path,session,data,{'X-CSRF-Token':session.csrf});
+      const key=()=>randomBytes(20).toString('hex');
+      const resend=()=>({order_id:String(id),action:'resend',idempotency_key:key()});
+      const first=resend(), second=resend(), entryId=Number(db('SELECT id FROM ticket_entries'));
+      check(Number.isSafeInteger(entryId)&&entryId>0,'issued entry identity');
+      const oldHash=db("SELECT payload_hash FROM ticket_mail_outbox WHERE message_key='order:"+id+":payment_approved'");
+      const rotate={entry_id:entryId,action:'reissue',reason:'buyer_request',idempotency_key:key()};
+      check((await post(actions,door,first)).status===403,'door cannot resend');
+      const initial=await post(actions,a,first);
+      check(initial.status===200&&initial.body.data?.email_queued===true,'first authenticated resend queued');
+      check(db('SELECT COUNT(*) FROM ticket_entry_credentials')==='1','resend never rotates');
+      const released=armDoorRace([actions,entries]);
+      let [r1,r2]=await Promise.all([post(actions,a,second),post(entries,b,rotate)]);
+      check(released(),'both authenticated POST requests arrived before forwarding');
+      // InnoDB may reject one transaction on opposite lock order; retry the identical
+      // request once, then prove exactly one receipt/rotation for each idempotency key.
+      if(r1.status===503) r1=await post(actions,a,second);
+      if(r2.status===503) r2=await post(entries,b,rotate);
+      check(r1.status===200&&r1.body.data?.email_queued===true&&r2.status===200&&r2.body.data?.qr,'concurrent recovery and rotation');
+      const replay=await post(actions,a,second);
+      check(replay.status===200&&replay.body.data?.replayed===true&&replay.body.data.receipt_id===r1.body.data.receipt_id,'same resend receipt');
+      const rotateReplay=await post(entries,b,rotate);
+      check(rotateReplay.status===200&&rotateReplay.body.data?.replayed===true&&!rotateReplay.body.data.qr,'rotation replay has no bearer');
+      const current=await post('/api/buyer/account.php',buyer,{action:'qr_stored',ticket_id:item.ticket_id});
+      check(current.status===200&&current.body.qr===r2.body.data.qr&&current.body.qr!==qr.body.qr,'account recovers active rotated QR');
+      check((await post('/api/buyer/account.php',other,{action:'qr_stored',ticket_id:item.ticket_id})).status===404,'foreign account denied after rotation');
+      check(db('SELECT COUNT(*) FROM ticket_entry_credentials')==='2'&&db("SELECT COUNT(*) FROM ticket_entry_credentials WHERE status='active'")==='1'&&db('SELECT COUNT(*) FROM ticket_order_action_requests')==='2','exact receipts and one rotation');
+      for(let n=0;n<8&&db("SELECT COUNT(*) FROM ticket_mail_outbox WHERE state='queued'")!=='0';n++) worker();
+      const sent=readFileSync('/fixture/mail.jsonl','utf8').trim().split('\n').map(JSON.parse).filter(x=>x.key.startsWith('order:'+id+':resend:'));
+      check(sent.length===2&&sent.every(x=>x.payload.to[0]==='buyer@example.test'&&['text','html'].every(f=>x.payload[f].includes('/buyer/')&&!x.payload[f].includes('BRVTAL:T1:')&&!x.payload[f].includes('token='))),'two mock deliveries contain only authenticated recovery');
+      check(db("SELECT payload_hash FROM ticket_mail_outbox WHERE message_key='order:"+id+":payment_approved'")===oldHash&&db('SELECT status FROM ticket_orders')==='paid'&&db('SELECT status FROM ticket_inventory_holds')==='consumed','historic mail and financial state preserved');
+      const start=execFileSync('php',['-r','echo (new DateTimeImmutable("now",new DateTimeZone("America/Bogota")))->modify("-5 minutes")->format("Y-m-d H:i:s");'],{encoding:'utf8'}).trim();
+      check(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(start),'synthetic admission clock');
+      db("UPDATE events SET event_date='"+start+"' WHERE id=1");
+      const scan=token=>post('/api/ticketing/checkin.php',door,{event_id:1,device_id:'fixture-2101',request_id:randomBytes(16).toString('hex'),qr:token});
+      const previous=await scan(qr.body.qr), admitted=await scan(current.body.qr), repeated=await scan(current.body.qr);
+      check(previous.status===409&&previous.body.reason==='credential_revoked'&&admitted.status===200&&admitted.body.ok&&repeated.status===409&&repeated.body.reason==='already_used','old QR denied and current admitted exactly once');
+      check(db("SELECT COUNT(*) FROM ticket_checkins WHERE outcome='accepted'")==='1','durable unique admission');
+      console.log('T31_RESEND_STACK_PASS: authenticated recovery, concurrent rotation, immutable mail and single admission');
+    } else {
+      await checkinIssued({ check, db, request, qr: qr.body.qr, ticketId: item.ticket_id, armDoorRace });
+    }
   } finally {
     if (race) {
       clearTimeout(race.timer);

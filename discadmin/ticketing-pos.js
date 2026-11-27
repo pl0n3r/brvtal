@@ -202,73 +202,67 @@ export function mount(target) {
   manualForm.addEventListener('input',resetManualReview);
   manualForm.addEventListener('change',resetManualReview);
   manualRef.addEventListener('input',()=>manualRef.setCustomValidity(''));
-  manualForm.addEventListener('submit',async e=>{
-    e.preventDefault();
-    if(!active()||manualSubmitted||manualPending||busy||recoveryRequired||!manualForm.reportValidity())return;
+  const validManualReference=()=>{
     const reference=manualRef.value.trim();
     if(manualMethod.value!=='cash' && (reference.length<4
         || !/^[A-Za-z0-9][A-Za-z0-9 ._/-]*$/.test(reference))){
       manualStatus.textContent='La referencia debe tener entre 4 y 80 caracteres válidos.';
       manualRef.setCustomValidity('Ingresa la referencia completa del pago verificado.');
-      manualRef.reportValidity();return;
+      manualRef.reportValidity();return false;
     }
     manualRef.setCustomValidity('');
-    const readRaw=()=>({
-      action:'manual_order',event_id:manualEvent.value,
-      ticket_type_id:manualType.value,quantity:manualQty.value,
-      buyer_name:manualName.value.trim(),buyer_email:manualEmail.value.trim(),
-      method:manualMethod.value,payment_reference:manualRef.value.trim(),
-      idempotency_key:manualKey,confirm:manualConfirm.checked
-    });
-    const raw=readRaw();
-    // Changes to a field, even if scripted without an input event, must
-    // force a fresh operator review before any paid-order request.
-    const snapshot=JSON.stringify(raw);
-    if(!manualReviewed||reviewSnapshot!==snapshot){
-      clearManualReview();
-      const generation=reviewGeneration;
-      manualPending=true;manualSubmit.disabled=true;
-      manualStatus.textContent='Consultando tarifa y cupo…';
-      try{
-        const q=await transaction({action:'manual_quote',event_id:raw.event_id,
-          ticket_type_id:raw.ticket_type_id,quantity:raw.quantity,idempotency_key:raw.idempotency_key});
-        if(!active())return;
-        if(generation!==reviewGeneration||JSON.stringify(readRaw())!==snapshot){
-          manualStatus.textContent='Los datos cambiaron. Revisa una cotización nueva.';return;
-        }
-        if(!quoteValid(q,raw.quantity))throw Error('POS_QUOTE_INVALID');
-        const eventLabel=manualEvent.selectedOptions[0]?.textContent||'Evento';
-        const ticketLabel=manualType.selectedOptions[0]?.textContent||'Boleta';
-        const methodLabel=manualMethod.selectedOptions[0]?.textContent||raw.method;
-        manualPreview.replaceChildren(
-          el('strong','Total a registrar: '+cop.format(q.amount_cop)+' COP'),
-          el('p',eventLabel+' · '+ticketLabel+' · '+raw.quantity+' boleta(s)'),
-          el('p','Precio unitario: '+cop.format(q.unit_price_cop)+' COP'),
-          el('p','Tarifa: '+(q.source==='stage'?'Etapa '+stageLabels[q.stage_code]:'Precio base')),
-          el('p','Válida hasta '+quoteTime.format(new Date(q.expires_at_utc))+' (Bogotá)'),
-          el('p','Comprador y destinatario: '+raw.buyer_name+' · '+raw.buyer_email),
-          el('p','Medio: '+methodLabel+' · referencia: '+(reference||'no aplica')),
-          el('p','Confirma únicamente si el importe coincide con el pago offline verificado.')
-        );
-        setVisible(manualPreview,true);
-        manualQuote=q;reviewSnapshot=snapshot;manualReviewed=true;
-        manualSubmit.textContent='Confirmar y crear pedido';
-        manualStatus.textContent='Revisa el total, la tarifa y los datos antes de confirmar.';
-      }catch(error){
-        if(active())manualStatus.textContent=error.message==='FORBIDDEN'
-          ?'Solo el propietario puede cotizar pedidos manuales.'
-          :'No hay cotización válida. Revisa los datos y vuelve a cotizar; no se envió el pedido.';
-      }finally{
-        manualPending=false;
-        if(active())manualSubmit.disabled=recoveryRequired||manualSubmitted;
+    return true;
+  };
+  const readManualOrder=()=>({
+    action:'manual_order',event_id:manualEvent.value,
+    ticket_type_id:manualType.value,quantity:manualQty.value,
+    buyer_name:manualName.value.trim(),buyer_email:manualEmail.value.trim(),
+    method:manualMethod.value,payment_reference:manualRef.value.trim(),
+    idempotency_key:manualKey,confirm:manualConfirm.checked
+  });
+  const renderManualQuote=(q,raw,snapshot)=>{
+    const eventLabel=manualEvent.selectedOptions[0]?.textContent||'Evento';
+    const ticketLabel=manualType.selectedOptions[0]?.textContent||'Boleta';
+    const methodLabel=manualMethod.selectedOptions[0]?.textContent||raw.method;
+    manualPreview.replaceChildren(
+      el('strong','Total a registrar: '+cop.format(q.amount_cop)+' COP'),
+      el('p',eventLabel+' · '+ticketLabel+' · '+raw.quantity+' boleta(s)'),
+      el('p','Precio unitario: '+cop.format(q.unit_price_cop)+' COP'),
+      el('p','Tarifa: '+(q.source==='stage'?'Etapa '+stageLabels[q.stage_code]:'Precio base')),
+      el('p','Válida hasta '+quoteTime.format(new Date(q.expires_at_utc))+' (Bogotá)'),
+      el('p','Comprador y destinatario: '+raw.buyer_name+' · '+raw.buyer_email),
+      el('p','Medio: '+methodLabel+' · referencia: '+(raw.payment_reference||'no aplica')),
+      el('p','Confirma únicamente si el importe coincide con el pago offline verificado.')
+    );
+    setVisible(manualPreview,true);
+    manualQuote=q;reviewSnapshot=snapshot;manualReviewed=true;
+    manualSubmit.textContent='Confirmar y crear pedido';
+    manualStatus.textContent='Revisa el total, la tarifa y los datos antes de confirmar.';
+  };
+  const requestManualQuote=async(raw,snapshot)=>{
+    clearManualReview();
+    const generation=reviewGeneration;
+    manualPending=true;manualSubmit.disabled=true;
+    manualStatus.textContent='Consultando tarifa y cupo…';
+    try{
+      const q=await transaction({action:'manual_quote',event_id:raw.event_id,
+        ticket_type_id:raw.ticket_type_id,quantity:raw.quantity,idempotency_key:raw.idempotency_key});
+      if(!active())return;
+      if(generation!==reviewGeneration||JSON.stringify(readManualOrder())!==snapshot){
+        manualStatus.textContent='Los datos cambiaron. Revisa una cotización nueva.';return;
       }
-      return;
+      if(!quoteValid(q,raw.quantity))throw new Error('POS_QUOTE_INVALID');
+      renderManualQuote(q,raw,snapshot);
+    }catch(error){
+      if(active())manualStatus.textContent=error.message==='FORBIDDEN'
+        ?'Solo el propietario puede cotizar pedidos manuales.'
+        :'No hay cotización válida. Revisa los datos y vuelve a cotizar; no se envió el pedido.';
+    }finally{
+      manualPending=false;
+      if(active())manualSubmit.disabled=recoveryRequired||manualSubmitted;
     }
-    if(!quoteValid(manualQuote,raw.quantity)){
-      clearManualReview();
-      manualStatus.textContent='La cotización venció. Revisa una cotización nueva antes de confirmar.';
-      return;
-    }
+  };
+  const submitManualOrder=async raw=>{
     raw.quote_token=manualQuote.quote_token;
     try{sessionStorage.setItem(storageKey,manualKey);storedIntent=manualKey;}
     catch{recoveryRequired=true;manualSubmit.disabled=true;
@@ -310,6 +304,24 @@ export function mount(target) {
         if(recoveryRequired)void recoverManual();
       }
     }
+  };
+  manualForm.addEventListener('submit',async e=>{
+    e.preventDefault();
+    if(!active()||manualSubmitted||manualPending||busy||recoveryRequired||!manualForm.reportValidity())return;
+    if(!validManualReference())return;
+    const raw=readManualOrder();
+    // Changes to a field, even if scripted without an input event, must
+    // force a fresh operator review before any paid-order request.
+    const snapshot=JSON.stringify(raw);
+    if(!manualReviewed||reviewSnapshot!==snapshot){
+      await requestManualQuote(raw,snapshot);return;
+    }
+    if(!quoteValid(manualQuote,raw.quantity)){
+      clearManualReview();
+      manualStatus.textContent='La cotización venció. Revisa una cotización nueva antes de confirmar.';
+      return;
+    }
+    await submitManualOrder(raw);
   });
   async function loadCatalog() {
     try {
@@ -365,7 +377,7 @@ export function mount(target) {
       });
       const payload=await response.json();
       if(!response.ok||payload.ok!==true||!payload.data)
-        throw Object.assign(Error(payload.error||'DENIED'),{status:response.status});
+        throw Object.assign(new Error(payload.error||'DENIED'),{status:response.status});
       return payload.data;
     }finally{busy=false;}
   };
