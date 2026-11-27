@@ -50,7 +50,13 @@ jobs:
           import json, os, re
           from pathlib import Path
           p = json.loads(Path(os.environ['RUNNER_TEMP'], 'finance-target.json').read_text())
-          assert p['number'] == 2305 and p['state'] == 'open'
+          assert p['number'] == 2305
+          # A wiring PR may validate a historically merged target, never a closed-unmerged PR.
+          merged = p['state'] == 'closed' and p['merged'] is True
+          assert p['state'] == 'open' or (merged and os.environ['TRIGGER_REF'] == 'work/issue-2306')
+          if merged:
+              assert re.fullmatch('[a-f0-9]{40}', p['merge_commit_sha'] or '')
+              assert p['merged_at']
           assert p['head']['ref'] == 'work/issue-2191' and p['base']['ref'] == 'main'
           assert p['head']['repo']['full_name'] == p['base']['repo']['full_name'] == 'pl0n3r/brvtal'
           assert re.search(r'(?im)^closes #2191\s*$', p['body'] or '')
@@ -78,7 +84,7 @@ jobs:
       - name: Verify checkouts and workflow safety
         run: |
           test "$(git -C wiring rev-parse HEAD)" = "$TRIGGER_HEAD"
-          python3 wiring/scripts/ci_self_audit.py
+          (cd wiring && python3 scripts/ci_self_audit.py)
       - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
         with:
           php-version: '8.5'
@@ -105,9 +111,10 @@ jobs:
           from pathlib import Path
           def identity(name):
               p = json.loads(Path(os.environ['RUNNER_TEMP'], name).read_text())
-              return (p['number'], p['state'], p['head']['repo']['full_name'],
+              return (p['number'], p['state'], p['merged'], p['merged_at'],
+                      p['merge_commit_sha'] if p['merged'] else None, p['head']['repo']['full_name'],
                       p['head']['ref'], p['head']['sha'], p['base']['repo']['full_name'],
-                      p['base']['ref'], p['base']['sha'])
+                      p['base']['ref'], p['base']['sha'], p['body'])
           assert identity('finance-target.json') == identity('finance-current.json')
           PY
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9

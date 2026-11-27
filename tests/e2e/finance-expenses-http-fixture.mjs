@@ -32,15 +32,19 @@ test('2191 actual authenticated expense and budget persistence',async({page,brow
   expect(process.env.BRVTAL_FINANCE_2191_FIXTURE).toBe('1');
   await page.route('**/*',route=>new URL(route.request().url()).origin===origin?route.continue():route.abort());
   const csrf=await login(page.request,'admin');
-  await page.goto(origin+'/discadmin/?module=ticketing&tab=finance');
+  await page.goto(origin+'/discadmin/',{waitUntil:'domcontentloaded'});
+  await page.locator('[data-admin-nav="ticketing"]').click();
+  await page.locator('[data-ticketing-group="money"]').click();
+  await page.getByRole('tab',{name:'Finanzas',exact:true}).click();
   const ledger=page.locator('#tk-finance-ledger');
   await page.getByRole('button',{name:'Gastos',exact:true}).click();
   await expect(ledger).toHaveAttribute('data-ledger-csrf',csrf);
+  await expect(ledger.getByLabel('Evento del libro').locator('option[value="6101"]')).toBeAttached();
   await ledger.getByLabel('Evento del libro').selectOption('6101');
   await expect(ledger.getByText('No hay gastos registrados.')).toBeVisible();
   await fill(ledger,'Sonido fixture','45000','Registro fixture');
   const first=await write(page,ledger,'Guardar registro');
-  await ledger.locator('[data-ledger-row="'+first+'"]').getByRole('button',{name:'Editar'}).click();
+  await ledger.locator('[data-ledger-row="'+first+'"]').filter({hasText:'Sonido fixture'}).getByRole('button',{name:'Editar'}).click();
   await fill(ledger,'Sonido ajustado','50000','Ajuste fixture');
   await ledger.getByLabel('Estado').selectOption('paid');
   const second=await write(page,ledger,'Guardar registro');
@@ -65,7 +69,7 @@ test('2191 actual authenticated expense and budget persistence',async({page,brow
     expect((await door.request.post(endpoint,{headers:{'X-CSRF-Token':doorCsrf},data:stale})).status()).toBe(403);
   } finally {await door.close();}
   // Separate expense and budget tables can have the same ID; scope to expense rows.
-  await ledger.locator('[data-ledger-row="'+second+'"]').getByRole('button',{name:'Editar'}).click();
+  await ledger.locator('[data-ledger-row="'+second+'"]').filter({hasText:'Sonido ajustado'}).getByRole('button',{name:'Editar'}).click();
   await ledger.getByLabel('Motivo del registro o ajuste').fill('Anulación fixture');
   const last=await write(page,ledger,'Anular registro');
   await expect(ledger.locator('[data-ledger-row="'+last+'"]')).toContainText('Anulado');

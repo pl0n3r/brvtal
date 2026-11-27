@@ -87,7 +87,7 @@ $pdo->exec("INSERT INTO events(id,title,slug,status) VALUES(6101,'Evento fixture
 PHP
 export BRVTAL_TEST_DB_NAME="$DB_NAME" BRVTAL_MAIL_TESTING=1
 export BRVTAL_MAIL_CAPTURE_FILE="$RUNNER_TEMP/finance-mail.json"
-export BRVTAL_TICKET_WOMPI_MODE=off BRVTAL_TICKET_MAIL_MODE=disabled
+export BRVTAL_TICKET_WOMPI_MODE=disabled BRVTAL_TICKET_MAIL_MODE=mock
 php -d session.save_path="$RUNNER_TEMP/finance-sessions" -S 127.0.0.1:4174 -t . > "$RUNNER_TEMP/finance-php.log" 2>&1 &
 php_pid=$!
 for _ in $(seq 1 40); do
