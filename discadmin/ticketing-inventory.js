@@ -69,6 +69,103 @@ async function request(eventId, body = null) {
   return payload;
 }
 
+function renderSale(status, data) {
+  const sale = data.sale && typeof data.sale === 'object' ? data.sale : null;
+  if (sale) {
+    const reasons = Array.isArray(sale.reasons) ? sale.reasons : [];
+    const box = el('div', { class: 'ticket-inventory-sale' + (sale.ready ? ' is-ready' : ''), 'data-sale-ready': sale.ready ? 'true' : 'false' },
+      el('strong', { text: sale.ready ? 'Venta en línea: lista' : 'Venta en línea: no disponible' }));
+    if (!sale.ready && reasons.length) {
+      box.append(el('ul', {}, ...reasons.map(code => el('li', { text: saleReason(String(code)) }))));
+    }
+    status.before(box);
+  }
+  return new Map((Array.isArray(sale?.types) ? sale.types : []).map(row => [row.ticket_type_id, row]));
+}
+
+function createTypeRow(type, inputs, saleByType) {
+  const inputId = 'ticket-inventory-type-' + type.ticket_type_id;
+  const input = el('input', { id: inputId, type: 'number', min: 0, max: 100000, step: 1, inputmode: 'numeric',
+    value: type.capacity ?? '', placeholder: 'Sin cupo' });
+  const courtesyId = inputId + '-courtesy';
+  const courtesy = el('input', { id: courtesyId, type: 'number', min: 0, max: 100000, step: 1,
+    inputmode: 'numeric', value: type.courtesy_capacity, 'aria-label': `Cupo de cortesías de ${type.name || 'Boleta'}` });
+  inputs.set(type.ticket_type_id, { input, courtesy });
+  const usage = [`Vendidas ${number.format(type.sold)}`, `Reservadas ${number.format(type.held)}`];
+  const courtesyUsage = `Cortesías: presupuesto ${number.format(type.courtesy_capacity)} · consumidas ${number.format(type.courtesy_used)} · saldo ${number.format(Math.max(0, type.courtesy_capacity - type.courtesy_used))}`;
+  const sale = el('span', { class: 'ticket-inventory-state' });
+  const verdict = saleByType.get(type.ticket_type_id);
+  const original = input.value;
+  const originalCourtesy = courtesy.value;
+  const refresh = () => {
+    if (input.value !== original || courtesy.value !== originalCourtesy) {
+      sale.textContent = 'Cupo sin guardar';
+      sale.classList.remove('is-open');
+      return;
+    }
+    // Show the server's verdict, never an optimistic sale readiness.
+    if (verdict) {
+      const codes = Array.isArray(verdict.reasons) ? verdict.reasons : [];
+      sale.textContent = verdict.offered ? 'Se vende en línea'
+        : (codes.map(code => TYPE_REASONS[code] || code).join(' · ') || 'No se vende en línea');
+      sale.classList.toggle('is-open', verdict.offered === true);
+      return;
+    }
+    sale.textContent = 'Disponibilidad no confirmada';
+    sale.classList.remove('is-open');
+  };
+  input.addEventListener('input', refresh);
+  courtesy.addEventListener('input', refresh);
+  refresh();
+  return el('li', { class: 'ticket-inventory-row', 'data-ticket-type': type.ticket_type_id },
+    el('div', { class: 'ticket-inventory-name' },
+      el('label', { for: inputId, text: type.name || 'Boleta' }),
+      el('small', { text: usage.join(' · ') }), el('small', { text: courtesyUsage })),
+    el('div', { class: 'ticket-inventory-name' }, input,
+      el('label', { for: courtesyId, text: 'Cupo de cortesías' }), courtesy), sale);
+}
+
+function renderTypes(status, data, saleByType) {
+  const types = Array.isArray(data.types) ? data.types : [];
+  const inputs = new Map();
+  if (!types.length) {
+    status.before(el('p', { class: 'ticket-inventory-empty', text: 'Añade y guarda boletas para asignarles cupo.' }));
+    return inputs;
+  }
+  const list = el('ul', { class: 'ticket-inventory-list' });
+  for (const type of types) list.append(createTypeRow(type, inputs, saleByType));
+  status.before(list);
+  return inputs;
+}
+
+function bindSave(host, section, status, id, totalInput, inputs) {
+  const save = el('button', { type: 'button', class: 'btn red', text: 'Guardar cupo' });
+  section.append(el('div', { class: 'ticket-inventory-actions' }, save));
+  const whole = value => value === '' ? 0 : Number(value);
+  save.addEventListener('click', async () => {
+    const body = { capacity: whole(totalInput.value), types: [...inputs].map(([typeId, fields]) => ({
+      ticket_type_id: typeId, capacity: whole(fields.input.value),
+      courtesy_capacity: fields.courtesy.value === '' ? Number.NaN : Number(fields.courtesy.value) })) };
+    const values = [body.capacity, ...body.types.flatMap(row => [row.capacity, row.courtesy_capacity])];
+    if (!values.every(value => Number.isSafeInteger(value) && value >= 0 && value <= 100000)) {
+      status.textContent = ERRORS.INVENTORY_INVALID_INPUT;
+      return;
+    }
+    save.disabled = true;
+    status.textContent = 'Guardando cupo…';
+    try {
+      const confirmed = await request(id, body);
+      if (!section.isConnected) return;
+      if (confirmed.event_id !== id || !Array.isArray(confirmed.types)) throw new Error('INVENTORY_UNAVAILABLE');
+      await mount(host, { eventId: id, snapshot: confirmed, saved: true });
+    } catch (error) {
+      if (!section.isConnected) return;
+      status.textContent = ERRORS[error.message] || ERRORS.INVENTORY_UNAVAILABLE;
+      save.disabled = false;
+    }
+  });
+}
+
 /** Mounts (or remounts) the capacity block for one saved event. */
 export async function mount(host, { eventId, snapshot = null, saved = false } = {}) {
   host.replaceChildren();
@@ -99,17 +196,7 @@ export async function mount(host, { eventId, snapshot = null, saved = false } = 
   if (!section.isConnected) return;
   status.textContent = saved ? 'Cupo guardado.' : '';
 
-  const sale = data.sale && typeof data.sale === 'object' ? data.sale : null;
-  if (sale) {
-    const reasons = Array.isArray(sale.reasons) ? sale.reasons : [];
-    const box = el('div', { class: 'ticket-inventory-sale' + (sale.ready ? ' is-ready' : ''), 'data-sale-ready': sale.ready ? 'true' : 'false' },
-      el('strong', { text: sale.ready ? 'Venta en línea: lista' : 'Venta en línea: no disponible' }));
-    if (!sale.ready && reasons.length) {
-      box.append(el('ul', {}, ...reasons.map(code => el('li', { text: saleReason(String(code)) }))));
-    }
-    status.before(box);
-  }
-  const saleByType = new Map((Array.isArray(sale?.types) ? sale.types : []).map(row => [row.ticket_type_id, row]));
+  const saleByType = renderSale(status, data);
 
   const totalInput = el('input', { id: 'ticket-inventory-total', type: 'number', min: 0, max: 100000, step: 1,
     inputmode: 'numeric', value: data.capacity ?? '', placeholder: 'Sin aforo' });
@@ -118,79 +205,6 @@ export async function mount(host, { eventId, snapshot = null, saved = false } = 
     el('small', { text: `En uso: ${number.format(data.used)}` }));
   status.before(total);
 
-  const types = Array.isArray(data.types) ? data.types : [];
-  const inputs = new Map();
-  if (!types.length) {
-    status.before(el('p', { class: 'ticket-inventory-empty', text: 'Añade y guarda boletas para asignarles cupo.' }));
-  } else {
-    const list = el('ul', { class: 'ticket-inventory-list' });
-    for (const type of types) {
-      const inputId = 'ticket-inventory-type-' + type.ticket_type_id;
-      const input = el('input', { id: inputId, type: 'number', min: 0, max: 100000, step: 1, inputmode: 'numeric',
-        value: type.capacity ?? '', placeholder: 'Sin cupo' });
-      const courtesyId = inputId + '-courtesy';
-      const courtesy = el('input', { id: courtesyId, type: 'number', min: 0, max: 100000, step: 1,
-        inputmode: 'numeric', value: type.courtesy_capacity, 'aria-label': `Cupo de cortesías de ${type.name || 'Boleta'}` });
-      inputs.set(type.ticket_type_id, { input, courtesy });
-      const usage = [`Vendidas ${number.format(type.sold)}`, `Reservadas ${number.format(type.held)}`];
-      const courtesyUsage = `Cortesías: presupuesto ${number.format(type.courtesy_capacity)} · consumidas ${number.format(type.courtesy_used)} · saldo ${number.format(Math.max(0, type.courtesy_capacity - type.courtesy_used))}`;
-      const sale = el('span', { class: 'ticket-inventory-state' });
-      const verdict = saleByType.get(type.ticket_type_id);
-      const original = input.value;
-      const originalCourtesy = courtesy.value;
-      const refresh = () => {
-        if (input.value !== original || courtesy.value !== originalCourtesy) {
-          sale.textContent = 'Cupo sin guardar';
-          sale.classList.remove('is-open');
-          return;
-        }
-        // Show the server's verdict, never an optimistic sale readiness.
-        if (verdict) {
-          const codes = Array.isArray(verdict.reasons) ? verdict.reasons : [];
-          sale.textContent = verdict.offered ? 'Se vende en línea'
-            : (codes.map(code => TYPE_REASONS[code] || code).join(' · ') || 'No se vende en línea');
-          sale.classList.toggle('is-open', verdict.offered === true);
-          return;
-        }
-        sale.textContent = 'Disponibilidad no confirmada';
-        sale.classList.remove('is-open');
-      };
-      input.addEventListener('input', refresh);
-      courtesy.addEventListener('input', refresh);
-      refresh();
-      list.append(el('li', { class: 'ticket-inventory-row', 'data-ticket-type': type.ticket_type_id },
-        el('div', { class: 'ticket-inventory-name' },
-          el('label', { for: inputId, text: type.name || 'Boleta' }),
-          el('small', { text: usage.join(' · ') }), el('small', { text: courtesyUsage })),
-        el('div', { class: 'ticket-inventory-name' }, input,
-          el('label', { for: courtesyId, text: 'Cupo de cortesías' }), courtesy), sale));
-    }
-    status.before(list);
-  }
-
-  const save = el('button', { type: 'button', class: 'btn red', text: 'Guardar cupo' });
-  section.append(el('div', { class: 'ticket-inventory-actions' }, save));
-  const whole = value => value === '' ? 0 : Number(value);
-  save.addEventListener('click', async () => {
-    const body = { capacity: whole(totalInput.value), types: [...inputs].map(([typeId, fields]) => ({
-      ticket_type_id: typeId, capacity: whole(fields.input.value),
-      courtesy_capacity: fields.courtesy.value === '' ? NaN : Number(fields.courtesy.value) })) };
-    const values = [body.capacity, ...body.types.flatMap(row => [row.capacity, row.courtesy_capacity])];
-    if (!values.every(value => Number.isSafeInteger(value) && value >= 0 && value <= 100000)) {
-      status.textContent = ERRORS.INVENTORY_INVALID_INPUT;
-      return;
-    }
-    save.disabled = true;
-    status.textContent = 'Guardando cupo…';
-    try {
-      const confirmed = await request(id, body);
-      if (!section.isConnected) return;
-      if (confirmed.event_id !== id || !Array.isArray(confirmed.types)) throw new Error('INVENTORY_UNAVAILABLE');
-      await mount(host, { eventId: id, snapshot: confirmed, saved: true });
-    } catch (error) {
-      if (!section.isConnected) return;
-      status.textContent = ERRORS[error.message] || ERRORS.INVENTORY_UNAVAILABLE;
-      save.disabled = false;
-    }
-  });
+  const inputs = renderTypes(status, data, saleByType);
+  bindSave(host, section, status, id, totalInput, inputs);
 }

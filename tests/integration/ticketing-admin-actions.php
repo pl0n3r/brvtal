@@ -29,19 +29,26 @@ $server->exec("CREATE DATABASE {$dbName}");
 try {
     $db=new PDO("mysql:host={$host};port={$port};dbname={$dbName};charset=utf8mb4",$user,$pass,$opts);
     foreach([
-      'CREATE TABLE ticket_orders (id BIGINT UNSIGNED PRIMARY KEY,event_id INT UNSIGNED,buyer_id BIGINT UNSIGNED,status VARCHAR(20),updated_at_utc DATETIME(6)) ENGINE=InnoDB',
-      'CREATE TABLE ticket_payment_attempts (id BIGINT PRIMARY KEY AUTO_INCREMENT,order_id BIGINT UNSIGNED,status VARCHAR(20)) ENGINE=InnoDB',
-      'CREATE TABLE ticket_issue_outbox (order_id BIGINT UNSIGNED PRIMARY KEY,state VARCHAR(20)) ENGINE=InnoDB',
+      'CREATE TABLE events (id INT UNSIGNED PRIMARY KEY) ENGINE=InnoDB',
+      'CREATE TABLE event_ticket_types (id INT UNSIGNED PRIMARY KEY,event_id INT UNSIGNED NOT NULL) ENGINE=InnoDB',
+      'CREATE TABLE admins (id INT UNSIGNED PRIMARY KEY) ENGINE=InnoDB',
       'CREATE TABLE ticket_inventory_holds (order_id BIGINT UNSIGNED,status VARCHAR(20)) ENGINE=InnoDB',
-      'CREATE TABLE ticket_order_items (id BIGINT PRIMARY KEY AUTO_INCREMENT,order_id BIGINT UNSIGNED,quantity INT) ENGINE=InnoDB',
-      'CREATE TABLE ticket_entries (id BIGINT PRIMARY KEY AUTO_INCREMENT,order_item_id BIGINT,status VARCHAR(16)) ENGINE=InnoDB',
       'CREATE TABLE ticket_mail_outbox (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,message_key VARCHAR(128) UNIQUE,payload_hash CHAR(64),related_ref VARCHAR(128),recipient_email VARCHAR(254),subject VARCHAR(255),body_text TEXT,body_html TEXT,template_key VARCHAR(64),template_version INT,provider_message_id VARCHAR(128),state VARCHAR(16) DEFAULT "queued",next_attempt_at DATETIME DEFAULT CURRENT_TIMESTAMP,created_at DATETIME DEFAULT CURRENT_TIMESTAMP,updated_at DATETIME DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB',
       'CREATE TABLE ticket_mail_history (id BIGINT AUTO_INCREMENT PRIMARY KEY,outbox_id BIGINT UNSIGNED UNIQUE,message_key VARCHAR(128) UNIQUE,template_key VARCHAR(64),recipient_hint VARCHAR(128),recipient_digest CHAR(64),event_id BIGINT UNSIGNED,buyer_id BIGINT UNSIGNED,order_id BIGINT UNSIGNED,ticket_id BIGINT UNSIGNED,actor_kind VARCHAR(16),resend_email_id VARCHAR(128),delivery_state VARCHAR(16),retention_until DATETIME,state_at DATETIME,created_at DATETIME DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB'
     ] as $ddl) $db->exec($ddl);
-    foreach(preg_split('/;\s*\n/',(string)file_get_contents(__DIR__.'/../../database/migration_ticketing_order_notes_01.sql')) as $part) {
-        if(trim($part)!=='') $db->exec($part);
+    foreach(['ticketing_orders','ticketing_webhook','ticketing_entries','ticket_entry_secret','ticketing_order_notes'] as $migration) {
+        foreach(preg_split('/;\s*\n/',(string)file_get_contents(__DIR__.'/../../database/migration_'.$migration.'_01.sql')) as $part) {
+            if(trim($part)!=='') $db->exec($part);
+        }
     }
-    $db->exec("INSERT INTO ticket_orders VALUES (91,6,3,'pending',UTC_TIMESTAMP(6)),(92,6,3,'paid',UTC_TIMESTAMP(6)),(93,6,3,'pending',UTC_TIMESTAMP(6)),(94,6,3,'paid',UTC_TIMESTAMP(6))");
+    $db->exec("INSERT INTO events VALUES (6),(7)");
+    $db->exec("INSERT INTO event_ticket_types VALUES (11,6),(12,7)");
+    $db->exec("INSERT INTO ticket_buyers(id,public_id,email) VALUES (3,UNHEX(LPAD('3',32,'0')),'buyer@example.test')");
+    foreach ([91=>'pending',92=>'paid',93=>'pending',94=>'paid'] as $orderId=>$status) {
+        $db->prepare("INSERT INTO ticket_orders(id,public_id,event_id,buyer_id,status,checkout_key_hash,total_cop)
+            VALUES (?,UNHEX(LPAD(?,32,'0')),6,3,?,SHA2(?,256),10000)")
+            ->execute([$orderId,(string)$orderId,$status,'checkout-'.$orderId]);
+    }
     $db->exec("INSERT INTO ticket_inventory_holds VALUES (91,'active'),(93,'active')");
     $r=brvtalTicketAdminRecordAction($db,7,'admin',brvtalTicketAdminActionInput($note));
     actionAssert($r['status']==='recorded' && !$r['email_queued'],'real note');
@@ -57,13 +64,20 @@ try {
       try{brvtalTicketAdminRecordAction($db,7,'superadmin',brvtalTicketAdminActionInput(['order_id'=>$case['id'],'action'=>$case['act'],'idempotency_key'=>str_repeat('c',32)]));
         throw new RuntimeException('unsafe');}catch(DomainException $e){actionAssert($e->getMessage()===$case['error'],'fails closed');}
     }
-    $db->exec("INSERT INTO ticket_payment_attempts(order_id,status) VALUES (93,'pending')");
+    $db->exec("INSERT INTO ticket_payment_attempts(order_id,provider,provider_reference,idempotency_key_hash,status,gross_amount_cop) VALUES (93,'wompi','pending-93',SHA2('attempt-93',256),'pending',10000)");
     try{brvtalTicketAdminRecordAction($db,7,'admin',brvtalTicketAdminActionInput(['order_id'=>'93','action'=>'cancel_pending','idempotency_key'=>str_repeat('d',32)]));
       throw new RuntimeException('payment raced');}catch(DomainException $e){actionAssert($e->getMessage()==='PAYMENT_RECONCILIATION_REQUIRED','active payment retained');}
-    $db->exec("INSERT INTO ticket_issue_outbox VALUES (92,'done')");
-    $db->exec("INSERT INTO ticket_order_items(order_id,quantity) VALUES (92,1)");
+    $db->exec("INSERT INTO ticket_payment_attempts(order_id,provider,provider_reference,provider_transaction_id,idempotency_key_hash,status,gross_amount_cop)
+        VALUES (92,'wompi','approved-92','synthetic-tx-92',SHA2('attempt-92',256),'approved',10000)");
+    $attempt=(int)$db->lastInsertId();
+    $db->exec("INSERT INTO ticket_payment_webhook_events(attempt_id,provider_transaction_id,event_checksum,signed_status,event_timestamp)
+        VALUES ({$attempt},'synthetic-tx-92',SHA2('synthetic-event',256),'APPROVED',1)");
+    $db->exec("INSERT INTO ticket_issue_outbox(order_id,payment_attempt_id,state) VALUES (92,{$attempt},'done')");
+    $db->exec("INSERT INTO ticket_order_items(order_id,event_id,ticket_type_id,ticket_name_snapshot,quantity,unit_price_cop,subtotal_cop)
+        VALUES (92,6,11,'Synthetic',1,10000,10000)");
     $id=(int)$db->lastInsertId();
-    $db->exec("INSERT INTO ticket_entries(order_item_id,status) VALUES ({$id},'issued')");
+    $db->exec("INSERT INTO ticket_entries(public_id,order_item_id,event_id,ticket_type_id,unit_number,status,issued_at_utc)
+        VALUES (UNHEX(LPAD('1',32,'0')),{$id},6,11,1,'issued',UTC_TIMESTAMP(6))");
     $GLOBALS['config']['security']['encryption_key']=str_repeat('t',48);
     putenv('BRVTAL_TICKET_MAIL_TESTING=1');putenv('BRVTAL_TICKET_MAIL_MODE=mock');
     $sealed=brvtalBuyerMailSeal('QR ya emitido, únicamente cifrado');
@@ -77,5 +91,86 @@ try {
     $copies=$db->query("SELECT body_text FROM ticket_mail_outbox WHERE related_ref='order:92' ORDER BY id")->fetchAll(PDO::FETCH_COLUMN);
     actionAssert(count($copies)===2 && $copies[0]===$copies[1] && str_starts_with($copies[1],BRVTAL_BUYER_MAIL_SEAL_PREFIX),'same sealed QR envelope');
     actionAssert((int)$db->query('SELECT COUNT(*) FROM ticket_order_action_requests')->fetchColumn()===3,'three committed actions');
+
+    // #2119: projection is independent from the existing resend action.
+    require_once __DIR__.'/../../config/ticketing_issue.php';
+    $db->exec("UPDATE ticket_order_items SET quantity=9 WHERE id={$id}");
+    $entryInsert=$db->prepare("INSERT INTO ticket_entries(public_id,order_item_id,event_id,ticket_type_id,unit_number,status,issued_at_utc)
+        VALUES (?, ?,6,11,?,?,UTC_TIMESTAMP(6))");
+    $credentialInsert=$db->prepare("INSERT INTO ticket_entry_credentials(entry_id,version,token_hash,token_encrypted,created_at_utc)
+        VALUES (?,?,?,?,UTC_TIMESTAMP(6))");
+    $first=(int)$db->query("SELECT id FROM ticket_entries WHERE order_item_id={$id} AND unit_number=1")->fetchColumn();
+    $states=['issued','issued','used','revoked','refunded','issued','issued','issued','issued'];
+    foreach ($states as $index=>$status) {
+        $unit=$index+1;
+        $publicId=$unit===1?hex2bin(str_pad('1',32,'0',STR_PAD_LEFT)):random_bytes(16);
+        if ($unit===1) {
+            $entryId=$first;
+        } else {
+            $entryInsert->execute([$publicId,$id,$unit,$status]);
+            $entryId=(int)$db->lastInsertId();
+        }
+        if ($unit===8) continue;
+        $secret=random_bytes(32);
+        $cipher=brvtal_ticket_issue_seal_token($secret,$publicId);
+        if ($unit===6) $cipher=null;
+        if ($unit===7) $cipher=brvtal_ticket_issue_seal_token($secret,random_bytes(16));
+        $hash=hash('sha256',$unit===9?random_bytes(32):$secret,true);
+        $credentialInsert->execute([$entryId,$unit===2?2:1,$hash,$cipher]);
+    }
+    $snapshot=static function() use ($db): string {
+        $tables=['ticket_orders','ticket_order_items','ticket_entries','ticket_entry_credentials',
+            'ticket_inventory_holds','ticket_mail_outbox','ticket_order_action_requests',
+            'ticket_payment_attempts','ticket_issue_outbox','ticket_mail_history'];
+        $digest=hash_init('sha256');
+        foreach ($tables as $table) {
+            hash_update($digest,serialize($db->query('SELECT * FROM '.$table)->fetchAll()));
+        }
+        return hash_final($digest);
+    };
+    $before=$snapshot();
+    $project=static function(int $order=92,int $event=6,string $email='buyer@example.test',
+        string $role='superadmin') use ($db,$snapshot): array {
+        $db->beginTransaction();
+        $initial=$snapshot();
+        try {
+            return brvtalTicketAdminRecoveryProjection($db,7,$role,$order,$event,$email);
+        } finally {
+            try {
+                actionAssert($db->inTransaction() && $initial===$snapshot(),'projection must not write or commit');
+            } finally { if ($db->inTransaction()) $db->rollBack(); }
+        }
+    };
+    $projection=$project();
+    actionAssert($projection['buyer_id']===3,'current buyer');
+    actionAssert(array_column($projection['entries'],'state')===
+        ['recoverable','recoverable','used','revoked','refunded','historical','invalid_ciphertext','inconsistent','invalid_ciphertext'],'projection states');
+    actionAssert(array_column($projection['entries'],'version')===[1,2,null,null,null,1,1,null,1],'credential versions');
+    foreach ($projection['entries'] as $entry) {
+        actionAssert(array_keys($entry)===['entry_id','state','version'],'metadata only');
+    }
+    $reject=static function(callable $fn,string $error):void {
+        try { $fn(); throw new RuntimeException('unexpected projection'); }
+        catch (DomainException $e) { actionAssert($e->getMessage()===$error,'projection rejection'); }
+    };
+    $reject(fn()=>$project(92,6,'other@example.test'),'RECOVERY_ORDER_UNAVAILABLE');
+    $reject(fn()=>$project(92,7),'RECOVERY_ORDER_UNAVAILABLE');
+    $reject(fn()=>$project(93),'RECOVERY_ORDER_UNAVAILABLE');
+    $reject(fn()=>$project(94),'RECOVERY_PAYMENT_UNVERIFIED');
+    $reject(fn()=>$project(92,6,'buyer@example.test','door'),'FORBIDDEN');
+    try {
+        brvtalTicketAdminRecoveryProjection($db,7,'superadmin',92,6,'buyer@example.test');
+        throw new RuntimeException('missing transaction accepted');
+    } catch (LogicException $e) { actionAssert($e->getMessage()==='RECOVERY_TRANSACTION_REQUIRED','transaction required'); }
+    actionAssert($before===$snapshot(),'projection never mutates orders, entries, credentials, stock or mail');
+    $db->exec("UPDATE ticket_payment_webhook_events SET signed_status='PENDING' WHERE attempt_id={$attempt}");
+    $reject(fn()=>$project(),'RECOVERY_PAYMENT_UNVERIFIED');
+    $db->exec("UPDATE ticket_payment_webhook_events SET signed_status='APPROVED' WHERE attempt_id={$attempt}");
+    $db->exec("UPDATE ticket_entries SET event_id=7 WHERE id={$first}");
+    $reject(fn()=>$project(),'RECOVERY_INCONSISTENT');
+    $db->exec("UPDATE ticket_entries SET event_id=6 WHERE id={$first}");
+    $db->exec("UPDATE ticket_buyers SET status='blocked' WHERE id=3");
+    $reject(fn()=>$project(),'RECOVERY_ORDER_UNAVAILABLE');
+    echo "2119 MariaDB recovery projection: all synthetic cases OK.\n";
 } finally { $server->exec("DROP DATABASE IF EXISTS {$dbName}"); }
 echo "1979 MariaDB: note, cancellation, safe mail resend, idempotence OK.\n";
