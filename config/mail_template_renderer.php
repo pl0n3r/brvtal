@@ -99,6 +99,16 @@ function brvtal_mail_delivery_render(PDO $pdo, string $kind, array $data): array
         || isset($parts['fragment']) || strpbrk($link,"\r\n") !== false || strlen($link) > 2048) {
         throw new InvalidArgumentException('MAIL_LINK_INVALID');
     }
+    if ($kind === 'ticket_recovery') {
+        // Exact account URL: no bearer credential, query, fragment or alternate path.
+        $accountUrl = $fixture ? 'https://brvtal.invalid/buyer/' : 'https://www.brvtal.com.co/buyer/';
+        if ($link !== $accountUrl) {
+            throw new InvalidArgumentException('MAIL_LINK_NOT_PROTECTED');
+        }
+        if (array_diff(array_keys($data), ['event', 'link', 'order_number']) !== []) {
+            throw new InvalidArgumentException('MAIL_RECOVERY_FIELDS_INVALID');
+        }
+    }
     if (in_array($kind, ['payment_approved','reminder'], true)
         && (isset($parts['query']) || !str_starts_with((string)($parts['path'] ?? ''), '/buyer/'))) {
         throw new InvalidArgumentException('MAIL_LINK_NOT_PROTECTED');
