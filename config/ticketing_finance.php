@@ -31,6 +31,24 @@ function brvtalFinanceRefundAmounts(array $rows, int $eventId, int $collected): 
     return ['total'=>$total,'in_period'=>$period];
 }
 
+/** Group by stable type ID, retaining every historical name rather than today's catalog label. */
+function brvtalFinanceAccumulateType(array &$types, array $line): void
+{
+    $id=(int)$line['ticket_type_id'];
+    $type=$types[$id]??['ticket_type_id'=>$id,'quantity'=>0,'gross_cop'=>0,
+        'ticket_names'=>[],'unnamed_quantity'=>0];
+    $quantity=(int)$line['quantity'];
+    $name=trim((string)($line['ticket_name_snapshot']??''));
+    $type['quantity']+=$quantity;
+    $type['gross_cop']+=(int)$line['subtotal_cop'];
+    if ($name === '') {
+        $type['unnamed_quantity'] += $quantity;
+    } elseif (!in_array($name, $type['ticket_names'], true)) {
+        $type['ticket_names'][] = $name;
+    }
+    $types[$id]=$type;
+}
+
 /** Refunds must be confirmed adjustment records, never inferred from order status. */
 function brvtalFinanceSummarize(array $orders, array $items, array $attempts,
     array $posSales=[], array $refundsByOrder=[], bool $refundEvidence=true): array
@@ -54,7 +72,6 @@ function brvtalFinanceSummarize(array $orders, array $items, array $attempts,
     $posByOrder=[];
     foreach ($posSales as $sale) {
         if (($sale['status']??'')==='paid'
-            && in_array($sale['method']??'', ['cash','terminal','transfer'],true)
             && (int)($sale['order_id']??0)>0 && (int)($sale['id']??0)>0) {
             $posByOrder[(int)$sale['order_id']]=$sale;
         }
@@ -84,6 +101,7 @@ function brvtalFinanceSummarize(array $orders, array $items, array $attempts,
             $pos = $posByOrder[$id] ?? null;
             $lines=$lineByOrder[$id]['items']??[];
             if ($pos && !$payment && count($lines)===1
+                && in_array($pos['method'] ?? '', ['cash', 'terminal', 'transfer'], true)
                 && (int)$pos['amount_cop']===(int)$order['total_cop']
                 && (int)$pos['event_id']===$eventId
                 && (int)$pos['ticket_type_id']===(int)$lines[0]['ticket_type_id']
@@ -104,11 +122,7 @@ function brvtalFinanceSummarize(array $orders, array $items, array $attempts,
                     $summary['refund_in_period_cop'], $refund['in_period']??null);
                 $summary['gross_cop']+=$amount;
                 $summary['tickets']+=(int)$pos['quantity'];
-                $type=(int)$pos['ticket_type_id'];
-                $current=$summary['types'][$type]??['ticket_type_id'=>$type,'quantity'=>0,'gross_cop'=>0];
-                $current['quantity']+=(int)$pos['quantity'];
-                $current['gross_cop']+=$amount;
-                $summary['types'][$type]=$current;
+                brvtalFinanceAccumulateType($summary['types'], $lines[0]);
                 $summary['transactions'][]=['order_id'=>$id,'provider'=>'pos',
                     'method'=>$pos['method'],'transaction_id'=>null,'gross_cop'=>$amount,
                     'fee_cop'=>null,'fee_vat_cop'=>null,'withheld_cop'=>null,
@@ -121,7 +135,10 @@ function brvtalFinanceSummarize(array $orders, array $items, array $attempts,
                 // they are not extra unverified *paid* orders.
                 if ($status==='refunded') $summary['refund_cop']=null;
                 else $summary['unverified_orders']++;
-                if (!empty($refundsByOrder[$id])) $summary['refund_cop']=null;
+                if (($payment && $pos) || !empty($refundsByOrder[$id])) {
+                    $summary['refund_cop']=null;
+                    $summary['refund_in_period_cop']=null;
+                }
                 $events[$eventId]=$summary; continue;
             }
             $gross = $lineByOrder[$id]['gross'] ?? 0;
@@ -150,11 +167,7 @@ function brvtalFinanceSummarize(array $orders, array $items, array $attempts,
                 'settlement_status'=>'unverified',
             ];
             foreach ($lineByOrder[$id]['items'] ?? [] as $line) {
-                $key = (int)$line['ticket_type_id'];
-                $type = $summary['types'][$key] ?? ['ticket_type_id'=>$key,'quantity'=>0,'gross_cop'=>0];
-                $type['quantity'] += (int)$line['quantity'];
-                $type['gross_cop'] += (int)$line['subtotal_cop'];
-                $summary['types'][$key] = $type;
+                brvtalFinanceAccumulateType($summary['types'], $line);
             }
             foreach (['fee_amount_cop'=>'fee_cop','fee_vat_cop'=>'fee_vat_cop',
                       'withheld_amount_cop'=>'withheld_cop','net_amount_cop'=>'payout_cop'] as $source=>$target) {
@@ -173,6 +186,11 @@ function brvtalFinanceSummarize(array $orders, array $items, array $attempts,
     }
     ksort($events);
     foreach ($events as &$event) {
+        ksort($event['types'], SORT_NUMERIC);
+        foreach ($event['types'] as &$type) {
+            sort($type['ticket_names'], SORT_STRING);
+        }
+        unset($type);
         $event['types']=array_values($event['types']);
         // Sale cohort: recorded refunds up to the selected end date, not payouts.
         $event['net_after_refunds_cop']=$event['refund_cop']===null ? null :
@@ -219,33 +237,36 @@ function brvtalFinanceReport(PDO $db, ?int $eventId, ?string $from, ?string $to,
     if (!$orders) return [];
     $ids=array_column($orders,'id');
     $in=implode(',',array_fill(0,count($ids),'?'));
-    $stmt=$db->prepare("SELECT order_id,ticket_type_id,quantity,subtotal_cop FROM ticket_order_items WHERE order_id IN ($in)");
+    $stmt=$db->prepare("SELECT order_id,ticket_type_id,quantity,subtotal_cop,ticket_name_snapshot
+        FROM ticket_order_items WHERE order_id IN ($in)");
     $stmt->execute($ids); $items=$stmt->fetchAll(PDO::FETCH_ASSOC);
     $paymentSql="SELECT id,order_id,provider,provider_transaction_id,status,gross_amount_cop,fee_amount_cop,fee_vat_cop,withheld_amount_cop,net_amount_cop
-        FROM ticket_payment_attempts WHERE order_id IN ($in)";
-    if ($channel!=='all') $paymentSql.=" AND provider='wompi'";
+        FROM ticket_payment_attempts WHERE order_id IN ($in) AND provider='wompi'";
     $stmt=$db->prepare($paymentSql); $stmt->execute($ids);
     $attempts=$stmt->fetchAll(PDO::FETCH_ASSOC);
-    $sales=[];
-    if ($channel!=='wompi') {
-        try {
-            $pos=$db->prepare("SELECT s.id,s.order_id,s.event_id,s.ticket_type_id,s.quantity,
-                    s.amount_cop,s.method,s.status
-                FROM ticket_pos_sales s
-                JOIN ticket_pos_shifts sh ON sh.id=s.shift_id AND sh.event_id=s.event_id
-                    AND sh.operator_admin_id=s.operator_admin_id
-                WHERE s.order_id IN ($in) AND s.status='paid' AND s.completed_at_utc IS NOT NULL");
-            $pos->execute($ids);
-            $sales=$pos->fetchAll(PDO::FETCH_ASSOC);
-        } catch (PDOException $e) {
-            if ($e->getCode()!=='42S02' || $channel==='pos') throw $e;
-        }
-    }
+    // Read both sources before selecting a channel. Missing POS evidence must
+    // fail the report closed, not turn a possibly contradictory sale into Wompi.
+    $pos=$db->prepare("SELECT s.id,s.order_id,s.event_id,s.ticket_type_id,s.quantity,
+            s.amount_cop,s.method,s.status
+        FROM ticket_pos_sales s
+        JOIN ticket_pos_shifts sh ON sh.id=s.shift_id AND sh.event_id=s.event_id
+            AND sh.operator_admin_id=s.operator_admin_id
+        WHERE s.order_id IN ($in) AND s.status='paid' AND s.completed_at_utc IS NOT NULL");
+    $pos->execute($ids);
+    $sales=$pos->fetchAll(PDO::FETCH_ASSOC);
+    $posIds=array_fill_keys(array_map(intval(...), array_column($sales, 'order_id')), true);
     if ($channel==='pos') {
-        $allowed=array_fill_keys(array_map(intval(...),array_column($sales,'order_id')),true);
-        $orders=array_values(array_filter($orders,static fn($o)=>isset($allowed[(int)$o['id']])));
+        $orders=array_values(array_filter($orders, static fn($o)=>isset($posIds[(int)$o['id']])));
     } elseif ($channel==='wompi') {
-        $allowed=array_fill_keys(array_map(intval(...),array_column($attempts,'order_id')),true);
+        $allowed=[];
+        foreach ($attempts as $attempt) {
+            $id=(int)$attempt['order_id'];
+            // A failed/pending online attempt does not turn a completed POS
+            // sale into Wompi revenue. Keep genuinely contradictory evidence.
+            if (!isset($posIds[$id]) || in_array($attempt['status'], ['approved', 'refunded'], true)) {
+                $allowed[$id]=true;
+            }
+        }
         $orders=array_values(array_filter($orders,static fn($o)=>isset($allowed[(int)$o['id']])));
     }
     // A channel may remove every order after the initial nonempty query.
