@@ -94,6 +94,7 @@ foreach ([
 $db->exec((string)file_get_contents(__DIR__ . '/../../database/migration_admin_activity_01.sql'));
 $db->exec((string)file_get_contents(__DIR__ . '/../../database/migration_ticketing_reservations_01.sql'));
 $db->exec((string)file_get_contents(__DIR__ . '/../../database/migration_ticketing_door_price_01.sql'));
+$db->exec((string)file_get_contents(__DIR__ . '/../../database/migration_ticketing_purchase_limits_01.sql'));
 $db->exec("INSERT INTO admins(email,password_hash,name) VALUES('owner@synthetic.invalid','synthetic','Owner')");
 
 $cfg = ['app'=>['timezone'=>'America/Bogota'],
@@ -119,7 +120,7 @@ foreach (['BRVTAL_TICKET_WOMPI_MODE=mock','BRVTAL_TICKET_WOMPI_TESTING=1',
 $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
 $eventAt = $now->modify('+5 days')->setTimezone(new DateTimeZone('America/Bogota'))->format('Y-m-d H:i:s');
 $from = $now->modify('-1 day')->format('Y-m-d H:i:s');
-$db->prepare("INSERT INTO events VALUES (1,'published',?,?),(2,'published',?,?)")->execute([$eventAt,$from,$eventAt,$from]);
+$db->prepare("INSERT INTO events(id,status,event_date,published_at) VALUES (1,'published',?,?),(2,'published',?,?)")->execute([$eventAt,$from,$eventAt,$from]);
 $db->prepare("INSERT INTO event_ticket_types(id,event_id,name,price,status,currency,available_from) VALUES
     (10,1,'Preventa',25000,'active','COP',?),(11,1,'VIP',60000,'active','COP',?),(20,2,'Otro',10000,'active','COP',?)")
     ->execute([$from,$from,$from]);
@@ -265,6 +266,37 @@ $cleared = $set([$priceRow(null)]);
 invAssert($cleared['types'][1]['door_price_cop'] === null, 'explicit null restores stage fallback');
 invAssert($set([$priceRow(10000000)])['types'][1]['door_price_cop'] === 10000000, 'upper price bound accepted');
 $set([$priceRow(null)]);
+
+// #2182: nullable purchase limits share the event mutex, audit and rollback.
+$limitRow = static fn(mixed $min, mixed $max) => ['ticket_type_id'=>11,'capacity'=>20,
+    'min_per_order'=>$min,'max_per_order'=>$max];
+$limited = brvtal_ticket_inventory_admin_save($db, 1, ['capacity'=>50,'max_per_buyer'=>10,'types'=>[$limitRow(2,8)]]);
+invAssert($limited['max_per_buyer'] === 10 && $limited['types'][1]['min_per_order'] === 2
+    && $limited['types'][1]['max_per_order'] === 8, 'limits saved and read back');
+$meta = json_decode((string)$db->query('SELECT meta_json FROM admin_activity_log ORDER BY id DESC LIMIT 1')->fetchColumn(), true);
+invAssert($meta['before']['max_per_buyer'] === null && $meta['after']['max_per_buyer'] === 10
+    && $meta['before']['purchase_limits'][11]['min_per_order'] === null
+    && $meta['after']['purchase_limits'][11] === ['min_per_order'=>2,'max_per_order'=>8], 'limits audited');
+$legacy = $set([['ticket_type_id'=>11,'capacity'=>20]]);
+invAssert($legacy['max_per_buyer'] === 10 && $legacy['types'][1]['min_per_order'] === 2
+    && $legacy['types'][1]['max_per_order'] === 8, 'omitted limits preserved');
+$audits = (int)$db->query('SELECT COUNT(*) FROM admin_activity_log')->fetchColumn();
+foreach ([$limitRow(9,8),$limitRow(2,21),$limitRow(21,null),$limitRow(0,8),$limitRow('2',8),
+    $limitRow(1.5,8),$limitRow(true,8)] as $bad) {
+    invRejects(fn() => $set([$bad]), 'INVENTORY_INVALID_PURCHASE_LIMIT', 'invalid type purchase limits');
+}
+invRejects(fn() => brvtal_ticket_inventory_admin_save($db, 1, ['capacity'=>50,'max_per_buyer'=>51,'types'=>[]]),
+    'INVENTORY_INVALID_PURCHASE_LIMIT', 'buyer limit above event capacity');
+invRejects(fn() => brvtal_ticket_inventory_admin_save($db, 1, ['capacity'=>7,'max_per_buyer'=>null,'types'=>[]]),
+    'INVENTORY_INVALID_PURCHASE_LIMIT', 'event capacity cannot invalidate omitted type limit');
+invRejects(fn() => brvtal_ticket_inventory_admin_save($db, 1, ['capacity'=>50,'max_per_buyer'=>5,
+    'types'=>[['ticket_type_id'=>20,'capacity'=>10,'min_per_order'=>1]]]),
+    'INVENTORY_TYPE_NOT_IN_EVENT', 'cannot alter another event');
+invAssert(brvtal_ticket_inventory_admin_read($db, 1) === $legacy
+    && (int)$db->query('SELECT COUNT(*) FROM admin_activity_log')->fetchColumn() === $audits, 'invalid limits rolled back');
+$clearedLimits = brvtal_ticket_inventory_admin_save($db, 1, ['capacity'=>50,'max_per_buyer'=>null,'types'=>[$limitRow(null,null)]]);
+invAssert($clearedLimits['max_per_buyer'] === null && $clearedLimits['types'][1]['min_per_order'] === null
+    && $clearedLimits['types'][1]['max_per_order'] === null, 'explicit null clears optional limits');
 
 $db->exec("UPDATE events SET event_date=DATE_SUB(NOW(), INTERVAL 1 DAY) WHERE id=1");
 $past = brvtal_ticket_inventory_admin_read($db, 1)['sale'];
