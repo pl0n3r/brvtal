@@ -536,6 +536,59 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
                 && (int)$ledger->query('SELECT COUNT(*) FROM event_expenses')->fetchColumn()===3,
                 'missing audit rolls back ledger write');
         }
+
+        // #2197: synthetic CSV only; preserve unknowns, signed adjustments and import identity.
+        require_once __DIR__.'/../../config/ticketing_settlement.php';
+        $ledger->exec((string)file_get_contents(__DIR__.'/../../database/migration_ticketing_settlements_01.sql'));
+        $header = "payout_reference,payout_date,line_reference,transaction_reference,gross_cop,fee_cop,fee_vat_cop,withheld_cop,adjustment_cop,credited_cop\n";
+        $csv = $header . "P1,2026-11-27,L1,TX-1,10000,300,57,,-5,9638\r\n"
+            . "P1,2026-11-27,L2,TX-2,-1000,,,,,-1000\r\n";
+        $id = brvtalSettlementImport($ledger,1,$csv);
+        $batch = $ledger->query('SELECT * FROM ticket_settlements')->fetch();
+        $lines = $ledger->query('SELECT * FROM ticket_settlement_lines ORDER BY id')->fetchAll();
+        t20($batch['file_sha256']===hash('sha256',$csv) && $batch['status']==='imported'
+            && (int)$batch['imported_by']===1 && count($lines)===2 && $lines[0]['withheld_cop']===null
+            && (int)$lines[0]['credited_cop']===9638 && (int)$lines[1]['credited_cop']===-1000,
+            'settlement retains source hash, signed evidence, no invented amounts');
+        foreach ([$csv,str_replace('9638','9637',$csv)] as $duplicate) {
+            $reject(fn()=>brvtalSettlementImport($ledger,1,$duplicate),'SETTLEMENT_DUPLICATE');
+        }
+        foreach (['=X','+X','-X','@X'] as $formula) {
+            $reject(fn()=>brvtalSettlementImport($ledger,1,str_replace('TX-1',$formula,$csv)),
+                'SETTLEMENT_INVALID_REFERENCE');
+        }
+        $reject(fn()=>brvtalSettlementImport($ledger,1,str_replace('gross_cop','name',$csv)),'SETTLEMENT_INVALID_HEADER');
+        $reject(fn()=>brvtalSettlementImport($ledger,1,str_replace('9638','',$csv)),'SETTLEMENT_INVALID_AMOUNT');
+        $reject(fn()=>brvtalSettlementImport($ledger,1,str_replace('L2','L1',$csv)),'SETTLEMENT_INCONSISTENT_ROWS');
+        $reject(fn()=>brvtalSettlementImport($ledger,1,str_replace('2026-11-27','2026-02-30',$csv)),'SETTLEMENT_INVALID_DATE');
+        try {
+            brvtalSettlementImport($ledger,1,str_repeat('x',1048577));
+            throw new RuntimeException('T20: oversized settlement accepted');
+        } catch (LengthException $e) {
+            t20($e->getMessage()==='SETTLEMENT_FILE_TOO_LARGE','settlement size bound');
+        }
+        $split = str_replace('P1','P2',$csv);
+        foreach ([2,3] as $actor) {
+            $reject(fn()=>brvtalSettlementImport($ledger,$actor,$split),'SETTLEMENT_FORBIDDEN');
+            $reject(fn()=>brvtalSettlementRollback($ledger,$actor,$id),'SETTLEMENT_FORBIDDEN');
+        }
+        brvtalSettlementImport($ledger,1,$split);
+        brvtalSettlementRollback($ledger,1,$id);
+        $batch = $ledger->query('SELECT * FROM ticket_settlements WHERE id='.(int)$id)->fetch();
+        t20($batch['status']==='rolled_back' && (int)$batch['rolled_back_by']===1
+            && $batch['rolled_back_at_utc']!==null && (int)$ledger->query('SELECT COUNT(*) FROM ticket_settlement_lines')->fetchColumn()===4,
+            'logical rollback preserves all evidence including split payout');
+        $reject(fn()=>brvtalSettlementImport($ledger,1,$csv),'SETTLEMENT_DUPLICATE');
+        $reject(fn()=>brvtalSettlementRollback($ledger,1,$id),'SETTLEMENT_NOT_ACTIVE');
+        $ledger->exec('RENAME TABLE ticket_settlement_lines TO settlement_lines_unavailable');
+        try {
+            brvtalSettlementImport($ledger,1,str_replace('P1','P3',$csv));
+            throw new RuntimeException('T20: incomplete settlement committed');
+        } catch (PDOException $e) {
+            t20($e->getCode()==='42S02' && !$ledger->inTransaction()
+                && (int)$ledger->query('SELECT COUNT(*) FROM ticket_settlements')->fetchColumn()===2,
+                'line insert failure rolls back entire batch');
+        }
     } finally {
         $ledgerServer->exec('DROP DATABASE ' . $ledgerName);
     }
