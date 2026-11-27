@@ -130,11 +130,16 @@ try {
     };
     $before=$snapshot();
     $project=static function(int $order=92,int $event=6,string $email='buyer@example.test',
-        string $role='superadmin') use ($db): array {
+        string $role='superadmin') use ($db,$snapshot): array {
         $db->beginTransaction();
+        $initial=$snapshot();
         try {
             return brvtalTicketAdminRecoveryProjection($db,7,$role,$order,$event,$email);
-        } finally { $db->rollBack(); }
+        } finally {
+            try {
+                actionAssert($db->inTransaction() && $initial===$snapshot(),'projection must not write or commit');
+            } finally { if ($db->inTransaction()) $db->rollBack(); }
+        }
     };
     $projection=$project();
     actionAssert($projection['buyer_id']===3,'current buyer');

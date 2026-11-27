@@ -137,12 +137,19 @@ function brvtalTicketAdminRecordAction(PDO $pdo, int $actorId, string $role, arr
  * @return array{buyer_id:int,entries:list<array{entry_id:int,state:string,version:?int}>}
  */
 function brvtalTicketAdminRecoveryProjection(
-    PDO $pdo, int $actorId, string $role, int $orderId, int $eventId, string $recipient
+    PDO $pdo,
+    int $actorId,
+    string $role,
+    int $orderId,
+    int $eventId,
+    string $recipient
 ): array {
     if ($actorId < 1 || !brvtalTicketAdminCanAction($role, 'resend')) {
         throw new DomainException('FORBIDDEN');
     }
-    if (!$pdo->inTransaction()) throw new LogicException('RECOVERY_TRANSACTION_REQUIRED');
+    if (!$pdo->inTransaction()) {
+        throw new LogicException('RECOVERY_TRANSACTION_REQUIRED');
+    }
     if ($orderId < 1 || $eventId < 1 || !filter_var($recipient, FILTER_VALIDATE_EMAIL)) {
         throw new DomainException('RECOVERY_ORDER_UNAVAILABLE');
     }
@@ -166,7 +173,9 @@ function brvtalTicketAdminRecoveryProjection(
             WHERE order_id=? AND state='done' FOR UPDATE");
         $q->execute([$orderId]);
         $job = $q->fetch(PDO::FETCH_ASSOC);
-        if (!$job) throw new DomainException('RECOVERY_PAYMENT_UNVERIFIED');
+        if (!$job) {
+            throw new DomainException('RECOVERY_PAYMENT_UNVERIFIED');
+        }
         if ($job['payment_attempt_id'] === null) {
             $verified = brvtal_ticket_pos_verified($pdo, $orderId);
         } else {
@@ -180,7 +189,9 @@ function brvtalTicketAdminRecoveryProjection(
             $q->execute([(int)$job['payment_attempt_id'], $orderId]);
             $verified = $q->fetchColumn() !== false;
         }
-        if (!$verified) throw new DomainException('RECOVERY_PAYMENT_UNVERIFIED');
+        if (!$verified) {
+            throw new DomainException('RECOVERY_PAYMENT_UNVERIFIED');
+        }
         $q = $pdo->prepare('SELECT id,event_id,ticket_type_id,quantity FROM ticket_order_items
             WHERE order_id=? ORDER BY id FOR UPDATE');
         $q->execute([$orderId]);
@@ -198,7 +209,9 @@ function brvtalTicketAdminRecoveryProjection(
                 FROM ticket_entries WHERE order_item_id=? ORDER BY unit_number FOR UPDATE');
             $q->execute([(int)$item['id']]);
             $rows = $q->fetchAll(PDO::FETCH_ASSOC);
-            if (count($rows) !== $quantity) throw new DomainException('RECOVERY_INCONSISTENT');
+            if (count($rows) !== $quantity) {
+                throw new DomainException('RECOVERY_INCONSISTENT');
+            }
             foreach ($rows as $offset => $entry) {
                 if ((int)$entry['event_id'] !== $eventId
                     || (int)$entry['ticket_type_id'] !== (int)$item['ticket_type_id']
@@ -208,7 +221,9 @@ function brvtalTicketAdminRecoveryProjection(
                 $entries[] = brvtalTicketAdminRecoveryEntry($pdo, $entry, $encrypted);
             }
         }
-        if ($total < 1) throw new DomainException('RECOVERY_INCONSISTENT');
+        if ($total < 1) {
+            throw new DomainException('RECOVERY_INCONSISTENT');
+        }
         return ['buyer_id'=>(int)$order['buyer_id'], 'entries'=>$entries];
     } catch (PDOException) {
         throw new RuntimeException('RECOVERY_STORAGE_UNAVAILABLE');
@@ -223,7 +238,9 @@ function brvtalTicketAdminRecoveryEntry(PDO $pdo, array $entry, bool $encrypted)
         $result['state'] = $entry['status'];
         return $result;
     }
-    if ($entry['status'] !== 'issued') return $result;
+    if ($entry['status'] !== 'issued') {
+        return $result;
+    }
     $q = $pdo->prepare('SELECT version,status,token_algorithm,token_hash,'
         . ($encrypted ? 'token_encrypted' : 'NULL AS token_encrypted')
         . ' FROM ticket_entry_credentials WHERE entry_id=? ORDER BY version DESC FOR UPDATE');
@@ -232,7 +249,9 @@ function brvtalTicketAdminRecoveryEntry(PDO $pdo, array $entry, bool $encrypted)
     $active = array_values(array_filter($credentials, static fn(array $row): bool => $row['status'] === 'active'));
     if (count($active) !== 1 || (int)$active[0]['version'] < 1
         || $active[0]['version'] !== $credentials[0]['version']
-        || $active[0]['token_algorithm'] !== 'sha256-v1') return $result;
+        || $active[0]['token_algorithm'] !== 'sha256-v1') {
+        return $result;
+    }
     $credential = $active[0];
     $result['version'] = (int)$credential['version'];
     if ($credential['token_encrypted'] === null) {
