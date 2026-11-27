@@ -684,13 +684,15 @@ function brvtal_public_ticket_checkout_refreshed_status(PDO $db, mixed $order): 
     if (!in_array($order['status'], ['draft','pending'], true)) return (string)$order['status'];
     try {
         require_once __DIR__ . '/ticketing_wompi_reconcile.php';
-        // A public trigger never queries Wompi more than once every 10 s per attempt.
-        $open = $db->prepare("SELECT id FROM ticket_payment_attempts
-            WHERE order_id=? AND provider='wompi' AND status IN ('created','pending')
-              AND updated_at_utc <= UTC_TIMESTAMP(6) - INTERVAL 10 SECOND ORDER BY id DESC LIMIT 1");
-        $open->execute([(int)$order['id']]);
+        // Worker and public confirmation share the same lease and due predicate.
+        $config = brvtal_ticket_wompi_config();
+        $open = $db->prepare("SELECT a.id FROM ticket_payment_attempts a
+            LEFT JOIN ticket_wompi_reconcile_claims c ON c.attempt_id=a.id
+            WHERE a.order_id=? AND (c.environment IS NULL OR c.environment=?) AND "
+            . brvtal_wompi_reconcile_due_sql() . " ORDER BY a.id DESC LIMIT 1");
+        $open->execute([(int)$order['id'],$config['mode']]);
         $attempt = $open->fetchColumn();
-        if ($attempt !== false) brvtal_wompi_reconcile_attempt($db, (int)$attempt);
+        if ($attempt !== false) brvtal_wompi_reconcile_attempt($db, (int)$attempt, $config);
         $again = $db->prepare('SELECT status FROM ticket_orders WHERE id=?');
         $again->execute([(int)$order['id']]);
         return (string)$again->fetchColumn();
@@ -739,17 +741,196 @@ function brvtal_public_ticket_checkout_state(PDO $db, int $eventId, int $buyerId
     };
 }
 
+/** #2120: the existing session is authority; a confirmation token is not account access. */
+function brvtal_public_ticket_snapshot_scope(PDO $db, bool $byToken): ?array
+{
+    require_once __DIR__ . '/buyer_auth.php';
+    require_once __DIR__ . '/buyer_account.php';
+    $buyerId = (int)($_SESSION['buyer_id'] ?? 0);
+    if ($buyerId > 0) {
+        try {
+            $scope = brvtalBuyerAccountCheckoutScope($db, $buyerId);
+        } catch (DomainException) {
+            return null;
+        }
+        if ($scope === null && !isset($_SESSION['buyer_checkout_new_order'])) {
+            return ["o.buyer_id=? AND b.status='active' AND b.email_verified_at IS NOT NULL", [$buyerId], $buyerId];
+        }
+        if ($byToken && $scope !== null) {
+            return ["o.buyer_id=? AND o.id=? AND b.status='guest' AND b.email_verified_at IS NULL AND o.status='paid'",
+                [$buyerId, $scope], $buyerId];
+        }
+        return null;
+    }
+    // Only an existing, unexpired server-issued checkout grant may scope a
+    // guest's lookup. Never manufacture a grant from a token, email or intent.
+    $grants = $_SESSION['buyer_checkout_orders'] ?? null;
+    if (!$byToken || !is_array($grants) || count($grants) > 8) {
+        return null;
+    }
+    $now = time();
+    $clauses = [];
+    $params = [];
+    foreach ($grants as $id => $grant) {
+        if (!ctype_digit((string)$id) || (int)$id < 1 || !is_array($grant)
+            || !is_int($grant['buyer_id'] ?? null) || $grant['buyer_id'] < 1
+            || !is_bool($grant['created_new'] ?? null) || !is_int($grant['issued_at'] ?? null)
+            || $grant['issued_at'] > $now || $grant['issued_at'] < $now - BRVTAL_BUYER_CHECKOUT_GRANT_SECONDS) {
+            continue;
+        }
+        $clauses[] = '(o.id=? AND o.buyer_id=?)';
+        array_push($params, (int)$id, $grant['buyer_id']);
+    }
+    return $clauses ? ["b.status IN ('guest','active') AND (" . implode(' OR ', $clauses) . ')', $params, 0] : null;
+}
+
+/** Read a frozen reservation, never generate a payment payload or renew a hold. */
+function brvtal_public_ticket_checkout_snapshot(PDO $db, int $eventId, array $input): array
+{
+    $unknown = ['state'=>'unverified', 'replayed'=>false, 'can_start_payment'=>false];
+    $byToken = array_key_exists('order_token', $input);
+    $key = $input['idempotency_key'] ?? null;
+    if ($byToken) {
+        if (count($input) !== 1 || !is_string($input['order_token'])
+            || !preg_match('/^[a-f0-9]{32}$/D', $input['order_token'])) {
+            throw new InvalidArgumentException('INVALID_CHECKOUT');
+        }
+    } else {
+        if (!is_string($key) || !preg_match('/^[A-Za-z0-9:_-]{16,128}$/D', $key)
+            || !in_array($input['method'] ?? null, ['CARD','NEQUI','PSE'], true)) {
+            throw new InvalidArgumentException('INVALID_CHECKOUT');
+        }
+        if (array_key_exists('lines', $input) && count($input) === 3) {
+            $expected = brvtal_public_ticket_checkout_cart_lines($input['lines']);
+        } elseif (count($input) === 4) {
+            $expected = brvtal_public_ticket_checkout_cart_lines([
+                ['ticket_type_id'=>$input['ticket_type_id'] ?? null, 'quantity'=>$input['quantity'] ?? null],
+            ]);
+        } else {
+            throw new InvalidArgumentException('INVALID_CHECKOUT');
+        }
+    }
+    $authority = brvtal_public_ticket_snapshot_scope($db, $byToken);
+    if ($eventId < 1 || $authority === null) {
+        return $unknown;
+    }
+    [$scopeSql, $scopeParams, $buyerId] = $authority;
+    $identity = $byToken ? $input['order_token'] : hash('sha256', "t13|$buyerId|$eventId|$key");
+    $identitySql = $byToken ? 'o.public_id=UNHEX(?)' : 'o.checkout_key_hash=?';
+    // One consistent SELECT, independent of editorial catalog, saleability,
+    // available capacity or current Wompi configuration. No locks or writes.
+    $q = $db->prepare("SELECT o.id,o.buyer_id,o.status,o.currency,o.total_cop,o.expires_at_utc,
+        LOWER(HEX(o.public_id)) AS order_token, UTC_TIMESTAMP(6) AS observed_at,
+        i.ticket_type_id,i.quantity,i.unit_price_cop,i.subtotal_cop,i.currency AS item_currency,
+        i.event_id AS item_event, i.ticket_name_snapshot,
+        a.provider,a.provider_reference,a.idempotency_key_hash,a.gross_amount_cop,a.status AS payment_status,
+        h.event_id AS hold_event,h.quantity AS hold_quantity,h.kind AS hold_kind,
+        h.status AS hold_status,h.expires_at_utc AS hold_expires
+        FROM ticket_orders o JOIN ticket_buyers b ON b.id=o.buyer_id
+        JOIN ticket_order_items i ON i.order_id=o.id
+        JOIN ticket_payment_attempts a ON a.order_id=o.id
+        LEFT JOIN ticket_inventory_holds h ON h.order_id=o.id AND h.ticket_type_id=i.ticket_type_id
+        WHERE o.event_id=? AND $identitySql AND ($scopeSql)
+        AND (SELECT COUNT(*) FROM ticket_payment_attempts p WHERE p.order_id=o.id)=1
+        ORDER BY i.ticket_type_id LIMIT 11");
+    $q->execute([$eventId, $identity, ...$scopeParams]);
+    $rows = $q->fetchAll(PDO::FETCH_ASSOC);
+    if (!$rows || count($rows)>10) {
+        return $unknown;
+    }
+    $order = $rows[0];
+    $orderId = (int)$order['id'];
+    $total = (int)$order['total_cop'];
+    if ($order['currency'] !== 'COP' || $total < 1 || $total > 10000000
+        || $order['provider'] !== 'wompi' || (int)$order['gross_amount_cop'] !== $total
+        || !preg_match('/^BW7-' . $orderId . '-(CARD|NEQUI|PSE)-[a-f0-9]{24}$/D',
+            (string)$order['provider_reference'], $reference)
+        || !preg_match('/^[a-f0-9]{64}$/D', (string)$order['idempotency_key_hash'])) {
+        return $unknown;
+    }
+    $method = $reference[1];
+    $lines = [];
+    $quantities = [];
+    $subtotal = 0;
+    $expiry = $order['expires_at_utc'];
+    $active = $expiry !== null && $expiry > $order['observed_at'];
+    $expired = $expiry !== null && $expiry <= $order['observed_at'];
+    foreach ($rows as $row) {
+        $type = (int)$row['ticket_type_id'];
+        $quantity = (int)$row['quantity'];
+        $unit = (int)$row['unit_price_cop'];
+        $lineTotal = (int)$row['subtotal_cop'];
+        if ($type < 1 || isset($quantities[$type]) || $quantity < 1 || $quantity > 20
+            || $unit < 1 || $unit > 10000000 || $unit * $quantity !== $lineTotal
+            || $row['item_currency'] !== 'COP' || (int)$row['item_event'] !== $eventId) {
+            return $unknown;
+        }
+        $quantities[$type] = $quantity;
+        $subtotal += $lineTotal;
+        $lines[] = ['ticket_type_id'=>$type, 'name'=>$row['ticket_name_snapshot'], 'quantity'=>$quantity,
+            'unit_price_cop'=>$unit, 'subtotal_cop'=>$lineTotal];
+        if ($row['hold_expires'] !== null) {
+            $expiry = $expiry === null ? $row['hold_expires'] : min($expiry, $row['hold_expires']);
+            $expired = $expired || $row['hold_expires'] <= $order['observed_at'];
+        }
+        $active = $active && $row['hold_status'] === 'active' && $row['hold_kind'] === 'paid'
+            && (int)$row['hold_event'] === $eventId && (int)$row['hold_quantity'] === $quantity
+            && $row['hold_expires'] !== null && $row['hold_expires'] > $order['observed_at'];
+    }
+    if (array_sum($quantities)>20 || $subtotal !== $total) {
+        // Discounted orders keep their existing confirmation path; never infer
+        // their net snapshot from the gross lines or re-quote a coupon.
+        return $unknown;
+    }
+    if (!$byToken) {
+        $attemptDigest = hash('sha256', "t07|$buyerId|$orderId|$key");
+        if ($expected !== $quantities || $input['method'] !== $method
+            || !hash_equals((string)$order['idempotency_key_hash'], $attemptDigest)) {
+            return $unknown;
+        }
+        try {
+            brvtalPromoRejectUncodedReplay($db, $orderId);
+        } catch (DomainException) {
+            return $unknown;
+        }
+    }
+    $payment = (string)$order['payment_status'];
+    $state = brvtal_public_ticket_snapshot_state((string)$order['status'], $payment, $active, $expired);
+    // Persisted attempt state is not proof of a new provider outcome. Even a
+    // reserved order never grants permission to launch the widget from here.
+    return ['state'=>$state, 'replayed'=>!$byToken, 'can_start_payment'=>false, 'snapshot'=>[
+        'order_token'=>$order['order_token'], 'lines'=>$lines, 'total_cop'=>$total, 'currency'=>'COP',
+        'method'=>$method, 'expires_at_utc'=>$expiry, 'payment_state'=>$payment,
+    ]];
+}
+
+function brvtal_public_ticket_snapshot_state(string $order, string $payment, bool $active, bool $expired): string
+{
+    return match (true) {
+        $order === 'paid' && $payment === 'approved' => 'approved',
+        $order === 'refunded' && $payment === 'refunded' => 'refunded',
+        $order === 'failed' && $payment === 'declined' => 'failed',
+        $order === 'cancelled' && in_array($payment, ['created','declined'], true) => 'cancelled',
+        in_array($order, ['pending','expired'], true)
+            && in_array($payment, ['created','pending'], true) && ($expired || $order === 'expired') => 'expired',
+        $order === 'pending' && $payment === 'pending' => 'payment_pending',
+        $order === 'pending' && $payment === 'created' && $active => 'reserved',
+        default => 'unverified',
+    };
+}
+
 /** Same-origin event URL is the endpoint; never accept amount/status from client. */
 function brvtal_public_ticket_checkout_http(PDO $db, int $eventId): void
 {
     $action = (string)($_SERVER['HTTP_X_BRVTAL_TICKET_CHECKOUT'] ?? '');
-    if (!in_array($action,['prepare','status'],true)) return;
+    if (!in_array($action,['prepare','status','snapshot'],true)) return;
     header('Cache-Control: private, no-store');
     header('Referrer-Policy: no-referrer');
     if (empty($_SERVER['HTTPS']) || $_SERVER['HTTPS']==='off') {
         json_response(['ok'=>false,'error'=>'HTTPS_REQUIRED'],403);
     }
-    if ($action === 'status' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'GET') {
+    if (($action === 'status' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'GET')
+        || ($action === 'snapshot' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST')) {
         brvtalTicketStatusRequireBudget('checkout');
     }
     require_once __DIR__ . '/buyer_auth.php';
@@ -762,6 +943,13 @@ function brvtal_public_ticket_checkout_http(PDO $db, int $eventId): void
         // #1940: nothing below writes the session; releasing its lock means a slow
         // checkout can never block the buyer's other requests.
         if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
+        if ($action === 'snapshot') {
+            if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST'
+                || ($buyerId > 0 ? !$csrfValid : !brvtal_public_ticket_checkout_same_origin())) {
+                json_response(['ok'=>false,'error'=>'CSRF_OR_METHOD'],403);
+            }
+            json_response(['ok'=>true]+brvtal_public_ticket_checkout_snapshot($db, $eventId, input_json()),200);
+        }
         if ($action==='status') {
             if (($_SERVER['REQUEST_METHOD']??'')!=='GET') json_response(['ok'=>false,'error'=>'INVALID_REQUEST'],422);
             // #1943: a guest checks its order with the opaque order token, no session needed.

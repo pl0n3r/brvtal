@@ -103,7 +103,7 @@ const BEFORE_PROMOS_SOURCE = [
   ");\n  return () => root.remove();\n}\n"
 ].join('');
 const catalog={ok:true,events:[
-  {id:6,title:'Genesis',date:'2026-12-04 21:00:00',ticket_types:[{id:11,name:'Preventa'},{id:12,name:'VIP'}]},
+  {id:6,title:'Genesis',slug:'genesis',date:'2026-12-04 21:00:00',ticket_types:[{id:11,name:'Preventa'},{id:12,name:'VIP'}]},
   {id:7,title:'Otra noche',date:null,ticket_types:[]}]};
 async function open(page, routeApi, src=source, stylesheet=css){
   await page.route('**/discadmin/t23.html',r=>r.fulfill({contentType:'text/html',
@@ -297,3 +297,64 @@ test('Cupones: cambiar de evento ignora la respuesta tardía del anterior', asyn
   await page.waitForTimeout(200);
   await expect(page.locator('.tk-table tbody')).not.toContainText('evento-6');
 });
+
+for (const [width,height] of [[390,844],[1440,900]]) {
+  test('Promotores: alta, enlace, ventas y estado a '+width+'px',async({page},testInfo)=>{
+    await page.setViewportSize({width,height});
+    const posted=[];
+    let created=false, active=true, enabled=true;
+    const api=route=>{
+      const req=route.request(), url=new URL(req.url());
+      if (url.searchParams.get('catalog')==='1') return route.fulfill({json:catalog});
+      if (req.method()==='POST') {
+        expect(req.headers()['x-csrf-token']).toBe('test-csrf');
+        const body=req.postDataJSON(); posted.push(body);
+        if(body.action==='create_promoter') created=true;
+        if(body.action==='set_promoter_active') active=body.active;
+        if(body.action==='set_referral_active') enabled=body.active;
+        return route.fulfill({json:{ok:true,id:1}});
+      }
+      if(url.searchParams.has('promoter_id')) return route.fulfill({json:{ok:true,
+        promoter:{id:1,promoter_key:'PROMO001',active:Number(active)},
+        codes:[{id:2,code:'GENESIS01',active:Number(enabled),paid_orders:2,gross_cop:100000,net_cop:75000}]}});
+      if(url.searchParams.get('promoters')==='1') return route.fulfill({json:{ok:true,promoters:created?[{id:1,promoter_key:'PROMO001',active:Number(active)}]:[]}});
+      return route.fulfill({json:{ok:true,rules:[]}});
+    };
+    // Exact prior module: the sole original-code change is mountPromoters(root).
+    const baseline=source.split('/* #2204: a section of the existing promotions workspace')[0]
+      .replace('  mountPromoters(root);\n','');
+    await open(page,api,baseline,css);
+    await expect(page.getByRole('heading',{name:'Nuevo cupón'})).toBeVisible();
+    await expect(page.getByRole('heading',{name:'Promotores'})).toHaveCount(0);
+    await testInfo.attach('promotores-antes-'+width,{body:await page.screenshot({fullPage:true}),contentType:'image/png'});
+    await page.unrouteAll({behavior:'ignoreErrors'});
+    await open(page,api);
+    await page.evaluate(()=>Object.defineProperty(navigator,'clipboard',{configurable:true,value:{
+      writeText:async value=>{window.__copied=value;}
+    }}));
+    await page.getByRole('button',{name:'Gestionar promotores'}).click();
+    const section=page.getByRole('region',{name:'Promotores'});
+    await expect(section.locator('[data-promoter-status]')).toHaveText('Todavía no hay promotores.');
+    await section.getByLabel('Alias del promotor').fill('promo001');
+    await section.getByLabel('Código de referencia').fill('genesis01');
+    await section.getByRole('button',{name:'Crear promotor'}).click();
+    await expect(section.getByText('Ventas netas: $75.000')).toBeVisible();
+    await section.getByLabel('Evento para el enlace').selectOption('genesis');
+    await section.getByRole('button',{name:'Copiar enlace de GENESIS01'}).click();
+    expect(await page.evaluate(()=>window.__copied)).toBe('https://www.brvtal.com.co/events/genesis?ref=GENESIS01');
+    await expect(section.locator('[data-promoter-status]')).toHaveText('Enlace copiado.');
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    await testInfo.attach('promotores-despues-'+width,{body:await page.screenshot({fullPage:true}),contentType:'image/png'});
+    await section.getByRole('button',{name:'Desactivar promotor'}).click();
+    await expect(section.getByText('Promotor inactivo')).toBeVisible();
+    await expect(section.getByRole('button',{name:'Copiar enlace de GENESIS01'})).toBeDisabled();
+    await section.getByRole('button',{name:'Activar promotor'}).click();
+    await expect(section.getByText('Promotor activo',{exact:true})).toBeVisible();
+    await section.getByRole('button',{name:'Desactivar código GENESIS01'}).click();
+    await expect(section.getByRole('button',{name:'Activar código GENESIS01'})).toBeVisible();
+    await expect(section.getByText('Ventas netas: $75.000')).toBeVisible();
+    expect(posted).toEqual([{action:'create_promoter',promoter_key:'PROMO001',code:'GENESIS01'},
+      {action:'set_promoter_active',id:1,active:false},{action:'set_promoter_active',id:1,active:true},
+      {action:'set_referral_active',id:1,code_id:2,active:false}]);
+  });
+}
