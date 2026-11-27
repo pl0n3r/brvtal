@@ -21,9 +21,6 @@ $payments=[
     ['id'=>1,'order_id'=>1,'status'=>'approved','provider'=>'wompi','provider_transaction_id'=>'TX-1',
      'gross_amount_cop'=>90000,'fee_amount_cop'=>3000,
      'fee_vat_cop'=>570,'withheld_amount_cop'=>0,'net_amount_cop'=>86430],
-    ['id'=>2,'order_id'=>1,'status'=>'approved','provider'=>'wompi','provider_transaction_id'=>'TX-2',
-     'gross_amount_cop'=>90000,'fee_amount_cop'=>9999,
-     'fee_vat_cop'=>0,'withheld_amount_cop'=>0,'net_amount_cop'=>0],
     ['id'=>3,'order_id'=>2,'status'=>'pending','provider'=>'wompi','provider_transaction_id'=>null,
      'gross_amount_cop'=>20000,'fee_amount_cop'=>null,
      'fee_vat_cop'=>null,'withheld_amount_cop'=>null,'net_amount_cop'=>null]
@@ -34,11 +31,16 @@ $s=$r[0];
 t20($s['approved_cop']===90000 && $s['gross_cop']===100000 && $s['discount_cop']===10000,
     'COP gross and discount are separate from approved net sales');
 t20($s['paid_orders']===1 && $s['pending_orders']===1 && $s['refunded_orders']===1
-    && $s['unverified_orders']===1,'duplicate webhook and unverified order not double counted');
+    && $s['unverified_orders']===1,'one proven sale and unverified order not counted');
 t20($s['fee_cop']===3000 && $s['fee_vat_cop']===570 && $s['payout_cop']===86430
     && $s['difference_cop']===0,'actual fee and VAT are read, not guessed');
 t20(count($s['transactions'])===1 && $s['transactions'][0]['transaction_id']==='TX-1',
-    'one payment evidence for repeated approvals');
+    'one payment evidence for the sale');
+$duplicate=$payments[0]; $duplicate['id']=2; $duplicate['provider_transaction_id']='TX-2';
+$conflict=brvtalFinanceSummarize([$orders[0]],[$items[0]],[$payments[0],$duplicate])[0];
+t20($conflict['paid_orders']===0 && $conflict['unverified_orders']===1
+    && $conflict['transactions']===[] && $conflict['net_after_refunds_cop']===null,
+    'two approved receipts are not an arbitrary first sale');
 t20($s['capacity']===null && $s['checkins']===null,'optional operational fields unknown without database');
 t20($s['expenses_cop']===null && $s['profit_cop']===null
     && $s['settlement_status']==='unverified','no invented profitability or reconciliation');
@@ -128,12 +130,16 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
                 created_at_utc DATETIME(6) NOT NULL) ENGINE=InnoDB',
             'CREATE TABLE ticket_order_items (
                 order_id INT NOT NULL,ticket_type_id INT NOT NULL,quantity INT NOT NULL,
-                subtotal_cop BIGINT NOT NULL,ticket_name_snapshot VARCHAR(120) NOT NULL DEFAULT "") ENGINE=InnoDB',
+                subtotal_cop BIGINT NOT NULL,ticket_name_snapshot VARCHAR(120) NOT NULL DEFAULT "",
+                event_id INT,unit_price_cop BIGINT) ENGINE=InnoDB',
             'CREATE TABLE ticket_payment_attempts (
                 id INT PRIMARY KEY,order_id INT NOT NULL,provider VARCHAR(20) NOT NULL,
                 provider_transaction_id VARCHAR(30),status VARCHAR(20) NOT NULL,
                 gross_amount_cop BIGINT,fee_amount_cop BIGINT,fee_vat_cop BIGINT,
-                withheld_amount_cop BIGINT,net_amount_cop BIGINT) ENGINE=InnoDB',
+                withheld_amount_cop BIGINT,net_amount_cop BIGINT,provider_reference VARCHAR(40)) ENGINE=InnoDB',
+            'CREATE TABLE ticket_payment_webhook_events (
+                attempt_id INT PRIMARY KEY,provider_transaction_id VARCHAR(30)) ENGINE=InnoDB',
+            'CREATE TABLE ticket_courtesy_invites (order_id INT NOT NULL) ENGINE=InnoDB',
             'CREATE TABLE ticket_pos_shifts (
                 id INT PRIMARY KEY,event_id INT NOT NULL,operator_admin_id INT NOT NULL
                 ) ENGINE=InnoDB',
@@ -142,17 +148,27 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
                 operator_admin_id INT NOT NULL,order_id INT NOT NULL,
                 ticket_type_id INT NOT NULL,quantity INT NOT NULL,amount_cop BIGINT NOT NULL,
                 method VARCHAR(20),status VARCHAR(20) NOT NULL,
-                completed_at_utc DATETIME(6)) ENGINE=InnoDB',
+                completed_at_utc DATETIME(6),unit_price_cop BIGINT) ENGINE=InnoDB',
             "INSERT INTO ticket_orders VALUES
                 (41,1,'paid',10000,'COP',UTC_TIMESTAMP(6)),
                 (42,2,'paid',20000,'COP',UTC_TIMESTAMP(6))",
             'INSERT INTO ticket_order_items (order_id,ticket_type_id,quantity,subtotal_cop) VALUES (41,7,1,10000),(42,7,1,20000)',
-            "INSERT INTO ticket_payment_attempts VALUES
+            "INSERT INTO ticket_payment_attempts (id,order_id,provider,provider_transaction_id,status,gross_amount_cop,fee_amount_cop,fee_vat_cop,withheld_amount_cop,net_amount_cop) VALUES
                 (51,41,'wompi','WOMPI-41','approved',10000,300,57,0,9643)",
             'INSERT INTO ticket_pos_shifts VALUES (1,2,7)',
-            "INSERT INTO ticket_pos_sales VALUES
+            "INSERT INTO ticket_pos_sales (id,shift_id,event_id,operator_admin_id,order_id,ticket_type_id,quantity,amount_cop,method,status,completed_at_utc) VALUES
                 (61,1,2,7,42,7,1,20000,'cash','paid',UTC_TIMESTAMP(6))",
         ] as $sql) $db->exec($sql);
+        // Synthetic journal and line/price proof expected by the canonical classifier.
+        $completeProof=static function () use ($db): void {
+            $db->exec("UPDATE ticket_payment_attempts SET provider_reference=CONCAT('FIXTURE-',id)");
+            $db->exec("INSERT IGNORE INTO ticket_payment_webhook_events
+                SELECT id,provider_transaction_id FROM ticket_payment_attempts WHERE status='approved'");
+            $db->exec("UPDATE ticket_order_items i JOIN ticket_orders o ON o.id=i.order_id
+                SET i.event_id=o.event_id,i.unit_price_cop=i.subtotal_cop DIV i.quantity");
+            $db->exec("UPDATE ticket_pos_sales SET unit_price_cop=amount_cop DIV quantity");
+        };
+        $completeProof();
         t20(brvtalFinanceReport($db,1,null,null,'pos')===[],
             'POS channel excludes Wompi-only event without generating IN ()');
         t20(brvtalFinanceReport($db,2,null,null,'wompi')===[],
@@ -196,7 +212,7 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
             (45,3,'paid',30000,'COP','2026-11-20 04:59:59.999999'),
             (46,3,'paid',40000,'COP','2026-11-20 05:00:00.000000')");
         $db->exec('INSERT INTO ticket_order_items (order_id,ticket_type_id,quantity,subtotal_cop) VALUES (43,7,1,10000),(44,7,1,20000),(45,7,1,30000),(46,7,1,40000)');
-        $db->exec("INSERT INTO ticket_payment_attempts VALUES
+        $db->exec("INSERT INTO ticket_payment_attempts (id,order_id,provider,provider_transaction_id,status,gross_amount_cop,fee_amount_cop,fee_vat_cop,withheld_amount_cop,net_amount_cop) VALUES
             (53,43,'wompi','WOMPI-43','approved',10000,0,0,0,10000),
             (54,44,'wompi','WOMPI-44','approved',20000,0,0,0,20000),
             (55,45,'wompi','WOMPI-45','approved',30000,0,0,0,30000),
@@ -208,6 +224,7 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
             (75,44,3,2000,'2026-11-19 05:00:00.000000'),
             (76,44,3,3000,'2026-11-20 04:59:59.999999'),
             (77,44,3,4000,'2026-11-20 05:00:00.000000')");
+        $completeProof();
         $cut=brvtalFinanceReport($db,3,'2026-11-19','2026-11-19','wompi')[0];
         t20($cut['paid_orders']===2 && $cut['gross_cop']===50000
             && $cut['approved_cop']===50000 && $cut['refund_cop']===6000
@@ -221,30 +238,32 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
         $db->exec("INSERT INTO ticket_orders VALUES
             (47,4,'paid',20000,'COP',UTC_TIMESTAMP(6)),(48,4,'paid',30000,'COP',UTC_TIMESTAMP(6)),
             (49,4,'paid',10000,'COP',UTC_TIMESTAMP(6)),(50,4,'paid',40000,'COP',UTC_TIMESTAMP(6)),
-            (51,4,'paid',5000,'COP',UTC_TIMESTAMP(6))");
-        $db->exec("INSERT INTO ticket_order_items VALUES
+            (51,4,'paid',5000,'COP',UTC_TIMESTAMP(6)),(52,4,'paid',30000,'COP',UTC_TIMESTAMP(6))");
+        $db->exec("INSERT INTO ticket_order_items (order_id,ticket_type_id,quantity,subtotal_cop,ticket_name_snapshot) VALUES
             (47,8,2,20000,'General'),(48,9,3,30000,'VIP'),
-            (49,8,1,10000,'Preventa'),(50,9,4,40000,'VIP'),(51,8,1,5000,'')");
-        $db->exec("INSERT INTO ticket_payment_attempts VALUES
+            (49,8,1,10000,'Preventa'),(50,9,4,40000,'VIP'),(51,8,1,5000,''),(52,9,3,30000,'VIP')");
+        $db->exec("INSERT INTO ticket_payment_attempts (id,order_id,provider,provider_transaction_id,status,gross_amount_cop,fee_amount_cop,fee_vat_cop,withheld_amount_cop,net_amount_cop) VALUES
             (57,47,'wompi','W-47','approved',20000,0,0,0,20000),
             (58,48,'wompi',NULL,'pending',30000,NULL,NULL,NULL,NULL),
             (59,49,'wompi','W-49','approved',10000,0,0,0,10000),
             (60,50,'wompi','W-50','approved',40000,0,0,0,40000),
             (61,51,'wompi','W-51','approved',5000,0,0,0,5000)");
         $db->exec("INSERT INTO ticket_pos_shifts VALUES (2,4,7)");
-        $db->exec("INSERT INTO ticket_pos_sales VALUES
+        $db->exec("INSERT INTO ticket_pos_sales (id,shift_id,event_id,operator_admin_id,order_id,ticket_type_id,quantity,amount_cop,method,status,completed_at_utc) VALUES
             (62,2,4,7,48,9,3,30000,'cash','paid',UTC_TIMESTAMP(6)),
-            (63,2,4,7,50,9,4,40000,'cash','paid',UTC_TIMESTAMP(6))");
+            (63,2,4,7,50,9,4,40000,'cash','paid',UTC_TIMESTAMP(6)),
+            (64,2,4,7,52,9,3,30000,'cash','paid',UTC_TIMESTAMP(6))");
+        $completeProof();
         $all=brvtalFinanceReport($db,4,null,null,'all')[0];
         $wompi=brvtalFinanceReport($db,4,null,null,'wompi')[0];
         $cash=brvtalFinanceReport($db,4,null,null,'pos')[0];
         t20($all['approved_cop']===35000 && $all['pos_cop']===30000 && $all['tickets']===7
-            && $all['paid_orders']===4 && $all['unverified_orders']===1,'mixed sources count only verified sales');
+            && $all['paid_orders']===4 && $all['unverified_orders']===2,'mixed sources count only verified sales');
         t20($wompi['approved_cop']===35000 && $wompi['pos_cop']===0 && $wompi['tickets']===4
             && $cash['approved_cop']===0 && $cash['pos_cop']===30000 && $cash['tickets']===3,
-            'channel membership does not reattribute completed POS to an earlier pending Wompi attempt');
+            'pending Wompi plus POS remains a conflict, not a verified sale in either filter');
         foreach ([$all,$wompi,$cash] as $cohort) {
-            t20($cohort['unverified_orders']===1 && $cohort['refund_cop']===null
+            t20($cohort['unverified_orders']===2 && $cohort['refund_cop']===null
                 && $cohort['net_after_refunds_cop']===null,'both filters preserve conflicting evidence as UNKNOWN');
         }
         t20($all['types'][0]===['ticket_type_id'=>8,'quantity'=>4,'gross_cop'=>35000,
@@ -252,6 +271,60 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
             && $all['types'][1]===['ticket_type_id'=>9,'quantity'=>3,'gross_cop'=>30000,
             'ticket_names'=>['VIP'],'unnamed_quantity'=>0],
             'historical aliases and missing names grouped by ID without duplicate quantities');
+        // Check membership and complete evidence of the same orders, not just totals.
+        $candidates=$db->query('SELECT * FROM ticket_orders WHERE event_id=4 ORDER BY id')->fetchAll();
+        $evidence=brvtalFinanceChannelEvidence($db,$candidates);
+        $byOrder=$evidence['by_order'];
+        foreach (['all','wompi','pos'] as $channel) {
+            $selected=brvtalFinanceFilterOrders($candidates,$byOrder,$channel);
+            $selectedIds=array_map(intval(...),array_column($selected,'id'));
+            t20(in_array(48,$selectedIds,true) && in_array(50,$selectedIds,true),
+                'conflict remains in every relevant cohort');
+            foreach ([48,50] as $id) {
+                t20($byOrder[$id]['classification']['reason']==='channel_conflict'
+                    && count($byOrder[$id]['attempts'])===1 && count($byOrder[$id]['pos_sales'])===1,
+                    'all source rows survive filtering');
+            }
+        }
+        $db->exec("INSERT INTO ticket_payment_attempts (id,order_id,provider,provider_transaction_id,status,gross_amount_cop)
+            VALUES (62,47,'wompi','W-47-SECOND','approved',20000),(63,52,'other',NULL,'pending',30000)");
+        $completeProof();
+        $db->exec("INSERT INTO ticket_pos_sales (id,shift_id,event_id,operator_admin_id,order_id,ticket_type_id,
+            quantity,amount_cop,method,status,completed_at_utc,unit_price_cop)
+            VALUES (65,999,4,7,49,8,1,10000,'cash','pending',NULL,10000)");
+        $evidence=brvtalFinanceChannelEvidence($db,$candidates)['by_order'];
+        t20(count($evidence[47]['attempts'])===2
+            && $evidence[47]['classification']['reason']==='duplicate_wompi','duplicate retained');
+        t20($evidence[52]['classification']['reason']==='channel_conflict'
+            && $evidence[52]['attempts'][0]['provider']==='other','all providers retained');
+        t20($evidence[49]['classification']['reason']==='channel_conflict'
+            && count($evidence[49]['pos_sales'])===1,'incomplete POS not erased by join');
+        $db->exec('RENAME TABLE ticket_payment_webhook_events TO journal_unavailable');
+        $unknown=brvtalFinanceChannelEvidence($db,$candidates)['by_order'][51];
+        t20(!$unknown['availability']['wompi_events']
+            && $unknown['classification']['state']==='unavailable','missing signed journal is unknown');
+        foreach (['all','wompi'] as $channel) {
+            $unavailable=brvtalFinanceReport($db,4,null,null,$channel)[0];
+            t20($unavailable['paid_orders']===0 && $unavailable['net_after_refunds_cop']===null,
+                'missing proof never becomes verified zero');
+        }
+        $db->exec('RENAME TABLE journal_unavailable TO ticket_payment_webhook_events');
+        t20(brvtalFinanceReport($db,999,null,null,'all')===[],'empty universe');
+        // The 5000-order cap is applied to the universe, not only selected rows.
+        $oversized=[];
+        for ($id=1000; $id<6001; $id++) {
+            $oversized[]="($id,99,'pending',1000,'COP',UTC_TIMESTAMP(6))";
+        }
+        $db->exec('INSERT INTO ticket_orders VALUES '.implode(',',$oversized));
+        foreach (['all','wompi','pos'] as $channel) {
+            try {
+                brvtalFinanceReport($db,99,null,null,$channel);
+                throw new RuntimeException('T20: report limit bypassed by filter');
+            } catch (LengthException $e) {
+                t20($e->getMessage()==='REPORT_RANGE_TOO_LARGE','universe limit preserved');
+            }
+        }
+        $db->exec('DELETE FROM ticket_orders WHERE event_id=99');
         foreach ([['2026-02-30','2026-03-01'],['2026-11-20','2026-11-19']] as [$from,$to]) {
             try {
                 brvtalFinanceReport($db,3,$from,$to,'wompi');
