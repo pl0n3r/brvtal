@@ -229,5 +229,41 @@ $formsServer = new PDO($formsDsn, $formsUser, $formsPass, [PDO::ATTR_ERRMODE => 
 forms_migration_fixture($formsServer, $formsDsn, $formsUser, $formsPass);
 echo "BRVTAL forms-entry schema MariaDB integration passed.\n";
 
+// #2175: exercise the real additive DDL twice on a disposable pre-migration table.
+$doorDb = 'brvtal_test_door_' . bin2hex(random_bytes(6));
+$formsServer->exec('CREATE DATABASE ' . $doorDb . ' CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
+try {
+    $doorPdo = new PDO($formsDsn . ';dbname=' . $doorDb, $formsUser, $formsPass, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES => false,
+    ]);
+    $doorPdo->exec('CREATE TABLE event_ticket_types (id INT UNSIGNED PRIMARY KEY, price DECIMAL(12,2) NULL)');
+    $doorPdo->exec('INSERT INTO event_ticket_types (id,price) VALUES (1,20000),(2,35000)');
+    $doorMigration = 'migration_ticketing_door_price_01.sql';
+    $doorSql = (string)file_get_contents(__DIR__ . '/../../database/' . $doorMigration);
+    $doorProof = brvtalMigrationSchemaProof($doorPdo, $doorMigration);
+    migrations_it_assert(brvtalMigrationProofDisposition($doorMigration, $doorProof) === 'apply', 'door column absent');
+    brvtalMigrationAssertReconciliationSql($doorMigration, $doorSql, $doorProof);
+    $doorPdo->exec($doorSql);
+    migrations_it_assert(brvtalMigrationSchemaProof($doorPdo, $doorMigration)['complete'], 'door nullable unsigned INT proof');
+    migrations_it_assert((int)$doorPdo->query('SELECT COUNT(*) FROM event_ticket_types WHERE door_price_cop IS NULL')->fetchColumn() === 2,
+        'existing types default to NULL');
+    $doorPdo->exec('UPDATE event_ticket_types SET door_price_cop=50000 WHERE id=1');
+    $doorPdo->exec($doorSql);
+    migrations_it_assert((int)$doorPdo->query('SELECT door_price_cop FROM event_ticket_types WHERE id=1')->fetchColumn() === 50000,
+        'repeat DDL preserves explicit door tariff');
+    migrations_it_assert((int)$doorPdo->query('SELECT COUNT(*) FROM event_ticket_types WHERE id=2 AND door_price_cop IS NULL AND price=35000')->fetchColumn() === 1,
+        'repeat DDL preserves existing type and fallback');
+    migrations_it_assert(brvtalMigrationProofDisposition($doorMigration, brvtalMigrationSchemaProof($doorPdo, $doorMigration)) === 'baseline',
+        'repeated migration has complete proof');
+    define('BRVTAL_INVENTORY_PRICE_CONTRACT_ONLY', true);
+    require_once __DIR__ . '/ticketing-inventory.php';
+    inventoryChannelQuoteContract((int)$doorPdo->query('SELECT door_price_cop FROM event_ticket_types WHERE id=1')->fetchColumn());
+} finally {
+    $formsServer->exec('DROP DATABASE ' . $doorDb);
+}
+echo "BRVTAL door tariff migration and channel quote MariaDB integration passed.\n";
+
 // #1886: synthetic, isolated mail-template schema and transactional store tests.
 require __DIR__ . '/mail-template-store.php';
