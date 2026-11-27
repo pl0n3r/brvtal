@@ -13,7 +13,7 @@ foreach ([['event_id'=>'0'],['ticket_type_id'=>'1 OR 1=1'],['invite_id'=>'-1'],
 }
 // Interleave a writer immediately after totals, without timing-dependent sleeps.
 class CourtesySnapshotStatement extends PDOStatement {
-    protected function __construct(private Closure $afterTotals) {}
+    protected function __construct(private readonly Closure $afterTotals) {}
     public function execute(?array $params = null): bool {
         $ok = parent::execute($params);
         if (str_contains($this->queryString, 'GROUP BY effective_status')) {
