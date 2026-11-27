@@ -23,7 +23,9 @@ function brvtalBuyerAccountFilters(array $input): array
             throw new InvalidArgumentException('FILTER_INVALID');
         }
         $date = $value === '' ? null : DateTimeImmutable::createFromFormat(
-            '!Y-m-d', $value, new DateTimeZone('America/Bogota')
+            '!Y-m-d',
+            $value,
+            new DateTimeZone('America/Bogota')
         );
         if ($value !== '' && (!$date || $date->format('Y-m-d') !== $value)) {
             throw new InvalidArgumentException('FILTER_INVALID');

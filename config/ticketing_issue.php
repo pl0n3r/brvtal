@@ -339,8 +339,11 @@ function brvtal_ticket_issue_has_courtesy_table(PDO $db): bool
 /** Convert a Bogotá calendar boundary to a UTC SQL bound after adding the local day. */
 function brvtalBuyerAccountCalendarBound(DateTimeImmutable $date, bool $exclusiveEnd): string
 {
-    return ($exclusiveEnd ? $date->modify('+1 day')->setTime(0, 0) : $date)
-        ->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s');
+    if ($exclusiveEnd) {
+        // Reparse the next civil date at midnight; do not carry a DST-gap hour forward.
+        $date = new DateTimeImmutable($date->modify('+1 day')->format('Y-m-d') . ' 00:00:00', $date->getTimezone());
+    }
+    return $date->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s');
 }
 
 /**

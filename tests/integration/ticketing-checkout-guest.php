@@ -43,12 +43,21 @@ foreach ([
     guestRejects(fn()=>brvtalBuyerAccountFilters($invalidPeriod),'FILTER_INVALID','invalid calendar filter');
 }
 
-// Bogotá advanced its clock at midnight in 1992: the next day must
-// start at local midnight, not carry the normalized 01:00 forward.
+// Compare historical boundaries to independently parsed civil midnights.
+// Do not pin the historical offset: PHP builds can carry different tzdata.
 $historical = brvtalBuyerAccountFilters(['from'=>'1992-05-03','to'=>'1992-05-03']);
-guestAssert(brvtalBuyerAccountCalendarBound($historical['from'],false)==='1992-05-03 05:00:00'
-    && brvtalBuyerAccountCalendarBound($historical['to'],true)==='1992-05-04 04:00:00',
-    'historical civil-day offset transition');
+$bogota = new DateTimeZone('America/Bogota');
+$utc = new DateTimeZone('UTC');
+$expectedHistoricalStart = (new DateTimeImmutable('1992-05-03 00:00:00', $bogota))
+    ->setTimezone($utc)->format('Y-m-d H:i:s');
+$expectedHistoricalEnd = (new DateTimeImmutable('1992-05-04 00:00:00', $bogota))
+    ->setTimezone($utc)->format('Y-m-d H:i:s');
+$historicalStart = brvtalBuyerAccountCalendarBound($historical['from'],false);
+$historicalEnd = brvtalBuyerAccountCalendarBound($historical['to'],true);
+guestAssert($historicalStart === $expectedHistoricalStart,
+    'historical start ' . $historicalStart . ' vs ' . $expectedHistoricalStart);
+guestAssert($historicalEnd === $expectedHistoricalEnd,
+    'historical exclusive end ' . $historicalEnd . ' vs ' . $expectedHistoricalEnd);
 
 // Same-origin rule (no session, no CSRF token).
 $_SERVER['HTTP_HOST'] = 'www.brvtal.com.co';
