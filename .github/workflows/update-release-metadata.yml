@@ -477,6 +477,10 @@ jobs:
 
       - name: Run canonical MariaDB integration suite
         run: npm run test:integration
+      - name: Run marked MariaDB integration tests
+        run: |
+          python3 scripts/ci_self_audit.py
+          php scripts/run-marked-integration-tests.php
       - name: Contact capture (MariaDB, synthetic)
         run: php tests/integration/forms-contact-capture.php
       - name: Forms admin read API (MariaDB, synthetic HTTP)
