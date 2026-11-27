@@ -170,4 +170,103 @@ reconcileAssert($db->query('SELECT status FROM ticket_payment_attempts WHERE id=
     && $count('SELECT COUNT(*) FROM ticket_issue_outbox WHERE order_id=43') === 0, 'confirmed money without inventory never issues');
 reconcileAssert(brvtal_wompi_reconcile_next($db, $config, $wompi([])) === 'idle', 'confirmed attempt never replayed');
 
+// #2276: exercise the actual additive DDL and the registered structural proof.
+require_once __DIR__ . '/../../config/migrations.php';
+require_once __DIR__ . '/../../config/migration_reconcile.php';
+$migration = 'migration_zz_ticketing_wompi_reconcile_01.sql';
+$migrationSql = (string)file_get_contents(__DIR__ . '/../../database/' . $migration);
+brvtalMigrationAssertAdditiveSql($migrationSql);
+$schemaProof = static fn(): array => brvtalMigrationSchemaProof($db, $migration);
+$applySchema = static function () use ($db, $migrationSql): void {
+    foreach (explode(';', (string)preg_replace('/^\h*--[^\r\n]*$/m', '', $migrationSql)) as $statement) {
+        if (trim($statement) !== '') $db->exec($statement);
+    }
+};
+$financialSnapshot = static fn(): array => [
+    $db->query('SELECT * FROM ticket_orders ORDER BY id')->fetchAll(),
+    $db->query('SELECT * FROM ticket_payment_attempts ORDER BY id')->fetchAll(),
+];
+$beforeSchema = $financialSnapshot();
+reconcileAssert(brvtalMigrationProofDisposition($migration, $schemaProof()) === 'apply', 'lease schema fully absent');
+$applySchema();
+reconcileAssert(brvtalMigrationProofDisposition($migration, $schemaProof()) === 'baseline', 'registered proof complete');
+$applySchema();
+reconcileAssert($schemaProof()['complete'] && $financialSnapshot() === $beforeSchema, 'idempotent DDL preserves orders and attempts');
+reconcileAssert($count('SELECT COUNT(*) FROM ticket_wompi_reconcile_claims') === 0
+    && $count('SELECT COUNT(*) FROM ticket_wompi_reconcile_budget') === 0, 'migration does not seed coordination rows');
+$db->exec('DROP TABLE ticket_wompi_reconcile_budget');
+reconcileAssert(brvtalMigrationProofDisposition($migration, $schemaProof()) === 'blocked', 'partial schema fails closed');
+$applySchema();
+reconcileAssert($schemaProof()['complete'], 'both disposable tables restored');
+$columns = $db->query("SELECT TABLE_NAME,COLUMN_NAME,DATA_TYPE,COLUMN_TYPE,IS_NULLABLE
+    FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE()
+    AND TABLE_NAME IN ('ticket_wompi_reconcile_claims','ticket_wompi_reconcile_budget')")->fetchAll();
+$columnMap = [];
+foreach ($columns as $column) $columnMap[$column['TABLE_NAME']][$column['COLUMN_NAME']] = $column;
+$claims = $columnMap['ticket_wompi_reconcile_claims'];
+$budget = $columnMap['ticket_wompi_reconcile_budget'];
+reconcileAssert(count($claims) === 5 && count($budget) === 3
+    && $claims['attempt_id']['DATA_TYPE'] === 'bigint'
+    && str_contains($claims['attempt_id']['COLUMN_TYPE'], 'unsigned')
+    && $budget['request_count']['DATA_TYPE'] === 'bigint', 'exact schema without duplicated personal fields');
+foreach (['attempt_id','environment','last_started_at_utc'] as $column) {
+    reconcileAssert($claims[$column]['IS_NULLABLE'] === 'NO', 'required claim field: ' . $column);
+}
+foreach ($budget as $column) {
+    reconcileAssert($column['IS_NULLABLE'] === 'NO', 'required budget field: ' . $column['COLUMN_NAME']);
+}
+reconcileAssert($count("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE()
+    AND TABLE_NAME IN ('ticket_wompi_reconcile_claims','ticket_wompi_reconcile_budget') AND ENGINE='InnoDB'") === 2, 'InnoDB coordination');
+$expiryIndex = $db->query("SELECT COLUMN_NAME FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE()
+    AND TABLE_NAME='ticket_wompi_reconcile_claims' AND INDEX_NAME='idx_wompi_claim_expiry'
+    ORDER BY SEQ_IN_INDEX")->fetchAll(PDO::FETCH_COLUMN);
+reconcileAssert($expiryIndex === ['environment','expires_at_utc'], 'environment-scoped expiry index');
+
+$rejectSchema = static function (string $sql, array $codes) use ($db): void {
+    try {
+        $db->exec($sql);
+    } catch (PDOException $error) {
+        reconcileAssert(in_array((int)($error->errorInfo[1] ?? 0), $codes, true), 'expected database constraint');
+        return;
+    }
+    throw new RuntimeException('WOMPI_RECONCILE: invalid coordination row accepted');
+};
+$db->exec("INSERT INTO ticket_wompi_reconcile_claims VALUES
+    (1,'sandbox','2026-01-01 00:00:00.000000',UNHEX(REPEAT('11',16)),'2026-01-01 00:01:00.000000'),
+    (2,'production','2026-01-01 00:00:00.000000',NULL,NULL)");
+$rejectSchema("INSERT INTO ticket_wompi_reconcile_claims VALUES
+    (1,'production','2026-01-01',NULL,NULL)", [1062]);
+$rejectSchema("INSERT INTO ticket_wompi_reconcile_claims VALUES
+    (999,'sandbox','2026-01-01',NULL,NULL)", [1452]);
+$rejectSchema("DELETE FROM ticket_payment_attempts WHERE id=1", [1451]);
+$rejectSchema("UPDATE ticket_wompi_reconcile_claims SET claim_id=NULL WHERE attempt_id=1", [4025]);
+$rejectSchema("UPDATE ticket_wompi_reconcile_claims SET expires_at_utc=NULL WHERE attempt_id=1", [4025]);
+$rejectSchema("UPDATE ticket_wompi_reconcile_claims SET expires_at_utc=last_started_at_utc WHERE attempt_id=1", [4025]);
+$rejectSchema("UPDATE ticket_wompi_reconcile_claims SET environment='invalid' WHERE attempt_id=1", [1265,4025]);
+$db->exec("INSERT INTO ticket_wompi_reconcile_budget(environment,window_started_at_utc) VALUES
+    ('sandbox','2026-01-01'),('production','2026-01-01')");
+$rejectSchema("INSERT INTO ticket_wompi_reconcile_budget VALUES ('sandbox','2026-01-01',0)", [1062]);
+$rejectSchema("UPDATE ticket_wompi_reconcile_budget SET request_count=-1 WHERE environment='sandbox'", [4025]);
+$rejectSchema("INSERT INTO ticket_wompi_reconcile_budget VALUES ('invalid','2026-01-01',0)", [1265,4025]);
+$db->exec("UPDATE ticket_wompi_reconcile_budget SET request_count=3 WHERE environment='sandbox'");
+reconcileAssert($count("SELECT request_count FROM ticket_wompi_reconcile_budget WHERE environment='sandbox'") === 3
+    && $count("SELECT request_count FROM ticket_wompi_reconcile_budget WHERE environment='production'") === 0, 'independent budget environments');
+// An expired lease can store a replacement identity; stale identity cannot release it.
+$identityUpdate = "UPDATE ticket_wompi_reconcile_claims
+    SET claim_id=UNHEX(REPEAT('22',16)),last_started_at_utc='2026-01-01 00:02:00',
+    expires_at_utc='2026-01-01 00:03:00'
+    WHERE attempt_id=1 AND environment='sandbox' AND claim_id=UNHEX(REPEAT('11',16))
+    AND expires_at_utc <= '2026-01-01 00:02:00'";
+reconcileAssert($db->exec($identityUpdate) === 1, 'expired identity can be replaced');
+reconcileAssert($db->exec("UPDATE ticket_wompi_reconcile_claims SET claim_id=NULL,expires_at_utc=NULL
+    WHERE attempt_id=1 AND environment='sandbox' AND claim_id=UNHEX(REPEAT('11',16))") === 0, 'stale identity cannot release replacement');
+reconcileAssert($db->exec("UPDATE ticket_wompi_reconcile_claims SET claim_id=NULL,expires_at_utc=NULL
+    WHERE attempt_id=1 AND environment='sandbox' AND claim_id=UNHEX(REPEAT('22',16))") === 1, 'matching identity can release');
+reconcileAssert($financialSnapshot() === $beforeSchema, 'coordination never alters financial timestamps or data');
+$applySchema();
+reconcileAssert($count('SELECT COUNT(*) FROM ticket_wompi_reconcile_claims') === 2
+    && $count("SELECT request_count FROM ticket_wompi_reconcile_budget WHERE environment='sandbox'") === 3,
+    'idempotent DDL preserves existing coordination rows');
+echo "BRVTAL #2276 Wompi coordination schema passed against disposable MariaDB.\n";
+
 echo "BRVTAL #1952 Wompi reconciliation passed against disposable MariaDB.\n";
