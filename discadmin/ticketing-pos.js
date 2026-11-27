@@ -459,7 +459,7 @@ export function mount(target) {
         credentials:'same-origin',cache:'no-store'});
       const payload=await response.json();
       if(!response.ok||payload.ok!==true||typeof payload.data?.enabled!=='boolean'
-        ||!payload.data.destinations||typeof payload.data.destinations!=='object')throw Error('NO_RECEIPT_CONFIG');
+        ||!payload.data.destinations||typeof payload.data.destinations!=='object')throw new Error('NO_RECEIPT_CONFIG');
       if(!active())return;
       const wasLoading=manualStatus.textContent===receiptConfigMessage;
       receiptConfig=payload.data;updateManualRef();

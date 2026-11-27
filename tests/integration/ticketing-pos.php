@@ -264,6 +264,13 @@ foreach(['migration_ticketing_reservations_01.sql','migration_ticketing_pos_01.s
     $sql=preg_replace('/^\s*--[^\n]*$/m','',$sql);
     foreach(array_filter(array_map(trim(...),explode(';',$sql))) as $statement) $db->exec($statement);
 }
+// POS 02 already has nullable outbox in this fixture; apply its exact terminal enum DDL.
+$pos02=(string)file_get_contents(__DIR__.'/../../database/migration_ticketing_pos_02.sql');
+$pos02=preg_replace('/^\s*--[^\n]*$/m','',$pos02);
+$terminalDdl=array_values(array_filter(array_map(trim(...),explode(';',$pos02)),
+    static fn(string $sql):bool=>str_starts_with($sql,'ALTER TABLE ticket_pos_sales')));
+posAssert(count($terminalDdl)===1,'canonical terminal migration available');
+$db->exec($terminalDdl[0]);
 $when=(new DateTimeImmutable('now',new DateTimeZone('America/Bogota')));
 $date=$when->modify('+8 days')->format('Y-m-d H:i:s');
 $doorClock=new DateTimeImmutable($date,new DateTimeZone('America/Bogota'));
