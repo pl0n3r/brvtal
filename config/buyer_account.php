@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/ticketing_issue.php';
+require_once __DIR__ . '/ticketing_admin_orders.php';
 
 /** Read-only account scope: all order/entry queries must bind the session buyer. */
 function brvtalBuyerAccountFilters(array $input): array
@@ -125,12 +126,11 @@ function brvtalBuyerAccountOrders(PDO $db, int $buyerId, array $f): array
     // Only expose a server-owned incident, never trust client cancellation flags.
     // No dependency on unapplied migration on ordinary production installations.
     $causeColumn=(getenv('BRVTAL_TICKET_REFUNDS_POLICY_ENABLED')==='1')
-        ? '(SELECT d.cause FROM ticket_refund_event_decisions d WHERE d.event_id=o.event_id) AS refund_cause,'
-        : 'NULL AS refund_cause,';
+        ? '(SELECT d.cause FROM ticket_refund_event_decisions d WHERE d.event_id=o.event_id) AS refund_cause'
+        : 'NULL AS refund_cause';
     $sql = 'SELECT o.id,LOWER(HEX(o.public_id)) AS public_id,o.event_id,e.title AS event_title,e.event_date,e.venue,
             o.status,o.total_cop,o.currency,o.created_at_utc,'
             .$causeColumn.'
-            (SELECT a.status FROM ticket_payment_attempts a WHERE a.order_id=o.id ORDER BY a.id DESC LIMIT 1) AS payment_status
             FROM ticket_orders o JOIN events e ON e.id=o.event_id WHERE '.implode(' AND ', $where).
             ' ORDER BY o.id DESC LIMIT 11 OFFSET ?';
     $stmt = $db->prepare($sql); $args[] = $f['page'] * 10;
@@ -142,27 +142,54 @@ function brvtalBuyerAccountOrders(PDO $db, int $buyerId, array $f): array
     if (!$orders) return ['orders'=>[],'has_more'=>false,'page'=>$f['page']] + $courtesies;
     $ids = array_map(static fn($row) => (int)$row['id'], $orders);
     $encryptedAvailable = brvtal_ticket_issue_has_encrypted_column($db);
-    $storedSql = $encryptedAvailable ? 'CASE WHEN c.token_encrypted IS NULL THEN 0 ELSE 1 END' : '0';
-    $items = $db->prepare('SELECT i.order_id,i.ticket_name_snapshot,i.quantity,
+    // EXISTS avoids multiplying entries by credential history.
+    $activeSql = "EXISTS (SELECT 1 FROM ticket_entry_credentials c WHERE c.entry_id=t.id AND c.status='active')";
+    $storedSql = $encryptedAvailable
+        ? "EXISTS (SELECT 1 FROM ticket_entry_credentials c WHERE c.entry_id=t.id AND c.status='active' AND c.token_encrypted IS NOT NULL)"
+        : '0';
+    $items = $db->prepare('SELECT i.id AS item_id,i.order_id,i.ticket_name_snapshot,i.quantity,
         LOWER(HEX(t.public_id)) AS ticket_id,t.status AS ticket_status,
-        CASE WHEN c.id IS NULL THEN 0 ELSE 1 END AS credential_active,
-        ' . $storedSql . ' AS qr_stored
+        ' . $activeSql . ' AS credential_active, ' . $storedSql . ' AS qr_stored
         FROM ticket_order_items i LEFT JOIN ticket_entries t ON t.order_item_id=i.id
-        LEFT JOIN ticket_entry_credentials c ON c.entry_id=t.id AND c.status=\'active\'
         WHERE i.order_id IN ('.implode(',',array_fill(0,count($ids),'?')).') ORDER BY i.id,t.unit_number');
     foreach ($ids as $i=>$id) $items->bindValue($i+1,$id,PDO::PARAM_INT);
     $items->execute();
-    $byOrder=[];
+    $lines = [];
     foreach ($items->fetchAll(PDO::FETCH_ASSOC) as $row) {
-        $byOrder[(int)$row['order_id']][] = [
-            'name'=>$row['ticket_name_snapshot'],'quantity'=>(int)$row['quantity'],
-            'ticket_id'=>$row['ticket_id'], 'status'=>$row['ticket_status'] ?? 'pending',
-            'qr_requires_original_token'=>(bool)$row['credential_active'],
-            'qr_stored'=>(bool)$row['qr_stored'],
+        $key = (int)$row['item_id'];
+        $lines[$key] ??= ['order_id'=>(int)$row['order_id'], 'name'=>$row['ticket_name_snapshot'],
+            'quantity'=>(int)$row['quantity'], 'entries'=>[]];
+        if ($row['ticket_id'] === null) continue;
+        $active = $row['ticket_status'] === 'issued' && (bool)$row['credential_active'];
+        $lines[$key]['entries'][] = [
+            'name'=>$row['ticket_name_snapshot'], 'quantity'=>1,
+            'ticket_id'=>$row['ticket_id'], 'status'=>$row['ticket_status'],
+            'qr_requires_original_token'=>$active, 'qr_stored'=>$active && (bool)$row['qr_stored'],
         ];
     }
+    $byOrder = [];
+    foreach ($lines as $line) {
+        $orderId = $line['order_id'];
+        foreach ($line['entries'] as $entry) $byOrder[$orderId][] = $entry;
+        $remaining = $line['quantity'] - count($line['entries']);
+        if ($remaining > 0) {
+            $byOrder[$orderId][] = ['name'=>$line['name'], 'quantity'=>$remaining,
+                'ticket_id'=>null, 'status'=>'pending', 'qr_requires_original_token'=>false, 'qr_stored'=>false];
+        }
+    }
+    $paymentSchema = brvtalTicketAdminPaymentSchema($db);
     foreach ($orders as &$order) {
-        $id=(int)$order['id']; unset($order['id']);
+        $id=(int)$order['id'];
+        // Reuse #2041 proof without exposing internal reasons or provider identifiers.
+        try {
+            $proof = brvtalTicketAdminPaymentEvidence($db, $order, $paymentSchema);
+        } catch (PDOException $e) {
+            if (!in_array($e->getCode(), ['42S02','42S22'], true)) throw $e;
+            $proof = ['channel'=>'unknown','state'=>'unavailable'];
+        }
+        $order['payment_channel'] = $proof['channel'];
+        $order['payment_status'] = $proof['state'];
+        unset($order['id']);
         // #1950: the buyer's own order number, the same one in the Wompi reference BW7-<n>-….
         $order['order_number']=$id;
         $order['total_cop']=(int)$order['total_cop'];
