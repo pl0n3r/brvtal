@@ -28,7 +28,8 @@ $groups = ['sale'=>'Venta', 'live'=>'En vivo', 'money'=>'Dinero', 'marketing'=>'
 $tabs = [
     'dashboard'=>['Resumen','view','sale'], 'orders'=>['Pedidos','orders','sale'],
     'entries'=>['Boletas','entries','sale'], 'buyers'=>['Compradores','buyers','sale'],
-    'door'=>['Puerta','door','live'], 'finance'=>['Finanzas','finance','money'],
+    'door'=>['Puerta','door','live'], 'courtesies'=>['Cortesías','courtesy','live'],
+    'finance'=>['Finanzas','finance','money'],
     'promos'=>['Cupones','promos','marketing'], 'promoters'=>['Promotores','promoters','marketing'],
     'recovery'=>['Recuperación','mail','marketing'], 'mail'=>['Correos','mail','marketing'],
 ];
@@ -55,7 +56,10 @@ try {
 }
 $e = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
 ?>
-<section class="ticketing" data-admin-module="ticketing" data-ticketing-role="<?= $e($role) ?>">
+<section class="ticketing" data-admin-module="ticketing" data-ticketing-role="<?= $e($role) ?>"
+    <?php if (brvtalTicketingCan($role, 'courtesy')): ?>
+    data-ticketing-csrf="<?= $e(brvtal_admin_csrf_token()) ?>"
+    <?php endif; ?>>
   <p class="ticketing-status">
     <span data-ticketing-sale-status><?= $e($saleText) ?></span>
     <span data-ticketing-mail-status><?= $e($mailText) ?></span>
