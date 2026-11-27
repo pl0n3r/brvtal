@@ -114,6 +114,16 @@ Producto: `pl0n3r/brvtal`
 - Proveedores: ninguno_declarado
 - Retención: `review_required`
 
+## contact_capture
+
+- Categoría: `contact`
+- Campos de software: `name`, `email`, `subject`, `message`, `entry_id`, `form_key`, `version_number`, `definition_sha256`, `idempotency_digest`, `created_at_utc`, `purpose_key`, `notice_version`, `retention_policy_key`, `retention_until_utc`, `state`, `redacted_at_utc`, `action_key`
+- Finalidad: `contact_capture`
+- Base documentada: `review_required` (revisión jurídica requerida)
+- Consentimiento: `review_required`
+- Proveedores: ninguno_declarado
+- Retención: `review_required`
+
 ## contact_delivery
 
 - Categoría: `contact`

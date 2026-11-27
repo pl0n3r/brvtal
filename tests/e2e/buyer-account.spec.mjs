@@ -263,3 +263,104 @@ test('failed legacy pass authorization never enables print',async ({page})=>{
   await expect(page.locator('#pass-details')).toBeHidden();
   await expect(page.locator('#print-pass')).toBeHidden();
 });
+
+
+// #2188: separate courtesy projection, actual base/candidate CSS and synthetic credentials.
+const courtesyBase={origin:'courtesy',event_id:91,event_title:'Invitación sintética',
+  event_date:'2026-12-12 21:00:00',venue:'Club sintético',name:'Acceso general',
+  created_at_utc:'2026-11-01 21:00:00',refundable:false};
+const courtesyRows=[
+  {...courtesyBase,status:'issued',ticket_id:'dddddddddddddddddddddddddddddddd',qr_stored:true},
+  {...courtesyBase,status:'revoked',ticket_id:'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',qr_stored:false},
+  {...courtesyBase,status:'used',ticket_id:'ffffffffffffffffffffffffffffffff',qr_stored:false},
+  {...courtesyBase,status:'expired',ticket_id:'11111111111111111111111111111111',qr_stored:false},
+  {...courtesyBase,status:'issued',ticket_id:'22222222222222222222222222222222',qr_stored:false},
+];
+for(const width of [390,1440]){
+  test(`#2188 separate courtesy and stored QR at ${width}px`,async ({page},testInfo)=>{
+    await page.setViewportSize({width,height:900});
+    const baseline=process.env.BRVTAL_COURTESY_VISUAL_BASE_DIR;
+    let source=baseline||root,deny=false;
+    const calls=[];
+    await page.route(url,route=>route.fulfill({contentType:'text/html',
+      body:readFileSync(join(source,'buyer/index.php'),'utf8')}));
+    for(const file of ['buyer-account.css','buyer-access.css']){
+      await page.route('**/css/'+file+'*',route=>route.fulfill({contentType:'text/css',
+        body:readFileSync(join(source,'css',file),'utf8')}));
+    }
+    await page.route('**/api/buyer/auth.php',route=>route.fulfill({contentType:'application/json',
+      body:JSON.stringify({ok:true,authenticated:true,csrf:'synthetic-csrf'})}));
+    await page.route('**/api/buyer/refunds.php',route=>route.fulfill({contentType:'application/json',
+      body:JSON.stringify({ok:true,data:[]})}));
+    await page.route('**/api/buyer/account.php**',route=>{
+      const request=route.request();
+      if(request.method()==='POST'){
+        calls.push(request.postDataJSON());
+        return route.fulfill({status:deny?404:200,contentType:'application/json',
+          body:JSON.stringify(deny?{ok:false}:{ok:true,qr:'BRVTAL:T1:'+courtesyRows[0].ticket_id+':'+'A'.repeat(43)})});
+      }
+      return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:{
+        orders:[],has_more:false,courtesies:courtesyRows,courtesies_has_more:false,page:0}})});
+    });
+    const capture=async stage=>{
+      await page.evaluate(async()=>{await document.fonts.ready;});
+      await testInfo.attach(`2188-${stage}-${width}.png`,{
+        body:await page.screenshot({fullPage:true,animations:'disabled'}),contentType:'image/png'});
+    };
+    if(baseline){
+      await page.goto(url);
+      await expect(page.getByRole('heading',{name:'Todavía no tienes compras'})).toBeVisible();
+      await expect(page.locator('#refund-items')).toContainText('Sin solicitudes');
+      await capture('before');
+      source=root;
+    }
+    await page.goto(url);
+    const section=page.getByRole('region',{name:'Tus cortesías'});
+    await expect(section).toBeVisible();
+    await expect(page.locator('#orders')).toContainText('No tienes compras');
+    await expect(section.getByText('Cortesía',{exact:true})).toHaveCount(5);
+    for(const state of ['Vigente','Usada','Anulada','Vencida'])await expect(section.getByText(state,{exact:true}).first()).toBeVisible();
+    await expect(section.getByRole('button',{name:'Ver QR'})).toHaveCount(1);
+    await expect(section.locator('article').filter({hasText:'Anulada'}).getByRole('button')).toHaveCount(0);
+    await expect(section).not.toContainText(/Pago:|Reembolso|Solicitar devolución|COP/);
+    await expect(page.locator('#event-select option[value="91"]')).toHaveText('Invitación sintética');
+    await section.getByRole('button',{name:'Ver QR'}).click();
+    await expect(page.locator('#qr-output svg')).toBeVisible();
+    await expect(page.getByLabel('Credencial original')).toBeHidden();
+    expect(calls).toEqual([{action:'qr_stored',ticket_id:courtesyRows[0].ticket_id}]);
+    expect(await page.locator('body').innerText()).not.toContain('A'.repeat(43));
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+    if(baseline)await capture('after');
+    deny=true;
+    await section.getByRole('button',{name:'Ver QR'}).click();
+    await expect(page.locator('#qr-feedback')).toContainText('No se pudo autorizar');
+    await expect(page.locator('#qr-output svg')).toHaveCount(0);
+    await expect(page.getByLabel('Credencial original')).toBeHidden();
+  });
+}
+
+test('#2188 courtesy-only pagination, filtering and empty state',async ({page})=>{
+  const queries=[];
+  await page.route(url,route=>route.fulfill({contentType:'text/html',body:html}));
+  await page.route('**/api/buyer/auth.php',route=>route.fulfill({contentType:'application/json',
+    body:JSON.stringify({ok:true,authenticated:true,csrf:'fake-csrf'})}));
+  await page.route('**/api/buyer/refunds.php',route=>route.fulfill({contentType:'application/json',body:'{"data":[]}'}));
+  await page.route('**/api/buyer/account.php**',route=>{
+    const q=new URL(route.request().url()).searchParams;queries.push(q);
+    const filtered=q.has('event_id'),next=q.get('page')==='1';
+    return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:{
+      orders:[],has_more:false,courtesies:filtered?[]:[courtesyRows[next?1:0]],
+      courtesies_has_more:!filtered&&!next}})});
+  });
+  await page.goto(url);
+  const section=page.getByRole('region',{name:'Tus cortesías'});
+  await expect(section.getByText('Vigente')).toBeVisible();
+  await page.getByRole('button',{name:'Ver más entradas'}).click();
+  await expect(section.getByText('Anulada')).toBeVisible();
+  expect(queries.some(q=>q.get('page')==='1')).toBe(true);
+  await page.locator('#event-select').selectOption('91');
+  await page.getByRole('button',{name:'Aplicar filtros'}).click();
+  await expect(section).toContainText('No tienes cortesías en esta vista.');
+  expect(queries.some(q=>q.get('event_id')==='91'&&q.get('page')==='0')).toBe(true);
+  await expect(page.locator('#qr-output')).toBeHidden();
+});
