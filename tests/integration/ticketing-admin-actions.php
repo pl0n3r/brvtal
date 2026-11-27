@@ -29,9 +29,10 @@ $server->exec("CREATE DATABASE {$dbName}");
 try {
     $db=new PDO("mysql:host={$host};port={$port};dbname={$dbName};charset=utf8mb4",$user,$pass,$opts);
     foreach([
-      'CREATE TABLE events (id INT UNSIGNED PRIMARY KEY,title VARCHAR(160) NOT NULL) ENGINE=InnoDB',
+      'CREATE TABLE events (id INT UNSIGNED PRIMARY KEY,title VARCHAR(160) NOT NULL,event_date DATETIME NOT NULL,status VARCHAR(30) NOT NULL DEFAULT "published",published_at DATETIME NULL) ENGINE=InnoDB',
       'CREATE TABLE event_ticket_types (id INT UNSIGNED PRIMARY KEY,event_id INT UNSIGNED NOT NULL) ENGINE=InnoDB',
       'CREATE TABLE admins (id INT UNSIGNED PRIMARY KEY) ENGINE=InnoDB',
+      'CREATE TABLE ticket_refund_event_decisions (event_id INT UNSIGNED PRIMARY KEY,cause VARCHAR(16) NOT NULL) ENGINE=InnoDB',
       'CREATE TABLE ticket_inventory_holds (order_id BIGINT UNSIGNED,status VARCHAR(20)) ENGINE=InnoDB',
       'CREATE TABLE ticket_mail_outbox (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,message_key VARCHAR(128) UNIQUE,payload_hash CHAR(64),related_ref VARCHAR(128),recipient_email VARCHAR(254),subject VARCHAR(255),body_text TEXT,body_html TEXT,template_key VARCHAR(64),template_version INT,provider_message_id VARCHAR(128),state VARCHAR(16) DEFAULT "queued",next_attempt_at DATETIME DEFAULT CURRENT_TIMESTAMP,created_at DATETIME DEFAULT CURRENT_TIMESTAMP,updated_at DATETIME DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB',
       'CREATE TABLE ticket_mail_history (id BIGINT AUTO_INCREMENT PRIMARY KEY,outbox_id BIGINT UNSIGNED UNIQUE,message_key VARCHAR(128) UNIQUE,template_key VARCHAR(64),recipient_hint VARCHAR(128),recipient_digest CHAR(64),event_id BIGINT UNSIGNED,buyer_id BIGINT UNSIGNED,order_id BIGINT UNSIGNED,ticket_id BIGINT UNSIGNED,actor_kind VARCHAR(16),resend_email_id VARCHAR(128),delivery_state VARCHAR(16),retention_until DATETIME,state_at DATETIME,created_at DATETIME DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB'
@@ -41,7 +42,12 @@ try {
             if(trim($part)!=='') $db->exec($part);
         }
     }
-    $db->exec("INSERT INTO events VALUES (6,'Synthetic'),(7,'Other')");
+    $eventStart=(new DateTimeImmutable('now',new DateTimeZone('America/Bogota')))
+        ->modify('-1 hour')->format('Y-m-d H:i:s');
+    $eventInsert=$db->prepare("INSERT INTO events(id,title,event_date) VALUES (?, ?, ?)");
+    $eventInsert->execute([6,'Synthetic',$eventStart]);
+    $eventInsert->execute([7,'Other',$eventStart]);
+    $db->exec('INSERT INTO admins(id) VALUES (7)');
     $db->exec("INSERT INTO event_ticket_types VALUES (11,6),(12,7)");
     $db->exec("INSERT INTO ticket_buyers(id,public_id,email) VALUES (3,UNHEX(LPAD('3',32,'0')),'buyer@example.test')");
     foreach ([91=>'pending',92=>'paid',93=>'pending',94=>'paid'] as $orderId=>$status) {
@@ -196,6 +202,23 @@ try {
     $reject(fn()=>$invoke($resend),'MAIL_PAYLOAD_NOT_RECOVERABLE');
     actionAssert($snapshot()===$before,'no current recoverable credential leaves no side effects');
     $db->exec("UPDATE ticket_entries SET status='issued' WHERE order_item_id={$id} AND unit_number IN (1,2)");
+    $db->exec("UPDATE events SET event_date='2000-01-01 00:00:00' WHERE id=6");
+    $before=$snapshot();
+    $reject(fn()=>$invoke($resend),'MAIL_PAYLOAD_NOT_RECOVERABLE');
+    actionAssert($before===$snapshot(),'expired account access leaves no side effects');
+    $db->prepare('UPDATE events SET event_date=? WHERE id=6')->execute([$eventStart]);
+    $db->exec("CREATE TRIGGER fixture_enqueue_failure BEFORE INSERT ON ticket_mail_outbox
+        FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='SYNTHETIC_ENQUEUE_FAILURE'");
+    try {
+        $before=$snapshot();
+        try {
+            $invoke($resend);
+            throw new RuntimeException('failed enqueue committed');
+        } catch (PDOException $error) {
+            actionAssert($error->getCode()==='45000','controlled enqueue failure');
+        }
+        actionAssert($before===$snapshot(),'failed enqueue rolls back action and outbox');
+    } finally { $db->exec('DROP TRIGGER fixture_enqueue_failure'); }
     $durable=static function() use ($db): string {
         $tables=['ticket_orders','ticket_order_items','ticket_entries','ticket_entry_credentials',
             'ticket_inventory_holds','ticket_payment_attempts','ticket_issue_outbox'];
@@ -224,8 +247,31 @@ try {
             && !str_contains($plain,'BRVTAL:T1:') && !str_contains($plain,'token=')
             && !str_contains($plain,'obsolete'),'account-only link, no old bearer');
     }
-    // A later revocation cannot turn this version-independent account URL into a QR.
-    $db->exec("UPDATE ticket_entries SET status='revoked' WHERE order_item_id={$id} AND unit_number IN (1,2)");
+    // Use the real reissue/account/check-in services after enqueue, not a
+    // second handcrafted QR or a provider call. The queued link remains safe.
+    require_once __DIR__.'/../../config/buyer_account.php';
+    require_once __DIR__.'/../../config/public_visibility.php';
+    define('BRVTAL_T19_LIBRARY_ONLY',true);
+    require_once __DIR__.'/../../api/ticketing/admin-entries.php';
+    $db->exec("UPDATE ticket_buyers SET consent_version='fixture',consent_recorded_at=UTC_TIMESTAMP(6) WHERE id=3");
+    $db->exec("INSERT INTO ticket_buyers(id,public_id,email,status,email_verified_at)
+        VALUES (4,UNHEX(LPAD('4',32,'0')),'other@example.test','active',UTC_TIMESTAMP(6))");
+    $ticketId=(string)$db->query("SELECT LOWER(HEX(public_id)) FROM ticket_entries WHERE id={$first}")->fetchColumn();
+    $priorQr=brvtalBuyerAccountStoredQr($db,3,$ticketId)['content'];
+    $reject(fn()=>brvtalBuyerAccountStoredQr($db,4,$ticketId),'TICKET_UNAVAILABLE');
+    $rotation=brvtalTicketAdminEntryMutation($db,$first,7,'superadmin','reissue','buyer_request',str_repeat('r',32));
+    $currentQr=brvtalBuyerAccountStoredQr($db,3,$ticketId)['content'];
+    actionAssert($rotation['qr']===$currentQr && $priorQr!==$currentQr,'current account QR follows actual rotation');
+    $priorToken=explode(':',$priorQr)[3];
+    $reject(fn()=>brvtalBuyerAccountQr($db,3,$ticketId,$priorToken),'TICKET_UNAVAILABLE');
+    $scan=static fn(string $qr)=>brvtalTicketCheckinConsume($db,6,7,'fixture-2101',$qr);
+    actionAssert($scan($priorQr)['reason']==='credential_revoked','old QR fails at admission');
+    actionAssert($scan($currentQr)['ok'],'current QR admits once');
+    actionAssert($scan($currentQr)['reason']==='already_used','duplicate scan denied');
+    $reject(fn()=>brvtalBuyerAccountStoredQr($db,3,$ticketId),'TICKET_UNAVAILABLE');
+    // Revoke the remaining recoverable unit; the version-independent account
+    // URL still carries no bearer and cannot grant access to either QR.
+    $db->exec("UPDATE ticket_entries SET status='revoked' WHERE order_item_id={$id} AND unit_number=2");
     $sent=brvtal_ticket_resend_send($copies[1],static function(array $payload,array $headers): array {
         actionAssert($payload['to']===['buyer@example.test'],'mock transport recipient');
         foreach (['text','html'] as $field) {

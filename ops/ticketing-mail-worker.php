@@ -80,7 +80,7 @@ function brvtal_ticket_mail_worker_state(string $stage, mixed $value): string
         'reconcile' => ['idle','skipped','not_found','not_approved','approved',
             'approved_unfulfilled','duplicate','stale_pending','unavailable'],
         'issue' => ['idle','issued','duplicate','waiting','unavailable'],
-        'state' => ['idle','accepted','retry','failed','uncertain','lease_lost','unavailable'],
+        'state' => ['idle','accepted','suppressed','retry','failed','uncertain','lease_lost','unavailable'],
         default => [],
     };
     if ($stage === 'issue' && preg_match('/^failed:[A-Z][A-Z0-9_]{2,63}$/D', $value)) {
@@ -135,7 +135,7 @@ function brvtal_ticket_mail_worker_cycle(
     }
     $ok = in_array($output['reconcile'], ['idle','approved','duplicate'], true)
         && in_array($output['issue'], ['idle','issued','duplicate'], true)
-        && in_array($output['state'], ['idle','accepted'], true);
+        && in_array($output['state'], ['idle','accepted','suppressed'], true);
     return ['output' => $output, 'exit_code' => $ok ? 0 : 1];
 }
 

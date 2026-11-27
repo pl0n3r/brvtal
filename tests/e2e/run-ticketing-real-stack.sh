@@ -10,7 +10,8 @@ if [[ "${1:-}" != --inside ]]; then
   trap 'docker image rm "$image" >/dev/null 2>&1 || true; rm -rf "$scratch"' EXIT
   # Export only tracked source, not local config, .env, Git credentials or uploads.
   mkdir "$scratch/source"
-  git archive HEAD config api database ops templates partials scripts index.php tests/e2e | tar -x -C "$scratch/source"
+  git archive HEAD config api database ops templates partials scripts index.php tests/e2e \
+    discadmin/ticketing-door.php discadmin/ticketing-door.js discadmin/ticketing-door.css | tar -x -C "$scratch/source"
   [[ ! -e "$scratch/source/config/config.php" ]] || exit 1
   promo_path=tests/e2e/ticketing-promos-real-stack.spec.mjs
   tracked_promo="$(git ls-tree --name-only HEAD -- "$promo_path")"
@@ -22,14 +23,18 @@ if [[ "${1:-}" != --inside ]]; then
     echo 'T31_PROMO_STACK_NOT_PRESENT: no promo evidence'
   fi
   cat > "$scratch/Dockerfile" <<'DOCKERFILE'
+FROM node:22-bookworm-slim AS browser
+RUN npm install --prefix /opt/t31-browser --ignore-scripts --no-audit --no-fund --save-exact playwright-core@1.63.0
 FROM php:8.5-cli-bookworm
-RUN apt-get update && apt-get install -y --no-install-recommends mariadb-server mariadb-client nodejs openssl libcurl4-openssl-dev libonig-dev ca-certificates \
+COPY --from=browser /usr/local/bin/node /usr/local/bin/node
+COPY --from=browser /opt/t31-browser /opt/t31-browser
+RUN apt-get update && apt-get install -y --no-install-recommends mariadb-server mariadb-client openssl libcurl4-openssl-dev libonig-dev ca-certificates chromium libnss3-tools \
     && docker-php-ext-install curl pdo_mysql mbstring && rm -rf /var/lib/apt/lists/*
 DOCKERFILE
   docker build --pull -q -t "$image" "$scratch" >/dev/null
   for scenario in "${scenarios[@]}"; do
     docker run --rm --network none --read-only --security-opt no-new-privileges \
-      --pids-limit 192 --memory 1536m --cpus 2 \
+      --pids-limit 384 --memory 2048m --cpus 2 \
       --add-host sandbox.wompi.co:127.0.0.1 \
       --mount "type=bind,source=$scratch/source,target=/source,readonly" \
       --tmpfs /tmp:rw,exec,mode=1777 --tmpfs /fixture:rw,mode=0700 \
@@ -90,7 +95,7 @@ sed -e "s/CREATE DATABASE IF NOT EXISTS brvtal /CREATE DATABASE IF NOT EXISTS $D
 for migration in content_core_01 releases_01 seo_01 integration_secrets_01 ticketing_orders_01 buyer_auth_tokens_01 \
   ticketing_reservations_01 ticketing_stages_01 ticketing_promos_01 ticketing_waitlist_01 \
   ticketing_entries_01 ticket_entry_secret_01 ticketing_webhook_01 ticketing_refund_events_01 \
-  ticketing_mail_outbox_01 ticket_mail_html_01 mail_templates_01 ticketing_mail_history_01; do
+  ticketing_mail_outbox_01 ticket_mail_html_01 mail_templates_01 ticketing_mail_history_01 totp_foundation; do
   "${root[@]}" "$DB_NAME" < "database/migration_$migration.sql"
 done
 cat > config/config.php <<'PHP'
@@ -120,12 +125,22 @@ $pdo->exec('INSERT INTO ticket_inventory_types(ticket_type_id,event_id,capacity)
 $q=$pdo->prepare("INSERT INTO ticket_buyers(public_id,email,full_name,password_hash,email_verified_at,status)
  VALUES(RANDOM_BYTES(16),?,?,?,UTC_TIMESTAMP(6),'active')");
 foreach (['buyer','other'] as $name) $q->execute([$name.'@example.test',$name,password_hash('T31 fixture password only!',PASSWORD_DEFAULT)]);
+// Staff identities only; every ticket and credential still originates from checkout.
+$staff=$pdo->prepare('INSERT INTO admins(email,password_hash,name,staff_role,is_active) VALUES(?,?,?,?,1)');
+foreach (['door-a'=>'door','door-b'=>'door','no-door'=>'viewer'] as $name=>$role) {
+    $staff->execute([$name.'@example.test',password_hash('T31 staff fixture only!',PASSWORD_DEFAULT),$name,$role]);
+}
 PHP
 openssl req -x509 -newkey rsa:2048 -sha256 -nodes -days 1 -subj '/CN=T31 Ephemeral CA' -keyout /fixture/ca.key -out /fixture/ca.pem >/dev/null 2>&1
 openssl req -newkey rsa:2048 -sha256 -nodes -subj '/CN=sandbox.wompi.co' -keyout /fixture/server.key -out /fixture/server.csr >/dev/null 2>&1
 printf 'subjectAltName=DNS:sandbox.wompi.co,DNS:localhost,IP:127.0.0.1\n' > /fixture/san.ext
 openssl x509 -req -in /fixture/server.csr -CA /fixture/ca.pem -CAkey /fixture/ca.key -CAcreateserial \
   -days 1 -sha256 -extfile /fixture/san.ext -out /fixture/server.pem >/dev/null 2>&1
+# Trust only the ephemeral CA in the isolated browser profile; never ignore TLS errors.
+export HOME=/tmp/t31-browser-home
+mkdir -p "$HOME/.pki/nssdb"
+certutil -N --empty-password -d "sql:$HOME/.pki/nssdb"
+certutil -A -d "sql:$HOME/.pki/nssdb" -n T31-fixture-CA -t 'C,,' -i /fixture/ca.pem
 cat > /fixture/router.php <<'PHP'
 <?php
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
@@ -133,10 +148,33 @@ if ($_SERVER['REMOTE_ADDR'] !== '127.0.0.1' || ($_SERVER['HTTP_X_FIXTURE_TLS'] ?
     http_response_code(403); exit;
 }
 $_SERVER['HTTPS']='on';
-if (!in_array($path, ['/index.php','/api/buyer/auth.php','/api/buyer/account.php','/api/ticketing/webhook-wompi.php'], true)) {
+if ($path === '/t31-door-fixture') {
+    header('Content-Type: text/html; charset=utf-8');
+    echo <<<'HTML'
+<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="/discadmin/ticketing-door.css"><main id="fixture"></main>
+<script type="module">
+import {mount} from '/discadmin/ticketing-door.js';
+const fragment = await fetch('/discadmin/ticketing-door.php', {headers:{'X-Brvtal-Admin-Fragment':'1'}});
+if (!fragment.ok) throw new Error('door fixture unavailable');
+document.getElementById('fixture').innerHTML = await fragment.text();
+mount(document.querySelector('[data-door]'));
+</script></html>
+HTML;
+    exit;
+}
+$assets=['/discadmin/ticketing-door.js'=>'text/javascript','/discadmin/ticketing-door.css'=>'text/css'];
+if (isset($assets[$path])) {
+    header('Content-Type: '.$assets[$path]);
+    readfile('/tmp/app'.$path); exit;
+}
+if (!in_array($path, ['/index.php','/api/buyer/auth.php','/api/buyer/account.php','/api/ticketing/webhook-wompi.php',
+    '/api/index.php/auth','/api/ticketing/checkin.php','/discadmin/ticketing-door.php'], true)) {
     http_response_code(404); exit;
 }
-$_SERVER['SCRIPT_FILENAME']='/tmp/app'.$path;
+$script=$path==='/api/index.php/auth'?'/api/index.php':$path;
+$_SERVER['SCRIPT_NAME']=$script;
+$_SERVER['SCRIPT_FILENAME']='/tmp/app'.$script;
 require $_SERVER['SCRIPT_FILENAME'];
 PHP
 # Real cycle and real mail adapter, with only its outbound transport captured.
@@ -162,7 +200,7 @@ $cycle=brvtal_ticket_mail_worker_cycle(
 echo json_encode($cycle['output'],JSON_THROW_ON_ERROR);
 exit($cycle['exit_code']);
 PHP
-php -d curl.cainfo=/fixture/ca.pem -d session.save_path=/tmp/sessions -S 127.0.0.1:8080 -t /tmp/app /fixture/router.php >/fixture/php.log 2>&1 &
+PHP_CLI_SERVER_WORKERS=4 php -d curl.cainfo=/fixture/ca.pem -d session.save_path=/tmp/sessions -S 127.0.0.1:8080 -t /tmp/app /fixture/router.php >/fixture/php.log 2>&1 &
 php_pid=$!
 node tests/e2e/wompi-provider-fixture.mjs >/fixture/provider.log 2>&1 &
 provider_pid=$!
@@ -175,5 +213,11 @@ fi
 if ! grep -Fxq "ok 1 - $test_name" /fixture/test.tap; then
   echo "T31_SCENARIO_RECEIPT_MISSING: $2" >&2
   exit 1
+fi
+if [[ "$2" == checkout ]]; then
+  grep -Fxq '# T31_CHECKIN_STACK_PASS: issued QR, real door, concurrent audit, mobile negatives' /fixture/test.tap || {
+    echo 'T31_CHECKIN_RECEIPT_MISSING' >&2; exit 1;
+  }
+  echo 'T31_CHECKIN_STACK_PASS: issued QR, real door, concurrent audit, mobile negatives'
 fi
 echo "T31_SCENARIO_PASS: $2"

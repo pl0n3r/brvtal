@@ -355,14 +355,23 @@ function brvtalTicketAdminRecordOrderAction(PDO $pdo, int $actorId, string $role
                 throw new DomainException('MAIL_PAYLOAD_NOT_RECOVERABLE');
             }
             $projection = brvtalTicketAdminRecoveryProjection(
-                $pdo,$actorId,$role,$orderId,(int)$order['event_id'],$recipient);
-            if (!in_array('recoverable',array_column($projection['entries'],'state'),true)) {
+                $pdo, $actorId, $role, $orderId, (int)$order['event_id'], $recipient
+            );
+            if (!in_array('recoverable', array_column($projection['entries'], 'state'), true)) {
                 throw new DomainException('MAIL_PAYLOAD_NOT_RECOVERABLE');
             }
-            $q = $pdo->prepare('SELECT title FROM events WHERE id=?');
+            $q = $pdo->prepare('SELECT title,event_date FROM events WHERE id=?');
             $q->execute([(int)$order['event_id']]);
-            $event = $q->fetchColumn();
-            if (!is_string($event) || trim($event)==='') {
+            $event = $q->fetch(PDO::FETCH_ASSOC);
+            $date = (string)($event['event_date'] ?? '');
+            $start = DateTimeImmutable::createFromFormat(
+                '!Y-m-d H:i:s', $date, new DateTimeZone('America/Bogota')
+            );
+            // Same +1 day cutoff enforced by buyer QR retrieval. Never queue
+            // a recovery that the authenticated account already cannot fulfill.
+            if (!$event || trim((string)$event['title']) === '' || !$start
+                || $start->format('Y-m-d H:i:s') !== $date
+                || $start->modify('+1 day') <= new DateTimeImmutable('now', new DateTimeZone('UTC'))) {
                 throw new DomainException('MAIL_PAYLOAD_NOT_RECOVERABLE');
             }
             $mode = (string)brvtal_secret_value('BRVTAL_TICKET_MAIL_MODE');
@@ -384,13 +393,21 @@ function brvtalTicketAdminRecordOrderAction(PDO $pdo, int $actorId, string $role
             // Account access checks the current buyer, order and credential at
             // retrieval time even if the entry changes after this transaction.
             $mail = brvtal_ticket_mail_render('payment_approved', [
-                'event'=>$event,'link'=>'https://www.brvtal.com.co/buyer/',
-                'order_number'=>$orderId,
-            ],$pdo);
-            $outboxId = brvtal_ticket_mail_enqueue($pdo,$mailKey,'order:'.$orderId,
-                $recipient,$mail['subject'],brvtalBuyerMailSeal($mail['text'],50000),
-                brvtalBuyerMailSeal($mail['html'],50000),
-                $mail['template_key'],$mail['template_version']);
+                'event' => $event['title'],
+                'link' => 'https://www.brvtal.com.co/buyer/',
+                'order_number' => $orderId,
+            ], $pdo);
+            $outboxId = brvtal_ticket_mail_enqueue(
+                $pdo,
+                $mailKey,
+                'order:'.$orderId,
+                $recipient,
+                $mail['subject'],
+                brvtalBuyerMailSeal($mail['text'], 50000),
+                brvtalBuyerMailSeal($mail['html'], 50000),
+                $mail['template_key'],
+                $mail['template_version']
+            );
             brvtal_mail_history_record($pdo,$outboxId,[
                 'event_id'=>(int)$order['event_id'],'buyer_id'=>(int)$order['buyer_id'],
                 'order_id'=>$orderId,'template_key'=>'payment_approved',

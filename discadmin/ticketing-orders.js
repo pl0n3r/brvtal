@@ -317,9 +317,13 @@ export async function mount(panel, initialKind = 'orders') {
       const alert=document.createElement('div');
       alert.className='tk-order-stalled';alert.setAttribute('role','alert');
       const p=document.createElement('p');
-      p.textContent=stalled===2?'La emisión de boletas falló. Programa un nuevo intento.'
-        :stalled===3?'El último correo no se entregó. Puedes solicitar acceso a Mi cuenta para recuperar las boletas vigentes.'
-        :'El pago no se completó. Comprueba su estado antes de actuar.';
+      if(stalled===2) {
+        p.textContent='La emisión de boletas falló. Programa un nuevo intento.';
+      } else if(stalled===3) {
+        p.textContent='El último correo no se entregó. Puedes solicitar acceso a Mi cuenta para recuperar las boletas vigentes.';
+      } else {
+        p.textContent='El pago no se completó. Comprueba su estado antes de actuar.';
+      }
       alert.append(p);
       if(stalled===2) addIssueRetry(alert,id,issue);
       if(stalled===3 && paid){
