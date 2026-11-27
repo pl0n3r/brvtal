@@ -104,14 +104,18 @@ function brvtalSettlementRollback(PDO $db, int $actorId, int $id): void
 /** #2198: amounts are integers from durable evidence, not estimates. */
 function brvtalSettlementMoney(mixed $value): ?int
 {
-    if (!is_int($value) && !is_string($value)) return null;
+    if (!is_int($value) && !is_string($value)) {
+        return null;
+    }
     $number = filter_var($value, FILTER_VALIDATE_INT);
     return $number === false ? null : $number;
 }
 
 function brvtalSettlementAdd(?int $a, ?int $b): ?int
 {
-    if ($a === null || $b === null) return null;
+    if ($a === null || $b === null) {
+        return null;
+    }
     $sum = $a + $b;
     return is_int($sum) ? $sum : null;
 }
@@ -126,7 +130,9 @@ function brvtalSettlementProject(array $lines, array $evidence): array
         $groups[$ref][] = $line;
     }
     $proofs = [];
-    foreach ($evidence as $row) $proofs[(string)$row['reference']][] = $row;
+    foreach ($evidence as $row) {
+        $proofs[(string)$row['reference']][] = $row;
+    }
     $result = [];
     foreach ($groups as $ref => $rows) {
         $totals = array_fill_keys($keys, 0);
@@ -134,7 +140,9 @@ function brvtalSettlementProject(array $lines, array $evidence): array
         $proof = count($matches) === 1 ? $matches[0] : null;
         $expected = array_fill_keys($keys, null);
         if ($proof !== null) {
-            foreach ($keys as $key) $expected[$key] = brvtalSettlementMoney($proof[$key] ?? null);
+            foreach ($keys as $key) {
+                $expected[$key] = brvtalSettlementMoney($proof[$key] ?? null);
+            }
         }
         $invalid = false;
         foreach ($rows as $line) {
@@ -144,33 +152,49 @@ function brvtalSettlementProject(array $lines, array $evidence): array
                 $totals[$key] = brvtalSettlementAdd($totals[$key], $values[$key]);
             }
             foreach (['fee_cop','fee_vat_cop','withheld_cop'] as $key) {
-                if ($values[$key] !== null && $values[$key] < 0) $invalid = true;
+                if ($values[$key] !== null && $values[$key] < 0) {
+                    $invalid = true;
+                }
             }
-            if ($values['adjustment_cop'] !== null && $values['adjustment_cop'] !== 0) $invalid = true;
+            if ($values['adjustment_cop'] !== null && $values['adjustment_cop'] !== 0) {
+                $invalid = true;
+            }
             if ($proof !== null && $values['gross_cop'] !== null
                 && (($proof['kind'] === 'payment' && $values['gross_cop'] <= 0)
-                || ($proof['kind'] === 'refund' && $values['gross_cop'] >= 0))) $invalid = true;
-            if (in_array(null, $values, true)) continue;
+                || ($proof['kind'] === 'refund' && $values['gross_cop'] >= 0))) {
+                $invalid = true;
+            }
+            if (in_array(null, $values, true)) {
+                continue;
+            }
             $net = $values['gross_cop'] - $values['fee_cop'] - $values['fee_vat_cop']
                 - $values['withheld_cop'] + $values['adjustment_cop'];
-            if ($net !== $values['credited_cop']) $invalid = true;
+            if ($net !== $values['credited_cop']) {
+                $invalid = true;
+            }
         }
         $difference = $expected['credited_cop'] === null || $totals['credited_cop'] === null
             ? null : brvtalSettlementMoney($totals['credited_cop'] - $expected['credited_cop']);
         $status = 'pending';
-        if ($invalid || count($matches) > 1) $status = 'discrepancy';
-        elseif ($proof !== null && !in_array(null,$expected,true) && !in_array(null,$totals,true)) {
+        if ($invalid || count($matches) > 1) {
+            $status = 'discrepancy';
+        } elseif ($proof !== null && !in_array(null, $expected, true) && !in_array(null, $totals, true)) {
             $expectedNet = $expected['gross_cop'] - $expected['fee_cop'] - $expected['fee_vat_cop']
                 - $expected['withheld_cop'] + $expected['adjustment_cop'];
             $compatible = $expectedNet === $expected['credited_cop'];
             foreach ($keys as $key) {
-                $compatible = $compatible && $totals[$key] >= min(0,$expected[$key])
-                    && $totals[$key] <= max(0,$expected[$key]);
+                $compatible = $compatible && $totals[$key] >= min(0, $expected[$key])
+                    && $totals[$key] <= max(0, $expected[$key]);
             }
-            if (!$compatible) $status = 'discrepancy';
-            elseif ($totals === $expected) $status = 'reconciled';
-            elseif (abs($totals['gross_cop']) < abs($expected['gross_cop'])) $status = 'partial';
-            else $status = 'discrepancy';
+            if (!$compatible) {
+                $status = 'discrepancy';
+            } elseif ($totals === $expected) {
+                $status = 'reconciled';
+            } elseif (abs($totals['gross_cop']) < abs($expected['gross_cop'])) {
+                $status = 'partial';
+            } else {
+                $status = 'discrepancy';
+            }
         }
         $result[] = ['reference'=>(string)$ref,'kind'=>$proof['kind']??null,
             'source_id'=>$proof['source_id']??null,'order_id'=>$proof['order_id']??null,'status'=>$status,
@@ -189,11 +213,13 @@ function brvtalSettlementProject(array $lines, array $evidence): array
  */
 function brvtalSettlementReconcile(PDO $db, int $actorId): array
 {
-    return brvtalSettlementTransaction($db,$actorId,static function () use ($db): array {
+    return brvtalSettlementTransaction($db, $actorId, static function () use ($db): array {
         $lines = $db->query("SELECT l.*,s.payout_reference,s.file_sha256,s.imported_by,s.imported_at_utc
             FROM ticket_settlement_lines l JOIN ticket_settlements s ON s.id=l.settlement_id
             WHERE s.status='imported' ORDER BY l.id")->fetchAll(PDO::FETCH_ASSOC);
-        if (!$lines) return [];
+        if (!$lines) {
+            return [];
+        }
         $active = "EXISTS (SELECT 1 FROM ticket_settlement_lines l JOIN ticket_settlements s
             ON s.id=l.settlement_id WHERE s.status='imported' AND l.transaction_reference=BINARY ";
         $verified = "a.provider='wompi' AND a.status IN ('approved','refunded')
@@ -201,7 +227,8 @@ function brvtalSettlementReconcile(PDO $db, int $actorId): array
             AND o.status IN ('paid','refunded') AND EXISTS (SELECT 1 FROM ticket_payment_webhook_events w
             WHERE w.attempt_id=a.id AND w.provider_transaction_id=a.provider_transaction_id
             AND w.signed_status='APPROVED')";
-        $payments = $db->query("SELECT a.provider_transaction_id AS reference,'payment' AS kind,a.id AS source_id,a.order_id,
+        $payments = $db->query("SELECT a.provider_transaction_id AS reference,'payment' AS kind,
+            a.id AS source_id,a.order_id,
             a.gross_amount_cop AS gross_cop,a.fee_amount_cop AS fee_cop,a.fee_vat_cop,
             a.withheld_amount_cop AS withheld_cop,0 AS adjustment_cop,a.net_amount_cop AS credited_cop
             FROM ticket_payment_attempts a JOIN ticket_orders o ON o.id=a.order_id
@@ -214,7 +241,8 @@ function brvtalSettlementReconcile(PDO $db, int $actorId): array
             WHERE r.status='refunded' AND x.order_id=r.order_id AND x.event_id=r.event_id
             AND r.event_id=o.event_id AND x.amount_cop=r.amount_cop AND x.amount_cop>0
             AND x.amount_cop<=o.total_cop AND $active r.provider_refund_id)
-            AND 1=(SELECT COUNT(*) FROM ticket_payment_attempts a WHERE a.order_id=o.id AND $verified)")->fetchAll(PDO::FETCH_ASSOC);
-        return brvtalSettlementProject($lines,array_merge($payments,$refunds));
+            AND 1=(SELECT COUNT(*) FROM ticket_payment_attempts a WHERE a.order_id=o.id AND $verified)")
+            ->fetchAll(PDO::FETCH_ASSOC);
+        return brvtalSettlementProject($lines, array_merge($payments, $refunds));
     });
 }
