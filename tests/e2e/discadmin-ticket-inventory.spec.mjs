@@ -21,7 +21,7 @@ const inventory = {
   ] },
 };
 
-async function open(page, { failWith = null, eventId = 7, data = inventory } = {}) {
+async function open(page, { failWith = null, eventId = 7, data = inventory, forbidden = false } = {}) {
   await page.route('**/discadmin/inventory-fixture.html', route => route.fulfill({
     contentType: 'text/html',
     body: `<!doctype html><html lang="es"><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style></head>
@@ -32,12 +32,13 @@ async function open(page, { failWith = null, eventId = 7, data = inventory } = {
   let current = structuredClone(data);
   await page.route('**/api/ticketing/admin-inventory.php**', async route => {
     const request = route.request();
+    if (forbidden) return route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'FORBIDDEN' }) });
     if (request.method() === 'POST') {
       posts.push({ body: request.postDataJSON(), csrf: request.headers()['x-csrf-token'] });
       if (failWith) return route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ ok: false, error: failWith }) });
       const body = request.postDataJSON();
       current = { ...current, capacity: body.capacity, types: current.types.map(type => ({
-        ...type, capacity: body.types.find(row => row.ticket_type_id === type.ticket_type_id)?.capacity ?? type.capacity })) };
+        ...type, ...body.types.find(row => row.ticket_type_id === type.ticket_type_id) })) };
     }
     return route.fulfill({ contentType: 'application/json', body: JSON.stringify(current) });
   });
@@ -53,16 +54,16 @@ async function open(page, { failWith = null, eventId = 7, data = inventory } = {
 test('muestra aforo, cupo y uso por boleta y guarda con CSRF', async ({ page }, testInfo) => {
   for (const [width, height] of [[1440, 900], [390, 844]]) {
     await page.setViewportSize({ width, height });
-    await page.goto('about:blank');
-    await page.setContent(`<style>${css}</style><body data-admin-module="content-core"><div class="wrap"><div class="section"><div class="sectionhead"><strong>Boletas</strong></div><div id="tickets"></div></div></div></body>`);
-    await testInfo.attach(`antes-${width}`, { body: await page.screenshot(), contentType: 'image/png' });
+    // Before: actual editor block in #1942 artifact 14853823258 (identical base module/CSS).
+    // Capture the changed block at the same viewport sizes, not a shell without the editor.
     await open(page);
     const block = page.locator('[data-ticket-inventory]');
     await expect(block.getByRole('heading', { name: 'Cupo para venta en línea' })).toBeVisible();
     await expect(block.getByLabel('Aforo total del evento')).toHaveValue('');
     await expect(block.getByText('En uso: 5')).toBeVisible();
-    await expect(block.getByLabel('VIP')).toHaveValue('20');
-    await expect(block.locator('[data-ticket-type="11"]')).toContainText('Vendidas 3 · Reservadas 0 · Cortesías 4');
+    await expect(block.getByLabel('VIP', { exact: true })).toHaveValue('20');
+    await expect(block.getByLabel('Cupo de cortesías de VIP')).toHaveValue('4');
+    await expect(block.locator('[data-ticket-type="11"]')).toContainText('Cortesías: presupuesto 4 · consumidas 0 · saldo 4');
     await expect(block.locator('[data-ticket-type="11"] .ticket-inventory-state')).toHaveText('Se vende en línea');
     await expect(block.locator('[data-ticket-type="10"] .ticket-inventory-state')).toHaveText('Sin cupo');
     await expect(block.locator('[data-ticket-type="12"] .ticket-inventory-state')).toHaveText('Boleta no activa · Sin cupo');
@@ -76,23 +77,32 @@ test('muestra aforo, cupo y uso por boleta y guarda con CSRF', async ({ page }, 
   const posts = await open(page);
   const block = page.locator('[data-ticket-inventory]');
   await block.getByLabel('Aforo total del evento').fill('300');
-  await block.getByLabel('Preventa').fill('200');
-  await expect(block.locator('[data-ticket-type="10"] .ticket-inventory-state')).toHaveText('Se vende en línea');
+  const capacity = block.getByLabel('Preventa', { exact: true });
+  await capacity.fill('200');
+  await capacity.focus();
+  await page.keyboard.press('Tab');
+  const courtesy = block.getByLabel('Cupo de cortesías de Preventa');
+  await expect(courtesy).toBeFocused();
+  await courtesy.fill('12');
+  await expect(block.locator('[data-ticket-type="10"] .ticket-inventory-state')).toHaveText('Cupo sin guardar');
   await block.getByRole('button', { name: 'Guardar cupo' }).click();
   await expect(page.locator('.ticket-inventory-status')).toHaveText('Cupo guardado.');
   expect(posts).toEqual([{ csrf: 'csrf-fixture', body: { capacity: 300, types: [
-    { ticket_type_id: 10, capacity: 200 }, { ticket_type_id: 11, capacity: 20 }, { ticket_type_id: 12, capacity: 0 }] } }]);
-  await expect(page.getByLabel('Preventa')).toHaveValue('200');
+    { ticket_type_id: 10, capacity: 200, courtesy_capacity: 12 }, { ticket_type_id: 11, capacity: 20, courtesy_capacity: 4 },
+    { ticket_type_id: 12, capacity: 0, courtesy_capacity: 0 }] } }]);
+  await expect(page.getByLabel('Preventa', { exact: true })).toHaveValue('200');
+  await expect(page.getByLabel('Cupo de cortesías de Preventa')).toHaveValue('12');
+  await expect(page.locator('[data-ticket-type="10"]')).toContainText('Cortesías: presupuesto 12 · consumidas 0 · saldo 12');
 });
 
 test('explica el rechazo del servidor y valida números antes de enviar', async ({ page }) => {
   const posts = await open(page, { failWith: 'INVENTORY_BELOW_USAGE' });
   const block = page.locator('[data-ticket-inventory]');
-  await block.getByLabel('VIP').fill('1');
+  await block.getByLabel('VIP', { exact: true }).fill('1');
   await block.getByRole('button', { name: 'Guardar cupo' }).click();
   await expect(block.locator('.ticket-inventory-status')).toHaveText('El cupo no puede ser menor que lo ya vendido o reservado.');
   await expect(block.getByRole('button', { name: 'Guardar cupo' })).toBeEnabled();
-  await block.getByLabel('VIP').fill('2.5');
+  await block.getByLabel('Cupo de cortesías de VIP').fill('2.5');
   await block.getByRole('button', { name: 'Guardar cupo' }).click();
   await expect(block.locator('.ticket-inventory-status')).toHaveText('Usa números enteros entre 0 y 100.000.');
   expect(posts).toHaveLength(1);
@@ -108,5 +118,21 @@ test('#1939: con todo listo dice «Venta en línea: lista»', async ({ page }) =
 test('un evento sin guardar no muestra cupo editable', async ({ page }) => {
   await open(page, { eventId: 0 });
   await expect(page.locator('[data-ticket-inventory]')).toContainText('Guarda el evento para configurar el cupo.');
+  await expect(page.getByRole('button', { name: 'Guardar cupo' })).toHaveCount(0);
+});
+
+test('cortesías: consumo confirmado, rechazo y permiso', async ({ page }) => {
+  const data = structuredClone(inventory);
+  data.types[1].courtesy_used = 3;
+  const posts = await open(page, { data, failWith: 'INVENTORY_COURTESY_BELOW_USAGE' });
+  const row = page.locator('[data-ticket-type="11"]');
+  await expect(row).toContainText('Cortesías: presupuesto 4 · consumidas 3 · saldo 1');
+  await row.getByLabel('Cupo de cortesías de VIP').fill('2');
+  await page.getByRole('button', { name: 'Guardar cupo' }).click();
+  await expect(page.locator('.ticket-inventory-status')).toHaveText('El cupo de cortesías no puede ser menor que las cortesías consumidas.');
+  await expect(row).toContainText('Cortesías: presupuesto 4 · consumidas 3 · saldo 1');
+  expect(posts).toHaveLength(1);
+  await open(page, { forbidden: true });
+  await expect(page.locator('.ticket-inventory-status')).toHaveText('Solo un superadmin puede editar el cupo.');
   await expect(page.getByRole('button', { name: 'Guardar cupo' })).toHaveCount(0);
 });
