@@ -3,6 +3,8 @@ declare(strict_types=1);
 require_once __DIR__.'/../config/bootstrap.php';
 require_once __DIR__.'/../config/public_abuse_guard.php';
 require_once __DIR__.'/../config/form_entries.php';
+// The required bootstrap loads and validates this configuration.
+/** @var array<string, mixed> $config */
 header('Cache-Control: no-store');
 $method = (string)($_SERVER['REQUEST_METHOD'] ?? '');
 if (!in_array($method, ['GET','POST'], true)) {
