@@ -104,6 +104,7 @@ for migration in content_core_01 releases_01 seo_01 integration_secrets_01 ticke
   ticketing_mail_outbox_01 ticket_mail_html_01 mail_templates_01 ticketing_mail_history_01 totp_foundation; do
   "${root[@]}" "$DB_NAME" < "database/migration_$migration.sql"
 done
+"${root[@]}" "$DB_NAME" < database/migration_zz_ticketing_wompi_reconcile_01.sql
 if [[ "$2" == resend ]]; then
   "${root[@]}" "$DB_NAME" < database/migration_ticketing_order_notes_01.sql
 fi
@@ -117,6 +118,8 @@ return [
 PHP
 export BRVTAL_TICKET_WOMPI_MODE=sandbox BRVTAL_TICKET_WOMPI_PUBLIC_KEY=pub_test_fixture_only
 export BRVTAL_TICKET_WOMPI_PRIVATE_KEY=prv_test_fixture_only_123456
+# Fixture policy only, never a provider quota.
+export BRVTAL_TICKET_WOMPI_RECONCILE_REQUESTS_PER_MINUTE=1 BRVTAL_TICKET_WOMPI_RECONCILE_MAX_IN_FLIGHT=1
 export BRVTAL_TICKET_WOMPI_INTEGRITY_SECRET=test_integrity_fixture_only BRVTAL_TICKET_WOMPI_EVENTS_SECRET=test_events_fixture_only
 export BRVTAL_TICKET_WOMPI_ENABLED_METHODS=CARD BRVTAL_TICKET_WOMPI_RETURN_URL=https://brvtal.invalid/return
 export BRVTAL_TICKET_MAIL_MODE=mock BRVTAL_TICKET_MAIL_TESTING=1 BRVTAL_TICKET_MAIL_API_KEY=fixture_only
@@ -183,7 +186,7 @@ if (isset($assets[$path])) {
     readfile('/tmp/app'.$path); exit;
 }
 $routes=['/index.php','/api/buyer/auth.php','/api/buyer/account.php','/api/ticketing/webhook-wompi.php',
-    '/api/index.php/auth','/api/ticketing/checkin.php','/discadmin/ticketing-door.php'];
+    '/api/index.php/auth','/api/ticketing/checkin.php','/discadmin/ticketing-door.php','/api/ticketing/order-status.php'];
 if (getenv('BRVTAL_T31_RECOVERY') === '1') $routes=array_merge($routes,
     ['/api/ticketing/admin-actions.php','/api/ticketing/admin-entries.php']);
 if (!in_array($path,$routes,true)) {

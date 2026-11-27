@@ -684,13 +684,15 @@ function brvtal_public_ticket_checkout_refreshed_status(PDO $db, mixed $order): 
     if (!in_array($order['status'], ['draft','pending'], true)) return (string)$order['status'];
     try {
         require_once __DIR__ . '/ticketing_wompi_reconcile.php';
-        // A public trigger never queries Wompi more than once every 10 s per attempt.
-        $open = $db->prepare("SELECT id FROM ticket_payment_attempts
-            WHERE order_id=? AND provider='wompi' AND status IN ('created','pending')
-              AND updated_at_utc <= UTC_TIMESTAMP(6) - INTERVAL 10 SECOND ORDER BY id DESC LIMIT 1");
-        $open->execute([(int)$order['id']]);
+        // Worker and public confirmation share the same lease and due predicate.
+        $config = brvtal_ticket_wompi_config();
+        $open = $db->prepare("SELECT a.id FROM ticket_payment_attempts a
+            LEFT JOIN ticket_wompi_reconcile_claims c ON c.attempt_id=a.id
+            WHERE a.order_id=? AND (c.environment IS NULL OR c.environment=?) AND "
+            . brvtal_wompi_reconcile_due_sql() . " ORDER BY a.id DESC LIMIT 1");
+        $open->execute([(int)$order['id'],$config['mode']]);
         $attempt = $open->fetchColumn();
-        if ($attempt !== false) brvtal_wompi_reconcile_attempt($db, (int)$attempt);
+        if ($attempt !== false) brvtal_wompi_reconcile_attempt($db, (int)$attempt, $config);
         $again = $db->prepare('SELECT status FROM ticket_orders WHERE id=?');
         $again->execute([(int)$order['id']]);
         return (string)$again->fetchColumn();
