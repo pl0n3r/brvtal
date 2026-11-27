@@ -10,6 +10,41 @@ function payoutLabel(row) {
 }
 const make = (tag, text) => { const el=document.createElement(tag); if(text!==undefined) el.textContent=String(text); return el; };
 
+
+const discrepancyReasons=new Map([
+  ['duplicate_wompi','Cobros Wompi distintos'],['channel_conflict','Conflicto entre canales'],
+  ['invalid_pos','Evidencia POS inválida'],['invalid_wompi','Evidencia Wompi inválida'],
+  ['invalid_courtesy','Cortesía inconsistente'],['paid_without_proof','Pago sin evidencia suficiente'],
+  ['pos_schema_missing','Registro POS no disponible'],['pos_refunded','Devolución POS sin acreditar'],
+  ['wompi_ledger_missing','Registro Wompi no disponible'],['courtesy_schema_missing','Registro de cortesías no disponible']
+]);
+function discrepancyList(incidents) {
+  const section=make('div');
+  section.append(make('h4','Incidencias de pago'));
+  if (!Array.isArray(incidents)) {section.append(make('p','Sin dato'));return section;}
+  if (!incidents.length) {section.append(make('p','No hay incidencias registradas.'));return section;}
+  const list=make('ul');
+  for (const item of incidents) {
+    const entry=make('li');
+    const title=make('strong','Pedido #'+item.order_id+' — '+(discrepancyReasons.get(item.reason)||'Revisar evidencia'));
+    const state=item.state==='unavailable'?'Evidencia no disponible':'Discrepancia';
+    entry.append(title,make('p',state+'. Revisar el pedido antes de conciliar.'));
+    entry.append(make('p','Importe Wompi autenticado (no suma ingresos): '+cash(item.authenticated_cop)
+      +' · Intentos sin acreditar: '+quantity(item.unproven_attempts)));
+    if (Array.isArray(item.wompi_receipts)&&item.wompi_receipts.length) {
+      const receipts=make('ul');
+      for (const receipt of item.wompi_receipts) {
+        const line=make('li','Transacción '+receipt.transaction_id+' · '+cash(receipt.gross_cop));
+        line.style.overflowWrap='anywhere';receipts.append(line);
+      }
+      entry.append(receipts);
+    }
+    list.append(entry);
+  }
+  section.append(list);
+  return section;
+}
+
 const categoryLabels={artistas:'Artistas',lugar:'Lugar',produccion:'Producción',publicidad:'Publicidad',logistica:'Logística',otros:'Otros'};
 const ledgerStatus={committed:'Comprometido',paid:'Pagado',active:'Vigente',void:'Anulado'};
 const ledgerEndpoint='/api/ticketing/admin-finances.php';
@@ -197,7 +232,10 @@ export async function mount(panel) {
           const td=make('td',value);td.dataset.label=label;tr.append(td);
         }
         const detailCell=make('td');detailCell.dataset.label='Detalle';
-        const details=make('details'),summary=make('summary','Ver desglose');
+        const incidents=row.discrepancies;
+        const count=Array.isArray(incidents)?incidents.length:0;
+        const details=make('details'),summary=make('summary',count
+          ?'Ver desglose · '+count+(count===1?' incidencia':' incidencias'):'Ver desglose');
         const list=make('ul');
         for (const [label,value] of [
           ['Bruto histórico',cash(row.gross_cop)],['Descuentos',cash(row.discount_cop)],
@@ -218,7 +256,7 @@ export async function mount(panel) {
         list.append(make('li','Referencias de transacciones: '+(transactions.length
           ? transactions.map(x=>String(x.transaction_id||'Sin referencia')).join('; ')
           : 'Sin registros')));
-        details.append(summary,list);detailCell.append(details);tr.append(detailCell);
+        details.append(summary,discrepancyList(incidents),list);detailCell.append(details);tr.append(detailCell);
       }
       results.append(table);
     }
