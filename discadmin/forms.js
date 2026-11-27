@@ -34,6 +34,14 @@ window.BRVTALForms = (() => {
     copy.append(node('strong',title),node('span',description));
     li.append(copy,button(label,action)); return li;
   }
+  async function csrfToken(controller) {
+    const token = typeof csrf !== 'undefined' ? csrf : '';
+    if (token) return token;
+    const auth = await fetch('/api/index.php/auth',{credentials:'same-origin',cache:'no-store',signal:controller.signal});
+    const session = await auth.json();
+    if (!auth.ok || session.authenticated!==true || !session.csrf) throw new Error('AUTH_REQUIRED');
+    return session.csrf;
+  }
   function mount(root) {
     const status = root.querySelector('[data-forms-status]');
     const content = root.querySelector('[data-forms-content]');
@@ -74,14 +82,6 @@ window.BRVTALForms = (() => {
         status.textContent = 'No fue posible consultar formularios. Intenta de nuevo.';
         content.append(button('Reintentar',retry));
       }
-    }
-    async function csrfToken(controller) {
-      const token = typeof csrf !== 'undefined' ? csrf : '';
-      if (token) return token;
-      const auth = await fetch('/api/index.php/auth',{credentials:'same-origin',cache:'no-store',signal:controller.signal});
-      const session = await auth.json();
-      if (!auth.ok || session.authenticated!==true || !session.csrf) throw new Error('AUTH_REQUIRED');
-      return session.csrf;
     }
     async function downloadCsv(res,controller) {
       if (!/^text\/csv(?:;|$)/i.test(res.headers.get('Content-Type')||'')) throw new Error('INVALID');
