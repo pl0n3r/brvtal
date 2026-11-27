@@ -95,9 +95,8 @@ test('T13 huésped, timeout, retry y redirect nunca confirman pago', async ({ pa
     }
     requests.push(route.request().postDataJSON());
     if (requests.length===1) return route.abort('failed');
-    return route.fulfill({contentType:'application/json',body:JSON.stringify({
-      ok:true,order_id:42,checkout:{environment:'mock',state:'awaiting_provider'},
-    })});
+    expect(route.request().headers()['x-brvtal-ticket-checkout']).toBe('snapshot');
+    return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,state:'unverified'})});
   });
   await plus(page, 5).click();
   const button=payButton(page);
@@ -108,22 +107,19 @@ test('T13 huésped, timeout, retry y redirect nunca confirman pago', async ({ pa
   allowed=true;
   await button.click();
   await expect(page.locator('#ticket-checkout-status')).toContainText('No fue posible');
-  await button.click();
-  await expect(page.locator('#ticket-checkout-status')).toContainText('pendiente');
+  await expect(button).toBeDisabled();
+  await page.getByRole('button', {name:'Consultar reserva'}).click();
+  await expect(page.locator('#ticket-checkout-status')).toContainText('No pudimos verificar');
   expect(requests).toHaveLength(2);
   expect(requests[0].idempotency_key).toBe(requests[1].idempotency_key);
   expect(requests[1].lines).toEqual([{ ticket_type_id: 5, quantity: 1 }]);
   expect(requests[1]).not.toHaveProperty('price');
   expect(requests[1]).not.toHaveProperty('status');
-  const statusRequest = page.waitForRequest(request =>
-    request.headers()['x-brvtal-ticket-checkout'] === 'status'
-    && new URL(request.url()).searchParams.get('order_id') === '42');
   await page.reload();
   await page.addScriptTag({content:script});
-  await statusRequest;
-  await expect(page.locator('#ticket-checkout-status'))
-    .toHaveText('Pedido #42: El pago no fue aprobado. Puedes volver a intentarlo.');
-  expect(statusOrders).toEqual(['42']);
+  await expect(page.locator('#ticket-checkout-status')).toContainText('No pudimos verificar');
+  expect(requests[2]).toEqual(requests[1]);
+  expect(statusOrders).toEqual([]);
   await expect(page.getByText('Pago confirmado por el servidor.')).toHaveCount(0);
 });
 
@@ -163,8 +159,8 @@ test('T13 reusa la misma intención tras timeout y recarga', async ({page}) => {
     if (route.request().method()!=='POST') return route.fallback();
     requests.push(route.request().postDataJSON());
     if (requests.length===1) return route.abort('failed');
-    return route.fulfill({contentType:'application/json',
-      body:JSON.stringify({ok:true,order_id:71,checkout:{environment:'mock'}})});
+    expect(route.request().headers()['x-brvtal-ticket-checkout']).toBe('snapshot');
+    return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,state:'unverified'})});
   });
   await plus(page, 5).click();
   await plus(page, 5).click();
@@ -176,12 +172,10 @@ test('T13 reusa la misma intención tras timeout y recarga', async ({page}) => {
   expect(saved.lines).toEqual([{ticket_type_id:5,quantity:2},{ticket_type_id:6,quantity:1}]);
   await page.reload();
   await page.addScriptTag({content:script});
-  await expect(page.locator('[data-cart-type="5"] [data-cart-qty]')).toHaveText('2');
-  await expect(page.locator('[data-cart-type="6"] [data-cart-qty]')).toHaveText('1');
-  await payButton(page).click();
-  await expect(page.locator('#ticket-checkout-status')).toContainText('pendiente');
+  await expect(page.locator('#ticket-checkout-status')).toContainText('No pudimos verificar');
+  await expect(payButton(page)).toBeDisabled();
   expect(requests).toHaveLength(2);
-  expect(requests[1].idempotency_key).toBe(requests[0].idempotency_key);
+  expect(requests[1]).toEqual(requests[0]);
 });
 test('T13 evita doble envío mientras la primera solicitud sigue pendiente', async ({page}) => {
   await open(page);
@@ -223,17 +217,18 @@ test('#1940 una reserva que no responde se corta, avisa y reintenta con la misma
     if (route.request().method() !== 'POST') return route.fallback();
     keys.push(route.request().postDataJSON().idempotency_key);
     if (hang) return; // never answer: the server is stuck
+    expect(route.request().headers()['x-brvtal-ticket-checkout']).toBe('snapshot');
     return route.fulfill({ contentType: 'application/json',
-      body: JSON.stringify({ ok: true, order_id: 81, checkout: { environment: 'mock' } }) });
+      body: JSON.stringify({ ok: true, state: 'unverified' }) });
   });
   await page.locator('[data-cart-type="5"] [data-cart-step="1"]').click();
   const pay = page.locator('[data-cart-pay]');
   await pay.click();
   await expect(page.locator('#ticket-checkout-status')).toContainText('tardó demasiado', { timeout: 5000 });
-  await expect(pay).toBeEnabled();
+  await expect(pay).toBeDisabled();
   hang = false;
-  await pay.click();
-  await expect(page.locator('#ticket-checkout-status')).toContainText('pendiente');
+  await page.getByRole('button', {name:'Consultar reserva'}).click();
+  await expect(page.locator('#ticket-checkout-status')).toContainText('No pudimos verificar');
   expect(keys).toHaveLength(2);
   expect(keys[1]).toBe(keys[0]);
 });

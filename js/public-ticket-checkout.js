@@ -172,8 +172,133 @@
       if (record === saved) say('No se pudo consultar el pago. Revisa el estado de tu compra más tarde.');
     }
   }
-  if (/^[1-9]\d{0,17}$/.test(String(record?.order_id || ''))) {
+  const cartRecord = () => Array.isArray(record?.lines);
+  if (!cartRecord() && /^[1-9]\d{0,17}$/.test(String(record?.order_id || ''))) {
     void refresh(record);
+  }
+
+  // #2112: the catalog is not the source of truth for an existing reservation.
+  const tokenValid = token => typeof token === 'string' && /^[a-f0-9]{32}$/.test(token);
+  const methods = { CARD: 'Tarjeta', NEQUI: 'Nequi', PSE: 'PSE' };
+  const cop = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
+  const cartBody = saved => ({ lines: saved.lines, method: saved.method, idempotency_key: saved.intent });
+  const cartAuth = async () => json(await timedFetch('/api/buyer/auth.php', { credentials: 'same-origin', cache: 'no-store' }));
+  const cartRequest = (action, body, auth) => timedFetch(location.pathname, {
+    method: 'POST', credentials: 'same-origin', cache: 'no-store',
+    headers: { 'Content-Type': 'application/json', 'X-BRVTAL-TICKET-CHECKOUT': action,
+      ...(auth.authenticated ? { 'X-CSRF-TOKEN': auth.csrf } : {}) },
+    body: JSON.stringify(body),
+  });
+  let recoveryBox, recoveryBusy = false, retryAt = 0;
+  let updateCart = () => {}, updateSingle = () => {};
+  const sameCart = (a, b) => Array.isArray(b) && a.length === b.length
+    && a.every(line => b.some(item => item.ticket_type_id === line?.ticket_type_id && item.quantity === line?.quantity));
+  async function readReservation(saved) {
+    const auth = await cartAuth();
+    if (!/^[A-Za-z0-9:_-]{16,128}$/.test(saved.intent || '') || !Object.hasOwn(methods, saved.method)
+      || (!auth.authenticated && !tokenValid(saved.order_token))) return { state: 'unverified', auth };
+    const response = await cartRequest('snapshot', auth.authenticated ? cartBody(saved) : { order_token: saved.order_token }, auth);
+    if (response.status === 429 || response.status === 503) {
+      const raw = response.headers.get('Retry-After') || '';
+      const ms = /^\d+$/.test(raw) ? Number(raw) * 1000 : Date.parse(raw) - Date.now();
+      retryAt = Date.now() + (Number.isFinite(ms) ? Math.max(1000, ms) : 8000);
+      throw new Error('RECOVERY_UNAVAILABLE');
+    }
+    const result = await json(response);
+    const snap = result.snapshot;
+    if (!snap || !tokenValid(snap.order_token) || (saved.order_token && snap.order_token !== saved.order_token)
+      || !Object.hasOwn(methods, snap.method) || snap.method !== saved.method || snap.currency !== 'COP'
+      || !Number.isSafeInteger(snap.total_cop) || snap.total_cop < 1 || !sameCart(saved.lines, snap.lines)) {
+      return { state: 'unverified', auth };
+    }
+    return { state: result.state, snap, auth };
+  }
+  function amountOf(result, method) {
+    const checkout = result.checkout;
+    if (!tokenValid(result.order_token) || checkout?.currency !== 'COP'
+      || !Number.isSafeInteger(checkout.amount_in_cents) || checkout.amount_in_cents <= 0
+      || checkout.amount_in_cents % 100 !== 0
+      || !String(checkout.reference).startsWith('BW7-' + result.order_id + '-' + method + '-')) {
+      throw new Error('INVALID_CHECKOUT');
+    }
+    return checkout.amount_in_cents / 100;
+  }
+  function recoveryControl(label, action) {
+    const button = typeof action === 'function';
+    const el = document.createElement(button ? 'button' : 'a');
+    el.className = button ? 'event-cart-pay' : 'event-checkout-follow'; el.textContent = label;
+    if (button) { el.type = 'button'; el.addEventListener('click', action); }
+    else el.href = action;
+    recoveryBox.append(el); return el;
+  }
+  function recoveryControls(saved) {
+    if (!panel || !cartRecord()) return;
+    panel.hidden = false;
+    recoveryBox ||= Object.assign(document.createElement('div'), { className: 'event-cart' });
+    if (!recoveryBox.isConnected) { recoveryBox.dataset.cartRecovery = '1'; status.after(recoveryBox); }
+    recoveryBox.replaceChildren();
+    const query = recoveryControl('Consultar reserva', () => void recoverCart(saved));
+    query.disabled = Date.now() < retryAt;
+    if (query.disabled) setTimeout(() => { if (query.isConnected) query.disabled = false; }, Math.min(2147483647, retryAt - Date.now()));
+    if (tokenValid(saved.order_token)) recoveryControl('Ver el estado de tu compra', '/compra/' + saved.order_token);
+  }
+  const payable = found => found.auth.authenticated === true && found.state === 'reserved'
+    && found.snap?.payment_state === 'created';
+  const sameQuote = (a, b) => a?.order_token === b?.order_token && a?.method === b?.method
+    && a?.total_cop === b?.total_cop && a?.expires_at_utc === b?.expires_at_utc;
+  function showReservation(saved, found) {
+    recoveryControls(saved);
+    const labels = { reserved: 'Reserva vigente', payment_pending: 'Pago pendiente de confirmación',
+      expired: 'Reserva vencida', approved: 'Pago confirmado', failed: 'Pago no aprobado',
+      cancelled: 'Pago cancelado', refunded: 'Pago reembolsado' };
+    const { snap, state } = found;
+    if (!snap || !Object.hasOwn(labels, state)) {
+      say('No pudimos verificar tu reserva. No inicies otro pago. Inicia sesión o contacta con BRVTAL.');
+      recoveryControl('Iniciar sesión', '/mi-cuenta/acceso'); recoveryControl('Contactar con BRVTAL', '/contact');
+      return;
+    }
+    say(labels[state] + '.');
+    const details = document.createElement('p');
+    details.textContent = snap.lines.map(line => line.quantity + ' × ' + line.name + ' (' + cop.format(line.subtotal_cop) + ')').join(' · ')
+      + ' · Total reservado: ' + cop.format(snap.total_cop) + ' · ' + methods[snap.method]
+      + ' · Vence (UTC): ' + (snap.expires_at_utc || 'No disponible');
+    recoveryBox.prepend(details);
+    if (!saved.order_token) recoveryControl('Ver el estado de tu compra', '/compra/' + snap.order_token);
+    if (payable(found)) {
+      recoveryControl('Confirmar y pagar ' + cop.format(snap.total_cop), () => void recoverCart(saved, snap));
+    } else if (['approved','failed','cancelled','refunded'].includes(state)) {
+      recoveryControl('Iniciar nueva compra', () => {
+        if (recoveryBusy || record !== saved) return;
+        clear(); intent = null; recoveryBox.remove(); recoveryBox = null;
+        say('Selecciona tus boletas.'); updateCart(); updateSingle();
+      });
+    }
+  }
+  async function recoverCart(saved, confirmed = null) {
+    if (record !== saved || recoveryBusy || Date.now() < retryAt) return;
+    recoveryBusy = true;
+    recoveryBox?.querySelectorAll('button').forEach(button => { button.disabled = true; });
+    say('Verificando tu reserva…');
+    try {
+      const found = await readReservation(saved);
+      showReservation(saved, found);
+      if (!confirmed || !payable(found) || !sameQuote(found.snap, confirmed)) return;
+      recoveryBox.querySelectorAll('button').forEach(button => { button.disabled = true; });
+      const result = await json(await cartRequest('prepare', cartBody(saved), found.auth));
+      if (result.order_token !== confirmed.order_token || amountOf(result, confirmed.method) !== confirmed.total_cop) {
+        throw new Error('QUOTE_CHANGED');
+      }
+      const latest = await readReservation(saved);
+      showReservation(saved, latest);
+      if (!payable(latest) || !sameQuote(latest.snap, confirmed)) return;
+      if (!save({ ...saved, order_token: result.order_token, order_id: String(result.order_id) })) throw new Error('STORAGE');
+      recoveryControls(record);
+      say('Completa el pago en Wompi. Si no puedes confirmar el resultado, consulta la reserva.');
+      await payWithWompi(result.checkout, { token: result.order_token });
+    } catch {
+      recoveryControls(record);
+      say('No se pudo verificar la reserva. Consulta de nuevo cuando el servicio esté disponible; no inicies otro pago.');
+    } finally { recoveryBusy = false; }
   }
 
   // T28 public discovery is read-only and independent of public_page.php.
@@ -344,13 +469,6 @@
       }
       return { email: email.value, name: name.value, consent: true, website: field('website')?.value || '' };
     }
-    // Store only a digest of the buyer identity in sessionStorage. A reload with
-    // the same normalized buyer must reuse its original idempotency key.
-    async function buyerFingerprint(buyer) {
-      const data = new TextEncoder().encode(buyer.email.toLowerCase() + '\u0000' + buyer.name);
-      const digest = await crypto.subtle.digest('SHA-256', data);
-      return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
-    }
     function lockBuyer(locked) {
       for (const name of ['buyer_email', 'buyer_name']) {
         const input = field(name);
@@ -370,19 +488,6 @@
     const lines = () => rows.filter(item => quantities.get(item.id) > 0)
       .map(item => ({ ticket_type_id: item.id, quantity: quantities.get(item.id) }));
     const units = () => Array.from(quantities.values()).reduce((sum, value) => sum + value, 0);
-    const sameLines = (a, b) => Array.isArray(a) && Array.isArray(b) && a.length === b.length
-      && a.every(line => b.some(other => other.ticket_type_id === line.ticket_type_id && other.quantity === line.quantity));
-    if (Array.isArray(record?.lines)) {
-      // Rehydrate the immutable intent after a lost response or reload.
-      for (const line of record.lines) {
-        const item = rows.find(candidate => candidate.id === line?.ticket_type_id);
-        if (item && Number.isInteger(line.quantity) && line.quantity >= 1 && line.quantity <= item.available) {
-          quantities.set(item.id, line.quantity);
-        }
-      }
-      const saved = form.querySelector(`input[name="method"][value="${record.method}"]`);
-      if (saved) saved.checked = true;
-    }
     function update() {
       const count = units();
       let total = 0;
@@ -407,8 +512,8 @@
       linesEl?.replaceChildren(...summary);
       if (totalEl) totalEl.textContent = money.format(total);
       const ready = count > 0 && method() !== '';
-      pay.disabled = submitting || !ready;
-      pay.textContent = submitting ? 'Reservando…' : (count > 0 ? `Pagar ${money.format(total)}` : 'Elige tus boletas');
+      pay.disabled = submitting || cartRecord() || !ready;
+      pay.textContent = submitting ? 'Reservando…' : cartRecord() ? 'Consulta tu reserva' : (count > 0 ? `Pagar ${money.format(total)}` : 'Elige tus boletas');
       form.querySelectorAll('input[name="method"]').forEach(input => { input.disabled = submitting; });
       if (stickySummary) stickySummary.textContent = count > 0
         ? `${count} ${count === 1 ? 'boleta' : 'boletas'} · ${money.format(total)}` : stickyIdle;
@@ -417,8 +522,6 @@
     }
     function newPurchase() {
       if (submitting) return; // Never discard an in-flight key on input.
-      intent = null;
-      clear();
       update();
     }
     form.addEventListener('click', event => {
@@ -433,8 +536,6 @@
     });
     form.addEventListener('change', event => {
       if (event.target.name === 'method') newPurchase();
-      // Buyer identity is compared at submit, not on each field change: after
-      // a reload, re-entering the same email/name must preserve the retry key.
     });
     // Keep error presentation separate from the payment/redirect flow.
     // Server responses stay authoritative; never infer a successful payment.
@@ -451,9 +552,9 @@
         return;
       }
       const feedback = {
-        CHECKOUT_TIMEOUT: TIMEOUT_MESSAGE,
-        CHECKOUT_EXPIRED: 'La reserva expiró. Cambia tu selección para iniciar una nueva compra.',
-        CHECKOUT_RETRYABLE: 'Otra solicitud está preparando tu reserva. Vuelve a intentarlo sin cambiar la selección.',
+        CHECKOUT_TIMEOUT: 'El servidor tardó demasiado en responder. Consulta tu reserva antes de volver a pagar.',
+        CHECKOUT_EXPIRED: 'La reserva expiró. Consulta su estado antes de iniciar otra compra.',
+        CHECKOUT_RETRYABLE: 'Otra solicitud está preparando tu reserva. Consulta su estado antes de pagar.',
         RATE_LIMITED: 'Demasiados intentos con este correo. Espera unos minutos y vuelve a intentarlo.',
         CSRF_OR_METHOD: 'Tu sesión cambió. Recarga la página y vuelve a intentarlo.',
         AUTH_REQUIRED: 'Tu sesión cambió. Recarga la página y vuelve a intentarlo.',
@@ -466,35 +567,23 @@
     }
     async function resolveCartBuyer(auth) {
       signedIn(auth.authenticated === true);
-      if (auth.authenticated) return { buyer: null, fingerprint: null };
+      if (auth.authenticated) return { buyer: null };
       const buyer = readBuyer();
       if (!buyer) return null;
       // Freeze the selected identity while prepare is in flight. It is unlocked
       // in the submit handler's finally even on timeout or network failure.
       lockBuyer(true);
-      return { buyer, fingerprint: await buyerFingerprint(buyer) };
+      return { buyer };
     }
-    function persistCartIntent(selection, identity) {
-      const { buyer, fingerprint } = identity;
-      if (record && (buyer ? record.buyer_fingerprint !== fingerprint : Boolean(record.buyer_fingerprint))) {
-        // A different buyer must never reuse a key or token from a prior order.
-        intent = null;
-        clear();
-      }
-      if (record?.lines && (!sameLines(record.lines, selection.lines) || record.method !== selection.method)) {
-        say('Tu selección cambió. Ajusta las boletas para empezar una nueva compra.');
-        return null;
-      }
-      intent ||= 'T13-' + crypto.randomUUID();
-      const pending = { intent, lines: selection.lines, method: selection.method,
-        ...(fingerprint ? { buyer_fingerprint: fingerprint } : {}),
-        ...(record?.order_id ? { order_id: record.order_id } : {}),
-        ...(/^[a-f0-9]{32}$/.test(String(record?.order_token || ''))
-          ? { order_token: record.order_token } : {}) };
+    function persistCartIntent(selection) {
+      if (cartRecord()) return null;
+      intent = 'T13-' + crypto.randomUUID();
+      const pending = { intent, lines: selection.lines, method: selection.method };
       if (!save(pending)) {
         say('No se pudo guardar tu reserva para reintentos. Activa el almacenamiento de sesión.');
         return null;
       }
+      updateSingle();
       return pending;
     }
     async function sendCartPrepare(auth, buyer, selection, pending) {
@@ -507,22 +596,30 @@
           idempotency_key: pending.intent, ...(buyer ? { buyer } : {}) }),
       }));
     }
-    function finishCartPrepare(pending, result, buyer) {
-      save({ ...pending, order_id: String(result.order_id),
-        ...(/^[a-f0-9]{32}$/.test(String(result.order_token || '')) ? { order_token: result.order_token } : {}) });
+    function finishCartPrepare(pending, result, buyer, preview) {
+      if (!save({ ...pending, order_id: String(result.order_id),
+        ...(/^[a-f0-9]{32}$/.test(String(result.order_token || '')) ? { order_token: result.order_token } : {}) })) throw new Error('STORAGE');
+      recoveryControls(record);
       if (result.checkout?.environment === 'mock') {
         // Synthetic mode never charges.
         say('Reserva preparada. El pago sigue pendiente hasta la confirmación del servidor.');
         return;
       }
-      say('Completa el pago en la ventana de Wompi. Si la cerraste sin pagar, vuelve a tocar «Pagar»: tu reserva se mantiene unos minutos.');
+      const amount = amountOf(result, pending.method);
+      if (amount !== preview) {
+        say('El importe final es ' + cop.format(amount) + '. Consulta y confirma tu reserva antes de pagar.');
+        return;
+      }
+      say('Completa el pago en la ventana de Wompi. Consulta tu reserva si cierras la ventana.');
       return payWithWompi(result.checkout, { token: String(result.order_token || ''), buyer });
     }
     form.addEventListener('submit', async event => {
       event.preventDefault();
       if (submitting || pay.disabled) return;
       const selection = { lines: lines(), method: method() };
+      const preview = rows.reduce((sum, item) => sum + item.price * quantities.get(item.id), 0);
       submitting = true;
+      recoveryBusy = true;
       update();
       say('Verificando acceso y cupo…');
       try {
@@ -531,18 +628,21 @@
         }));
         const identity = await resolveCartBuyer(auth);
         if (!identity) return;
-        const pending = persistCartIntent(selection, identity);
+        const pending = persistCartIntent(selection);
         if (!pending) return;
         const result = await sendCartPrepare(auth, identity.buyer, selection, pending);
-        await finishCartPrepare(pending, result, identity.buyer);
+        await finishCartPrepare(pending, result, identity.buyer, preview);
       } catch (error) {
         reportCheckoutError(error);
+        if (cartRecord()) recoveryControls(record);
       } finally {
         lockBuyer(false);
         submitting = false;
+        recoveryBusy = false;
         update();
       }
     });
+    updateCart = update;
     update();
   };
 
@@ -606,7 +706,7 @@
     quantity.max = String(max);
     const count = Number(quantity.value);
     const valid = codeValid && Number.isInteger(count) && count >= 1 && count <= max;
-    button.disabled = submitting || !valid;
+    button.disabled = submitting || cartRecord() || !valid;
     type.disabled = submitting;
     quantity.disabled = submitting;
     method.disabled = submitting;
@@ -625,7 +725,7 @@
     }
   }
   function newPurchase() {
-    if (submitting) return; // Never discard an in-flight key on form input.
+    if (submitting || cartRecord()) return; // Preserve a cart reservation.
     intent = null;
     confirmedPromo = null;
     clear();
@@ -644,7 +744,7 @@
   });
   form.addEventListener('submit', async event => {
     event.preventDefault();
-    if (submitting || button.disabled) return;
+    if (submitting || cartRecord() || button.disabled) return;
     const selection = input();
     submitting = true;
     update();
@@ -711,9 +811,11 @@
       update();
     }
   });
+  updateSingle = update;
   update();
   };
   initCheckout();
   initCart();
+  if (cartRecord()) { recoveryControls(record); void recoverCart(record); }
   void mountWaitlists();
 })();

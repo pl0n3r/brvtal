@@ -108,8 +108,8 @@ const fakeWidget = `window.WidgetCheckout = function (config) {
     if (window.__wompiHold) return;
     setTimeout(function () { done({ transaction: { id: 'tx-widget', status: 'APPROVED' } }); }, 50); };
 };`;
-async function openCheckout(page, { authenticated = false, onPrepare, storage, widget = 'missing', statusState = 'approved' } = {}) {
-  const calls = { prepare: [], status: [], wompi: [], widget: 0, confirmation: [] };
+async function openCheckout(page, { authenticated = false, onPrepare, storage, widget = 'missing', statusState = 'approved', snapshot, fixture, source = script } = {}) {
+  const calls = { prepare: [], snapshot: [], status: [], wompi: [], widget: 0, confirmation: [] };
   await page.route('https://checkout.wompi.co/widget.js', route => {
     calls.widget += 1;
     return widget === 'fake'
@@ -128,15 +128,21 @@ async function openCheckout(page, { authenticated = false, onPrepare, storage, w
       const response = onPrepare ? await onPrepare() : {
         ok: true, order_id: 9, order_token: orderToken,
         checkout: { environment: 'sandbox', public_key: 'pub_test_synthetic', currency: 'COP',
-          amount_in_cents: 5000000, reference: 'BW7-9-CARD-' + 'c'.repeat(24),
+          amount_in_cents: request.postDataJSON().lines.reduce((sum, line) => sum + line.quantity * (line.ticket_type_id === 5 ? 2500000 : 6000000), 0),
+          reference: 'BW7-9-' + request.postDataJSON().method + '-' + 'c'.repeat(24),
           signature_integrity: 'd'.repeat(64), redirect_url: url } };
       return route.fulfill({ contentType: 'application/json', body: JSON.stringify(response) });
+    }
+    if (kind === 'snapshot') {
+      calls.snapshot.push(request.postDataJSON());
+      return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true,
+        ...(snapshot ? snapshot() : { state: 'unverified' }) }) });
     }
     if (kind === 'status') {
       calls.status.push(new URL(request.url()).searchParams.toString());
       return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, state: statusState }) });
     }
-    return route.fulfill({ contentType: 'text/html', body: render() });
+    return route.fulfill({ contentType: 'text/html', body: render(fixture) });
   });
   await page.route('**/api/ticketing/waitlist.php**', route => route.fulfill({ contentType: 'application/json', body: '{"ok":true,"types":[]}' }));
   await page.route('**/api/buyer/auth.php', route => route.fulfill({ contentType: 'application/json',
@@ -147,7 +153,7 @@ async function openCheckout(page, { authenticated = false, onPrepare, storage, w
   });
   await page.goto(url);
   if (storage) await page.evaluate(value => sessionStorage.setItem('brvtal-checkout:/events/cart-fixture', JSON.stringify(value)), storage);
-  await page.addScriptTag({ content: script });
+  await page.addScriptTag({ content: source });
   return calls;
 }
 async function fillGuest(page, { consent = true, email = 'ana@example.test' } = {}) {
@@ -249,22 +255,28 @@ test('widget de Wompi: recibe monto, referencia, firma y datos del comprador', a
   await page.locator('[data-cart-pay]').click();
   await expect.poll(() => page.evaluate(() => window.__wompiOpened === true)).toBe(true);
   const config = await page.evaluate(() => window.__wompiConfig);
-  expect(config).toEqual({ currency: 'COP', amountInCents: 5000000, reference: 'BW7-9-CARD-' + 'c'.repeat(24),
+  expect(config).toEqual({ currency: 'COP', amountInCents: 2500000, reference: 'BW7-9-CARD-' + 'c'.repeat(24),
     publicKey: 'pub_test_synthetic', signature: { integrity: 'd'.repeat(64) }, redirectUrl: url,
     customerData: { email: 'ana@example.test', fullName: 'Ana Gómez' } });
 });
 
-test('si se cierra el widget sin pagar, «Pagar» reabre el mismo pago sin crear otro pedido', async ({ page }, testInfo) => {
+const savedCart = { intent: 'T13-recovery-fixture-2112', lines: [{ ticket_type_id: 5, quantity: 1 }], method: 'CARD' };
+const reservation = (state = 'reserved') => ({ state, can_start_payment: false, snapshot: {
+  order_token: orderToken, method: 'CARD', currency: 'COP', total_cop: 25000, expires_at_utc: '2099-11-27 22:00:00',
+  lines: [{ ticket_type_id: 5, quantity: 1, name: 'Preventa', unit_price_cop: 25000, subtotal_cop: 25000 }],
+  payment_state: state === 'reserved' ? 'created' : 'pending',
+} });
+test('si se cierra el widget sin pagar, la consulta permite confirmar el mismo pago', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  const calls = await openCheckout(page, { widget: 'fake' });
+  const calls = await openCheckout(page, { authenticated: true, widget: 'fake', snapshot: () => reservation() });
   await page.evaluate(() => { window.__wompiHold = true; }); // the buyer closes it: no result
   await page.locator('[data-cart-type="5"] [data-cart-step="1"]').click();
-  await fillGuest(page);
   await page.locator('[data-cart-pay]').click();
   await expect.poll(() => page.evaluate(() => window.__wompiOpens || 0)).toBe(1);
-  await expect(page.locator('#ticket-checkout-status')).toContainText('Si la cerraste sin pagar, vuelve a tocar «Pagar»');
+  await expect(page.locator('#ticket-checkout-status')).toContainText('Consulta tu reserva');
   await testInfo.attach('widget-cerrado-390', { body: await page.locator('#boletas').screenshot(), contentType: 'image/png' });
-  await page.locator('[data-cart-pay]').click();
+  await page.getByRole('button', { name: 'Consultar reserva' }).click();
+  await page.getByRole('button', { name: /Confirmar y pagar/ }).click();
   await expect.poll(() => page.evaluate(() => window.__wompiOpens || 0)).toBe(2);
   expect(calls.prepare).toHaveLength(2);
   expect(calls.prepare[1].body.idempotency_key).toBe(calls.prepare[0].body.idempotency_key);
@@ -273,9 +285,13 @@ test('si se cierra el widget sin pagar, «Pagar» reabre el mismo pago sin crear
 
 test('un pedido pendiente enlaza a su página de confirmación', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1440, height: 900 });
-  await openCheckout(page, { statusState: 'pending', storage: { intent: 'T13-x', order_id: '8', order_token: orderToken,
-    lines: [{ ticket_type_id: 5, quantity: 1 }], method: 'CARD' } });
-  await expect(page.locator('#ticket-checkout-status')).toContainText('Pedido #8: Pago pendiente de confirmación.');
+  let state = 'reserved';
+  const calls = await openCheckout(page, { authenticated: true, fixture: { online: false }, snapshot: () => reservation(state), storage: { ...savedCart, order_id: '8', order_token: orderToken } });
+  await page.getByRole('button', { name: /Confirmar y pagar.*25.000/ }).waitFor();
+  state = 'payment_pending';
+  await page.getByRole('button', { name: /Confirmar y pagar/ }).click();
+  expect(calls.prepare).toHaveLength(0);
+  await expect(page.locator('#ticket-checkout-status')).toContainText('Pago pendiente de confirmación.');
   const link = page.getByRole('link', { name: 'Ver el estado de tu compra' });
   await expect(link).toHaveAttribute('href', '/compra/' + orderToken);
   await expect(page.locator('#ticket-checkout-status')).not.toContainText('Actualiza esta página');
@@ -322,8 +338,7 @@ test('con sesión iniciada se ocultan los datos y se paga con la cuenta', async 
 });
 
 test('al volver de Wompi el estado se consulta con el order_token, sin sesión', async ({ page }) => {
-  const calls = await openCheckout(page, { storage: { intent: 'T13-x', order_id: '9', order_token: orderToken,
-    lines: [{ ticket_type_id: 5, quantity: 1 }], method: 'CARD' } });
+  const calls = await openCheckout(page, { storage: { order_id: '9', order_token: orderToken } });
   await expect(page.locator('#ticket-checkout-status')).toHaveText('Pedido #9: Pago confirmado. Te enviamos las boletas con QR a tu correo.');
   expect(calls.status).toEqual([`order_token=${orderToken}`]);
 });
@@ -332,7 +347,7 @@ function mockGuestOrder() {
   return { ok: true, order_id: 9, order_token: orderToken, checkout: { environment: 'mock' } };
 }
 
-test('invitado: tras timeout y recarga, la misma identidad conserva la clave de reintento', async ({ page }) => {
+test('invitado: tras timeout y recarga, sin grant conserva la intención y no repite cobro', async ({ page }) => {
   let attempts = 0;
   const calls = await openCheckout(page, { onPrepare: () => (++attempts === 1
     ? { ok: false, error: 'CHECKOUT_TIMEOUT' } : mockGuestOrder()) });
@@ -341,43 +356,71 @@ test('invitado: tras timeout y recarga, la misma identidad conserva la clave de 
   await page.locator('[data-cart-pay]').click();
   await expect(page.locator('#ticket-checkout-status')).toContainText('tardó demasiado');
   const saved = await page.evaluate(() => JSON.parse(sessionStorage.getItem('brvtal-checkout:/events/cart-fixture')));
-  expect(saved.buyer_fingerprint).toMatch(/^[a-f0-9]{64}$/);
+  expect(Object.keys(saved).sort()).toEqual(['intent','lines','method']);
   const firstKey = calls.prepare[0].body.idempotency_key;
   await page.reload();
   await page.addScriptTag({ content: script });
-  await fillGuest(page);
-  await expect(page.locator('[data-cart-pay]')).toBeEnabled();
-  await page.locator('[data-cart-pay]').click();
-  await expect.poll(() => calls.prepare.length).toBe(2);
-  expect(calls.prepare[1].body.idempotency_key).toBe(firstKey);
-  // The request is recorded before the browser handles the mocked response.
-  // Assert the completed save, not an intermediate in-flight session record.
-  await expect(page.locator('#ticket-checkout-status')).toContainText('Reserva preparada');
-  await expect.poll(() => page.evaluate(() =>
-    JSON.parse(sessionStorage.getItem('brvtal-checkout:/events/cart-fixture'))?.order_token
-  )).toBe(orderToken);
+  await expect(page.locator('#ticket-checkout-status')).toContainText('No pudimos verificar');
+  await page.locator('[data-cart-type="6"] [data-cart-step="1"]').click();
+  await page.locator('input[name="method"][value="NEQUI"]').check();
+  await expect(page.locator('[data-cart-pay]')).toBeDisabled();
+  expect(await page.evaluate(() => JSON.parse(sessionStorage.getItem('brvtal-checkout:/events/cart-fixture')))).toEqual(saved);
+  expect(saved.intent).toBe(firstKey);
+  expect(calls.prepare).toHaveLength(1);
 });
 
-test('invitado: un reintento fallido conserva order_token, y otro comprador usa otra clave', async ({ page }) => {
-  let attempts = 0;
-  const calls = await openCheckout(page, { onPrepare: () => (++attempts === 2
-    ? { ok: false, error: 'CHECKOUT_TIMEOUT' } : mockGuestOrder()) });
+test('invitado: sin grant conserva token e intención sin segundo cobro', async ({ page }) => {
+  const calls = await openCheckout(page, { onPrepare: () => mockGuestOrder() });
   await page.locator('[data-cart-type="5"] [data-cart-step="1"]').click();
   await fillGuest(page);
   await page.locator('[data-cart-pay]').click();
   await expect(page.locator('#ticket-checkout-status')).toContainText('Reserva preparada');
   const originalKey = calls.prepare[0].body.idempotency_key;
-  await page.locator('[data-cart-pay]').click();
-  await expect(page.locator('#ticket-checkout-status')).toContainText('tardó demasiado');
+  await page.getByRole('button', { name: 'Consultar reserva' }).click();
+  await expect(page.locator('#ticket-checkout-status')).toContainText('No pudimos verificar');
   const pending = await page.evaluate(() => JSON.parse(sessionStorage.getItem('brvtal-checkout:/events/cart-fixture')));
   expect(pending.order_token).toBe(orderToken);
   expect(pending.intent).toBe(originalKey);
   await page.getByLabel('Correo').fill('otra@example.test');
-  await page.locator('[data-cart-pay]').click();
-  await expect.poll(() => calls.prepare.length).toBe(3);
-  expect(calls.prepare[2].body.idempotency_key).not.toBe(originalKey);
-  expect(calls.prepare[2].body.buyer.email).toBe('otra@example.test');
+  await expect(page.locator('[data-cart-pay]')).toBeDisabled();
+  expect(calls.snapshot).toEqual([{ order_token: orderToken }]);
+  expect(calls.prepare).toHaveLength(1);
 });
+
+test('importe distinto: exige confirmación explícita antes del proveedor', async ({ page }) => {
+  const calls = await openCheckout(page, { authenticated: true, widget: 'fake',
+    onPrepare: () => ({ ok: true, order_id: 9, order_token: orderToken,
+      checkout: { environment: 'sandbox', public_key: 'pub_test_synthetic', currency: 'COP',
+        amount_in_cents: 3500000, reference: 'BW7-9-CARD-' + 'c'.repeat(24),
+        signature_integrity: 'd'.repeat(64), redirect_url: url } }),
+    snapshot: () => ({ ...reservation(), snapshot: { ...reservation().snapshot, total_cop: 35000 } }) });
+  await page.locator('[data-cart-type="5"] [data-cart-step="1"]').click();
+  await page.locator('[data-cart-pay]').click();
+  await expect(page.locator('#ticket-checkout-status')).toContainText('El importe final');
+  expect(calls.widget).toBe(0);
+  await page.getByRole('button', { name: 'Consultar reserva' }).click();
+  const confirm = page.getByRole('button', { name: /Confirmar y pagar.*35.000/ });
+  await confirm.focus();
+  await expect(confirm).toBeFocused();
+  await confirm.press('Enter');
+  await expect.poll(() => calls.confirmation.length).toBe(1);
+  expect(calls.prepare[1].body).toEqual(calls.prepare[0].body);
+});
+
+for (const width of [390,1440]) {
+  test('recuperación visual antes/después ' + width, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height: 900 });
+    const before = execFileSync('git', ['show', '92b987dfb7a02cd8afc2e0f4bc65f33ab24a986d:js/public-ticket-checkout.js'], { encoding: 'utf8' });
+    await openCheckout(page, { authenticated: true, storage: savedCart, source: before });
+    await page.locator('#boletas').scrollIntoViewIfNeeded();
+    await captureGuestVisual(testInfo, '2112-antes-' + width, await page.locator('#boletas').screenshot());
+    await page.reload();
+    await page.addScriptTag({ content: script });
+    await expect(page.locator('#ticket-checkout-status')).toContainText('No pudimos verificar');
+    await page.locator('[data-cart-recovery]').scrollIntoViewIfNeeded();
+    await captureGuestVisual(testInfo, '2112-despues-' + width, await page.locator('#boletas').screenshot());
+  });
+}
 
 test('invitado: los datos del comprador permanecen bloqueados durante prepare', async ({ page }) => {
   let release;

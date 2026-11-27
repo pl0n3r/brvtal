@@ -134,10 +134,15 @@ async function run() {
       check(order?.status===200 && order.body?.ok && db('SELECT COUNT(*) FROM ticket_orders')==='1','commit before browser lost response');
       const saved = await page.evaluate(() => JSON.parse(sessionStorage.getItem('brvtal-checkout:'+location.pathname)));
       check(typeof saved?.intent==='string' && !saved.order_token && saved.method==='CARD' && saved.lines?.[0]?.quantity===1,'original intent survived transport loss');
+      await page.locator('input[name="method"][value="NEQUI"]').check();
+      check(await page.locator('[data-cart-pay]').isDisabled() && await page.evaluate(()=>!window.fixturePayment),'method edit cannot start another payment');
       db('UPDATE event_ticket_types SET price=789 WHERE id=1');
       await page.reload({waitUntil:'domcontentloaded'});
       check(await page.locator('[data-cart-pay]').count()===0,'public catalog exhausted after hold');
-      // This direct browser snapshot is independent of the UI recovery introduced by #2112.
+      const confirm = page.getByRole('button',{name:/Confirmar y pagar.*456/});
+      await confirm.waitFor();
+      check((await page.locator('[data-cart-recovery]').innerText()).includes('Tarjeta') && !await page.evaluate(()=>window.fixturePayment),'mobile frozen quote before confirmation');
+      await page.setViewportSize({width:1440,height:900});
       const input = {lines:saved.lines,method:saved.method,idempotency_key:saved.intent};
       const snapshot = await page.evaluate(async input => {
         const auth = await fetch('/api/buyer/auth.php').then(r => r.json());
@@ -149,11 +154,12 @@ async function run() {
         snapshot.body.can_start_payment===false,'server frozen snapshot after reload and price change');
       const foreign = await request(event,other,input,{'X-CSRF-Token':other.csrf,'X-Brvtal-Ticket-Checkout':'snapshot'});
       check(foreign.status===200 && foreign.body.state==='unverified' && !foreign.body.snapshot,'foreign buyer has no snapshot');
-      const replay = await prepare(buyer,saved.intent);
-      check(replay.status===200 && replay.body.order_id===order.body.order_id && replay.body.order_token===order.body.order_token &&
-        replay.body.checkout.reference===order.body.checkout.reference && replay.body.checkout.amount_in_cents===45600,'immutable replay reference and amount');
+      await confirm.click();
+      await page.waitForFunction(()=>!!window.fixturePayment);
+      const replay = await page.evaluate(()=>window.fixturePayment);
+      check(replay.reference===order.body.checkout.reference && replay.amount===45600,'explicit confirmation replays frozen reference and amount');
       check(db('SELECT COUNT(*) FROM ticket_orders')==='1' && db('SELECT COUNT(*) FROM ticket_inventory_holds')==='1' &&
-        db('SELECT COUNT(*) FROM ticket_payment_attempts')==='1' && !await page.evaluate(()=>window.fixturePayment),'no second order hold attempt or provider launch');
+        db('SELECT COUNT(*) FROM ticket_payment_attempts')==='1','no second order hold or attempt after confirmed replay');
       console.log('T31_RESERVATION_RECOVERY_STACK_PASS: real browser, lost response, immutable snapshot and single attempt');
     } finally { await browser.close(); }
     check(order.status === 200 && order.body.ok, 'public HTTP checkout');

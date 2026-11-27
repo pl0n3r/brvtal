@@ -122,6 +122,7 @@ export BRVTAL_TICKET_WOMPI_PRIVATE_KEY=prv_test_fixture_only_123456
 export BRVTAL_TICKET_WOMPI_RECONCILE_REQUESTS_PER_MINUTE=1 BRVTAL_TICKET_WOMPI_RECONCILE_MAX_IN_FLIGHT=1
 export BRVTAL_TICKET_WOMPI_INTEGRITY_SECRET=test_integrity_fixture_only BRVTAL_TICKET_WOMPI_EVENTS_SECRET=test_events_fixture_only
 export BRVTAL_TICKET_WOMPI_ENABLED_METHODS=CARD BRVTAL_TICKET_WOMPI_RETURN_URL=https://brvtal.invalid/return
+if [[ "$2" != promo ]]; then export BRVTAL_TICKET_WOMPI_ENABLED_METHODS=CARD,NEQUI; fi
 export BRVTAL_TICKET_MAIL_MODE=mock BRVTAL_TICKET_MAIL_TESTING=1 BRVTAL_TICKET_MAIL_API_KEY=fixture_only
 export BRVTAL_TICKET_MAIL_DOMAIN=brvtal.invalid BRVTAL_TICKET_MAIL_FROM=test@brvtal.invalid
 # Only event, stock and pre-existing verified synthetic buyers are seeded.

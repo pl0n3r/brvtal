@@ -205,6 +205,7 @@ cartAssert($recovered['state']==='reserved' && $recovered['replayed'] && !$recov
     && $recovered['snapshot']['expires_at_utc']!==null, 'verified lost response returns frozen exact intent');
 $byToken = brvtal_public_ticket_checkout_snapshot($db,1,['order_token'=>$token]);
 cartAssert(!$byToken['replayed'] && $byToken['snapshot']===$recovered['snapshot'], 'token plus verified identity');
+cartAssert($byToken['can_start_payment']===false && $byToken['snapshot']['payment_state']==='created', 'snapshot alone never authorizes starting payment');
 cartAssert(!isset($byToken['checkout']) && !isset($byToken['snapshot']['reference']), 'no widget or provider credentials');
 foreach ([$changed, array_replace($retry,['method'=>'NEQUI']),
     array_replace($retry,['idempotency_key'=>str_repeat('x',24)])] as $wrong) {
