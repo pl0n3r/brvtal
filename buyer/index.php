@@ -9,7 +9,7 @@
 <meta name="robots" content="noindex,follow">
 <title>Mis compras · BRVTAL</title>
 <link rel="stylesheet" href="/css/buyer-access.css?v=1">
-<link rel="stylesheet" href="/css/buyer-account.css?v=1911">
+<link rel="stylesheet" href="/css/buyer-account.css?v=2184">
 </head>
 <body class="buyer-access buyer-account">
 <a class="account-skip" href="#contenido">Ir al contenido</a>
@@ -67,7 +67,12 @@
               <input id="token" type="password" required autocomplete="off" spellcheck="false" minlength="43" maxlength="43"></label>
             <button type="submit">Mostrar QR</button>
           </form>
+          <div id="pass-details" class="account-pass-details" hidden></div>
           <div id="qr-output" role="img" aria-label="Código QR de entrada" hidden></div>
+          <div id="pass-actions" hidden>
+            <button id="print-pass" type="button">Imprimir / guardar PDF</button>
+            <p>Elige Guardar como PDF en la ventana de impresión. Guarda este pase en privado.</p>
+          </div>
           <button id="download" type="button" hidden>Descargar QR PNG</button>
           <p id="qr-feedback" role="status" aria-live="polite"></p>
         </section>
@@ -117,7 +122,7 @@
     const link=el('a','Ver la cartelera');link.href='/';link.className='account-action';
     box.append(link);return box;
   }
-  let csrf='',page=0,ticket='',payload='',qrRequest=0;
+  let csrf='',page=0,ticket='',payload='',qrRequest=0,passContext=null;
   const el=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=String(text);return n;};
   // The server scopes these orders to a paid checkout plus its original cookie.
   // Do not call unrestricted account or refunds APIs in this anonymous mode.
@@ -227,8 +232,23 @@
     });
     return form;
   }
-  function resetQr(){qrRequest++;$('qr-form').querySelector('button').disabled=false;ticket='';payload='';qr.hidden=true;$('qr-form').hidden=false;$('token').value='';$('qr-output').replaceChildren();$('qr-output').hidden=true;$('download').hidden=true;$('qr-feedback').textContent='';}
-  function showQr(id, stored=false){resetQr();ticket=id;qr.hidden=false;if(stored){$('qr-form').hidden=true;qr.setAttribute('tabindex','-1');qr.focus();loadQr(true);}else $('token').focus();}
+  function clearPass(){
+    document.body.classList.remove('account-pass-ready');
+    $('pass-details').hidden=true;$('pass-details').replaceChildren();$('pass-actions').hidden=true;
+  }
+  function renderPass(){
+    if(!passContext)return;
+    const details=$('pass-details'),context=passContext;
+    const date=typeof context.date==='string'&&/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(context.date)
+      ? purchaseDate(context.date.replace(' ','T')+'-05:00') : 'Fecha por confirmar';
+    const brand=el('p','BRVTAL · RAVE TILL GRAVE');brand.className='account-pass-brand';
+    details.replaceChildren(brand,el('h3',context.title||'Evento'),el('p',date),
+      el('p',context.venue||'Lugar por confirmar'),el('p',context.name),
+      el('p','Boleta '+ticket.slice(0,8).toUpperCase()),el('p','Código de un solo uso. No compartas este pase.'));
+    details.hidden=false;$('pass-actions').hidden=false;document.body.classList.add('account-pass-ready');
+  }
+  function resetQr(){clearPass();passContext=null;qrRequest++;$('qr-form').querySelector('button').disabled=false;ticket='';payload='';qr.hidden=true;$('qr-form').hidden=false;$('token').value='';$('qr-output').replaceChildren();$('qr-output').hidden=true;$('download').hidden=true;$('qr-feedback').textContent='';}
+  function showQr(id, stored=false, context=null){resetQr();ticket=id;passContext=context;qr.hidden=false;if(stored){$('qr-form').hidden=true;qr.setAttribute('tabindex','-1');qr.focus();loadQr(true);}else $('token').focus();}
   function card(order){
     const box=el('article'),title=el('h2',order.event_title||'Evento');box.className='account-order';box.append(title,
       el('p',(order.order_number?'Pedido #'+order.order_number+' · ':'')+(statuses[order.status]||order.status)+' · Pago: '+(statuses[order.payment_status]||order.payment_status||'Sin intento')),
@@ -236,7 +256,11 @@
     for(const item of order.items||[]){
       const line=el('div');line.className='ticket';line.append(el('strong',item.name),el('p','Cantidad: '+item.quantity+' · Entrada: '+(statuses[item.status]||item.status)));
       if(order.status==='paid'&&item.status==='issued'&&item.credential_active!==false&&item.qr_requires_original_token&&item.ticket_id){
-        const button=el('button','Ver QR');button.type='button';button.addEventListener('click',()=>showQr(item.ticket_id,item.qr_stored===true));line.append(button);
+        const button=el('button','Ver QR');button.type='button';button.addEventListener('click',()=>showQr(item.ticket_id,item.qr_stored===true));
+        const print=el('button','Descargar pase (PDF)');print.type='button';print.className='account-secondary';
+        print.addEventListener('click',()=>showQr(item.ticket_id,item.qr_stored===true,
+          {title:order.event_title,date:order.event_date,venue:order.venue,name:item.name}));
+        const actions=el('div');actions.className='account-ticket-actions';actions.append(button,print);line.append(actions);
       }box.append(line);
     }
     if(order.status==='paid'){
@@ -317,17 +341,17 @@
   async function loadQr(stored=false){
     const request=qrRequest;
     const button=$('qr-form').querySelector('button');button.disabled=true;
-    $('qr-feedback').textContent='Verificando entrada…';payload='';$('qr-output').hidden=true;$('download').hidden=true;
+    $('qr-feedback').textContent='Verificando entrada…';clearPass();payload='';$('qr-output').replaceChildren();$('qr-output').hidden=true;$('download').hidden=true;
     try{
       if(!csrf)throw Error('UNAVAILABLE');
       const body=stored?{action:'qr_stored',ticket_id:ticket}:{action:'qr',ticket_id:ticket,token:$('token').value};
       const r=await fetch(api,{method:'POST',credentials:'same-origin',cache:'no-store',
         headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(body)});
       if(!r.ok)throw Error('UNAVAILABLE');
-      const data=await r.json();if(typeof data.qr!=='string'||!data.qr.startsWith('BRVTAL:T1:'))throw Error('UNAVAILABLE');
+      const data=await r.json();if(typeof data.qr!=='string'||!/^BRVTAL:T1:[a-f0-9]{32}:[A-Za-z0-9_-]{43}$/.test(data.qr)||data.qr.split(':')[2]!==body.ticket_id)throw Error('UNAVAILABLE');
       if(request!==qrRequest)return;
       const svg=qrSvg(data.qr);$('qr-output').replaceChildren(svg);$('qr-output').hidden=false;$('download').hidden=false;payload=data.qr;
-      $('qr-feedback').textContent='QR autorizado. No compartas esta entrada.';$('token').value='';
+      $('qr-feedback').textContent='QR autorizado. No compartas esta entrada.';$('token').value='';renderPass();
     }catch(_){
       if(request!==qrRequest)return;
       $('qr-feedback').textContent='No se pudo autorizar esta entrada. Revisa la credencial y su vigencia.';
@@ -335,6 +359,9 @@
     }finally{if(request===qrRequest)button.disabled=false;}
   }
   $('qr-form').addEventListener('submit',e=>{e.preventDefault();loadQr(false);});
+  $('print-pass').addEventListener('click',()=>{
+    if(passContext&&payload&&document.body.classList.contains('account-pass-ready')&&!$('pass-actions').hidden)window.print();
+  });
   $('download').addEventListener('click',async()=>{
     if(!payload)return;
     const svg=$('qr-output').querySelector('svg');if(!svg)return;
