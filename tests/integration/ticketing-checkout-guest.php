@@ -552,7 +552,7 @@ $prefix = '<?php define("BRVTAL_SENTRY_TESTING", true); '
     . '$GLOBALS["brvtalSentryTestLogFile"] = ' . var_export($httpDirectory . '/fixture.log', true) . '; '
     . 'require ' . var_export($fixtureRoot . '/config/bootstrap.php', true) . '; '
     . 'require ' . var_export($fixtureRoot . '/config/public_ticket_checkout.php', true) . ';';
-$routerCode = <<<'PHP'
+$routerCode = <<<'PHP_WRAP'
 if ($_SERVER['REQUEST_URI'] === '/ready') {
     http_response_code(204);
     exit;
@@ -594,7 +594,7 @@ $probe = new class(sprintf('mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4',
     }
 };
 brvtal_public_ticket_checkout_http($probe, 1);
-PHP;
+PHP_WRAP;
 guestAssert(file_put_contents($router, $prefix . "\n" . $routerCode) !== false, 'write HTTP handler router');
 chmod($router, 0600);
 $socket = stream_socket_server('tcp://127.0.0.1:0', $errno, $errstr);

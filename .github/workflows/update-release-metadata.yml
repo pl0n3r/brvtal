@@ -724,6 +724,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Verify real-stack checkout identity
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
 
       - name: Set up PHP 8.5 with database extension
         uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
@@ -758,6 +764,23 @@ jobs:
       - name: Install Chromium browser
         run: npx playwright install chromium
 
+      # Obtain the targeted receipt before the other independent mandatory smoke.
+      - name: Verify checkout guest scope and status budget over isolated real HTTP
+        env:
+          BRVTAL_INTEGRATION_TESTS: '1'
+          BRVTAL_STATUS_REAL_BROWSER: '1'
+        shell: bash
+        run: |
+          set -euo pipefail
+          receipt="$(mktemp)"
+          trap 'rm -f "$receipt"' EXIT
+          php tests/integration/ticketing-checkout-guest.php | tee "$receipt"
+          grep -Fxq 'BRVTAL #2113 HTTP and MariaDB scope regression passed.' "$receipt"
+          if grep -q 'function brvtalTicketStatusRequireBudget' config/public_ticket_checkout.php; then
+            grep -Fxq 'BRVTAL #2219 HTTP budget contract passed.' "$receipt"
+            grep -Fxq 'BRVTAL #2219 HTTP browser Retry-After passed.' "$receipt"
+          fi
+
       - name: Run authenticated PHP/MariaDB browser smoke
         run: bash tests/e2e/run-content-core-real-stack.sh
 
@@ -783,12 +806,6 @@ jobs:
         env:
           BRVTAL_INTEGRATION_TESTS: '1'
         run: php tests/integration/buyer-auth-flows.php
-
-      - name: Verify checkout guest scope and status budget over isolated real HTTP
-        env:
-          BRVTAL_INTEGRATION_TESTS: '1'
-          BRVTAL_STATUS_REAL_BROWSER: '1'
-        run: php tests/integration/ticketing-checkout-guest.php
 
       - name: Verify T15 scanner concurrency against isolated real-stack MariaDB
         env:
