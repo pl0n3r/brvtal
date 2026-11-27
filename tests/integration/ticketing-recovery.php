@@ -291,6 +291,29 @@ try {
     t29((string)$db->query("SELECT delivery_state FROM ticket_mail_history WHERE outbox_id=$receiptId")
         ->fetchColumn()==='delivered' && $calls===2,'prior receipt preserved, no duplicate transport');
 
+    // A 4xx after a retryable 5xx does not erase the first unknown outcome.
+    $rejectedId = $freshOrder(109);
+    $rejectCalls = 0;
+    $retryThenReject = static function () use (&$rejectCalls): array {
+        return ['status'=>++$rejectCalls===1 ? 503 : 400,'body'=>'{}'];
+    };
+    t29(brvtal_ticket_mail_deliver_one($db,$retryThenReject)==='retry','first response ambiguous');
+    $db->exec("UPDATE ticket_mail_outbox SET next_attempt_at=UTC_TIMESTAMP() WHERE id=$rejectedId");
+    t29(brvtal_ticket_mail_deliver_one($db,$retryThenReject)==='uncertain','later rejection preserves uncertainty');
+    $expectMail($rejectedId,'uncertain','receipt_unknown');
+    brvtalRecoveryOptOut($db,3,6);
+    t29(!brvtal_ticket_mail_redrive($db,$rejectedId)
+        && brvtal_ticket_mail_deliver_one($db,$retryThenReject)==='idle'
+        && $rejectCalls===2,'no redrive after ambiguous earlier attempt');
+    // Existing failed rows from before this protection remain fail-closed.
+    $legacyFailed = $freshOrder(110);
+    $db->exec("UPDATE ticket_mail_outbox SET state='failed',attempts=2,
+        first_attempt_at=UTC_TIMESTAMP(),last_error_code='provider_rejected' WHERE id=$legacyFailed");
+    t29(!brvtal_ticket_mail_redrive($db,$legacyFailed),'legacy multi-attempt failure cannot reset');
+    $expectMail($legacyFailed,'uncertain','receipt_unknown');
+    t29((int)$db->query("SELECT attempts FROM ticket_mail_outbox WHERE id=$legacyFailed")
+        ->fetchColumn()===2,'legacy fencing generation retained');
+
     putenv('BRVTAL_INTEGRATION_TESTS=0');
     try {brvtalRecoveryPlan($db,7,'superadmin',$input);throw new RuntimeException('real mode');}
     catch (DomainException $e) {t29($e->getMessage()==='SYNTHETIC_ONLY','real mode blocked');}

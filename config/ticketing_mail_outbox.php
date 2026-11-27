@@ -283,6 +283,12 @@ function brvtal_ticket_mail_deliver_one(PDO $pdo, ?callable $request = null): st
     if ($state === 'retry' && $attempts >= 5) {
         $state = 'uncertain';
     }
+    // A later definitive rejection cannot disprove an earlier ambiguous call.
+    if ($state === 'failed' && $attempts > 1
+        && preg_match('/^order:.*:(abandoned_checkout|reminder)$/D', (string)$job['message_key'])) {
+        $state = 'uncertain';
+        $result['code'] = 'receipt_unknown';
+    }
     $next = max(min(300, (int)($result['retry_after'] ?? 0)), min(3600, 30 * (2 ** ($attempts - 1))));
     $code = (string)($result['code'] ?? '');
     $allowedCodes = ['rate_limited','provider_5xx','network_unknown',
@@ -345,10 +351,27 @@ function brvtal_ticket_mail_redrive(PDO $pdo, int $id): bool
     if ($id < 1) {
         return false;
     }
+    // Legacy failures from multiple attempts may hide a preceding 5xx.
+    // Retain the original fencing generation; do not erase uncertainty.
+    $ambiguous = $pdo->prepare("UPDATE ticket_mail_outbox
+        SET state='uncertain',locked_until=NULL,last_error_code='receipt_unknown',updated_at=UTC_TIMESTAMP()
+        WHERE id=? AND state='failed' AND attempts>1
+          AND message_key REGEXP '^order:.*:(abandoned_checkout|reminder)
+    $stmt->execute([$id]);
+    return $stmt->rowCount() === 1;
+}
+");
+    $ambiguous->execute([$id]);
+    if ($ambiguous->rowCount() === 1) return false;
     $stmt = $pdo->prepare("UPDATE ticket_mail_outbox
         SET state='queued',attempts=0,first_attempt_at=NULL,
             next_attempt_at=UTC_TIMESTAMP(),locked_until=NULL,last_error_code=NULL
         WHERE id=? AND state='failed' AND
+          NOT (attempts>1 AND message_key REGEXP '^order:.*:(abandoned_checkout|reminder)
+    $stmt->execute([$id]);
+    return $stmt->rowCount() === 1;
+}
+) AND
           last_error_code IN ('transport_disabled','invalid_configuration',
               'provider_rejected','transport_unavailable')");
     $stmt->execute([$id]);
