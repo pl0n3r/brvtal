@@ -72,11 +72,42 @@ function brvtalBuyerAccountCheckoutScope(PDO $db, int $buyerId): ?int
     return $order;
 }
 
+/** Keep non-financial receipts out of the purchase ledger and its pagination. */
+function brvtalBuyerAccountCourtesies(PDO $db, int $buyerId, array $filters): array
+{
+    $rows = brvtal_ticket_issue_courtesy_rows($db, $buyerId, null, $filters);
+    $more = count($rows) > 10;
+    if ($more) array_pop($rows);
+    $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+    $courtesies = [];
+    foreach ($rows as $row) {
+        $cutoff = brvtal_ticket_issue_courtesy_cutoff($row);
+        $status = $row['status'];
+        if ($status === 'issued' && (!$cutoff || $cutoff <= $now)) $status = 'expired';
+        $active = $status === 'issued' && (bool)$row['qr_stored'];
+        $courtesies[] = [
+            'origin'=>'courtesy', 'status'=>$status, 'ticket_id'=>$row['ticket_id'],
+            'event_id'=>(int)$row['event_id'], 'event_title'=>$row['event_title'],
+            'event_date'=>$row['event_date'], 'venue'=>$row['venue'], 'name'=>$row['name'],
+            'created_at_utc'=>$row['created_at_utc'],
+            'qr_requires_original_token'=>$active, 'qr_stored'=>$active,
+            'refundable'=>false,
+        ];
+    }
+    return ['courtesies'=>$courtesies, 'courtesies_has_more'=>$more];
+}
+
 function brvtalBuyerAccountOrders(PDO $db, int $buyerId, array $f): array
 {
     if ($buyerId < 1) throw new DomainException('AUTH_REQUIRED');
     $scope = brvtalBuyerAccountCheckoutScope($db, $buyerId);
     $where = ['o.buyer_id=?']; $args = [$buyerId];
+    // Even inconsistent or foreign courtesy receipts cannot appear as purchases.
+    if (brvtal_ticket_issue_has_courtesy_table($db)) {
+        $where[] = 'NOT EXISTS (SELECT 1 FROM ticket_courtesy_invites ci WHERE ci.order_id=o.id)';
+    }
+    $courtesies = $scope === null ? brvtalBuyerAccountCourtesies($db, $buyerId, $f)
+        : ['courtesies'=>[], 'courtesies_has_more'=>false];
     if ($scope !== null) { $where[] = 'o.id=?'; $args[] = $scope; }
     if ($f['event_id'] !== null) { $where[] = 'o.event_id=?'; $args[] = $f['event_id']; }
     if ($f['from']) { $where[] = 'o.created_at_utc>=?'; $args[] = $f['from']->format('Y-m-d 00:00:00'); }
@@ -98,7 +129,7 @@ function brvtalBuyerAccountOrders(PDO $db, int $buyerId, array $f): array
     $orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
     $more = count($orders) > 10;
     if ($more) array_pop($orders);
-    if (!$orders) return ['orders'=>[],'has_more'=>false,'page'=>$f['page']];
+    if (!$orders) return ['orders'=>[],'has_more'=>false,'page'=>$f['page']] + $courtesies;
     $ids = array_map(static fn($row) => (int)$row['id'], $orders);
     $encryptedAvailable = brvtal_ticket_issue_has_encrypted_column($db);
     $storedSql = $encryptedAvailable ? 'CASE WHEN c.token_encrypted IS NULL THEN 0 ELSE 1 END' : '0';
@@ -128,7 +159,7 @@ function brvtalBuyerAccountOrders(PDO $db, int $buyerId, array $f): array
         $order['items']=$byOrder[$id] ?? [];
     }
     unset($order);
-    return ['orders'=>$orders,'has_more'=>$more,'page'=>$f['page']];
+    return ['orders'=>$orders,'has_more'=>$more,'page'=>$f['page']] + $courtesies;
 }
 
 /** Only the original opaque credential can recover a scannable payload. */
@@ -148,7 +179,12 @@ function brvtalBuyerAccountQr(PDO $db, int $buyerId, string $ticketId, string $t
     if ($scope !== null) $args[] = $scope;
     $q->execute($args);
     $eventDate=$q->fetchColumn();
-    if (!is_string($eventDate) || $eventDate === '') throw new DomainException('TICKET_UNAVAILABLE');
+    if (!is_string($eventDate) || $eventDate === '') {
+        $courtesy = $scope === null ? (brvtal_ticket_issue_courtesy_rows($db, $buyerId, $ticketId)[0] ?? null) : null;
+        $cutoff = $courtesy === null ? null : brvtal_ticket_issue_courtesy_cutoff($courtesy);
+        if (!$cutoff) throw new DomainException('TICKET_UNAVAILABLE');
+        return brvtal_ticket_issue_download($db,$buyerId,$ticketId,$token,$cutoff);
+    }
     $cutoff=new DateTimeImmutable($eventDate,new DateTimeZone('America/Bogota'))
         ->modify('+1 day')->setTimezone(new DateTimeZone('UTC'));
     return brvtal_ticket_issue_download($db,$buyerId,$ticketId,$token,$cutoff);
@@ -177,6 +213,9 @@ function brvtalBuyerAccountStoredQr(PDO $db, int $buyerId, string $ticketId): ar
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
     } catch (PDOException) {
         throw new DomainException('TICKET_UNAVAILABLE');
+    }
+    if (!is_array($row) && $scope === null) {
+        $row = brvtal_ticket_issue_courtesy_rows($db, $buyerId, $ticketId)[0] ?? null;
     }
     if (!is_array($row) || !is_string($row['token_encrypted'] ?? null)
         || !is_string($row['public_id'] ?? null)) {
