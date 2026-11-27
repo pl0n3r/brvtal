@@ -126,18 +126,26 @@ try {
             'pending_orders','declined_orders','refunded_orders','unverified_orders',
             'tickets','capacity','checkins','refund_cop','refund_in_period_cop',
             'net_after_refunds_cop','fee_cop','fee_vat_cop','withheld_cop','payout_cop',
-            'difference_cop','settlement_status'];
+            'difference_cop','settlement_status','net_after_fees_cop','expenses_cop','committed_expenses_cop',
+            'budget_cop','budget_variance_cop','profit_cop','profit_margin_pct','break_even_tickets',
+            'profit_evidence','break_even_assumption'];
+        $categories=['artistas','lugar','produccion','publicidad','logistica','otros'];
+        $categoryFields=['budget_cop','paid_cop','committed_cop','variance_cop'];
+        foreach ($categories as $category) foreach ($categoryFields as $field) $columns[]=$category.'_'.$field;
         fputcsv($out,$columns, escape: '\\');
         foreach ($rows as $row) {
+            foreach ($categories as $category) foreach ($categoryFields as $field) {
+                $row[$category.'_'.$field]=$row['budget_vs_actual'][$category][$field]??null;
+            }
             fputcsv($out,array_map(static fn($key): string =>
-                $row[$key]===null?'':(string)$row[$key],$columns),
+                brvtalFinanceCsvCell($row[$key]??null),$columns),
             escape: '\\');
         }
         fclose($out);
         exit;
     }
     json_response(['ok'=>true,'rows'=>$rows,'currency'=>'COP',
-        'evidence'=>'provisional; sin comprobante de settlement; gastos en libro separado'],200);
+        'evidence'=>'provisional; sin settlement acreditado; utilidad de evento completo según gastos pagados registrados; punto de equilibrio es un escenario'],200);
 } catch (InvalidArgumentException | JsonException) {
     json_response(['ok'=>false,'error'=>'INVALID_PAYLOAD'],422);
 } catch (DomainException $e) {
