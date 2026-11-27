@@ -13,6 +13,6 @@ brvtal_admin_require();
 ?>
 <section class="forms-workspace" data-admin-module="forms" aria-label="Formularios">
   <p>Consulta de respuestas registradas. Solo lectura.</p>
-  <div data-forms-status role="status" aria-live="polite"></div>
+  <output data-forms-status aria-live="polite"></output>
   <div data-forms-content></div>
 </section>

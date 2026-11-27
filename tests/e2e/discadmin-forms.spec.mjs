@@ -38,6 +38,7 @@ async function setup(page,{old=false,mode='ok',direct=false}={}) {
         params.view==='list' ? {items:[params.cursor?{...item,entry_id:id2,state:'redacted'}:item],total:2,
           has_more:!params.cursor,next_cursor:params.cursor?null:id} :
           {...item,entry_id:params.entry_id,state:params.entry_id===id2?'redacted':'received',
+            notice_version:'privacy-fixture-v1',purpose_key:'contact_capture',retention_until_utc:'2027-11-20 14:00:00',
             fields:[{label:'Mensaje histórico',value:attack}],notifications:[{action_key:'contact_notify',state:'enqueued',created_at_utc:item.created_at_utc}]};
       return route.fulfill({json:{ok:true,data}});
     }
@@ -85,6 +86,8 @@ for (const width of [390,1440]) {
     await expect.poll(()=>control.calls.at(-1).params).toMatchObject({state:'received',from:'2026-11-20'});
     await workspace.getByRole('button',{name:'Ver respuesta '+id}).click();
     await expect(workspace.getByText(attack,{exact:true})).toBeVisible();
+    await expect(workspace.getByText('privacy-fixture-v1',{exact:true})).toBeVisible();
+    await expect(workspace.getByText('contact_capture',{exact:true})).toBeVisible();
     await expect(workspace.getByText('En cola (no acredita envío)',{exact:false})).toBeVisible();
     expect(await page.evaluate(()=>window.formsXss)).toBeUndefined();
     expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);

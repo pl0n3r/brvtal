@@ -10,10 +10,14 @@ window.BRVTALForms = (() => {
   };
   const button = (label, action) => {
     const el = node('button',label,'btn');
-    el.type = 'button'; el.addEventListener('click',action); return el;
+    el.type = 'button'; el.addEventListener('click',() => { void action(); }); return el;
   };
-  const value = input => Array.isArray(input) ? input.map(value).join(', ') :
-    input == null ? '—' : typeof input === 'boolean' ? (input ? 'Sí' : 'No') : String(input);
+  function value(input) {
+    if (Array.isArray(input)) return input.map(value).join(', ');
+    if (input == null) return '—';
+    if (typeof input === 'boolean') return input ? 'Sí' : 'No';
+    return String(input);
+  }
   const date = input => {
     if (typeof input !== 'string') return '—';
     const instant = new Date(input.replace(' ','T') + 'Z');
@@ -22,6 +26,11 @@ window.BRVTALForms = (() => {
     }).format(instant) : '—';
   };
   function pair(dl,label,text) { dl.append(node('dt',label),node('dd',value(text))); }
+  function row(title,description,action,label) {
+    const li = node('li','','forms-row'), copy = node('div');
+    copy.append(node('strong',title),node('span',description));
+    li.append(copy,button(label,action)); return li;
+  }
   function mount(root) {
     const status = root.querySelector('[data-forms-status]');
     const content = root.querySelector('[data-forms-content]');
@@ -50,6 +59,7 @@ window.BRVTALForms = (() => {
         if (payload?.ok !== true || !payload.data || typeof payload.data !== 'object') throw new Error('INVALID');
         status.textContent = ''; render(payload.data);
       } catch (_) {
+        // Do not log request errors: they may contain response identifiers or data.
         if (!current(controller)) return;
         content.replaceChildren();
         status.textContent = 'No fue posible consultar formularios. Intenta de nuevo.';
@@ -63,18 +73,16 @@ window.BRVTALForms = (() => {
       content.append(list);
       if (!items.length) content.append(node('p','No hay resultados.'));
     }
-    function row(title,description,action,label) {
-      const li = node('li','','forms-row'), copy = node('div');
-      copy.append(node('strong',title),node('span',description));
-      li.append(copy,button(label,action)); return li;
+    function catalogRow(item) {
+      return row(value(item.form_key),
+        'Respuestas: '+value(item.total)+' · Nuevas: '+value(item.new_count)+' · Versión '+value(item.latest_version),
+        () => { formKey = item.form_key; return list(true); },'Ver respuestas de '+value(item.form_key));
     }
     function catalog(focus = false) {
       formKey = ''; filters = {}; cursors = [''];
       return read({view:'catalog'},data => {
         heading('Formularios disponibles',focus);
-        rows(data.items,item => row(value(item.form_key),
-          'Respuestas: '+value(item.total)+' · Nuevas: '+value(item.new_count)+' · Versión '+value(item.latest_version),
-          () => { formKey = item.form_key; list(true); },'Ver respuestas de '+value(item.form_key)));
+        rows(data.items,catalogRow);
       },()=>catalog(true));
     }
     function controls() {
@@ -97,9 +105,14 @@ window.BRVTALForms = (() => {
           status.textContent = 'La fecha inicial no puede ser posterior a la final.'; return;
         }
         filters = Object.fromEntries(Object.entries({state:select.value,from:inputs.from.value,to:inputs.to.value}).filter(([,v])=>v));
-        cursors = ['']; list(true);
+        cursors = ['']; void list(true);
       });
       content.append(form);
+    }
+    function entryRow(item) {
+      return row(date(item.created_at_utc),
+        (states[item.state] || 'Estado desconocido')+' · Versión '+value(item.version_number),
+        ()=>detail(item.entry_id),'Ver respuesta '+value(item.entry_id));
     }
     function list(focus = false) {
       const cursor = cursors.at(-1);
@@ -108,13 +121,11 @@ window.BRVTALForms = (() => {
         content.append(button('Volver a formularios',()=>catalog(true)));
         controls();
         content.append(node('p',value(data.total)+' respuestas · Página '+cursors.length+' · Hora de Bogotá'));
-        rows(data.items,item => row(date(item.created_at_utc),
-          (states[item.state] || 'Estado desconocido')+' · Versión '+value(item.version_number),
-          ()=>detail(item.entry_id),'Ver respuesta '+value(item.entry_id)));
+        rows(data.items,entryRow);
         const actions = node('div','','forms-actions');
-        if (cursors.length>1) actions.append(button('Anterior',()=>{cursors.pop();list(true);}));
+        if (cursors.length>1) actions.append(button('Anterior',()=>{cursors.pop();return list(true);}));
         if (data.has_more===true && /^[a-f0-9]{32}$/.test(data.next_cursor || '')) {
-          actions.append(button('Siguiente',()=>{cursors.push(data.next_cursor);list(true);}));
+          actions.append(button('Siguiente',()=>{cursors.push(data.next_cursor);return list(true);}));
         }
         content.append(actions);
       },()=>list(true));
@@ -129,18 +140,18 @@ window.BRVTALForms = (() => {
         pair(dl,'Conservación hasta (Bogotá)',date(data.retention_until_utc)); content.append(dl);
         content.append(node('h3','Campos de la respuesta'));
         const fields = node('dl');
-        if (data.state === 'redacted') fields.append(node('dd','Contenido anonimizado.'));
+        if (data.state === 'redacted') pair(fields,'Contenido','Contenido anonimizado.');
         else {
           if (!Array.isArray(data.fields)) throw new Error('INVALID_FIELDS');
           for (const field of data.fields) pair(fields,value(field.label),field.value);
-          if (!data.fields.length) fields.append(node('dd','Sin campos disponibles.'));
+          if (!data.fields.length) pair(fields,'Contenido','Sin campos disponibles.');
         }
         content.append(fields,node('h3','Notificaciones'));
         if (!Array.isArray(data.notifications)) throw new Error('INVALID_NOTIFICATIONS');
         const notificationList = node('dl');
         for (const notice of data.notifications) pair(notificationList,value(notice.action_key),
           (notices[notice.state] || 'Estado desconocido')+' · '+date(notice.created_at_utc));
-        if (!data.notifications.length) notificationList.append(node('dd','Sin notificaciones registradas.'));
+        if (!data.notifications.length) pair(notificationList,'Estado','Sin notificaciones registradas.');
         content.append(notificationList);
       },()=>detail(id));
     }
