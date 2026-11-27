@@ -62,24 +62,26 @@ jobs:
           export BRVTAL_VISUAL_OUTPUT_DIR="$GITHUB_WORKSPACE/event-visibility-evidence"
           mkdir "$BRVTAL_VISUAL_OUTPUT_DIR"
           npx --no-install playwright test tests/e2e/discadmin-event-visibility.spec.mjs --project=chromium --grep 'exact-source before/after evidence' --workers=1 --reporter=list
-      - name: Verify target PR still matches exact evidence identities
+      - name: Verify public Git references still match exact evidence identities
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --retry 2 --max-time 30 \
-            https://api.github.com/repos/pl0n3r/brvtal/pulls/2240 \
-            -o "$RUNNER_TEMP/target-pr.json"
+          git ls-remote --exit-code https://github.com/pl0n3r/brvtal.git \
+            refs/heads/main refs/heads/work/issue-2169 refs/pull/2240/head \
+            > "$RUNNER_TEMP/target-refs.txt"
           python3 - <<'PY'
-          import json, os
+          import os, re
           from pathlib import Path
-          pr = json.loads((Path(os.environ["RUNNER_TEMP"]) / "target-pr.json").read_text())
-          if not (pr["number"] == 2240 and pr["state"] == "open"
-                  and pr["base"]["ref"] == "main"
-                  and pr["head"]["ref"] == "work/issue-2169"
-                  and pr["head"]["repo"]["full_name"] == "pl0n3r/brvtal"
-                  and pr["base"]["repo"]["full_name"] == "pl0n3r/brvtal"
-                  and pr["base"]["sha"] == os.environ["BASE_SHA"]
-                  and pr["head"]["sha"] == os.environ["CANDIDATE_SHA"]):
+          refs = {}
+          for line in (Path(os.environ["RUNNER_TEMP"]) / "target-refs.txt").read_text().splitlines():
+              sha, ref = line.split("\t")
+              if ref in refs or not re.fullmatch(r"[0-9a-f]{40}", sha):
+                  raise SystemExit("Ambiguous target Git references")
+              refs[ref] = sha
+          expected = {"refs/heads/main": os.environ["BASE_SHA"],
+                      "refs/heads/work/issue-2169": os.environ["CANDIDATE_SHA"],
+                      "refs/pull/2240/head": os.environ["CANDIDATE_SHA"]}
+          if refs != expected:
               raise SystemExit("Target PR identity changed; do not publish stale evidence")
           PY
       - name: Verify four PNGs and write manifest and receipt
