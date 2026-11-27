@@ -76,6 +76,7 @@ test('1979 C escritorio: correo fallido permite reenvío, nunca cancelar pagado'
   await expect(page.getByText('REF-1')).toBeVisible();
   await page.screenshot({path:'test-results/order-C-1440-before.png',fullPage:true});
   await page.locator('.tk-order-stalled button').click();
+  await expect(page.locator('dialog')).toContainText('acceso a Mi cuenta');
   await page.getByRole('button',{name:'Confirmar reenvío'}).click();
   expect(calls).toHaveLength(1);expect(calls[0].action).toBe('resend');
   await expect(page.locator('[data-order-action="cancel_pending"]')).toHaveCount(0);
@@ -138,4 +139,24 @@ test('1979 backend source safety contract',()=>{
   expect(core).not.toContain('curl_exec(');
   expect(core).not.toContain('random_bytes(32)');
   expect(orders).toContain('ticket_order_notes');
+});
+
+test('2101: recuperación no disponible y permiso denegado sin éxito falso',async({page})=>{
+  await page.setViewportSize({width:390,height:844});
+  let n=0;
+  await launch(page,r=>{
+    n++;
+    r.fulfill({status:n===1?409:403,contentType:'application/json',
+      body:JSON.stringify({ok:false,error:n===1?'MAIL_PAYLOAD_NOT_RECOVERABLE':'FORBIDDEN'})});
+  });
+  await page.locator('.tk-order-stalled button').click();
+  await expect(page.getByRole('button',{name:'Confirmar reenvío'})).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('dialog')).toContainText('No hay acceso recuperable');
+  await page.screenshot({path:'test-results/2101-recovery-error-390.png',fullPage:true});
+  await page.getByRole('button',{name:'Confirmar reenvío'}).click();
+  await expect(page.locator('dialog')).toContainText('Sin permisos');
+  await expect(page.locator('dialog')).toBeVisible();
+  await page.getByRole('button',{name:'Volver'}).click();
+  await expect(page.locator('dialog')).not.toBeVisible();
 });
