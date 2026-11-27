@@ -384,6 +384,22 @@ function logAccount2052Capture(stage, width, png) {
   console.log(`ACCOUNT2052-PNG ${sha} ${stage} ${width} ${png.readUInt32BE(20)} ${hash} ${chunks.length}`);
   chunks.forEach((chunk, i) => console.log(`ACCOUNT2052-DATA ${stage} ${width} ${i} ${chunk}`));
 }
+const account2052Baseline = '3f76c15678e0d6c31271406eff5ff1ba66d6c9b2';
+async function routeAccount2052Styles(page, baseline = false) {
+  const asset = path => baseline
+    ? execFileSync('git', ['show', account2052Baseline + ':' + path])
+    : readFileSync(join(root, path));
+  await page.route(/\/css\/buyer-(?:access|account)\.css(?:\?.*)?$/, route =>
+    route.fulfill({contentType:'text/css',body:asset(new URL(route.request().url()).pathname.slice(1))}));
+  await page.route('**/assets/fonts/BrokenGlass.ttf', route =>
+    route.fulfill({contentType:'font/ttf',body:asset('assets/fonts/BrokenGlass.ttf')}));
+}
+async function assertAccount2052Styles(page) {
+  await expect(page.locator('body')).toHaveCSS('background-color','rgb(5, 5, 5)');
+  await expect(page.locator('.account-layout')).toHaveCSS('display','grid');
+  expect(await page.evaluate(async () => (await document.fonts.load('24px "Broken Glass"')).length)).toBeGreaterThan(0);
+  await page.evaluate(() => document.fonts.ready);
+}
 for(const width of [390,1440]){
   test(`account quantities and channel evidence at ${width}px`,async ({page,browser},testInfo)=>{
     const partial={...paid,order_number:77,items:[
@@ -397,18 +413,22 @@ for(const width of [390,1440]){
     if(process.env.GITHUB_HEAD_REF==='work/issue-2052'){
       const before=await browser.newPage({viewport:{width,height:900},locale:'es-CO',timezoneId:'America/Bogota'});
       try{
-        const baseline=execFileSync('git',['show','3f76c15678e0d6c31271406eff5ff1ba66d6c9b2:buyer/index.php'],{encoding:'utf8'});
+        const baseline=execFileSync('git',['show',account2052Baseline + ':buyer/index.php'],{encoding:'utf8'});
         const old={...partial,payment_status:'declined',items:partial.items.map((item,i)=>({...item,quantity:i<2?2:1}))};
-        await fakeAccount(before,[old,{...offline,payment_status:null},pending,uncertain],200,baseline);
+        await routeAccount2052Styles(before, true);
+        await fakeAccount(before,[old,{...offline,payment_status:null},{...pending,payment_status:'pending'},{...uncertain,payment_status:null}],200,baseline);
         await before.goto(url);
+        await assertAccount2052Styles(before);
         await expect(before.getByText('Cantidad: 2 · Entrada: Disponible')).toBeVisible();
         beforePng = await before.screenshot({fullPage:true,animations:'disabled'});
         await testInfo.attach('account-2052-before-'+width,{body:beforePng,contentType:'image/png'});
       }finally{await before.close();}
     }
     await page.setViewportSize({width,height:900});
+    await routeAccount2052Styles(page);
     await fakeAccount(page,[partial,offline,pending,uncertain]);
     await page.goto(url);
+    await assertAccount2052Styles(page);
     const orders=page.locator('#orders .account-order');
     await expect(orders).toHaveCount(4);
     await expect(orders.nth(0)).toContainText('Wompi verificado');
