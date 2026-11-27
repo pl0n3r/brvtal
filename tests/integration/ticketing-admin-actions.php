@@ -29,7 +29,7 @@ $server->exec("CREATE DATABASE {$dbName}");
 try {
     $db=new PDO("mysql:host={$host};port={$port};dbname={$dbName};charset=utf8mb4",$user,$pass,$opts);
     foreach([
-      'CREATE TABLE events (id INT UNSIGNED PRIMARY KEY) ENGINE=InnoDB',
+      'CREATE TABLE events (id INT UNSIGNED PRIMARY KEY,title VARCHAR(160) NOT NULL) ENGINE=InnoDB',
       'CREATE TABLE event_ticket_types (id INT UNSIGNED PRIMARY KEY,event_id INT UNSIGNED NOT NULL) ENGINE=InnoDB',
       'CREATE TABLE admins (id INT UNSIGNED PRIMARY KEY) ENGINE=InnoDB',
       'CREATE TABLE ticket_inventory_holds (order_id BIGINT UNSIGNED,status VARCHAR(20)) ENGINE=InnoDB',
@@ -41,7 +41,7 @@ try {
             if(trim($part)!=='') $db->exec($part);
         }
     }
-    $db->exec("INSERT INTO events VALUES (6),(7)");
+    $db->exec("INSERT INTO events VALUES (6,'Synthetic'),(7,'Other')");
     $db->exec("INSERT INTO event_ticket_types VALUES (11,6),(12,7)");
     $db->exec("INSERT INTO ticket_buyers(id,public_id,email) VALUES (3,UNHEX(LPAD('3',32,'0')),'buyer@example.test')");
     foreach ([91=>'pending',92=>'paid',93=>'pending',94=>'paid'] as $orderId=>$status) {
@@ -80,19 +80,23 @@ try {
         VALUES (UNHEX(LPAD('1',32,'0')),{$id},6,11,1,'issued',UTC_TIMESTAMP(6))");
     $GLOBALS['config']['security']['encryption_key']=str_repeat('t',48);
     putenv('BRVTAL_TICKET_MAIL_TESTING=1');putenv('BRVTAL_TICKET_MAIL_MODE=mock');
-    $sealed=brvtalBuyerMailSeal('QR ya emitido, únicamente cifrado');
-    $sealedHtml=brvtalBuyerMailSeal('<!doctype html><html><body>Boleta ya emitida</body></html>');
+    $sealed=brvtalBuyerMailSeal('QR anterior BRVTAL:T1:obsolete y activación token=obsolete');
+    $sealedHtml=brvtalBuyerMailSeal('<!doctype html><html><body>BRVTAL:T1:obsolete token=obsolete</body></html>');
     $insert=$db->prepare('INSERT INTO ticket_mail_outbox(message_key,payload_hash,related_ref,recipient_email,subject,body_text,body_html,template_key,template_version) VALUES (?,?,?,?,?,?,?,?,?)');
-    $insert->execute(['order:92:payment_approved',hash('sha256',$sealed),'order:92','buyer@example.test','Boletas',$sealed,$sealedHtml,'payment_approved',1]);
+    $insert->execute(['order:92:payment_approved',hash('sha256',$sealed),'order:92','previous@example.test','Boletas',$sealed,$sealedHtml,'payment_approved',1]);
     $resend=['order_id'=>'92','action'=>'resend','idempotency_key'=>str_repeat('e',32)];
-    $result=brvtalTicketAdminRecordAction($db,7,'superadmin',brvtalTicketAdminActionInput($resend));
-    actionAssert($result['email_queued'] && $result['status']==='queued','resend queued');
-    actionAssert(brvtalTicketAdminRecordAction($db,7,'superadmin',brvtalTicketAdminActionInput($resend))['replayed'],'resend idempotent');
-    $copies=$db->query("SELECT body_text FROM ticket_mail_outbox WHERE related_ref='order:92' ORDER BY id")->fetchAll(PDO::FETCH_COLUMN);
-    actionAssert(count($copies)===2 && $copies[0]===$copies[1] && str_starts_with($copies[1],BRVTAL_BUYER_MAIL_SEAL_PREFIX),'same sealed QR envelope');
-    actionAssert((int)$db->query('SELECT COUNT(*) FROM ticket_order_action_requests')->fetchColumn()===3,'three committed actions');
+    // The historical sealed envelope is not authority to send to a guest.
+    try {
+        brvtalTicketAdminRecordAction($db,7,'superadmin',brvtalTicketAdminActionInput($resend));
+        throw new RuntimeException('guest recovery accepted');
+    } catch (DomainException $error) {
+        actionAssert($error->getMessage()==='MAIL_PAYLOAD_NOT_RECOVERABLE','guest fails closed');
+    }
+    actionAssert((int)$db->query('SELECT COUNT(*) FROM ticket_order_action_requests')->fetchColumn()===2,'guest leaves no receipt');
+    $db->exec("UPDATE ticket_buyers SET status='active',email_verified_at=UTC_TIMESTAMP(6),
+        password_hash='synthetic-password-hash' WHERE id=3");
 
-    // #2119: projection is independent from the existing resend action.
+    // #2119: real projection fixture, reused by #2101.
     require_once __DIR__.'/../../config/ticketing_issue.php';
     $db->exec("UPDATE ticket_order_items SET quantity=9 WHERE id={$id}");
     $entryInsert=$db->prepare("INSERT INTO ticket_entries(public_id,order_item_id,event_id,ticket_type_id,unit_number,status,issued_at_utc)
@@ -116,6 +120,12 @@ try {
         if ($unit===6) $cipher=null;
         if ($unit===7) $cipher=brvtal_ticket_issue_seal_token($secret,random_bytes(16));
         $hash=hash('sha256',$unit===9?random_bytes(32):$secret,true);
+        if ($unit===2) {
+            $oldCredential=$db->prepare("INSERT INTO ticket_entry_credentials
+                (entry_id,version,token_hash,status,created_at_utc,revoked_at_utc)
+                VALUES (?,1,?,'revoked',UTC_TIMESTAMP(6),UTC_TIMESTAMP(6))");
+            $oldCredential->execute([$entryId,hash('sha256',random_bytes(32),true)]);
+        }
         $credentialInsert->execute([$entryId,$unit===2?2:1,$hash,$cipher]);
     }
     $snapshot=static function() use ($db): string {
@@ -172,5 +182,60 @@ try {
     $db->exec("UPDATE ticket_buyers SET status='blocked' WHERE id=3");
     $reject(fn()=>$project(),'RECOVERY_ORDER_UNAVAILABLE');
     echo "2119 MariaDB recovery projection: all synthetic cases OK.\n";
+    $db->exec("UPDATE ticket_buyers SET status='active' WHERE id=3");
+    $invoke=static fn(array $request)=>brvtalTicketAdminRecordAction(
+        $db,7,'superadmin',brvtalTicketAdminActionInput($request));
+    $before=$snapshot();
+    putenv('BRVTAL_TICKET_MAIL_MODE=disabled');
+    try {
+        $reject(fn()=>$invoke($resend),'MAIL_NOT_ENABLED');
+        actionAssert($snapshot()===$before,'disabled enqueue leaves no action or mail');
+    } finally { putenv('BRVTAL_TICKET_MAIL_MODE=mock'); }
+    $db->exec("UPDATE ticket_entries SET status='revoked' WHERE order_item_id={$id} AND unit_number IN (1,2)");
+    $before=$snapshot();
+    $reject(fn()=>$invoke($resend),'MAIL_PAYLOAD_NOT_RECOVERABLE');
+    actionAssert($snapshot()===$before,'no current recoverable credential leaves no side effects');
+    $db->exec("UPDATE ticket_entries SET status='issued' WHERE order_item_id={$id} AND unit_number IN (1,2)");
+    $durable=static function() use ($db): string {
+        $tables=['ticket_orders','ticket_order_items','ticket_entries','ticket_entry_credentials',
+            'ticket_inventory_holds','ticket_payment_attempts','ticket_issue_outbox'];
+        $values=[];
+        foreach ($tables as $table) $values[]=$db->query('SELECT * FROM '.$table)->fetchAll();
+        return hash('sha256',serialize($values));
+    };
+    $before=$durable();
+    $result=$invoke($resend);
+    actionAssert($result['email_queued'] && $result['status']==='queued','account resend queued');
+    $after=$snapshot();
+    $replay=$invoke($resend);
+    actionAssert($replay['replayed'] && $replay['receipt_id']===$result['receipt_id']
+        && $snapshot()===$after,'resend replay preserves original receipt');
+    actionAssert($durable()===$before,'resend does not rotate, emit, pay or mutate inventory');
+    $copies=$db->query("SELECT * FROM ticket_mail_outbox WHERE related_ref='order:92' ORDER BY id")->fetchAll();
+    actionAssert(count($copies)===2 && $copies[0]['body_text']===$sealed
+        && $copies[0]['body_html']===$sealedHtml,'historical mail immutable');
+    actionAssert($copies[1]['recipient_email']==='buyer@example.test'
+        && $copies[1]['template_key']==='payment_approved'
+        && str_starts_with($copies[1]['body_text'],BRVTAL_BUYER_MAIL_SEAL_PREFIX)
+        && str_starts_with($copies[1]['body_html'],BRVTAL_BUYER_MAIL_SEAL_PREFIX),'current recipient and sealed versioned render');
+    foreach (['body_text','body_html'] as $field) {
+        $plain=brvtalBuyerMailUnseal($copies[1][$field]);
+        actionAssert(is_string($plain) && str_contains($plain,'https://www.brvtal.com.co/buyer/')
+            && !str_contains($plain,'BRVTAL:T1:') && !str_contains($plain,'token=')
+            && !str_contains($plain,'obsolete'),'account-only link, no old bearer');
+    }
+    // A later revocation cannot turn this version-independent account URL into a QR.
+    $db->exec("UPDATE ticket_entries SET status='revoked' WHERE order_item_id={$id} AND unit_number IN (1,2)");
+    $sent=brvtal_ticket_resend_send($copies[1],static function(array $payload,array $headers): array {
+        actionAssert($payload['to']===['buyer@example.test'],'mock transport recipient');
+        foreach (['text','html'] as $field) {
+            actionAssert(str_contains($payload[$field],'/buyer/')
+                && !str_contains($payload[$field],'BRVTAL:T1:')
+                && !str_contains($payload[$field],'token='),'mock transport contains no bearer');
+        }
+        return ['status'=>200,'body'=>'{"id":"synthetic-recovery"}'];
+    });
+    actionAssert($sent['state']==='accepted','synthetic transport only');
+    echo "2101 MariaDB: current account resend, immutable history and mock transport OK.\n";
 } finally { $server->exec("DROP DATABASE IF EXISTS {$dbName}"); }
 echo "1979 MariaDB: note, cancellation, safe mail resend, idempotence OK.\n";

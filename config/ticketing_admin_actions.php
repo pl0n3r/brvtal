@@ -344,30 +344,25 @@ function brvtalTicketAdminRecordOrderAction(PDO $pdo, int $actorId, string $role
                 WHERE order_id=? AND state='done' LIMIT 1");
             $q->execute([$orderId]);
             if ($q->fetchColumn()===false) throw new DomainException('TICKETS_NOT_ISSUED');
-            $q = $pdo->prepare("SELECT COALESCE(SUM(i.quantity),0) AS expected,
-                COALESCE((SELECT COUNT(*) FROM ticket_entries e
-                  JOIN ticket_order_items x ON x.id=e.order_item_id
-                  WHERE x.order_id=? AND e.status IN ('issued','used')),0) AS ready
-                FROM ticket_order_items i WHERE i.order_id=?");
-            $q->execute([$orderId,$orderId]);
-            $counts = $q->fetch(PDO::FETCH_ASSOC);
-            if (!$counts || (int)$counts['expected']<1
-                || (int)$counts['expected']!==(int)$counts['ready']) {
-                throw new DomainException('TICKETS_NOT_ISSUED');
+            // Only a currently verified buyer can recover from Mi Cuenta without
+            // creating another bearer credential or replaying historical activation links.
+            $q = $pdo->prepare("SELECT email FROM ticket_buyers
+                WHERE id=? AND status='active' AND email_verified_at IS NOT NULL
+                  AND password_hash IS NOT NULL AND password_hash<>'' FOR UPDATE");
+            $q->execute([(int)$order['buyer_id']]);
+            $recipient = $q->fetchColumn();
+            if (!is_string($recipient) || !filter_var($recipient, FILTER_VALIDATE_EMAIL)) {
+                throw new DomainException('MAIL_PAYLOAD_NOT_RECOVERABLE');
             }
-            $q = $pdo->prepare('SELECT recipient_email,subject,body_text,body_html,
-                template_key,template_version FROM ticket_mail_outbox
-                WHERE message_key=? AND related_ref=? LIMIT 1 FOR UPDATE');
-            $q->execute(["order:{$orderId}:payment_approved","order:{$orderId}"]);
-            $mail = $q->fetch(PDO::FETCH_ASSOC);
-            // Lost QR secrets cannot be regenerated from SHA-256. Only resend
-            // the original already-sealed payload; never create replacement QR.
-            if (!$mail || !str_starts_with((string)$mail['body_text'],
-                BRVTAL_BUYER_MAIL_SEAL_PREFIX)
-                || brvtalBuyerMailUnseal((string)$mail['body_text'])===null
-                || !is_string($mail['body_html'])
-                || !str_starts_with((string)$mail['body_html'],BRVTAL_BUYER_MAIL_SEAL_PREFIX)
-                || brvtalBuyerMailUnseal((string)$mail['body_html'])===null) {
+            $projection = brvtalTicketAdminRecoveryProjection(
+                $pdo,$actorId,$role,$orderId,(int)$order['event_id'],$recipient);
+            if (!in_array('recoverable',array_column($projection['entries'],'state'),true)) {
+                throw new DomainException('MAIL_PAYLOAD_NOT_RECOVERABLE');
+            }
+            $q = $pdo->prepare('SELECT title FROM events WHERE id=?');
+            $q->execute([(int)$order['event_id']]);
+            $event = $q->fetchColumn();
+            if (!is_string($event) || trim($event)==='') {
                 throw new DomainException('MAIL_PAYLOAD_NOT_RECOVERABLE');
             }
             $mode = (string)brvtal_secret_value('BRVTAL_TICKET_MAIL_MODE');
@@ -378,18 +373,24 @@ function brvtalTicketAdminRecordOrderAction(PDO $pdo, int $actorId, string $role
                     throw new DomainException('MAIL_NOT_ENABLED');
                 }
             } elseif ($mode==='test') {
-                if (!brvtal_ticket_test_recipient_allowed((string)$mail['recipient_email'])) {
+                if (!brvtal_ticket_test_recipient_allowed($recipient)) {
                     throw new DomainException('MAIL_NOT_ENABLED');
                 }
             } elseif (!($mode==='mock' && brvtal_secret_value('BRVTAL_TICKET_MAIL_TESTING')==='1')) {
                 throw new DomainException('MAIL_NOT_ENABLED');
             }
             $mailKey = 'order:'.$orderId.':resend:'.hash('sha256',$actorId.':'.$input['idempotency_key']);
+            // The account URL carries no order, entry, activation or QR secret.
+            // Account access checks the current buyer, order and credential at
+            // retrieval time even if the entry changes after this transaction.
+            $mail = brvtal_ticket_mail_render('payment_approved', [
+                'event'=>$event,'link'=>'https://www.brvtal.com.co/buyer/',
+                'order_number'=>$orderId,
+            ],$pdo);
             $outboxId = brvtal_ticket_mail_enqueue($pdo,$mailKey,'order:'.$orderId,
-                (string)$mail['recipient_email'],(string)$mail['subject'],
-                (string)$mail['body_text'],$mail['body_html'],
-                (string)$mail['template_key'],$mail['template_version']===null
-                    ? null : (int)$mail['template_version']);
+                $recipient,$mail['subject'],brvtalBuyerMailSeal($mail['text'],50000),
+                brvtalBuyerMailSeal($mail['html'],50000),
+                $mail['template_key'],$mail['template_version']);
             brvtal_mail_history_record($pdo,$outboxId,[
                 'event_id'=>(int)$order['event_id'],'buyer_id'=>(int)$order['buyer_id'],
                 'order_id'=>$orderId,'template_key'=>'payment_approved',
