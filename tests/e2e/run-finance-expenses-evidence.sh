@@ -10,7 +10,7 @@ BASELINE_SHA="$(sed -n "s/^const baseline='\([a-f0-9]\{40\}\)';$/\1/p" tests/e2e
 git merge-base --is-ancestor "$BASELINE_SHA" "$TARGET_HEAD"
 export BASELINE_SHA
 export PLAYWRIGHT_JSON_OUTPUT_FILE="$RUNNER_TEMP/finance-2191-report.json"
-npx playwright test tests/e2e/discadmin-ticketing-finance-expenses.spec.mjs --project=chromium --workers=1 --reporter=list,json
+npx --no-install playwright test tests/e2e/discadmin-ticketing-finance-expenses.spec.mjs --project=chromium --workers=1 --reporter=list,json
 mkdir -p artifacts/issue-2191
 python3 - <<'PY'
 import base64, hashlib, json, os, struct
@@ -54,7 +54,8 @@ PY
 # The only database accepted is the disposable service in this workflow.
 DB_NAME=brvtal_test_finance_2191
 export DB_NAME
-db=(mariadb --no-defaults --protocol=TCP -h127.0.0.1 -P3306 -uroot -pbrvtal_root)
+db_cli=$(command -v mariadb || command -v mysql)
+db=("$db_cli" --no-defaults --protocol=TCP -h127.0.0.1 -P3306 -uroot -pbrvtal_root)
 cleanup() {
   [[ -z "${php_pid:-}" ]] || kill "$php_pid" 2>/dev/null || true
   rm -f config/config.php "$fixture"
@@ -69,7 +70,7 @@ mkdir -p storage/logs storage/rate_limits "$RUNNER_TEMP/finance-sessions"
 cat > config/config.php <<'PHP'
 <?php
 return [
- 'app'=>['base_url'=>'http://127.0.0.1:4174','timezone'=>'America/Bogota','debug'=>false],
+ 'app'=>['name'=>'BRVTAL','base_url'=>'http://127.0.0.1:4174','timezone'=>'America/Bogota','debug'=>false],
  'db'=>['host'=>'127.0.0.1','port'=>3306,'name'=>'brvtal_test_finance_2191','user'=>'root','pass'=>'brvtal_root','charset'=>'utf8mb4'],
  'security'=>['session_name'=>'BRVTAL_ADMIN_FINANCE_CI','csrf_key'=>str_repeat('c',32),'encryption_key'=>str_repeat('e',32)],
 ];
@@ -86,7 +87,7 @@ $pdo->exec("INSERT INTO events(id,title,slug,status) VALUES(6101,'Evento fixture
 PHP
 export BRVTAL_TEST_DB_NAME="$DB_NAME" BRVTAL_MAIL_TESTING=1
 export BRVTAL_MAIL_CAPTURE_FILE="$RUNNER_TEMP/finance-mail.json"
-export BRVTAL_TICKET_WOMPI_MODE=disabled BRVTAL_TICKET_MAIL_MODE=mock
+export BRVTAL_TICKET_WOMPI_MODE=off BRVTAL_TICKET_MAIL_MODE=disabled
 php -d session.save_path="$RUNNER_TEMP/finance-sessions" -S 127.0.0.1:4174 -t . > "$RUNNER_TEMP/finance-php.log" 2>&1 &
 php_pid=$!
 for _ in $(seq 1 40); do

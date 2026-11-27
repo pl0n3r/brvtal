@@ -87,8 +87,8 @@ jobs:
       - name: Install browser dependencies
         working-directory: candidate
         run: |
-          npm ci --no-audit --no-fund
-          npx playwright install --with-deps chromium
+          npm install --ignore-scripts --no-save --package-lock=false --no-audit --no-fund @playwright/test@1.63.0
+          npx --no-install playwright install --with-deps chromium
       - name: Capture and verify real persisted operations
         working-directory: candidate
         env:
