@@ -30,6 +30,22 @@ try {
     if ($filter['format'] === 'csv' && !brvtalTicketingCan($role, 'export')) {
         json_response(['ok'=>false,'error'=>'EXPORT_FORBIDDEN'], 403);
     }
+    if ($filter['format'] === 'csv') {
+        brvtal_admin_require_csrf();
+        if ($filter['export_scope'] === 'all' && !brvtalTicketAdminFullExportEnabled()) {
+            json_response(['ok'=>false,'error'=>'EXPORT_DISABLED'], 403);
+        }
+        require_once __DIR__ . '/../../config/admin_activity.php';
+        $export = brvtalTicketAdminExport($pdo, $filter, static function (array $meta) use ($pdo): void {
+            brvtal_activity_record($pdo, 'export', 'ticketing_records', null, meta: $meta);
+        });
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="brvtal-ticketing-' . $filter['export_scope'] . '.csv"');
+        header('X-BRVTAL-Export-Count: ' . $export['count']);
+        header('X-BRVTAL-Export-Snapshot: ' . $export['snapshot']);
+        echo $export['csv'];
+        exit;
+    }
     $page = brvtalTicketAdminPage($pdo, $filter);
     if ($filter['order_id'] !== null) {
         $page['rows'] = array_values(array_filter($page['rows'], static fn(array $row): bool =>
@@ -50,24 +66,11 @@ try {
         foreach ($page['rows'] as &$row) unset($row['email']);
         unset($row);
     }
-    if ($filter['format'] === 'csv') {
-        header('Content-Type: text/csv; charset=utf-8');
-        header('Content-Disposition: attachment; filename="brvtal-ticketing-page.csv"');
-        $out = fopen('php://output', 'wb');
-        fputcsv($out, $filter['kind'] === 'orders'
-            ? ['id','buyer_id','event_id','status','currency','total_cop','units','approvals','last_payment_state','mail_state']
-            : ['id','status','order_count','paid_total_cop'], escape: '\\');
-        foreach ($page['rows'] as $row) {
-            $cols = $filter['kind'] === 'orders'
-                ? ['id','buyer_id','event_id','status','currency','total_cop','units','approvals','last_payment_state','mail_state']
-                : ['id','status','order_count','paid_total_cop'];
-            fputcsv($out, array_map(static fn(string $key): string => (string)($row[$key] ?? ''), $cols),
-                escape: '\\');
-        }
-        fclose($out);
-        exit;
-    }
+    $page['export_all_enabled'] = brvtalTicketAdminFullExportEnabled() && brvtalTicketingCan($role, 'export');
+    $page['export_max'] = BRVTAL_TICKET_EXPORT_MAX;
     json_response(['ok'=>true, 'data'=>$page, 'read_only'=>true, 'currency'=>'COP']);
+} catch (LengthException) {
+    json_response(['ok'=>false,'error'=>'EXPORT_LIMIT','limit'=>BRVTAL_TICKET_EXPORT_MAX], 422);
 } catch (InvalidArgumentException) {
     json_response(['ok'=>false,'error'=>'INVALID_FILTER'], 422);
 } catch (Throwable) {
