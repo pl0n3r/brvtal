@@ -21,9 +21,13 @@ try {
             throw new InvalidArgumentException('INVALID_ACTION');
         }
         $raw = file_get_contents('php://input', false, null, 0, 8193);
-        if (!is_string($raw) || strlen($raw) > 8192) throw new InvalidArgumentException('INVALID_ACTION');
+        if (!is_string($raw) || strlen($raw) > 8192) {
+            throw new InvalidArgumentException('INVALID_ACTION');
+        }
         $input = json_decode($raw, true, 16);
-        if (!is_array($input)) throw new InvalidArgumentException('INVALID_ACTION');
+        if (!is_array($input)) {
+            throw new InvalidArgumentException('INVALID_ACTION');
+        }
         brvtalFormsManagementInput($input);
         if (!is_array($settings) || !brvtalFormsAdminEnabled($settings)
             || ($settings['forms']['admin_manage_enabled'] ?? null) !== true) {

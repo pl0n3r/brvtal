@@ -45,7 +45,9 @@ function brvtalFormsAdminFilters(array $input): array
         'detail' => ['view', 'form_key', 'entry_id'],
         default => throw new InvalidArgumentException('INVALID_FILTER'),
     };
-    if (array_diff(array_keys($input), $allowed)) throw new InvalidArgumentException('INVALID_FILTER');
+    if (array_diff(array_keys($input), $allowed)) {
+        throw new InvalidArgumentException('INVALID_FILTER');
+    }
     if ($view === 'catalog') return [$view, [], [], 50];
     $form = $input['form_key'] ?? '';
     if (!preg_match('/\A[a-z][a-z0-9_]{0,63}\z/', $form)) {
@@ -54,11 +56,15 @@ function brvtalFormsAdminFilters(array $input): array
     $where = ['e.form_key=?'];
     $args = [$form];
     if ($view === 'detail') {
-        if (!preg_match('/\A[a-f0-9]{32}\z/', $input['entry_id'] ?? '')) throw new InvalidArgumentException('INVALID_FILTER');
+        if (!preg_match('/\A[a-f0-9]{32}\z/', $input['entry_id'] ?? '')) {
+            throw new InvalidArgumentException('INVALID_FILTER');
+        }
         return [$view, [...$where, 'e.entry_id=UNHEX(?)'], [...$args, $input['entry_id']], 1];
     }
     if (isset($input['state'])) {
-        if (!in_array($input['state'], ['received', 'reviewed', 'redacted'], true)) throw new InvalidArgumentException('INVALID_FILTER');
+        if (!in_array($input['state'], ['received', 'reviewed', 'redacted'], true)) {
+            throw new InvalidArgumentException('INVALID_FILTER');
+        }
         $where[]='e.state=?';
         $args[]=$input['state'];
     }
@@ -69,7 +75,9 @@ function brvtalFormsAdminFilters(array $input): array
         $where[] = brvtalFormsManagementStateSql().'=?';
         $args[] = $input['management_state'];
     }
-    if (isset($input['from'], $input['to']) && $input['from']>$input['to']) throw new InvalidArgumentException('INVALID_FILTER');
+    if (isset($input['from'], $input['to']) && $input['from']>$input['to']) {
+        throw new InvalidArgumentException('INVALID_FILTER');
+    }
     foreach (['from' => '>=', 'to' => '<'] as $key => $op) {
         if (isset($input[$key])) {
             $where[]='e.created_at_utc'.$op.'?';
@@ -131,7 +139,8 @@ function brvtalFormsAdminReadSnapshot(PDO $pdo, array $input): array
     if ($view === 'catalog') {
         $rows=$pdo->query("SELECT v.form_key,v.latest_version,COALESCE(c.total,0) AS total,COALESCE(c.new_count,0) AS new_count
             FROM (SELECT form_key,MAX(version_number) AS latest_version FROM form_definition_versions GROUP BY form_key) v
-            LEFT JOIN (SELECT e.form_key,COUNT(*) AS total,SUM(CASE WHEN ".brvtalFormsManagementStateSql()."='new' THEN 1 ELSE 0 END) AS new_count
+            LEFT JOIN (SELECT e.form_key,COUNT(*) AS total,
+            SUM(CASE WHEN ".brvtalFormsManagementStateSql()."='new' THEN 1 ELSE 0 END) AS new_count
             FROM form_entries e ".brvtalFormsManagementJoin()." GROUP BY e.form_key) c
             ON c.form_key=v.form_key ORDER BY v.form_key")->fetchAll(PDO::FETCH_ASSOC);
         return ['items' => $rows];
@@ -147,7 +156,9 @@ function brvtalFormsAdminReadSnapshot(PDO $pdo, array $input): array
             AND v.version_number=e.version_number AND v.definition_sha256=e.definition_sha256 WHERE $predicate");
         $q->execute($args);
         $row=$q->fetch(PDO::FETCH_ASSOC);
-        if (!$row) throw new DomainException('ENTRY_NOT_FOUND');
+        if (!$row) {
+            throw new DomainException('ENTRY_NOT_FOUND');
+        }
         $q=$pdo->prepare('SELECT action_key,state,created_at_utc FROM form_notification_intents WHERE entry_id=UNHEX(?) ORDER BY action_key');
         $q->execute([$row['entry_id']]);
         $notifications = $q->fetchAll(PDO::FETCH_ASSOC);
@@ -168,11 +179,14 @@ function brvtalFormsAdminReadSnapshot(PDO $pdo, array $input): array
         $q=$pdo->prepare('SELECT created_at_utc FROM form_entries WHERE form_key=? AND entry_id=UNHEX(?)');
         $q->execute([$input['form_key'], $input['cursor']]);
         $date=$q->fetchColumn();
-        if (!is_string($date)) throw new InvalidArgumentException('INVALID_FILTER');
+        if (!is_string($date)) {
+            throw new InvalidArgumentException('INVALID_FILTER');
+        }
         $predicate.=' AND (e.created_at_utc<? OR (e.created_at_utc=? AND e.entry_id<UNHEX(?)))';
         $args=[...$args, $date, $date, $input['cursor']];
     }
-    $q=$pdo->prepare("SELECT $columns FROM form_entries e $join WHERE $predicate ORDER BY e.created_at_utc DESC,e.entry_id DESC LIMIT ".($limit+1));
+    $q=$pdo->prepare("SELECT $columns FROM form_entries e $join WHERE $predicate
+        ORDER BY e.created_at_utc DESC,e.entry_id DESC LIMIT ".($limit+1));
     $q->execute($args);
     $items=$q->fetchAll(PDO::FETCH_ASSOC);
     $more=count($items)>$limit;
@@ -232,25 +246,35 @@ function brvtalFormsManagementInput(array $input): array
 function brvtalFormsAdminAction(PDO $pdo, int $actor, array $input): array
 {
     [$action, $form, $entry, $expected, $value] = brvtalFormsManagementInput($input);
-    if ($pdo->inTransaction()) throw new RuntimeException('FORMS_ADMIN_UNAVAILABLE');
+    if ($pdo->inTransaction()) {
+        throw new RuntimeException('FORMS_ADMIN_UNAVAILABLE');
+    }
     $pdo->beginTransaction();
     try {
         // Lock the acting account and parent row; redaction and all actions serialize on the parent.
         $q = $pdo->prepare('SELECT staff_role FROM admins WHERE id=? AND is_active=1 FOR UPDATE');
         $q->execute([$actor]);
-        if (!in_array($q->fetchColumn(), ['owner', 'superadmin'], true)) throw new DomainException('FORBIDDEN');
+        if (!in_array($q->fetchColumn(), ['owner', 'superadmin'], true)) {
+            throw new DomainException('FORBIDDEN');
+        }
         $q = $pdo->prepare('SELECT e.state,'.brvtalFormsManagementLiveSql().' AS live
             FROM form_entries e WHERE e.form_key=? AND e.entry_id=UNHEX(?) FOR UPDATE');
         $q->execute([$form, $entry]);
         $row = $q->fetch(PDO::FETCH_ASSOC);
-        if (!$row) throw new DomainException('ENTRY_NOT_FOUND');
-        if (!(bool)$row['live']) throw new DomainException('ENTRY_UNAVAILABLE');
+        if (!$row) {
+            throw new DomainException('ENTRY_NOT_FOUND');
+        }
+        if (!(bool)$row['live']) {
+            throw new DomainException('ENTRY_UNAVAILABLE');
+        }
         $q = $pdo->prepare('SELECT revision,workflow_state FROM form_entry_management
             WHERE entry_id=UNHEX(?) ORDER BY revision DESC LIMIT 1 FOR UPDATE');
         $q->execute([$entry]);
         $last = $q->fetch(PDO::FETCH_ASSOC);
         $revision = (int)($last['revision'] ?? 0);
-        if ($revision !== $expected) throw new DomainException('STALE_REVISION');
+        if ($revision !== $expected) {
+            throw new DomainException('STALE_REVISION');
+        }
         $state = $last['workflow_state'] ?? ($row['state'] === 'received' ? 'new' : 'in_progress');
         if ($action === 'transition') {
             $allowed = match ($state) {
@@ -261,7 +285,9 @@ function brvtalFormsAdminAction(PDO $pdo, int $actor, array $input): array
                 'archived' => ['in_progress'],
                 default => [],
             };
-            if (!in_array($value, $allowed, true)) throw new DomainException('INVALID_TRANSITION');
+            if (!in_array($value, $allowed, true)) {
+                throw new DomainException('INVALID_TRANSITION');
+            }
             $state = $value;
         }
         // Recheck retention using database time immediately before append.
@@ -270,11 +296,15 @@ function brvtalFormsAdminAction(PDO $pdo, int $actor, array $input): array
             SELECT e.entry_id,?,?,?,?,UTC_TIMESTAMP(6),? FROM form_entries e
             WHERE e.entry_id=UNHEX(?) AND e.form_key=? AND '.brvtalFormsManagementLiveSql());
         $q->execute([$revision+1, $state, $action, $actor, $action === 'note' ? $value : null, $entry, $form]);
-        if ($q->rowCount() !== 1) throw new DomainException('ENTRY_UNAVAILABLE');
+        if ($q->rowCount() !== 1) {
+            throw new DomainException('ENTRY_UNAVAILABLE');
+        }
         $pdo->commit();
         return ['entry_id' => $entry, 'management_state' => $state, 'revision' => $revision+1];
     } catch (Throwable $error) {
-        if ($pdo->inTransaction()) $pdo->rollBack();
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
         throw $error;
     }
 }
