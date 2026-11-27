@@ -181,11 +181,12 @@ function brvtal_waitlist_subscribe(
                 $clock->format('Y-m-d H:i:s.u'),$digest]);
             $id = (int)$db->lastInsertId();
         }
-        brvtal_ticket_mail_enqueue($db,'waitlist:join:'.$id.':'.bin2hex(random_bytes(5)),
-            'waitlist:'.$id,(string)$buyer['email'],'Lista de espera BRVTAL',
+        $unsubscribeUrl = "https://www.brvtal.com.co/api/ticketing/waitlist.php?token=".$token;
+        brvtal_ticket_waitlist_mail_enqueue($db,$id,'join',(string)$buyer['email'],
+            'Lista de espera BRVTAL',
             "Confirmamos tu inscripción consentida. No es una compra ni reserva. ".
             "Para cancelar la inscripción y cualquier invitación, confirma tu baja en ".
-            "https://www.brvtal.com.co/api/ticketing/waitlist.php?token=".$token);
+            $unsubscribeUrl, $unsubscribeUrl);
         $db->commit();
         return 'waiting'; // No order, provider charge, hold or issued ticket.
     } catch (Throwable $e) {
@@ -354,8 +355,8 @@ function brvtal_waitlist_offer(PDO $db, int $eventId, int $typeId, ?DateTimeImmu
             WHERE id=? AND status='waiting'");
         $q->execute([hash('sha256',$token),$expiry,(int)$entry['id']]);
         if ($q->rowCount()!==1) throw new DomainException('WAITLIST_OFFER_COLLISION');
-        brvtal_ticket_mail_enqueue($db,'waitlist:offer:'.$entry['id'].':'.bin2hex(random_bytes(5)),
-            'waitlist:'.$entry['id'],(string)$entry['email'],'Cupo liberado en BRVTAL',
+        brvtal_ticket_waitlist_mail_enqueue($db,(int)$entry['id'],'offer',
+            (string)$entry['email'],'Cupo liberado en BRVTAL',
             "Hay una invitación limitada hasta ".$expiry." UTC. Código: ".$token.
             ". No es una compra, un pago ni una boleta. El checkout requiere validación independiente.");
         $db->commit();
