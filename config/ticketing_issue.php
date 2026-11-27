@@ -328,6 +328,96 @@ function brvtal_ticket_issue_consume(
     }
 }
 
+/** Courtesy records are optional on pre-migration installations. */
+function brvtal_ticket_issue_has_courtesy_table(PDO $db): bool
+{
+    return $db->query("SELECT 1 FROM information_schema.TABLES
+        WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='ticket_courtesy_invites' LIMIT 1")
+        ->fetchColumn() !== false;
+}
+
+/**
+ * A separate, read-only courtesy proof. The recipient digest is compared to
+ * the verified account's current email, never a supplied email or guest grant.
+ * Only a persisted, unexpired session with the current security epoch qualifies.
+ */
+function brvtal_ticket_issue_courtesy_rows(PDO $db, int $buyerId, ?string $ticketId = null, array $filters = []): array
+{
+    // Build-ahead: do not activate recovery of real customer credentials
+    // until the owner resolves the privacy/go-live gate.
+    if (getenv('BRVTAL_TICKET_COURTESY_ACCOUNT_ENABLED') !== '1'
+        || $buyerId < 1 || session_status() !== PHP_SESSION_ACTIVE
+        || (int)($_SESSION['buyer_id'] ?? 0) !== $buyerId
+        || !empty($_SESSION['buyer_checkout_new_order'])
+        || !brvtal_ticket_issue_has_courtesy_table($db)) {
+        return [];
+    }
+    $stored = brvtal_ticket_issue_has_encrypted_column($db);
+    if ($ticketId !== null && !$stored) return [];
+    $secret = $ticketId !== null ? 'cred.token_encrypted' : 'NULL';
+    $hash = $ticketId !== null ? 'cred.token_hash' : 'NULL';
+    $hasStored = $stored ? 'cred.token_encrypted IS NOT NULL AND cred.token_hash IS NOT NULL' : '0';
+    $args = [$buyerId, hash('sha256', session_id())];
+    $extra = '';
+    if ($ticketId !== null) {
+        $extra = " AND t.public_id=UNHEX(?) AND ci.status='issued' AND cred.id IS NOT NULL AND cred.token_encrypted IS NOT NULL";
+        $args[] = $ticketId;
+    } else {
+        if ($filters['event_id'] !== null) { $extra .= ' AND o.event_id=?'; $args[] = $filters['event_id']; }
+        if ($filters['from']) { $extra .= ' AND o.created_at_utc>=?'; $args[] = $filters['from']->format('Y-m-d 00:00:00'); }
+        if ($filters['to']) { $extra .= ' AND o.created_at_utc<?'; $args[] = $filters['to']->modify('+1 day')->format('Y-m-d 00:00:00'); }
+    }
+    try {
+        $q = $db->prepare("SELECT LOWER(HEX(t.public_id)) AS ticket_id,t.public_id,
+            ci.status,e.id AS event_id,e.title AS event_title,e.event_date,e.venue,e.status AS event_status,
+            i.ticket_name_snapshot AS name,o.created_at_utc,$hash AS token_hash,
+            $secret AS token_encrypted,($hasStored) AS qr_stored
+            FROM ticket_courtesy_invites ci
+            JOIN ticket_orders o ON o.id=ci.order_id AND o.event_id=ci.event_id
+            JOIN ticket_buyers b ON b.id=o.buyer_id
+            JOIN ticket_entries t ON t.id=ci.entry_id AND t.event_id=ci.event_id
+                AND t.ticket_type_id=ci.ticket_type_id AND t.status=ci.status
+            JOIN ticket_order_items i ON i.id=t.order_item_id AND i.order_id=o.id
+                AND i.event_id=ci.event_id AND i.ticket_type_id=ci.ticket_type_id
+            JOIN event_ticket_types tt ON tt.id=ci.ticket_type_id AND tt.event_id=ci.event_id
+            JOIN events e ON e.id=ci.event_id
+            JOIN ticket_inventory_holds h ON h.order_id=o.id AND h.event_id=ci.event_id
+                AND h.ticket_type_id=ci.ticket_type_id AND h.kind='courtesy' AND h.quantity=1
+                AND h.status=CASE WHEN ci.status='revoked' THEN 'released' ELSE 'consumed' END
+            LEFT JOIN ticket_entry_credentials cred ON cred.entry_id=t.id AND cred.status='active'
+                AND cred.version=ci.resend_requests+1
+            WHERE b.id=? AND b.status='active' AND b.email_verified_at IS NOT NULL
+              AND b.email IS NOT NULL AND ci.recipient_digest=SHA2(LOWER(TRIM(b.email)),256)
+              AND EXISTS (SELECT 1 FROM ticket_buyer_sessions s WHERE s.buyer_id=b.id
+                AND s.session_hash=? AND s.issued_epoch=b.security_epoch
+                AND s.revoked_at_utc IS NULL AND s.expires_at_utc>UTC_TIMESTAMP(6))
+              AND ci.origin='courtesy' AND ci.status IN ('issued','used','revoked')
+              AND o.status='draft' AND o.total_cop=0 AND o.currency='COP'
+              AND i.quantity=1 AND i.unit_price_cop=0 AND i.subtotal_cop=0 AND i.currency='COP'
+              AND t.unit_number=1
+              AND NOT EXISTS (SELECT 1 FROM ticket_payment_attempts a WHERE a.order_id=o.id)"
+            . $extra . ' ORDER BY o.id DESC LIMIT ' . ($ticketId !== null ? '1' : '11 OFFSET ?'));
+        if ($ticketId === null) $args[] = $filters['page'] * 10;
+        foreach ($args as $i=>$arg) $q->bindValue($i+1, $arg, is_int($arg) ? PDO::PARAM_INT : PDO::PARAM_STR);
+        $q->execute();
+        return $q->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $error) {
+        if (in_array($error->getCode(), ['42S02','42S22'], true)) return [];
+        throw new RuntimeException('TICKET_STORAGE_UNAVAILABLE');
+    }
+}
+
+/** Same Bogota end-of-access window as the ordinary buyer QR. */
+function brvtal_ticket_issue_courtesy_cutoff(array $row): ?DateTimeImmutable
+{
+    require_once __DIR__ . '/public_visibility.php';
+    $date = (string)($row['event_date'] ?? '');
+    $start = DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', $date, new DateTimeZone('America/Bogota'));
+    if (!$start || $start->format('Y-m-d H:i:s') !== $date
+        || !in_array($row['event_status'], brvtal_public_event_statuses()['active'], true)) return null;
+    return $start->modify('+1 day')->setTimezone(new DateTimeZone('UTC'));
+}
+
 /**
  * Return the SAME QR credential when an authorized buyer presents its token.
  * Expiration comes from trusted event/access policy, never from the client.
@@ -347,6 +437,19 @@ function brvtal_ticket_issue_qr_payload(
     if (!is_string($raw) || strlen($raw) !== 32
         || !hash_equals(rtrim(strtr(base64_encode($raw),'+/','-_'),'='),$token)) {
         throw new DomainException('TICKET_UNAVAILABLE');
+    }
+    // Courtesy proof is independent of paid Wompi/POS issuance. Recheck it
+    // against the current session, receipt, entry, hold and active token.
+    $courtesy = brvtal_ticket_issue_courtesy_rows($db, $buyerId, $publicId)[0] ?? null;
+    if ($courtesy !== null) {
+        $cutoff = brvtal_ticket_issue_courtesy_cutoff($courtesy);
+        if (!$cutoff || $cutoff <= $nowUtc || !is_string($courtesy['token_hash'])
+            || !hash_equals($courtesy['token_hash'], hash('sha256',$raw,true))
+            || !is_string($courtesy['token_encrypted']) || !is_string($courtesy['public_id'])
+            || !hash_equals(brvtal_ticket_issue_open_token($courtesy['token_encrypted'], $courtesy['public_id']), $raw)) {
+            throw new DomainException('TICKET_UNAVAILABLE');
+        }
+        return 'BRVTAL:T1:' . $publicId . ':' . $token;
     }
     try {
         $read = $db->prepare("SELECT c.token_hash
