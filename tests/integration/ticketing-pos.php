@@ -447,7 +447,7 @@ $db->prepare("INSERT INTO ticket_pos_sales
     ->execute([$shift['shift_id'],6,1,10,hash('sha256','quote-fixture-key'),
         hash('sha256','quote-fixture-request'),hash('sha256','quote-fixture-confirmation')]);
 $beforeRepeat=$quoteRows();
-$synthetic=$beforeRepeat[array_key_last($beforeRepeat)];
+$synthetic=array_last($beforeRepeat);
 posAssert(array_intersect_key($synthetic,$columns)===['quote_source'=>'stage','quote_stage_code'=>'preventa',
     'quote_channel'=>'door'] && (int)$synthetic['amount_cop']===50000,'synthetic quote snapshot persisted');
 $db->exec($quoteSql);
