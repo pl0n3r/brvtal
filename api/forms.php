@@ -1,10 +1,8 @@
 <?php
 declare(strict_types=1);
-
 require_once __DIR__.'/../config/bootstrap.php';
 require_once __DIR__.'/../config/public_abuse_guard.php';
 require_once __DIR__.'/../config/form_entries.php';
-
 header('Cache-Control: no-store');
 $method = (string)($_SERVER['REQUEST_METHOD'] ?? '');
 if (!in_array($method, ['GET','POST'], true)) {
@@ -40,7 +38,7 @@ try {
     $context = $id.'|'.$version.'|'.$key;
     if ($method === 'GET') {
         brvtalFormsPublished(db(),$config,$id,$version);
-        json_response(['ok'=>true,'data'=>brvtalFormsChallenge($config,$context)]);
+        json_response(['ok'=>true,'data'=>brvtal_public_abuse_challenge($config,'forms',null,$context)]);
     }
     if (strtolower(trim(explode(';',(string)($_SERVER['CONTENT_TYPE'] ?? ''))[0])) !== 'application/json') {
         json_response(['ok'=>false,'error'=>'FORM_CONTENT_TYPE'],415);
@@ -49,8 +47,8 @@ try {
     $raw = file_get_contents('php://input',false,null,0,65537);
     if (!is_string($raw) || strlen($raw)>65536) json_response(['ok'=>false,'error'=>'PAYLOAD_TOO_LARGE'],413);
     if (($_SERVER['HTTP_X_FORM_HONEYPOT'] ?? '') !== ''
-        || !brvtalFormsVerify($config,$context,$_SERVER['HTTP_X_FORM_CAPTCHA_TOKEN'] ?? null,
-            $_SERVER['HTTP_X_FORM_CAPTCHA_ANSWER'] ?? null)) json_response(['ok'=>false,'error'=>'FORM_CHALLENGE_INVALID'],422);
+        || !brvtal_public_abuse_verify_challenge($config,'forms',['captcha_token'=>$_SERVER['HTTP_X_FORM_CAPTCHA_TOKEN'] ?? null,
+            'captcha_answer'=>$_SERVER['HTTP_X_FORM_CAPTCHA_ANSWER'] ?? null],null,$context)) json_response(['ok'=>false,'error'=>'FORM_CHALLENGE_INVALID'],422);
     brvtalFormsSubmit(db(),$config,$id,$version,$key,$raw);
     json_response(['ok'=>true,'message'=>'FORM_RECEIVED']);
 } catch (DomainException $e) {

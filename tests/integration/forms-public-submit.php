@@ -3,7 +3,6 @@ declare(strict_types=1);
 // @brvtal-ci database
 require_once __DIR__.'/../../config/form_entries.php';
 require_once __DIR__.'/../../config/public_abuse_guard.php';
-
 function submitCheck(bool $ok, string $why): void { if (!$ok) throw new RuntimeException($why); }
 $prefix=(string)getenv('BRVTAL_TEST_DB_NAME');
 submitCheck(getenv('BRVTAL_INTEGRATION_TESTS')==='1' && getenv('BRVTAL_TEST_DB_HOST')==='127.0.0.1'
@@ -44,8 +43,7 @@ try {
     foreach (['api/forms.php','config/bootstrap.php','config/public_health.php','config/db_connect_recovery.php',
         'config/form_entries.php','config/form_schema.php','config/public_abuse_guard.php','config/public_contact.php',
         'config/password_rate_limit.php','config/rate_limit_store.php'] as $file) submitCheck(copy(dirname(__DIR__,2).'/'.$file,$root.'/'.$file),'fixture copy');
-    $write=static fn()=>file_put_contents($root.'/config/config.php','<?php return '.var_export($config,true).';',LOCK_EX);
-    $write(); chmod($root.'/config/config.php',0600);
+    file_put_contents($root.'/config/config.php','<?php return '.var_export($config,true).';',LOCK_EX); chmod($root.'/config/config.php',0600);
     file_put_contents($root.'/router.php','<?php $_SERVER["HTTPS"]="on"; require __DIR__."/api/forms.php";');
     $socket=stream_socket_server('tcp://127.0.0.1:0'); submitCheck(is_resource($socket),'socket');
     $address=stream_socket_get_name($socket,false); fclose($socket);
@@ -66,7 +64,7 @@ try {
     };
     $payload='{"message":"Sintético","consent_ok":true}';
     $challenge=static function(string $key,int $at)use($config,$id):array{
-        $c=brvtalFormsChallenge($config,$id.'|1|'.$key,$at);
+        $c=brvtal_public_abuse_challenge($config,'forms',$at,$id.'|1|'.$key);
         preg_match('/^(\d+) \+ (\d+) = \?$/',$c['question'],$m);
         return ['X-Form-Captcha-Token'=>$c['captcha_token'],'X-Form-Captcha-Answer'=>(string)((int)$m[1]+(int)$m[2])];
     };

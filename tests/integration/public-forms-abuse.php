@@ -203,7 +203,7 @@ $public = [
     'api/buyer/account.php' => ['brvtalBuyerAccountAuthorized(', 'brvtalBuyerCsrfValid('],
     'api/buyer/refunds.php' => ['brvtalBuyerAccountAuthorized(', 'brvtalBuyerCsrfValid('],
     'api/contact.php' => ['brvtal_contact_consume_rate_limit(', 'brvtal_public_abuse_check('],
-    'api/forms.php' => ['brvtalFormsRate(', 'brvtalFormsVerify(', 'brvtalFormsCaptureEnabled('],
+    'api/forms.php' => ['brvtalFormsRate(', 'brvtal_public_abuse_verify_challenge(', 'brvtalFormsCaptureEnabled('],
     // A public-prefixed route can still be private; verify both admin gates.
     'api/public-preview.php' => ['brvtal_admin_require(', 'brvtal_admin_require_csrf('],
     'api/ticketing/checkout.php' => ['brvtalBuyerSessionStart(', 'brvtalBuyerCsrfValid('],

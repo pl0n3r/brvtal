@@ -90,18 +90,14 @@ function brvtalFormEntryPersist(PDO $pdo, array $entry, array $actions): bool
     $q->execute([$entry['form_key'], $entry['idempotency_digest']]);
     $row = $q->fetch(PDO::FETCH_ASSOC);
     $conflict = $entry['form_key'] === 'contact' ? 'CONTACT_INTENT_CONFLICT' : 'FORM_INTENT_CONFLICT';
-    if (!$row || $row['state'] === 'redacted' || (int)$row['version_number'] !== $entry['version_number']) {
-        throw new DomainException($conflict);
-    }
+    if (!$row || $row['state'] === 'redacted' || (int)$row['version_number'] !== $entry['version_number']) throw new DomainException($conflict);
     foreach (['definition_sha256','payload_json','purpose_key','notice_version','retention_policy_key'] as $key) {
         if (!is_string($row[$key]) || !hash_equals($row[$key], $entry[$key])) throw new DomainException($conflict);
     }
     $fresh = hash_equals($entry['entry_id'], $row['entry_id']);
     if ($fresh) {
-        foreach ($actions as $action) {
-            $pdo->prepare("INSERT INTO form_notification_intents VALUES (?,?,'pending',?)")
-                ->execute([$row['entry_id'], $action, $entry['created_at_utc']]);
-        }
+        $q = $pdo->prepare("INSERT INTO form_notification_intents VALUES (?,?,'pending',?)");
+        foreach ($actions as $action) $q->execute([$row['entry_id'], $action, $entry['created_at_utc']]);
     } else {
         $q = $pdo->prepare("SELECT action_key FROM form_notification_intents WHERE entry_id=? ORDER BY action_key");
         $q->execute([$row['entry_id']]);
@@ -131,13 +127,9 @@ function brvtalFormsPublished(PDO $pdo, array $config, string $id, int $version)
         . ($pdo->inTransaction() ? ' FOR UPDATE' : ''));
     $q->execute([$id]);
     $row = $q->fetch(PDO::FETCH_ASSOC);
-    if (!$row || $row['state'] !== 'active' || (int)$row['published_version_number'] !== $version) {
-        throw new DomainException('FORM_VERSION_CONFLICT');
-    }
+    if (!$row || $row['state'] !== 'active' || (int)$row['published_version_number'] !== $version) throw new DomainException('FORM_VERSION_CONFLICT');
     if ($row['form_key'] === 'contact' || ($approved['version_number'] ?? null) !== $version
-        || !hash_equals($row['definition_sha256'], hash('sha256', $row['definition_json'], true))) {
-        throw new RuntimeException('FORM_CAPTURE_UNAVAILABLE');
-    }
+        || !hash_equals($row['definition_sha256'], hash('sha256', $row['definition_json'], true))) throw new RuntimeException('FORM_CAPTURE_UNAVAILABLE');
     require_once __DIR__ . '/form_schema.php';
     $definition = json_decode($row['definition_json'], true, 16, JSON_THROW_ON_ERROR);
     $policy = json_decode($row['privacy_policy_json'], true, 16, JSON_THROW_ON_ERROR);
@@ -148,9 +140,7 @@ function brvtalFormsPublished(PDO $pdo, array $config, string $id, int $version)
         || !is_array($policy) || count($policy) !== 5 || !brvtalFormSchemaCopy($policy['form_title'] ?? null, 120)
         || !brvtalFormSchemaCopy($policy['notice_text'] ?? null, 4000)
         || ($policy['notice_version'] ?? null) !== $row['notice_version']
-        || !in_array($delivery, [['actions'=>[]], ['actions'=>['form_entry_received']]], true)) {
-        throw new RuntimeException('FORM_CAPTURE_UNAVAILABLE');
-    }
+        || !in_array($delivery, [['actions'=>[]], ['actions'=>['form_entry_received']]], true)) throw new RuntimeException('FORM_CAPTURE_UNAVAILABLE');
     foreach (['purpose_key','retention_policy_key','notice_version'] as $key) {
         if (!is_string($policy[$key] ?? null) || !preg_match('/\A[A-Za-z0-9][A-Za-z0-9_.-]{0,63}\z/D', $policy[$key])
             || $policy[$key] !== ($approved[$key] ?? null)) throw new RuntimeException('FORM_CAPTURE_UNAVAILABLE');

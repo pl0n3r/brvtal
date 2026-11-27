@@ -256,26 +256,8 @@
       "consent": "review_required",
       "providers": []
     },
-    {
-      "id": "form_public_capture",
-      "category": "contact",
-      "fields": ["payload_json","entry_id","form_key","version_number","definition_sha256","idempotency_digest","created_at_utc","purpose_key","notice_version","retention_policy_key","retention_until_utc","state","redacted_at_utc","action_key"],
-      "purpose": "versioned_public_form_capture",
-      "basis": "review_required",
-      "retention": "review_required",
-      "consent": "review_required",
-      "providers": []
-    },
-    {
-      "id": "form_public_rate_limit",
-      "category": "usage",
-      "fields": ["client_key_hash","timestamps","public_id"],
-      "purpose": "versioned_public_form_abuse_prevention",
-      "basis": "review_required",
-      "retention": "review_required",
-      "consent": "review_required",
-      "providers": []
-    },
+    {"id":"form_public_capture","category":"contact","fields":["payload_json","entry_id","form_key","version_number","definition_sha256","idempotency_digest","created_at_utc","purpose_key","notice_version","retention_policy_key","retention_until_utc","state","redacted_at_utc","action_key"],"purpose":"versioned_public_form_capture","basis":"review_required","retention":"review_required","consent":"review_required","providers":[]},
+    {"id":"form_public_rate_limit","category":"usage","fields":["client_key_hash","timestamps","public_id"],"purpose":"versioned_public_form_abuse_prevention","basis":"review_required","retention":"review_required","consent":"review_required","providers":[]},
     {
       "id": "internal_analytics_events",
       "category": "usage",
