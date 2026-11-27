@@ -9,9 +9,9 @@ const url = 'http://127.0.0.1:4173/discadmin/inventory-fixture.html';
 const inventory = {
   ok: true, event_id: 7, capacity: null, used: 5,
   types: [
-    { ticket_type_id: 10, name: 'Preventa', status: 'active', capacity: null, courtesy_capacity: 0, sold: 0, held: 2, courtesy_used: 0 },
-    { ticket_type_id: 11, name: 'VIP', status: 'active', capacity: 20, courtesy_capacity: 4, sold: 3, held: 0, courtesy_used: 0 },
-    { ticket_type_id: 12, name: 'Mesa', status: 'draft', capacity: null, courtesy_capacity: 0, sold: 0, held: 0, courtesy_used: 0 },
+    { ticket_type_id: 10, name: 'Preventa', status: 'active', capacity: null, courtesy_capacity: 0, door_price_cop: null, sold: 0, held: 2, courtesy_used: 0 },
+    { ticket_type_id: 11, name: 'VIP', status: 'active', capacity: 20, courtesy_capacity: 4, door_price_cop: 75000, sold: 3, held: 0, courtesy_used: 0 },
+    { ticket_type_id: 12, name: 'Mesa', status: 'draft', capacity: null, courtesy_capacity: 0, door_price_cop: null, sold: 0, held: 0, courtesy_used: 0 },
   ],
   // #1939: the server's verdict, with the same rules as the checkout.
   sale: { ready: false, reasons: ['WOMPI_DISABLED', 'EVENT_CAPACITY_MISSING'], types: [
@@ -54,7 +54,7 @@ async function open(page, { failWith = null, eventId = 7, data = inventory, forb
 test('muestra aforo, cupo y uso por boleta y guarda con CSRF', async ({ page }, testInfo) => {
   for (const [width, height] of [[1440, 900], [390, 844]]) {
     await page.setViewportSize({ width, height });
-    // Before: actual editor block in #1942 artifact 14853823258 (identical base module/CSS).
+    // Before: PR #2264 artifact 15168709896; baseline JS and CSS blobs identical to main.
     // Capture the changed block at the same viewport sizes, not a shell without the editor.
     await open(page);
     const block = page.locator('[data-ticket-inventory]');
@@ -63,6 +63,10 @@ test('muestra aforo, cupo y uso por boleta y guarda con CSRF', async ({ page }, 
     await expect(block.getByText('En uso: 5')).toBeVisible();
     await expect(block.getByLabel('VIP', { exact: true })).toHaveValue('20');
     await expect(block.getByLabel('Cupo de cortesías de VIP')).toHaveValue('4');
+    await expect(block.getByLabel('Precio en puerta (opcional) de VIP en COP')).toHaveValue('75000');
+    await expect(block.locator('[data-ticket-type="11"]')).toContainText('75.000 COP');
+    await expect(block.getByLabel('Precio en puerta (opcional) de Preventa en COP')).toHaveValue('');
+    await expect(block.getByText('Si lo dejas vacío, la puerta cobra la etapa vigente').first()).toBeVisible();
     await expect(block.locator('[data-ticket-type="11"]')).toContainText('Cortesías: presupuesto 4 · consumidas 0 · saldo 4');
     await expect(block.locator('[data-ticket-type="11"] .ticket-inventory-state')).toHaveText('Se vende en línea');
     await expect(block.locator('[data-ticket-type="10"] .ticket-inventory-state')).toHaveText('Sin cupo');
@@ -84,14 +88,19 @@ test('muestra aforo, cupo y uso por boleta y guarda con CSRF', async ({ page }, 
   const courtesy = block.getByLabel('Cupo de cortesías de Preventa');
   await expect(courtesy).toBeFocused();
   await courtesy.fill('12');
+  const door = block.getByLabel('Precio en puerta (opcional) de Preventa en COP');
+  await page.keyboard.press('Tab');
+  await expect(door).toBeFocused();
+  await door.fill('60000');
   await expect(block.locator('[data-ticket-type="10"] .ticket-inventory-state')).toHaveText('Cupo sin guardar');
   await block.getByRole('button', { name: 'Guardar cupo' }).click();
-  await expect(page.locator('.ticket-inventory-status')).toHaveText('Cupo guardado.');
+  await expect(page.locator('.ticket-inventory-status')).toHaveText('Cupo y precio guardados.');
   expect(posts).toEqual([{ csrf: 'csrf-fixture', body: { capacity: 300, types: [
-    { ticket_type_id: 10, capacity: 200, courtesy_capacity: 12 }, { ticket_type_id: 11, capacity: 20, courtesy_capacity: 4 },
-    { ticket_type_id: 12, capacity: 0, courtesy_capacity: 0 }] } }]);
+    { ticket_type_id: 10, capacity: 200, courtesy_capacity: 12, door_price_cop: 60000 }, { ticket_type_id: 11, capacity: 20, courtesy_capacity: 4, door_price_cop: 75000 },
+    { ticket_type_id: 12, capacity: 0, courtesy_capacity: 0, door_price_cop: null }] } }]);
   await expect(page.getByLabel('Preventa', { exact: true })).toHaveValue('200');
   await expect(page.getByLabel('Cupo de cortesías de Preventa')).toHaveValue('12');
+  await expect(page.getByLabel('Precio en puerta (opcional) de Preventa en COP')).toHaveValue('60000');
   await expect(page.locator('[data-ticket-type="10"]')).toContainText('Cortesías: presupuesto 12 · consumidas 0 · saldo 12');
 });
 
@@ -136,3 +145,35 @@ test('cortesías: consumo confirmado, rechazo y permiso', async ({ page }) => {
   await expect(page.locator('.ticket-inventory-status')).toHaveText('Solo un superadmin puede editar el cupo.');
   await expect(page.getByRole('button', { name: 'Guardar cupo' })).toHaveCount(0);
 });
+
+// Both viewport sizes exercise save and explicit clear with server-confirmed state.
+for (const [width, height] of [[390, 844], [1440, 900]]) {
+  test(`precio opcional de puerta: persistir, validar y vaciar a ${width}px`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height });
+    const posts = await open(page);
+    const block = page.locator('[data-ticket-inventory]');
+    const door = block.getByLabel('Precio en puerta (opcional) de VIP en COP');
+    const save = block.getByRole('button', { name: 'Guardar cupo y precio' });
+    for (const bad of ['0', '-1', '1.5', '10000001']) {
+      await door.fill(bad);
+      await save.click();
+      await expect(block.locator('.ticket-inventory-status')).toHaveText('Usa un precio entero entre 1 y 10.000.000 COP, o déjalo vacío.');
+    }
+    expect(posts).toHaveLength(0);
+    await door.fill('90000');
+    await expect(block.locator('[data-ticket-type="11"] .ticket-inventory-state')).toHaveText('Precio sin guardar');
+    await save.click();
+    await expect(block.locator('.ticket-inventory-status')).toHaveText('Cupo y precio guardados.');
+    await expect(door).toHaveValue('90000');
+    expect(posts[0].body.types[1].door_price_cop).toBe(90000);
+    await expect(block.locator('[data-ticket-type="11"]')).toContainText('90.000 COP');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width + 1);
+    await testInfo.attach(`precio-despues-${width}`, { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
+    await door.fill('');
+    await save.click();
+    await expect(block.locator('.ticket-inventory-status')).toHaveText('Cupo y precio guardados.');
+    await expect(door).toHaveValue('');
+    expect(posts[1].body.types[1].door_price_cop).toBeNull();
+    expect(posts.every(post => post.csrf === 'csrf-fixture')).toBe(true);
+  });
+}

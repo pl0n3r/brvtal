@@ -7,12 +7,15 @@ const ERRORS = {
   INVENTORY_COURTESY_BELOW_USAGE: 'El cupo de cortesías no puede ser menor que las cortesías consumidas.',
   INVENTORY_TYPE_NOT_IN_EVENT: 'Una boleta ya no pertenece a este evento. Vuelve a abrir el editor.',
   INVENTORY_INVALID_INPUT: 'Usa números enteros entre 0 y 100.000.',
+  INVENTORY_INVALID_DOOR_PRICE: 'Usa un precio entero entre 1 y 10.000.000 COP, o déjalo vacío.',
   INVENTORY_EVENT_NOT_FOUND: 'El evento ya no existe.',
   FORBIDDEN: 'Solo un superadmin puede editar el cupo.',
   CSRF: 'La sesión cambió. Recarga DISCADMIN e inténtalo de nuevo.',
   INVENTORY_UNAVAILABLE: 'El inventario no está disponible. Puede faltar aplicar la migración de boletería en este servidor.',
 };
 const number = new Intl.NumberFormat('es-CO');
+const doorPriceMax = 10000000;
+const validDoorPrice = value => Number.isSafeInteger(value) && value >= 1 && value <= doorPriceMax;
 // #1939: reasons from the server-side sale readiness, same rules as the checkout.
 const SALE_REASONS = {
   WOMPI_DISABLED: 'Wompi está apagado: elige Pruebas o Producción en Configuración › Integraciones.',
@@ -90,16 +93,30 @@ function createTypeRow(type, inputs, saleByType) {
   const courtesyId = inputId + '-courtesy';
   const courtesy = el('input', { id: courtesyId, type: 'number', min: 0, max: 100000, step: 1,
     inputmode: 'numeric', value: type.courtesy_capacity, 'aria-label': `Cupo de cortesías de ${type.name || 'Boleta'}` });
-  inputs.set(type.ticket_type_id, { input, courtesy });
+  const doorId = inputId + '-door-price';
+  const door = el('input', { id: doorId, type: 'number', min: 1, max: doorPriceMax, step: 1,
+    inputmode: 'numeric', value: type.door_price_cop ?? '', placeholder: 'COP',
+    'aria-label': `Precio en puerta (opcional) de ${type.name || 'Boleta'} en COP`,
+    'aria-describedby': doorId + '-help ' + doorId + '-format' });
+  const doorHelp = el('small', { id: doorId + '-help', text: 'Si lo dejas vacío, la puerta cobra la etapa vigente' });
+  const doorFormat = el('small', { id: doorId + '-format' });
+  inputs.set(type.ticket_type_id, { input, courtesy, door });
   const usage = [`Vendidas ${number.format(type.sold)}`, `Reservadas ${number.format(type.held)}`];
   const courtesyUsage = `Cortesías: presupuesto ${number.format(type.courtesy_capacity)} · consumidas ${number.format(type.courtesy_used)} · saldo ${number.format(Math.max(0, type.courtesy_capacity - type.courtesy_used))}`;
   const sale = el('span', { class: 'ticket-inventory-state' });
   const verdict = saleByType.get(type.ticket_type_id);
   const original = input.value;
   const originalCourtesy = courtesy.value;
+  const originalDoor = door.value;
   const refresh = () => {
+    doorFormat.textContent = validDoorPrice(door.valueAsNumber) ? `${number.format(door.valueAsNumber)} COP` : '';
     if (input.value !== original || courtesy.value !== originalCourtesy) {
       sale.textContent = 'Cupo sin guardar';
+      sale.classList.remove('is-open');
+      return;
+    }
+    if (door.value !== originalDoor || door.validity.badInput) {
+      sale.textContent = 'Precio sin guardar';
       sale.classList.remove('is-open');
       return;
     }
@@ -116,13 +133,15 @@ function createTypeRow(type, inputs, saleByType) {
   };
   input.addEventListener('input', refresh);
   courtesy.addEventListener('input', refresh);
+  door.addEventListener('input', refresh);
   refresh();
   return el('li', { class: 'ticket-inventory-row', 'data-ticket-type': type.ticket_type_id },
     el('div', { class: 'ticket-inventory-name' },
       el('label', { for: inputId, text: type.name || 'Boleta' }),
       el('small', { text: usage.join(' · ') }), el('small', { text: courtesyUsage })),
     el('div', { class: 'ticket-inventory-name' }, input,
-      el('label', { for: courtesyId, text: 'Cupo de cortesías' }), courtesy), sale);
+      el('label', { for: courtesyId, text: 'Cupo de cortesías' }), courtesy,
+      el('label', { for: doorId, text: 'Precio en puerta (opcional)' }), door, doorHelp, doorFormat), sale);
 }
 
 function renderTypes(status, data, saleByType) {
@@ -139,20 +158,25 @@ function renderTypes(status, data, saleByType) {
 }
 
 function bindSave(host, section, status, id, totalInput, inputs) {
-  const save = el('button', { type: 'button', class: 'btn red', text: 'Guardar cupo' });
+  const save = el('button', { type: 'button', class: 'btn red', text: 'Guardar cupo y precio' });
   section.append(el('div', { class: 'ticket-inventory-actions' }, save));
   const whole = value => value === '' ? 0 : Number(value);
   save.addEventListener('click', async () => {
+    if ([...inputs.values()].some(({ door }) => door.validity.badInput || (door.value !== '' && !validDoorPrice(door.valueAsNumber)))) {
+      status.textContent = ERRORS.INVENTORY_INVALID_DOOR_PRICE;
+      return;
+    }
     const body = { capacity: whole(totalInput.value), types: [...inputs].map(([typeId, fields]) => ({
       ticket_type_id: typeId, capacity: whole(fields.input.value),
-      courtesy_capacity: fields.courtesy.value === '' ? Number.NaN : Number(fields.courtesy.value) })) };
+      courtesy_capacity: fields.courtesy.value === '' ? Number.NaN : Number(fields.courtesy.value),
+      door_price_cop: fields.door.value === '' ? null : fields.door.valueAsNumber })) };
     const values = [body.capacity, ...body.types.flatMap(row => [row.capacity, row.courtesy_capacity])];
     if (!values.every(value => Number.isSafeInteger(value) && value >= 0 && value <= 100000)) {
       status.textContent = ERRORS.INVENTORY_INVALID_INPUT;
       return;
     }
     save.disabled = true;
-    status.textContent = 'Guardando cupo…';
+    status.textContent = 'Guardando cupo y precio…';
     try {
       const confirmed = await request(id, body);
       if (!section.isConnected) return;
@@ -194,7 +218,7 @@ export async function mount(host, { eventId, snapshot = null, saved = false } = 
     return;
   }
   if (!section.isConnected) return;
-  status.textContent = saved ? 'Cupo guardado.' : '';
+  status.textContent = saved ? 'Cupo y precio guardados.' : '';
 
   const saleByType = renderSale(status, data);
 
