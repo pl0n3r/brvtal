@@ -3,6 +3,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../../config/admin_auth.php';
 require_once __DIR__ . '/../../config/ticketing_staff_permissions.php';
 require_once __DIR__ . '/../../config/ticketing_finance.php';
+require_once __DIR__ . '/../../config/ticketing_settlement.php';
 header('Cache-Control: no-store, private');
 header('X-Content-Type-Options: nosniff');
 brvtal_admin_require();
@@ -72,11 +73,63 @@ function brvtalFinanceLedgerPost(PDO $db, int $actor): int
     return brvtalFinanceLedgerWrite($db,$data['kind'],$data['event_id'],$actor,$data['action'],
         $data['previous_id'],$values,$data['reason']);
 }
+/** CSV v1 is a synthetic contract, not a bank/provider integration. */
+function brvtalFinanceSettlements(PDO $db, int $actor, string $method): void
+{
+    if ($_GET !== ['settlements'=>'1']) {
+        throw new InvalidArgumentException('INVALID_FILTER');
+    }
+    if (getenv('BRVTAL_TICKET_SETTLEMENTS_ENABLED') !== '1'
+        || !preg_match('/^brvtal_test[a-zA-Z0-9_]*$/D', (string)$db->query('SELECT DATABASE()')->fetchColumn())) {
+        json_response(['ok'=>false,'error'=>'SETTLEMENTS_DISABLED'],423);
+    }
+    if ($method === 'POST') {
+        if (strtolower(trim(explode(';', $_SERVER['CONTENT_TYPE'] ?? '')[0])) !== 'text/csv') {
+            json_response(['ok'=>false,'error'=>'INVALID_CONTENT_TYPE'],415);
+        }
+        if ((int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 1048576) {
+            json_response(['ok'=>false,'error'=>'SETTLEMENT_FILE_TOO_LARGE'],413);
+        }
+        $csv = file_get_contents('php://input', false, null, 0, 1048577);
+        if (!is_string($csv) || strlen($csv) > 1048576) {
+            json_response(['ok'=>false,'error'=>'SETTLEMENT_FILE_TOO_LARGE'],413);
+        }
+        $id = brvtalSettlementImport($db, $actor, $csv);
+        json_response(['ok'=>true,'id'=>(string)$id],201);
+    }
+    $groups = brvtalSettlementReconcile($db, $actor);
+    $payouts = [];
+    foreach ($groups as $group) {
+        foreach ($group['lines'] as $line) {
+            $key = (string)$line['payout_reference'];
+            // Difference is for the transaction across all active payouts, not
+            // attributable to each individual line or payout.
+            $payouts[$key]['reference'] = $key;
+            $payouts[$key]['lines'][] = [
+                'line_reference'=>(string)$line['line_reference'],
+                'transaction_reference'=>(string)$group['reference'],
+                'status'=>$group['status'],
+                'gross_cop'=>$line['gross_cop'] === null ? null : (string)$line['gross_cop'],
+                'fee_cop'=>$line['fee_cop'] === null ? null : (string)$line['fee_cop'],
+                'fee_vat_cop'=>$line['fee_vat_cop'] === null ? null : (string)$line['fee_vat_cop'],
+                'withheld_cop'=>$line['withheld_cop'] === null ? null : (string)$line['withheld_cop'],
+                'adjustment_cop'=>$line['adjustment_cop'] === null ? null : (string)$line['adjustment_cop'],
+                'credited_cop'=>(string)$line['credited_cop'],
+                'difference_cop'=>$group['difference_cop'] === null ? null : (string)$group['difference_cop'],
+            ];
+        }
+    }
+    json_response(['ok'=>true,'payouts'=>array_values($payouts)],200);
+}
+
 try {
     $stmt=db()->prepare('SELECT staff_role FROM admins WHERE id=? AND is_active=1 LIMIT 1');
     $stmt->execute([(int)($_SESSION['admin_id'] ?? 0)]);
     $role=(string)($stmt->fetchColumn() ?: '');
     if (!brvtalTicketingCan($role,'finance')) json_response(['ok'=>false,'error'=>'FORBIDDEN'],403);
+    if (array_key_exists('settlements', $_GET)) {
+        brvtalFinanceSettlements(db(), (int)($_SESSION['admin_id'] ?? 0), $method);
+    }
     if ($method==='POST') {
         $id=brvtalFinanceLedgerPost(db(),(int)($_SESSION['admin_id']??0));
         json_response(['ok'=>true,'id'=>(string)$id],200);
@@ -154,7 +207,8 @@ try {
 } catch (DomainException $e) {
     $error=$e->getMessage();
     $status=match($error) {
-        'LEDGER_FORBIDDEN'=>403,'LEDGER_EVENT_NOT_FOUND'=>404,
+        'LEDGER_FORBIDDEN','SETTLEMENT_FORBIDDEN'=>403,'LEDGER_EVENT_NOT_FOUND'=>404,
+        'SETTLEMENT_DUPLICATE'=>409,
         'LEDGER_STALE_REVISION','LEDGER_BUDGET_EXISTS','LEDGER_BUDGET_CATEGORY_IMMUTABLE'=>409,
         default=>422,
     };
