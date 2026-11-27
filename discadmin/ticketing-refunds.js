@@ -9,10 +9,10 @@ export async function mount(panel, csrf = '') {
   root.setAttribute('aria-label','Gestión de devoluciones');
   const heading=el('h3','Devoluciones');
   const policy=el('p','Las boletas solo admiten devolución por cancelación o aplazamiento. '
-    +'El dueño procesa el reembolso en el panel de Wompi, por el mismo medio de pago.');
+    +'El dueño revisa cada solicitud según el medio de pago acreditado.');
   policy.className='ticketing-empty';
   const status=el('p','Cargando solicitudes…');status.className='tk-status';
-  status.setAttribute('role','status');
+  status.setAttribute('role','status');status.tabIndex=-1;
   const actions=el('div'),listing=el('div');
   root.append(heading,policy,status,actions,listing);panel.replaceChildren(root);
   const live=()=>root.isConnected;
@@ -61,7 +61,7 @@ export async function mount(panel, csrf = '') {
       button.disabled=true;message.textContent='Registrando la situación…';
       try {
         await send({action:'declare_incident',event_id:id,cause:cause.value});
-        if(live()){await refresh();status.textContent='Situación registrada por el dueño.';}
+        if(live()&&await refresh()){status.textContent='Situación registrada por el dueño.';status.focus();}
       }catch(_){if(live())message.textContent='No se pudo confirmar. Consulta la situación antes de reintentar.';}
       finally{button.disabled=false;}
     });
@@ -71,20 +71,33 @@ export async function mount(panel, csrf = '') {
     const item=el('article');item.className='tk-step';
     const name=String(refund.event_title||'Evento');
     const state=String(refund.status||'requested');
-    const stateNames={requested:'Pendiente de revisión',approved:'Aprobada; pendiente de Wompi',
-      manual_pending:'Pendiente de Wompi',refunded:'Registrada y anulada',
+    const stateNames={requested:'Pendiente de revisión',approved:'Aprobada; pendiente de gestión',
+      manual_pending:'Gestión manual pendiente',refunded:'Registrada y anulada',
       rejected:'Rechazada',failed:'Revisión necesaria',processing:'En proceso'};
     item.append(el('h4',name),el('p',money(refund.amount_cop)+' · '
       +(stateNames[state]||'En revisión')));
-    // Human-readable original Wompi reference lets the owner locate the
-    // exact original charge before making any external dashboard refund.
-    const payment=typeof refund.wompi_payment_ref==='string'
+    const evidence=refund.payment_evidence||{};
+    const verified=evidence.channel==='wompi'&&evidence.state==='verified';
+    const offline=evidence.channel==='pos'&&evidence.state==='registered_offline';
+    const label=verified?'Medio original: Wompi acreditado':
+      offline?'Medio original: POS / pago offline acreditado':
+      evidence.reason==='paid_without_proof'?'Evidencia de pago faltante':
+      evidence.state==='discrepancy'?'Evidencia de pago discrepante':
+      'Evidencia de pago no verificable';
+    item.append(el('p',label));
+    const payment=verified&&typeof refund.wompi_payment_ref==='string'
       &&/^[A-Za-z0-9._:-]{1,190}$/.test(refund.wompi_payment_ref)
       ?refund.wompi_payment_ref:null;
-    item.append(el('p',payment?'Pago en Wompi: '+payment:
-      'Sin pago de Wompi verificable: no confirmar devolución.'));
+    const pending=state==='approved'||state==='manual_pending';
+    const actionable=canDecide&&pending&&refund.can_manual_confirm===true&&payment!==null;
+    if(actionable)item.append(el('p','Pago en Wompi: '+payment));
+    if((pending||state==='requested')&&!verified)
+      item.append(el('p','Revisión con el dueño o soporte. No aplica confirmación Wompi.'));
     if(!canDecide)return item;
-    if(state!=='requested'&&state!=='approved'&&state!=='manual_pending')return item;
+    if(state!=='requested'&&!actionable){
+      if(pending&&verified)item.append(el('p','La confirmación Wompi no está disponible. Revisa con soporte.'));
+      return item;
+    }
     const message=el('p');message.setAttribute('role','status');
     if(state==='requested'){
       const note=control('input');note.type='text';note.maxLength=220;
@@ -98,7 +111,7 @@ export async function mount(panel, csrf = '') {
         approve.disabled=reject.disabled=true;message.textContent='Registrando decisión…';
         try{
           await send({id:Number(refund.id),action,note:note.value,receipt:''});
-          if(live()){await refresh();status.textContent='Decisión registrada por el dueño.';}
+          if(live()&&await refresh()){status.textContent='Decisión registrada por el dueño.';status.focus();}
         }catch(_){if(live())message.textContent='Decisión no confirmada. Comprueba el estado antes de reintentar.';}
         finally{approve.disabled=reject.disabled=false;}
       };
@@ -119,7 +132,7 @@ export async function mount(panel, csrf = '') {
         confirm.disabled=true;message.textContent='Registrando comprobante…';
         try{
           await send({id:Number(refund.id),action:'manual_confirm',note:'',receipt:value});
-          if(live()){await refresh();status.textContent='Comprobante registrado y boletas anuladas.';}
+          if(live()&&await refresh()){status.textContent='Comprobante registrado y boletas anuladas.';status.focus();}
         }catch(_){if(live())message.textContent='Estado no confirmado. Comprueba Wompi y la solicitud antes de reintentar.';}
         finally{confirm.disabled=false;}
       });
@@ -131,6 +144,7 @@ export async function mount(panel, csrf = '') {
     if(!live())return;
     try{
       const response=await fetch(endpoint,{credentials:'same-origin',cache:'no-store'});
+      if(response.status===401||response.status===403)throw Error('FORBIDDEN');
       if(!response.ok)throw Error('UNAVAILABLE');
       const result=await response.json();
       if(result.ok!==true||!Array.isArray(result.data))throw Error('UNAVAILABLE');
@@ -144,7 +158,14 @@ export async function mount(panel, csrf = '') {
       if(!result.data.length)listing.append(el('p','Aún no hay solicitudes.'));
       for(const refund of result.data)listing.append(row(refund,canDecide));
       status.textContent='Solicitudes cargadas. Ninguna acción aquí envía dinero.';
-    }catch(_){if(live())status.textContent='No se pudieron consultar las devoluciones.';}
+      return true;
+    }catch(error){
+      if(live()){
+        actions.replaceChildren();listing.replaceChildren();
+        status.textContent=error.message==='FORBIDDEN'?'No tienes permiso para consultar devoluciones.':'No se pudieron consultar las devoluciones.';
+      }
+      return false;
+    }
   }
   await refresh();
 }

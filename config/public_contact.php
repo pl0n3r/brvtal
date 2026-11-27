@@ -209,6 +209,20 @@ function brvtal_contact_consume_rate_limit(
 function brvtal_contact_validate_payload(array $input, array $config, ?int $now = null): array
 {
     $now ??= time();
+    $errors = [];
+    foreach (['name'=>'INVALID_NAME','email'=>'INVALID_EMAIL','subject'=>'INVALID_SUBJECT',
+        'message'=>'INVALID_MESSAGE','website'=>'BOT_DETECTED','captcha_token'=>'INVALID_CAPTCHA'] as $field => $error) {
+        $value = $input[$field] ?? '';
+        if (!is_string($value) || preg_match('//u', $value) !== 1) {
+            $errors[match ($field) {
+                'website' => 'form', 'captcha_token' => 'captcha', default => $field
+            }] = $error;
+        }
+    }
+    if (isset($input['captcha_answer']) && !is_string($input['captcha_answer']) && !is_int($input['captcha_answer'])) {
+        $errors['captcha'] = 'INVALID_CAPTCHA';
+    }
+    if ($errors) return ['ok' => false, 'errors' => $errors, 'data' => []];
     $name = trim((string)($input['name'] ?? ''));
     $email = trim((string)($input['email'] ?? ''));
     $subject = trim((string)($input['subject'] ?? ''));

@@ -36,6 +36,7 @@ Estado: `documented_not_legally_approved` (sin aprobación jurídica).
 | admin_totp_pending | authentication | totp_pending_admin_id, totp_pending_at, totp_pending_email | admin_mfa_challenge | review_required | review_required | ninguno_declarado | session_30d |
 | auth_password_rate_limit | usage | client_key_hash, attempts, blocked_until | auth_abuse_prevention | review_required | review_required | ninguno_declarado | review_required |
 | auth_totp_rate_limit | usage | client_key_hash, attempts, blocked_until | mfa_abuse_prevention | review_required | review_required | ninguno_declarado | review_required |
+| contact_capture | contact | name, email, subject, message, entry_id, form_key, version_number, definition_sha256, idempotency_digest, created_at_utc, purpose_key, notice_version, retention_policy_key, retention_until_utc, state, redacted_at_utc, action_key | contact_capture | review_required | review_required | ninguno_declarado | review_required |
 | contact_delivery | contact | name, email, subject, message | contact_delivery | review_required | review_required | ninguno_declarado | external_mailbox_review_required |
 | contact_rate_limit | usage | client_key_hash, timestamps | contact_abuse_prevention | review_required | review_required | ninguno_declarado | review_required |
 | internal_analytics_events | usage | event_name, page_url, referrer, locale, user_agent, created_at | internal_usage_analytics | review_required | review_required | ninguno_declarado | review_required |
@@ -119,6 +120,7 @@ El canal debe contemplar solicitudes de acceso, rectificación/corrección, actu
 | admin_totp_pending | authentication | totp_pending_admin_id, totp_pending_at, totp_pending_email | admin_mfa_challenge | review_required | review_required | ninguno_declarado | session_30d |
 | auth_password_rate_limit | usage | client_key_hash, attempts, blocked_until | auth_abuse_prevention | review_required | review_required | ninguno_declarado | review_required |
 | auth_totp_rate_limit | usage | client_key_hash, attempts, blocked_until | mfa_abuse_prevention | review_required | review_required | ninguno_declarado | review_required |
+| contact_capture | contact | name, email, subject, message, entry_id, form_key, version_number, definition_sha256, idempotency_digest, created_at_utc, purpose_key, notice_version, retention_policy_key, retention_until_utc, state, redacted_at_utc, action_key | contact_capture | review_required | review_required | ninguno_declarado | review_required |
 | contact_delivery | contact | name, email, subject, message | contact_delivery | review_required | review_required | ninguno_declarado | external_mailbox_review_required |
 | contact_rate_limit | usage | client_key_hash, timestamps | contact_abuse_prevention | review_required | review_required | ninguno_declarado | review_required |
 | internal_analytics_events | usage | event_name, page_url, referrer, locale, user_agent, created_at | internal_usage_analytics | review_required | review_required | ninguno_declarado | review_required |
@@ -255,6 +257,16 @@ Producto: `pl0n3r/brvtal`
 - Categoría: `usage`
 - Campos de software: `client_key_hash`, `attempts`, `blocked_until`
 - Finalidad: `mfa_abuse_prevention`
+- Base documentada: `review_required` (revisión jurídica requerida)
+- Consentimiento: `review_required`
+- Proveedores: ninguno_declarado
+- Retención: `review_required`
+
+## contact_capture
+
+- Categoría: `contact`
+- Campos de software: `name`, `email`, `subject`, `message`, `entry_id`, `form_key`, `version_number`, `definition_sha256`, `idempotency_digest`, `created_at_utc`, `purpose_key`, `notice_version`, `retention_policy_key`, `retention_until_utc`, `state`, `redacted_at_utc`, `action_key`
+- Finalidad: `contact_capture`
 - Base documentada: `review_required` (revisión jurídica requerida)
 - Consentimiento: `review_required`
 - Proveedores: ninguno_declarado
@@ -434,6 +446,7 @@ Producto: `pl0n3r/brvtal`
 | admin_totp_pending | authentication | session_30d | review_required |
 | auth_password_rate_limit | usage | review_required | review_required |
 | auth_totp_rate_limit | usage | review_required | review_required |
+| contact_capture | contact | review_required | review_required |
 | contact_delivery | contact | external_mailbox_review_required | review_required |
 | contact_rate_limit | usage | review_required | review_required |
 | internal_analytics_events | usage | review_required | review_required |
