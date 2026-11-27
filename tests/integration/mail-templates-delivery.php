@@ -510,3 +510,12 @@ try {
     putenv($oldMode===false ? 'BRVTAL_TICKET_MAIL_MODE' : 'BRVTAL_TICKET_MAIL_MODE='.$oldMode);
 }
 echo "BRVTAL mail-template delivery synthetic MariaDB integration OK.\n";
+
+// T29 runs in a separate process and creates/drops only its disposable database.
+$t29Output = [];
+$t29Exit = 1;
+exec(escapeshellarg(PHP_BINARY).' '.escapeshellarg(__DIR__.'/ticketing-recovery.php'), $t29Output, $t29Exit);
+mail_delivery_assert($t29Exit===0 && in_array(
+    'T29 consent, payment, retry, dedupe, expiry and optout synthetic OK.', $t29Output, true),
+    'T29 database acceptance executed, not skipped');
+echo implode("\n", $t29Output)."\n";

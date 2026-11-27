@@ -1,21 +1,8 @@
 <?php
 declare(strict_types=1);
 // Isolated MariaDB fixture: never contact the provider or store a real recipient.
-function brvtal_ticket_mail_enqueue(PDO $db, string $key, string $reference,
-    string $recipient, string $subject, string $body, ?string $html = null,
-    ?string $templateKey = null, ?int $templateVersion = null): int
-{
-    if (!$db->inTransaction()) throw new RuntimeException('fixture transaction required');
-    if ($templateKey !== 'reminder' || !str_contains($body,'/compra/')
-        || !str_contains((string)$html,'solicitar la baja')) {
-        throw new RuntimeException('fixture reminder template invalid');
-    }
-    $q = $db->prepare('INSERT INTO ticket_mail_outbox (message_key,related_ref,state)
-        VALUES (?,?,"queued")');
-    $q->execute([$key,$reference]);
-    return (int)$db->lastInsertId();
-}
 require_once __DIR__ . '/../../config/ticketing_recovery.php';
+require_once __DIR__ . '/../../config/ticketing_mail_templates.php';
 function t29(bool $ok,string $why):void {if(!$ok)throw new RuntimeException('T29 '.$why);}
 foreach ([['order_id'=>-1,'campaign'=>'checkout','idempotency_key'=>str_repeat('a',32)],
           ['order_id'=>1,'campaign'=>'email@buyer','idempotency_key'=>str_repeat('a',32)],
@@ -73,9 +60,20 @@ try {
         ADD created_at_utc DATETIME(6) NOT NULL DEFAULT (UTC_TIMESTAMP(6))');
     $db->exec("UPDATE ticket_orders SET public_id=UNHEX(LPAD(HEX(id),32,'0')),
         created_at_utc=DATE_SUB(UTC_TIMESTAMP(6), INTERVAL 60 MINUTE)");
-    $db->exec('CREATE TABLE ticket_mail_outbox (id BIGINT AUTO_INCREMENT PRIMARY KEY,
-        message_key VARCHAR(128) NOT NULL UNIQUE,related_ref VARCHAR(128) NOT NULL,
-        state VARCHAR(20) NOT NULL)');
+    foreach (['ticketing_mail_outbox_01','ticket_mail_html_01','ticketing_mail_history_01'] as $migration) {
+        $db->exec((string)file_get_contents(__DIR__.'/../../database/migration_'.$migration.'.sql'));
+    }
+    // Real enqueue and history, never delivery. Synthetic configuration only.
+    $GLOBALS['config'] = ['ticketing'=>['mail'=>['testing'=>'1','mode'=>'mock']]];
+    putenv('BRVTAL_TICKET_MAIL_TESTING=1');
+    $db->exec("ALTER TABLE ticket_payment_attempts ADD provider VARCHAR(24) NULL,
+        ADD provider_transaction_id VARCHAR(190) NULL");
+    $db->exec('CREATE TABLE ticket_payment_webhook_events (attempt_id BIGINT,
+        provider_transaction_id VARCHAR(190),signed_status VARCHAR(16))');
+    $db->exec('CREATE TABLE ticket_issue_outbox (order_id BIGINT PRIMARY KEY,
+        payment_attempt_id BIGINT,state VARCHAR(16))');
+    $db->exec('CREATE TABLE ticket_entries (id BIGINT PRIMARY KEY,
+        order_item_id BIGINT,status VARCHAR(16))');
     // Real checkout holds expire in 10 minutes. A reminder must fit inside that hold.
     $db->exec("UPDATE ticket_orders SET
         created_at_utc=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 6 MINUTE),
@@ -122,8 +120,21 @@ try {
             array_merge($input,['order_id'=>$id]),$ready);
         t29($once['reason']===$reason,"suppression $id");
     }
-    t29((int)$db->query('SELECT COUNT(*) FROM ticket_mail_outbox')->fetchColumn()===1,
-        'only one durable reminder exists');
+    t29((int)$db->query("SELECT COUNT(*) FROM ticket_mail_outbox
+        WHERE message_key='order:91:abandoned_checkout' AND template_key='reminder'
+          AND body_text LIKE '%/compra/%'")->fetchColumn()===1, 'one durable abandonment snapshot');
+    // An unrelated old shared key is deliberately not classified from current status.
+    $db->exec("UPDATE ticket_orders SET created_at_utc=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 6 MINUTE)
+        WHERE id=96");
+    $db->beginTransaction();
+    $legacyId=brvtal_ticket_mail_enqueue($db,'order:96:reminder','order:96',
+        'fixture3@brvtal.invalid','Legacy fixture','Unknown historical purpose');
+    $db->commit();
+    t29(brvtalRecoverySend($db,7,'superadmin',array_merge($input,['order_id'=>96]),$ready)
+        ['reason']==='legacy_reminder_undetermined','legacy suppresses automatic recovery');
+    $metrics=brvtalRecoveryLiveMetrics($db)[0];
+    t29((int)$metrics['reminders']===1 && (int)$metrics['legacy_undetermined']===1,
+        'legacy is not counted as abandonment');
     t29(brvtalRecoverySend($db,7,'superadmin',$input,['mode'=>'disabled','ready'=>false])
         ['reason']==='mail_unavailable','mail mode fail closed');
     try { brvtalRecoveryReminder('Rave','not-a-token'); throw new RuntimeException('token accepted'); }
@@ -135,6 +146,40 @@ try {
     t29(count(brvtalRecoveryMetrics($db))===1,'future checkout remains eligible');
     t29(brvtalRecoveryOptOut($db,3,6),'optout');
     t29(brvtalRecoveryMetrics($db)===[],'optout removes dashboard count');
+    t29(brvtalRecoverySend($db,7,'superadmin',$input,$ready)['reason']==='consent_unavailable',
+        'optout blocks marketing');
+    // Same order becomes paid, with independent signed payment and issuance proof.
+    $db->exec("UPDATE ticket_orders SET status='paid' WHERE id IN (91,96)");
+    $db->exec("UPDATE ticket_payment_attempts SET status='approved',provider='wompi',
+        provider_transaction_id='fixture-91' WHERE id=1");
+    $db->exec("INSERT INTO ticket_payment_attempts VALUES (4,96,'approved','wompi','fixture-96')");
+    $db->exec("INSERT INTO ticket_payment_webhook_events VALUES
+        (1,'fixture-91','APPROVED'),(4,'fixture-96','APPROVED')");
+    $db->exec("INSERT INTO ticket_issue_outbox VALUES (91,1,'done'),(96,4,'done')");
+    $db->exec("INSERT INTO ticket_order_items VALUES (6,96,7,1)");
+    $db->exec("INSERT INTO ticket_entries VALUES (1,1,'issued'),(2,1,'issued'),(3,6,'issued')");
+    $event=['event'=>'Rave test','link'=>'https://brvtal.invalid/buyer/orders'];
+    $db->beginTransaction();
+    $eventId=brvtal_ticket_mail_queue_order($db,91,'reminder','fixture3@brvtal.invalid',$event);
+    t29($eventId!==$send['mail_id'] &&
+        $eventId===brvtal_ticket_mail_queue_order($db,91,'reminder','fixture3@brvtal.invalid',$event),
+        'paid event reminder distinct and idempotent');
+    $db->commit();
+    $db->beginTransaction();
+    try {
+        brvtal_ticket_mail_queue_order($db,96,'reminder','fixture3@brvtal.invalid',$event);
+        throw new RuntimeException('legacy event replay accepted');
+    } catch (DomainException $error) {
+        t29($error->getMessage()==='MAIL_LEGACY_REMINDER_UNDETERMINED','legacy event suppressed');
+    } finally { $db->rollBack(); }
+    $metrics=brvtalRecoveryLiveMetrics($db)[0];
+    t29((int)$metrics['reminders']===1 && (int)$metrics['queued']===1
+        && (int)$metrics['legacy_undetermined']===1,'paid event excluded from recovery metrics');
+    t29((int)$db->query('SELECT COUNT(*) FROM ticket_mail_outbox')->fetchColumn()===3
+        && (int)$db->query("SELECT COUNT(*) FROM ticket_mail_outbox WHERE id=".$legacyId."
+            AND body_text='Unknown historical purpose'")->fetchColumn()===1,'legacy row immutable');
+    t29(brvtalRecoverySend($db,7,'superadmin',$input,$ready)['reason']==='order_not_pending',
+        'paid order cannot queue marketing');
     putenv('BRVTAL_INTEGRATION_TESTS=0');
     try {brvtalRecoveryPlan($db,7,'superadmin',$input);throw new RuntimeException('real mode');}
     catch (DomainException $e) {t29($e->getMessage()==='SYNTHETIC_ONLY','real mode blocked');}

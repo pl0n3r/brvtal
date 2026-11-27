@@ -267,10 +267,14 @@ function brvtalRecoverySend(PDO $db, int $actor, string $role, array $input, ?ar
             WHERE order_id=? AND status='approved' LIMIT 1 FOR UPDATE");
         $payment->execute([$input['order_id']]);
         if ($payment->fetchColumn()) return $suppress('payment_confirmed');
-        $key = 'order:' . $input['order_id'] . ':reminder';
+        $key = 'order:' . $input['order_id'] . ':abandoned_checkout';
         $prior = $db->prepare('SELECT id FROM ticket_mail_outbox WHERE message_key=? LIMIT 1 FOR UPDATE');
         $prior->execute([$key]);
         if ($prior->fetchColumn()) return $suppress('already_reminded');
+        // The old key is shared with the paid-event template. Never infer its purpose
+        // from the order's current state or replay a possibly delivered legacy message.
+        $prior->execute(['order:' . $input['order_id'] . ':reminder']);
+        if ($prior->fetchColumn()) return $suppress('legacy_reminder_undetermined');
         if (($mode['mode'] ?? '') === 'test') {
             if (!function_exists('brvtal_ticket_test_recipient_allowed')) {
                 require_once __DIR__ . '/ticketing_resend.php';
@@ -297,14 +301,23 @@ function brvtalRecoverySend(PDO $db, int $actor, string $role, array $input, ?ar
 /** Aggregated operational results, without leaking buyer data or bearer URLs. */
 function brvtalRecoveryLiveMetrics(PDO $db): array
 {
+    // A scoped history receipt proves an event reminder, not the old shared key alone.
+    $historyReady = (int)$db->query("SELECT COUNT(*) FROM information_schema.TABLES
+        WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='ticket_mail_history'")->fetchColumn() === 1;
+    $eventReceipt = $historyReady ? " AND NOT EXISTS (SELECT 1 FROM ticket_mail_history h
+        WHERE h.outbox_id=m.id AND h.message_key=m.message_key AND h.order_id=o.id
+          AND h.event_id=o.event_id AND h.buyer_id=o.buyer_id AND h.template_key='reminder'
+          AND h.actor_kind='system')" : '';
     $sql = "SELECT o.event_id,
-        COUNT(*) AS reminders,
-        SUM(m.state IN ('queued','retry','sending')) AS queued,
-        SUM(m.state='accepted') AS accepted,
-        SUM(m.state IN ('failed','dead')) AS failed
+        SUM(m.message_key=CONCAT('order:',o.id,':abandoned_checkout')) AS reminders,
+        SUM(m.message_key=CONCAT('order:',o.id,':abandoned_checkout') AND m.state IN ('queued','retry','sending')) AS queued,
+        SUM(m.message_key=CONCAT('order:',o.id,':abandoned_checkout') AND m.state='accepted') AS accepted,
+        SUM(m.message_key=CONCAT('order:',o.id,':abandoned_checkout') AND m.state IN ('failed','dead')) AS failed,
+        SUM(m.message_key=CONCAT('order:',o.id,':reminder')) AS legacy_undetermined
         FROM ticket_mail_outbox m
         JOIN ticket_orders o ON m.related_ref=CONCAT('order:',o.id)
-            AND m.message_key=CONCAT('order:',o.id,':reminder')
+        WHERE m.message_key=CONCAT('order:',o.id,':abandoned_checkout')
+           OR (m.message_key=CONCAT('order:',o.id,':reminder')" . $eventReceipt . ")
         GROUP BY o.event_id ORDER BY o.event_id";
     return $db->query($sql)->fetchAll(PDO::FETCH_ASSOC);
 }
