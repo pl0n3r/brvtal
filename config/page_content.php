@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/form_schema.php';
+require_once __DIR__ . '/form_entries.php';
 require_once __DIR__ . '/public_text_format.php';
 
 function brvtal_page_content_json_error(mixed $value): ?string
@@ -45,8 +46,8 @@ function brvtal_page_form_id(mixed $block): ?string
         && is_string($block['public_id'] ?? null) && preg_match('/\A[a-f0-9]{32}\z/D', $block['public_id'])
         ? $block['public_id'] : null;
 }
-/** Only immutable public copy is returned; no draft, policy keys, IDs or delivery configuration. */
-function brvtal_page_form_resolve(PDO $pdo, string $id): ?array
+/** Return approved public schema only; never draft, internal form key, retention or delivery configuration. */
+function brvtal_page_form_resolve(PDO $pdo, string $id, array $captureConfig = []): ?array
 {
     if (!preg_match('/\A[a-f0-9]{32}\z/D', $id)) return null;
     try {
@@ -80,10 +81,28 @@ function brvtal_page_form_resolve(PDO $pdo, string $id): ?array
         $consent = array_filter($fields, static fn(array $field): bool => $field['type'] === 'consent'
             && $field['purpose'] === 'privacy' && $field['notice_version'] === $row['notice_version']);
         if (count($consent) !== 1) return null;
-        return ['title'=>$policy['form_title'], 'fields'=>array_values(array_map(
+        $preview = ['title'=>$policy['form_title'], 'fields'=>array_values(array_map(
             static fn(array $field): array => ['label'=>$field['label'],'help'=>$field['help'] ?? '',
                 'options'=>array_column($field['options'] ?? [], 'label')], $fields
         ))];
+        $submit = brvtalPageFormSubmitSchema($pdo, $captureConfig, $id, (int)$row['published_version_number']);
+        if ($submit !== null) {
+            $preview['submit'] = $submit;
+        }
+        return $preview;
+    } catch (Throwable) {
+        return null;
+    }
+}
+function brvtalPageFormSubmitSchema(PDO $pdo, array $config, string $id, int $version): ?array
+{
+    if (!brvtalFormsCaptureEnabled($config)) {
+        return null;
+    }
+    try {
+        [$published, , $approved] = brvtalFormsPublished($pdo, $config, $id, $version);
+        return ['id'=>$id, 'version'=>$version, 'title'=>$approved['form_title'],
+            'notice'=>$approved['notice_text'], 'fields'=>array_values(brvtalFormSchemaValidate($published))];
     } catch (Throwable) {
         return null;
     }
@@ -94,6 +113,11 @@ function brvtal_page_form_html(?array $form): string
         return '<section data-form-ref="unavailable"><p>Formulario no disponible.</p></section>';
     }
     $escape = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    if (isset($form['submit'])) {
+        $spec = $escape(json_encode($form['submit'], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
+        return '<section data-form-ref="active" data-public-form="' . $spec . '"><h2>'
+            . $escape($form['title']) . '</h2><p>Activa JavaScript para enviar el formulario.</p></section>';
+    }
     $html = '<section data-form-ref="preview"><h2>' . $escape($form['title']) . '</h2>'
         . '<p>Recepción no disponible.</p><ul>';
     foreach ($form['fields'] as $field) {
@@ -103,7 +127,7 @@ function brvtal_page_form_html(?array $form): string
     }
     return $html . '</ul></section>';
 }
-/** Render in source order. Forms are descriptive, never interactive, regardless of configuration. */
+/** Render in source order; only the public, version-approved resolver can enable capture. */
 function brvtal_page_content_html(mixed $value, callable $resolve): string
 {
     $decoded = json_decode((string)$value, true);
