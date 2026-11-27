@@ -412,7 +412,7 @@ try {
     $_SESSION = $guestState;
     foreach (['ticket_payment_webhook_events','ticket_pos_sales','ticket_pos_shifts'] as $table) $db->exec("DROP TABLE $table");
 }
-echo "BRVTAL #2052 account units, partial issue, payment evidence and scope passed.\n";
+// The remaining HTTP tests still need to change session cookies; do not emit output yet.
 
 // Exercise the actual checkout HTTP handler, session epoch revalidation and
 // JSON response over loopback, not a simulated HTTP response or live provider.
