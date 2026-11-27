@@ -195,6 +195,7 @@
     && a.every(line => b.some(item => item.ticket_type_id === line?.ticket_type_id && item.quantity === line?.quantity));
   async function readReservation(saved) {
     const auth = await cartAuth();
+    if (!/^[A-Za-z0-9:_-]{16,128}$/.test(saved.intent || '') || !Object.hasOwn(methods, saved.method)) return { state: 'unverified', auth };
     if (!auth.authenticated && !tokenValid(saved.order_token)) return { state: 'unverified', auth };
     const response = await cartRequest('snapshot', auth.authenticated ? cartBody(saved) : { order_token: saved.order_token }, auth);
     if (response.status === 429 || response.status === 503) {
@@ -266,7 +267,7 @@
     }
     say(labels[state] + '.');
     const details = document.createElement('p');
-    details.textContent = snap.lines.map(line => line.quantity + ' × ' + line.name).join(' · ')
+    details.textContent = snap.lines.map(line => line.quantity + ' × ' + line.name + ' (' + cop.format(line.subtotal_cop) + ')').join(' · ')
       + ' · Total reservado: ' + cop.format(snap.total_cop) + ' · ' + methods[snap.method]
       + ' · Vence (UTC): ' + (snap.expires_at_utc || 'No disponible');
     recoveryBox.prepend(details);
@@ -562,7 +563,7 @@
       const feedback = {
         CHECKOUT_TIMEOUT: 'El servidor tardó demasiado en responder. Consulta tu reserva antes de volver a pagar.',
         CHECKOUT_EXPIRED: 'La reserva expiró. Consulta su estado antes de iniciar otra compra.',
-        CHECKOUT_RETRYABLE: 'Otra solicitud está preparando tu reserva. Vuelve a intentarlo sin cambiar la selección.',
+        CHECKOUT_RETRYABLE: 'Otra solicitud está preparando tu reserva. Consulta su estado antes de pagar.',
         RATE_LIMITED: 'Demasiados intentos con este correo. Espera unos minutos y vuelve a intentarlo.',
         CSRF_OR_METHOD: 'Tu sesión cambió. Recarga la página y vuelve a intentarlo.',
         AUTH_REQUIRED: 'Tu sesión cambió. Recarga la página y vuelve a intentarlo.',
@@ -573,7 +574,7 @@
       say(feedback[error.message] ||
         'No fue posible reservar. Puede que ya no haya cupo; revisa tu selección y vuelve a intentarlo.');
     }
-    async function resolveCartBuyer(auth) {
+    function resolveCartBuyer(auth) {
       signedIn(auth.authenticated === true);
       if (auth.authenticated) return { buyer: null };
       const buyer = readBuyer();
@@ -607,6 +608,7 @@
       if (!save({ ...pending, order_id: String(result.order_id),
         ...(/^[a-f0-9]{32}$/.test(String(result.order_token || '')) ? { order_token: result.order_token } : {}) })) throw new Error('STORAGE');
       recoveryControls(record);
+      updateSingle();
       if (result.checkout?.environment === 'mock') {
         // Synthetic mode never charges.
         say('Reserva preparada. El pago sigue pendiente hasta la confirmación del servidor.');
@@ -626,13 +628,14 @@
       const selection = { lines: lines(), method: method() };
       const preview = rows.reduce((sum, item) => sum + item.price * quantities.get(item.id), 0);
       submitting = true;
+      recoveryBusy = true;
       update();
       say('Verificando acceso y cupo…');
       try {
         const auth = await json(await timedFetch('/api/buyer/auth.php', {
           credentials: 'same-origin', cache: 'no-store',
         }));
-        const identity = await resolveCartBuyer(auth);
+        const identity = resolveCartBuyer(auth);
         if (!identity) return;
         const pending = persistCartIntent(selection);
         if (!pending) return;
@@ -644,6 +647,8 @@
       } finally {
         lockBuyer(false);
         submitting = false;
+        recoveryBusy = false;
+        updateSingle();
         update();
       }
     });
@@ -749,7 +754,7 @@
   });
   form.addEventListener('submit', async event => {
     event.preventDefault();
-    if (submitting || button.disabled) return;
+    if (submitting || cartRecord() || button.disabled) return;
     const selection = input();
     submitting = true;
     update();

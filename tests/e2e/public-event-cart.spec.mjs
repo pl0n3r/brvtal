@@ -357,6 +357,26 @@ test('invitado: timeout sin grant conserva intención y no repite cobro', async 
   expect(calls.widget).toBe(0);
 });
 
+test('importe distinto: exige confirmación explícita antes del proveedor', async ({ page }) => {
+  const calls = await openCheckout(page, { authenticated: true, widget: 'fake',
+    onPrepare: () => ({ ok: true, order_id: 9, order_token: orderToken,
+      checkout: { environment: 'sandbox', public_key: 'pub_test_synthetic', currency: 'COP',
+        amount_in_cents: 3500000, reference: 'BW7-9-CARD-' + 'c'.repeat(24),
+        signature_integrity: 'd'.repeat(64), redirect_url: url } }),
+    snapshot: () => ({ ...reservation(), snapshot: { ...reservation().snapshot, total_cop: 35000 } }) });
+  await page.locator('[data-cart-type="5"] [data-cart-step="1"]').click();
+  await page.locator('[data-cart-pay]').click();
+  await expect(page.locator('#ticket-checkout-status')).toContainText('El importe final');
+  expect(calls.widget).toBe(0);
+  await page.getByRole('button', { name: 'Consultar reserva' }).click();
+  const confirm = page.getByRole('button', { name: /Confirmar y pagar.*35.000/ });
+  await confirm.focus();
+  await expect(confirm).toBeFocused();
+  await confirm.press('Enter');
+  await expect.poll(() => calls.confirmation.length).toBe(1);
+  expect(calls.prepare[1].body).toEqual(calls.prepare[0].body);
+});
+
 test('invitado: token sin grant no permite iniciar otro pago', async ({ page }) => {
   const calls = await openCheckout(page, { storage: { ...savedCart, order_token: orderToken } });
   await expect(page.locator('#ticket-checkout-status')).toContainText('No pudimos verificar');
