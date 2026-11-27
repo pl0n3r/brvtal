@@ -48,6 +48,7 @@ try {
         'ticket_pos_sales'=>'id BIGINT PRIMARY KEY,order_id BIGINT,shift_id BIGINT,event_id INT,operator_admin_id INT,ticket_type_id INT,quantity INT,unit_price_cop BIGINT,amount_cop BIGINT,method VARCHAR(20),status VARCHAR(20),completed_at_utc DATETIME',
         'ticket_pos_shifts'=>'id BIGINT PRIMARY KEY,event_id INT,operator_admin_id INT',
         'ticket_order_notes'=>'id BIGINT PRIMARY KEY,order_id BIGINT,actor_admin_id INT,note_text VARCHAR(255)',
+        'ticket_promo_redemptions'=>'order_id BIGINT,buyer_id BIGINT,event_id INT,ticket_type_id INT,quantity INT,subtotal_cop BIGINT,discount_cop BIGINT,total_cop BIGINT',
     ];
     foreach ($ddl as $table=>$cols) $db->exec("CREATE TABLE $table ($cols) ENGINE=InnoDB");
     $db->exec("INSERT INTO events VALUES(7),(8),(9)");
@@ -107,10 +108,26 @@ try {
     catch (DomainException $e) {noticeAssert($e->getMessage()==='NOTICE_SANDBOX_ONLY','production disabled');}
     finally {putenv('BRVTAL_INTEGRATION_TESTS=1');}
     noticeAssert($fingerprint()===$before&&!$db->inTransaction(),'no persisted change or transaction leak');
+    // #2131: a discounted Wompi order has a gross line and a lower collected total.
+    $db->exec('UPDATE ticket_order_items SET subtotal_cop=120,unit_price_cop=120 WHERE order_id=14');
+    noticeAssert(brvtalNoticePreview($db,8,'owner')['counts']['groups']['ambiguous_review']===1,'discount without redemption');
+    $db->exec('INSERT INTO ticket_promo_redemptions VALUES(14,2,8,2,1,120,20,100)');
+    noticeAssert(brvtalNoticePreview($db,8,'owner')['counts']['candidate_recipients']===1,'verified discounted Wompi order');
+    $db->exec('UPDATE ticket_promo_redemptions SET buyer_id=1');
+    noticeAssert(brvtalNoticePreview($db,8,'owner')['counts']['groups']['ambiguous_review']===1,'foreign redemption');
+    $db->exec('UPDATE ticket_promo_redemptions SET buyer_id=2,discount_cop=19');
+    noticeAssert(brvtalNoticePreview($db,8,'owner')['counts']['groups']['ambiguous_review']===1,'inconsistent redemption amount');
+    $db->exec('UPDATE ticket_promo_redemptions SET discount_cop=20');
+    $db->exec('INSERT INTO ticket_promo_redemptions VALUES(14,2,8,2,1,120,20,100)');
+    noticeAssert(brvtalNoticePreview($db,8,'owner')['counts']['groups']['ambiguous_review']===1,'duplicate redemption');
+    $db->exec('DELETE FROM ticket_promo_redemptions');
     for ($id=1000;$id<=1200;$id++) $db->exec("INSERT INTO ticket_orders VALUES($id,9,1,'pending','COP',100)");
     noticeAssert(brvtalNoticePreview($db,9,'owner')['counts']===null,'over-limit unknown, never truncated');
     $db->exec("INSERT INTO ticket_payment_webhook_events VALUES(1,'tx-1','VOIDED')");
     noticeAssert(brvtalNoticePreview($db,7,'owner')['counts']['groups']['mixed_review']===1,'contradictory signed status needs review across same identity');
+    $db->exec('RENAME TABLE ticket_promo_redemptions TO promo_unavailable');
+    noticeAssert(brvtalNoticePreview($db,8,'owner')['counts']===null,'missing promo ledger unknown');
+    $db->exec('RENAME TABLE promo_unavailable TO ticket_promo_redemptions');
     $db->exec('DROP TABLE ticket_courtesy_invites');
     noticeAssert(brvtalNoticePreview($db,7,'owner')['counts']===null,'missing schema unknown');
 } finally {$root->exec('DROP DATABASE IF EXISTS '.$name);}

@@ -32,6 +32,7 @@ function brvtalNoticeWithinBudget(PDO $db,int $event): bool
         'ticket_inventory_holds h JOIN ticket_orders o ON o.id=h.order_id',
         'ticket_pos_sales p JOIN ticket_orders o ON o.id=p.order_id',
         'ticket_order_notes n JOIN ticket_orders o ON o.id=n.order_id',
+        'ticket_promo_redemptions p JOIN ticket_orders o ON o.id=p.order_id',
     ];
     foreach ($sources as $source) {
         $limit=$source==='ticket_orders o'?BRVTAL_NOTICE_ORDER_LIMIT:BRVTAL_NOTICE_ROW_LIMIT;
@@ -63,10 +64,18 @@ WITH target AS (
  WHERE o.event_id=? ORDER BY o.id LIMIT 201
 ), items AS (
  SELECT i.order_id,COUNT(*) AS item_count,SUM(i.quantity) AS units,SUM(i.subtotal_cop) AS amount,
+ MAX(i.ticket_type_id) AS ticket_type_id,
  SUM(CASE WHEN i.event_id<>t.event_id OR ty.id IS NULL OR i.quantity<1 OR i.currency<>'COP'
  OR i.subtotal_cop<>i.quantity*i.unit_price_cop THEN 1 ELSE 0 END) AS bad_items
  FROM target t JOIN ticket_order_items i ON i.order_id=t.id
  LEFT JOIN event_ticket_types ty ON ty.id=i.ticket_type_id AND ty.event_id=t.event_id GROUP BY i.order_id
+), promos AS (
+ SELECT p.order_id,COUNT(*) AS promo_count,
+ SUM(CASE WHEN p.buyer_id=t.buyer_id AND p.event_id=t.event_id AND i.item_count=1
+ AND p.ticket_type_id=i.ticket_type_id AND p.quantity=i.units AND p.subtotal_cop=i.amount
+ AND p.discount_cop BETWEEN 0 AND p.subtotal_cop AND p.total_cop+p.discount_cop=p.subtotal_cop
+ AND p.total_cop=t.total_cop THEN 1 ELSE 0 END) AS promo_verified
+ FROM target t JOIN ticket_promo_redemptions p ON p.order_id=t.id LEFT JOIN items i ON i.order_id=t.id GROUP BY p.order_id
 ), entries AS (
  SELECT i.order_id,COUNT(*) AS entry_count,
  SUM(CASE WHEN e.status='issued' THEN 1 ELSE 0 END) AS issued,
@@ -102,6 +111,7 @@ WITH target AS (
 )
 SELECT t.*,COALESCE(i.item_count,0) AS item_count,COALESCE(i.units,0) AS units,COALESCE(i.amount,0) AS amount,
  COALESCE(i.bad_items,0) AS bad_items,COALESCE(e.entry_count,0) AS entry_count,
+ COALESCE(p.promo_count,0) AS promo_count,COALESCE(p.promo_verified,0) AS promo_verified,
  COALESCE(e.issued,0) AS issued,COALESCE(e.used,0) AS used,COALESCE(e.terminal_entries,0) AS terminal_entries,
  COALESCE(e.bad_entries,0) AS bad_entries,COALESCE(a.attempt_count,0) AS attempt_count,
  COALESCE(a.approval_count,0) AS approval_count,COALESCE(a.verified_approvals,0) AS verified_approvals,
@@ -110,7 +120,7 @@ SELECT t.*,COALESCE(i.item_count,0) AS item_count,COALESCE(i.units,0) AS units,C
  (SELECT COUNT(*) FROM ticket_pos_sales p WHERE p.order_id=t.id) AS pos_count,
  (SELECT COUNT(*) FROM ticket_inventory_holds h WHERE h.order_id=t.id AND h.event_id=t.event_id
  AND h.kind='paid' AND h.status='active' AND h.expires_at_utc>UTC_TIMESTAMP(6)) AS pending_holds
- FROM target t LEFT JOIN items i ON i.order_id=t.id LEFT JOIN entries e ON e.order_id=t.id
+ FROM target t LEFT JOIN items i ON i.order_id=t.id LEFT JOIN promos p ON p.order_id=t.id LEFT JOIN entries e ON e.order_id=t.id
  LEFT JOIN attempts a ON a.order_id=t.id LEFT JOIN courtesy c ON c.order_id=t.id ORDER BY t.id
 SQL);
         $q->execute([$event]); $rows=$q->fetchAll(PDO::FETCH_ASSOC);
@@ -119,10 +129,14 @@ SQL);
         foreach ($rows as &$r) {
             foreach (['item_count','units','amount','bad_items','entry_count','issued','used','terminal_entries','bad_entries',
                 'attempt_count','approval_count','verified_approvals','pending_attempts','courtesy_count','courtesy_verified',
-                'pos_count','pending_holds'] as $key) $r[$key]=(int)$r[$key];
+                'pos_count','pending_holds','promo_count','promo_verified'] as $key) $r[$key]=(int)$r[$key];
             $units+=$r['units'];
             if ($units>BRVTAL_NOTICE_ROW_LIMIT) return brvtalNoticeUnknown();
-            $r['consistent']=$r['item_count']>0 && $r['units']>0 && $r['amount']===(int)$r['total_cop']
+            // Discounted orders require one exact redemption and verified Wompi evidence.
+            $amountConsistent=($r['promo_count']===0 && $r['amount']===(int)$r['total_cop'])
+                || ($r['promo_count']===1 && $r['promo_verified']===1 && $r['verified_approvals']===1
+                    && !$r['pos_count'] && !$r['courtesy_count']);
+            $r['consistent']=$r['item_count']>0 && $r['units']>0 && $amountConsistent
                 && $r['currency']==='COP' && !$r['bad_items'] && !$r['bad_entries'] && $r['entry_count']<=$r['units']
                 && $r['entry_count']===$r['issued']+$r['used']+$r['terminal_entries']
                 && $r['approval_count']<=1 && $r['courtesy_count']<=1 && $r['pos_count']<=1
