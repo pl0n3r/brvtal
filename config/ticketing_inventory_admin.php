@@ -34,7 +34,8 @@ function brvtal_ticket_inventory_admin_read(PDO $db, int $eventId): array
 {
     $event = brvtal_ticket_inventory_admin_event($db, $eventId);
     $utc = brvtal_ticket_inventory_now()->format('Y-m-d H:i:s.u');
-    $q = $db->prepare('SELECT t.id,t.name,t.status,t.door_price_cop,l.capacity,COALESCE(l.courtesy_capacity,0) AS courtesy_capacity
+    $q = $db->prepare('SELECT t.id,t.name,t.status,t.door_price_cop,l.capacity,
+        COALESCE(l.courtesy_capacity,0) AS courtesy_capacity
         FROM event_ticket_types t LEFT JOIN ticket_inventory_types l ON l.ticket_type_id=t.id
         WHERE t.event_id=? ORDER BY t.sort_order,t.id');
     $q->execute([$eventId]);
@@ -194,7 +195,8 @@ function brvtal_ticket_inventory_admin_save(PDO $db, int $eventId, mixed $input)
         // Same mutex as checkout holds: no hold can slip in between check and write.
         $event = brvtal_ticket_inventory_admin_event($db, $eventId, true);
         $utc = brvtal_ticket_inventory_now()->format('Y-m-d H:i:s.u');
-        $typeQuery = $db->prepare('SELECT t.id,t.door_price_cop,l.capacity,COALESCE(l.courtesy_capacity,0) AS courtesy_capacity
+        $typeQuery = $db->prepare('SELECT t.id,t.door_price_cop,l.capacity,
+            COALESCE(l.courtesy_capacity,0) AS courtesy_capacity
             FROM event_ticket_types t LEFT JOIN ticket_inventory_types l ON l.ticket_type_id=t.id
             WHERE t.id=? AND t.event_id=? FOR UPDATE');
         $before = [
