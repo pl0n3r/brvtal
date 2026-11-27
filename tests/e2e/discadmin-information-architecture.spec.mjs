@@ -994,7 +994,7 @@ test('DISCADMIN wrapper loads the IA layer after existing enhancements', async (
   expect(wrapper.indexOf('dashboard-v2.js')).toBeLessThan(wrapper.indexOf('data-admin-session-restore="1"'));
   expect(wrapper).toContain("str_replace($legacyRestoreBootstrap, '', $html, $restoreBootstrapCount)");
 });
-const finance2054Base='6c98800ea1a8e4cafbc9771a20369f46541c60f2';
+const finance2054Base='79c0fef07ec2d7e9dee9ad31daed087679591591';
 function finance2054Read(path,baseline=false) {
   if(!baseline)return readFileSync(path,'utf8');
   const baselineRoot=process.env.BRVTAL_FINANCE_VISUAL_BASE_DIR;
