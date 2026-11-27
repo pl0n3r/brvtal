@@ -146,7 +146,7 @@ function brvtalIndexNowEndpoint(array $setting): string
 function brvtalIndexNowRowIsPublic(string $resource, array $row): bool
 {
     if ($resource === 'events') {
-        return brvtal_public_event_is_visible($row);
+        return brvtal_public_event_is_listed($row);
     }
     if ($resource === 'pages') {
         return brvtal_public_page_is_visible($row);

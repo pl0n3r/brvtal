@@ -92,6 +92,11 @@ function brvtalMigrationProofSpecifications(): array
             ['secret_key','value_encrypted','updated_by_admin_id','updated_at'],
             ['PRIMARY','idx_integration_secrets_updated'], true
         ),
+        'migration_event_visibility_01.sql' => [
+            'column:events.visibility',
+            "column-type:events.visibility=enum('public','unlisted')",
+            'column-not-null-default:events.visibility=public',
+        ],
         'migration_events_venue_address_01.sql' => [
             'column:events.venue_address',
             'column-type:events.venue_address=varchar(300)',
@@ -209,6 +214,56 @@ function brvtalMigrationProofSpecifications(): array
              'note_text','status','created_at_utc','retention_until_utc'],
             ['uq_ticket_admin_request','idx_ticket_admin_order','idx_ticket_admin_retention'],
             true
+        ),
+        'migration_forms_entries_01.sql' => array_merge(
+            brvtalMigrationObjectRequirements(
+                'form_definition_versions',
+                ['form_key','version_number','definition_sha256','definition_json','created_at_utc'],
+                ['PRIMARY','uq_form_version_digest'],
+                true
+            ),
+            brvtalMigrationObjectRequirements(
+                'form_entries',
+                ['entry_id','form_key','version_number','definition_sha256','idempotency_digest',
+                 'payload_json','created_at_utc','purpose_key','notice_version','retention_policy_key',
+                 'retention_until_utc','state','redacted_at_utc'],
+                ['PRIMARY','uq_form_entry_idempotency','idx_form_entry_version',
+                 'idx_form_entry_state','idx_form_entry_retention'],
+                true
+            ),
+            brvtalMigrationObjectRequirements(
+                'form_notification_intents',
+                ['entry_id','action_key','state','created_at_utc'],
+                ['PRIMARY','idx_form_intent_pending'],
+                true
+            ),
+            [
+                'unique-index:form_definition_versions.PRIMARY=form_key,version_number',
+                'unique-index:form_definition_versions.uq_form_version_digest=' .
+                    'form_key,version_number,definition_sha256',
+                'unique-index:form_entries.PRIMARY=entry_id',
+                'unique-index:form_entries.uq_form_entry_idempotency=form_key,idempotency_digest',
+                'unique-index:form_notification_intents.PRIMARY=entry_id,action_key',
+                'column-type:form_entries.entry_id=binary(16)',
+                'column-type:form_entries.idempotency_digest=binary(32)',
+                'column-type:form_entries.definition_sha256=binary(32)',
+                'column-type:form_definition_versions.definition_sha256=binary(32)',
+                'column-type:form_notification_intents.entry_id=binary(16)',
+                'fk-reference:form_entries.fk_form_entry_version=form_key:form_definition_versions.form_key',
+                'fk-reference:form_entries.fk_form_entry_version=version_number:' .
+                    'form_definition_versions.version_number',
+                'fk-reference:form_entries.fk_form_entry_version=definition_sha256:' .
+                    'form_definition_versions.definition_sha256',
+                'fk-reference:form_notification_intents.fk_form_intent_entry=entry_id:form_entries.entry_id',
+                'check-constraint:form_definition_versions.ck_form_version_number',
+                'check-constraint:form_definition_versions.ck_form_version_key',
+                'check-constraint:form_definition_versions.ck_form_version_json',
+                'check-constraint:form_definition_versions.ck_form_version_digest',
+                'check-constraint:form_entries.ck_form_entry_policy',
+                'check-constraint:form_entries.ck_form_entry_redaction',
+                'check-constraint:form_notification_intents.ck_form_intent_action',
+                'check-constraint:form_notification_intents.ck_form_intent_state',
+            ]
         ),
         'migration_mail_templates_01.sql' => array_merge(
             brvtalMigrationObjectRequirements(
@@ -523,6 +578,45 @@ function brvtalMigrationNullableColumnMatches(mixed $observed): bool
 
 function brvtalMigrationProbeRequirement(PDO $pdo, string $requirement): bool
 {
+    if (preg_match('/^unique-index:([A-Za-z0-9_]+)\.([A-Za-z0-9_]+)=([A-Za-z0-9_,]+)$/', $requirement, $match)) {
+        $statement = $pdo->prepare(
+            'SELECT COLUMN_NAME,NON_UNIQUE,SUB_PART FROM information_schema.STATISTICS '
+            . 'WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND INDEX_NAME=? ORDER BY SEQ_IN_INDEX'
+        );
+        $statement->execute([$match[1], $match[2]]);
+        $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
+        if (array_column($rows, 'COLUMN_NAME') !== explode(',', $match[3])) {
+            return false;
+        }
+        foreach ($rows as $row) {
+            if ((int)$row['NON_UNIQUE'] !== 0 || $row['SUB_PART'] !== null) {
+                return false;
+            }
+        }
+        return true;
+    }
+    if (preg_match('/^check-constraint:([A-Za-z0-9_]+)\.([A-Za-z0-9_]+)$/', $requirement, $match)) {
+        $statement = $pdo->prepare(
+            "SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA=DATABASE() "
+            . "AND TABLE_NAME=? AND CONSTRAINT_NAME=? AND CONSTRAINT_TYPE='CHECK'"
+        );
+        $statement->execute([$match[1], $match[2]]);
+        return (int)$statement->fetchColumn() === 1;
+    }
+    if (preg_match(
+        '/^column-not-null-default:([A-Za-z0-9_]+)\.([A-Za-z0-9_]+)=([A-Za-z0-9_]+)$/',
+        $requirement,
+        $match
+    )) {
+        $statement = $pdo->prepare(
+            'SELECT IS_NULLABLE,COLUMN_DEFAULT FROM information_schema.COLUMNS '
+            . 'WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?'
+        );
+        $statement->execute([$match[1], $match[2]]);
+        $row = $statement->fetch(PDO::FETCH_ASSOC);
+        return is_array($row) && $row['IS_NULLABLE'] === 'NO'
+            && trim((string)$row['COLUMN_DEFAULT'], "'") === $match[3];
+    }
     if (preg_match('/^column-nullable:([A-Za-z0-9_]+)\\.([A-Za-z0-9_]+)$/', $requirement, $match)) {
         $statement = $pdo->prepare(
             'SELECT IS_NULLABLE FROM information_schema.COLUMNS ' .

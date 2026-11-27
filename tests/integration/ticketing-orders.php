@@ -124,3 +124,20 @@ $deliveryProcess = proc_open([PHP_BINARY, __DIR__ . '/ticketing-issue-delivery.p
     [0=>STDIN, 1=>STDOUT, 2=>STDERR], $deliveryPipes);
 ordersCheck(is_resource($deliveryProcess), 'delivery fixture process started');
 ordersCheck(proc_close($deliveryProcess) === 0, 'delivery fixture passed');
+
+// #2226: run both contracts in isolated processes and fail on skipped DB fixtures.
+foreach ([
+    'ticketing-wompi-reconcile.php' => 'BRVTAL #1952 Wompi reconciliation passed against disposable MariaDB.',
+    'ticketing-mail-worker.php' => 'T28_WORKER_STAGE_ISOLATION_PASS: synthetic MariaDB, distinct idle/disabled/not_ready, master-key fail closed, no network; all stages bounded',
+] as $fixture => $receipt) {
+    $process = proc_open([PHP_BINARY, __DIR__ . '/' . $fixture],
+        [0=>STDIN, 1=>['pipe','w'], 2=>STDERR], $pipes);
+    ordersCheck(is_resource($process), 'fixture process started: ' . $fixture);
+    $output = stream_get_contents($pipes[1]);
+    fclose($pipes[1]);
+    ordersCheck(proc_close($process) === 0, 'fixture passed: ' . $fixture);
+    ordersCheck(is_string($output)
+        && in_array($receipt, preg_split('/\\R/', trim($output)) ?: [], true),
+        'fixture MariaDB receipt required: ' . $fixture);
+    echo $receipt . "\n";
+}

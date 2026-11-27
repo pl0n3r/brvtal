@@ -72,7 +72,7 @@ $db->exec("INSERT INTO ticket_inventory_types(ticket_type_id,event_id,capacity,c
  VALUES(10,1,100,0)");
 $db->exec("CREATE TABLE ticket_payment_attempts(id BIGINT UNSIGNED PRIMARY KEY,order_id INT NOT NULL,
  provider VARCHAR(24) NOT NULL,provider_reference VARCHAR(190) NOT NULL,
- provider_transaction_id VARCHAR(190) NULL,gross_amount_cop BIGINT NOT NULL,status VARCHAR(16) NOT NULL,
+ provider_transaction_id VARCHAR(190) NULL,gross_amount_cop BIGINT NOT NULL,status ENUM('created','pending','approved','declined','error','refunded') NOT NULL,
  created_at_utc DATETIME(6) NOT NULL DEFAULT (UTC_TIMESTAMP(6)),
  updated_at_utc DATETIME(6) NOT NULL DEFAULT (UTC_TIMESTAMP(6) - INTERVAL 5 MINUTE),
  UNIQUE KEY uq_tx (provider,provider_transaction_id),UNIQUE KEY uq_ref (provider,provider_reference)) ENGINE=InnoDB");
@@ -106,8 +106,13 @@ foreach ([
 reconcileAssert(brvtal_wompi_reconcile_attempt($db, 1, ['mode'=>'mock'] + $config, $wompi([$tx('APPROVED')])) === 'skipped',
     'mock never confirms money');
 
-// Exact APPROVED: same effects as a signed webhook, once.
-$touch();
+// Late exact APPROVED: same effects as a signed webhook, once, if the hold is valid.
+$db->exec("UPDATE ticket_payment_attempts SET created_at_utc=UTC_TIMESTAMP(6)-INTERVAL 3 DAY,
+    updated_at_utc=UTC_TIMESTAMP(6)-INTERVAL 20 MINUTE WHERE id=1");
+reconcileAssert(brvtal_wompi_reconcile_attempt($db, 1, $config, $wompi([], 503)) === 'unavailable', 'old attempt provider unavailable');
+reconcileAssert($order(42) === 'pending' && $count("SELECT COUNT(*) FROM ticket_inventory_holds WHERE order_id=42 AND status='active'") === 1,
+    'outage preserves pending order and hold');
+$db->exec('UPDATE ticket_payment_attempts SET updated_at_utc=UTC_TIMESTAMP(6)-INTERVAL 20 MINUTE WHERE id=1');
 reconcileAssert(brvtal_wompi_reconcile_attempt($db, 1, $config, $wompi([$tx('APPROVED')])) === 'approved', 'approved');
 reconcileAssert($order(42) === 'paid', 'order paid');
 reconcileAssert($db->query('SELECT status FROM ticket_payment_attempts WHERE id=1')->fetchColumn() === 'approved'
@@ -137,6 +142,32 @@ reconcileAssert(brvtal_wompi_reconcile_next($db, $config, $wompi([])) === 'idle'
 reconcileAssert(count($calls) === 1, 'one provider call per backoff window');
 $db->exec('UPDATE ticket_payment_attempts SET created_at_utc=UTC_TIMESTAMP(6) - INTERVAL 3 DAY,
     updated_at_utc=UTC_TIMESTAMP(6) - INTERVAL 5 MINUTE WHERE id=2');
-reconcileAssert(brvtal_wompi_reconcile_next($db, $config, $wompi([])) === 'idle', 'attempts older than 48 h are left alone');
+reconcileAssert(brvtal_wompi_reconcile_next($db, $config, $wompi([])) === 'idle', 'old attempt has longer backoff');
+$db->exec('UPDATE ticket_payment_attempts SET updated_at_utc=UTC_TIMESTAMP(6)-INTERVAL 20 MINUTE WHERE id=2');
+$db->prepare("INSERT INTO ticket_payment_attempts(id,order_id,provider,provider_reference,gross_amount_cop,status)
+    VALUES (3,43,'wompi',?,50000,'pending')")->execute(['BW7-43-PSE-' . str_repeat('e', 24)]);
+$calls = [];
+$other = new PDO("mysql:host=$host;port=$port;dbname=$name;charset=utf8mb4", $user, $pass, $opt);
+$oldTransport = $wompi([]);
+reconcileAssert(brvtal_wompi_reconcile_next($db, $config,
+    static function ($url, $headers) use ($other, $config, $oldTransport, $wompi, $db) {
+        reconcileAssert(!$db->inTransaction(), 'no transaction across provider call');
+        reconcileAssert(brvtal_wompi_reconcile_attempt($other, 2, $config, $wompi([])) === 'skipped', 'second worker cannot claim same attempt');
+        return $oldTransport($url, $headers);
+    }) === 'not_found', '72-hour attempt is queried');
+reconcileAssert(count($calls) === 1 && str_contains($calls[0][0], 'BW7-43-CARD-'), 'one query per worker cycle with two due candidates');
+$db->exec("UPDATE ticket_payment_attempts SET status='declined' WHERE id=3");
+$db->exec("UPDATE ticket_payment_attempts SET created_at_utc=UTC_TIMESTAMP(6)-INTERVAL 8 DAY,
+    updated_at_utc=UTC_TIMESTAMP(6)-INTERVAL 7 HOUR,status='pending' WHERE id=2");
+reconcileAssert(brvtal_wompi_reconcile_next($db, $config, $wompi([])) === 'stale_pending', 'stale operational signal');
+reconcileAssert($order(43) === 'pending' && $db->query('SELECT status FROM ticket_payment_attempts WHERE id=2')->fetchColumn() === 'pending', 'stale preserves financial state');
+reconcileAssert(brvtal_wompi_reconcile_next($db, $config, $wompi([])) === 'idle', 'stale backoff prevents immediate query');
+$db->exec('UPDATE ticket_payment_attempts SET updated_at_utc=UTC_TIMESTAMP(6)-INTERVAL 7 HOUR WHERE id=2');
+$lateNoHold = $tx('APPROVED', 5000000, 'BW7-43-CARD-' . str_repeat('c', 24));
+$lateNoHold['id'] = 'synthetic-late-43';
+reconcileAssert(brvtal_wompi_reconcile_next($db, $config, $wompi([$lateNoHold])) === 'approved_unfulfilled', 'late confirmed payment without hold is recorded but not fulfilled');
+reconcileAssert($db->query('SELECT status FROM ticket_payment_attempts WHERE id=2')->fetchColumn() === 'approved'
+    && $count('SELECT COUNT(*) FROM ticket_issue_outbox WHERE order_id=43') === 0, 'confirmed money without inventory never issues');
+reconcileAssert(brvtal_wompi_reconcile_next($db, $config, $wompi([])) === 'idle', 'confirmed attempt never replayed');
 
 echo "BRVTAL #1952 Wompi reconciliation passed against disposable MariaDB.\n";
