@@ -77,7 +77,7 @@ try {
     };
     $draft=['title'=>'Fixture definition','fields'=>[],'privacy'=>null,'delivery'=>['actions'=>[]]];
     $create=['action'=>'create','slug'=>'fixture-form','draft'=>$draft];
-    $call($create,401,0); $call($create,403,2); $call($create,401,4); $call($create,503);
+    $call($create,401,0); $call($create,403,2); $call($create,401,4); $call($create,403);
     $config['forms']['privacy_approved']=true; $writeConfig();
     $call($create,419,1,false);
     $row=$call($create)['data']; $key=$row['form_key']; $id=$row['public_id'];

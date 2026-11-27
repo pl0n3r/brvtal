@@ -15,7 +15,7 @@ try {
     brvtalFormDefinitionRequire($pdo, $actor);
     $settings = $GLOBALS['config']['forms'] ?? [];
     if (($settings['admin_definition_enabled'] ?? null) !== true || ($settings['privacy_approved'] ?? null) !== true) {
-        json_response(['ok'=>false,'error'=>'FORMS_DEFINITIONS_UNAVAILABLE'],503);
+        json_response(['ok'=>false,'error'=>'FORMS_DEFINITIONS_DISABLED'],403);
     }
     if ($method === 'GET') json_response(['ok'=>true,'data'=>brvtalFormDefinitionRead($pdo,$actor,$_GET)]);
     brvtal_admin_require_csrf();
