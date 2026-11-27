@@ -13,7 +13,7 @@ function contactCaptureReject(callable $call, string $class, ?string $message = 
     throw new RuntimeException('Contact capture: expected rejection');
 }
 /** Run the actual PHP endpoint and anti-abuse helpers against this disposable DB. */
-function contactCaptureHttpFixture(PDO $pdo, array $config, array $payload, string $host, int $port, string $db, string $user, string $pass): void
+function contactCaptureHttpFixture(PDO $pdo, array $config, array $payload, string $host, int $port, string $db, string $user, string $pass, bool $repoPolicy = false): void
 {
     $root = sys_get_temp_dir() . '/brvtal-contact-fixture-' . bin2hex(random_bytes(8));
     contactCaptureExpect(mkdir($root,0700),'isolated HTTP root');
@@ -23,7 +23,18 @@ function contactCaptureHttpFixture(PDO $pdo, array $config, array $payload, stri
         $files = ['api/contact.php','config/bootstrap.php','config/public_health.php','config/db_connect_recovery.php',
             'config/public_contact.php','config/public_abuse_guard.php','config/password_rate_limit.php',
             'config/rate_limit_store.php','config/form_entries.php'];
+        if ($repoPolicy) {
+            // #2321: the versioned owner policy applies when config.php leaves capture unset.
+            $files[] = 'config/contact_capture.php';
+            unset($config['contact']['capture']);
+        }
         foreach ($files as $file) contactCaptureExpect(copy(dirname(__DIR__,2).'/'.$file,$root.'/'.$file),'copy HTTP fixture');
+        // Synthetic sendmail: records each legacy mail; the repo-policy run simulates a mail outage.
+        $mailLog = $root.'/mail.log';
+        $sendmail = $root.'/sendmail.sh';
+        file_put_contents($sendmail, $repoPolicy ? "#!/bin/sh\ncat >/dev/null\nexit 1\n" : "#!/bin/sh\ncat >/dev/null\necho mail >> ".escapeshellarg($mailLog)."\n");
+        chmod($sendmail,0700);
+        $mails = static fn(): int => is_file($mailLog) ? count(file($mailLog)) : 0;
         $config['security'] = ['csrf_key'=>str_repeat('synthetic-contact-fixture-',3)];
         $config['db'] = ['host'=>$host,'port'=>$port,'name'=>$db,'user'=>$user,'pass'=>$pass,'charset'=>'utf8mb4'];
         file_put_contents($root.'/config/config.php', '<?php return '.var_export($config,true).';',LOCK_EX);
@@ -32,7 +43,7 @@ function contactCaptureHttpFixture(PDO $pdo, array $config, array $payload, stri
         contactCaptureExpect(is_resource($socket),'allocate loopback port');
         $address = stream_socket_get_name($socket,false);
         fclose($socket);
-        $server = proc_open([PHP_BINARY,'-d','sendmail_path=/bin/false','-S',$address,'-t',$root],
+        $server = proc_open([PHP_BINARY,'-d','sendmail_path='.$sendmail,'-S',$address,'-t',$root],
             [0=>['pipe','r'],1=>['file',$root.'/http.log','a'],2=>['file',$root.'/http.log','a']],$pipes);
         contactCaptureExpect(is_resource($server),'start isolated HTTP server');
         fclose($pipes[0]);
@@ -57,17 +68,30 @@ function contactCaptureHttpFixture(PDO $pdo, array $config, array $payload, stri
             contactCaptureExpect(is_array($headers) && preg_match('/^HTTP\/\S+ '.$status.' /',$headers[0] ?? '')===1,'HTTP status '.$status);
             contactCaptureExpect(json_decode((string)$raw,true,flags:JSON_THROW_ON_ERROR)===$expected,'sanitized HTTP response '.$status);
         };
+        $success = ['ok'=>true,'message'=>'MESSAGE_RECEIVED'];
+        if ($repoPolicy) {
+            $before = (int)$pdo->query('SELECT COUNT(*) FROM form_entries')->fetchColumn();
+            $post($input,str_repeat('f',32),200,$success);
+            $row = $pdo->query("SELECT notice_version,retention_policy_key,TIMESTAMPDIFF(DAY,created_at_utc,retention_until_utc) AS days FROM form_entries WHERE idempotency_digest=UNHEX(SHA2('contact:".str_repeat('f',32)."',256))")->fetch(PDO::FETCH_ASSOC);
+            contactCaptureExpect((int)$pdo->query('SELECT COUNT(*) FROM form_entries')->fetchColumn()===$before+1,'repo policy captures');
+            contactCaptureExpect(is_array($row) && $row['notice_version']==='owner-2026-11-27'
+                && $row['retention_policy_key']==='contact_capture_24m' && (int)$row['days']===730,'repo policy retention 730 days');
+            contactCaptureExpect($mails()===0,'mail outage keeps the stored entry');
+            return;
+        }
         $key = str_repeat('d',32);
         $post($input,'invalid',422,['ok'=>false,'error'=>'CONTACT_INTENT_INVALID']);
-        $success = ['ok'=>true,'message'=>'MESSAGE_RECEIVED'];
         $post($input,$key,200,$success);
+        contactCaptureExpect($mails()===1,'legacy mail once for a new entry');
         $post($input,$key,200,$success);
+        contactCaptureExpect($mails()===1,'replay does not resend mail');
         $post(array_replace($input,['message'=>'Different synthetic message']),$key,409,['ok'=>false,'error'=>'CONTACT_INTENT_CONFLICT']);
         $pdo->exec("CREATE TRIGGER fixture_http_failure BEFORE INSERT ON form_notification_intents FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='synthetic failure'");
         try { $post($input,str_repeat('e',32),503,['ok'=>false,'error'=>'CONTACT_UNAVAILABLE']); }
         finally { $pdo->exec('DROP TRIGGER fixture_http_failure'); }
         contactCaptureExpect((int)$pdo->query('SELECT COUNT(*) FROM form_entries')->fetchColumn()===4,'HTTP replay and rollback');
         contactCaptureExpect((int)$pdo->query('SELECT COUNT(*) FROM form_notification_intents')->fetchColumn()===4,'HTTP single durable intent');
+        contactCaptureExpect($mails()===1,'conflict and rollback send no mail');
     } finally {
         if (is_resource($server)) { proc_terminate($server); proc_close($server); }
         $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root,FilesystemIterator::SKIP_DOTS),RecursiveIteratorIterator::CHILD_FIRST);
@@ -161,6 +185,7 @@ try {
     contactCaptureReject(fn()=>brvtal_contact_capture($pdo,$payload,$key,$config),DomainException::class,'CONTACT_INTENT_CONFLICT');
     contactCaptureExpect($count('form_entries')===3,'redacted replay cannot resurrect entry');
     contactCaptureHttpFixture($pdo, $config, $payload, $host, $port, $db, $user, $pass);
+    contactCaptureHttpFixture($pdo, $config, $payload, $host, $port, $db, $user, $pass, true);
 } finally {
     $server->exec("DROP DATABASE ".$db);
 }

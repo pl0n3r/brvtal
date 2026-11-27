@@ -50,6 +50,61 @@ function brvtalFinanceAccumulateType(array &$types, array $line): void
     $types[$id]=$type;
 }
 
+/** A receipt is evidence, never a second sale or a settlement. */
+function brvtalFinanceDiscrepancy(array $order, array $evidence): ?array
+{
+    $proof = $evidence['classification'];
+    if (!in_array($proof['state'], ['discrepancy', 'unavailable'], true)) {
+        return null;
+    }
+    $receipts = [];
+    $unproven = 0;
+    foreach ($evidence['attempts'] as $attempt) {
+        if ($attempt['provider'] !== 'wompi' || !in_array($attempt['status'], ['approved', 'refunded'], true)) {
+            continue;
+        }
+        $tx = (string)($attempt['provider_transaction_id'] ?? '');
+        if (!(bool)($attempt['verified_event'] ?? false) || ($attempt['provider_reference'] ?? '') === ''
+            || !preg_match('/^[a-zA-Z0-9-]{1,128}$/D', $tx)) {
+            $unproven++;
+            continue;
+        }
+        $amount = (int)($attempt['gross_amount_cop'] ?? 0);
+        $amount = $amount > 0 && $amount === (int)$order['total_cop'] && $order['currency'] === 'COP'
+            ? $amount : null;
+        if (array_key_exists($tx, $receipts) && $receipts[$tx] !== $amount) {
+            $amount = null;
+        }
+        $receipts[$tx] = $amount;
+    }
+    ksort($receipts, SORT_STRING);
+    $rows = [];
+    $sum = $receipts && $unproven === 0 ? 0 : null;
+    foreach ($receipts as $tx => $amount) {
+        $rows[] = ['transaction_id'=>(string)$tx, 'gross_cop'=>$amount];
+        $sum = $sum === null || $amount === null || $sum > PHP_INT_MAX - $amount ? null : $sum + $amount;
+    }
+    return ['order_id'=>(int)$order['id'], 'state'=>$proof['state'], 'reason'=>$proof['reason'],
+        'channel'=>$proof['channel'], 'wompi_receipts'=>$rows, 'authenticated_cop'=>$sum,
+        'unproven_attempts'=>$unproven];
+}
+
+function brvtalFinanceEmptyEvent(int $eventId): array
+{
+    return [
+        'event_id'=>$eventId, 'gross_cop'=>0, 'discount_cop'=>0,
+        'approved_cop'=>0, 'pos_cop'=>0, 'pos_orders'=>0,
+        'refund_cop'=>0, 'refund_in_period_cop'=>0, 'net_after_refunds_cop'=>null,
+        'paid_orders'=>0, 'pending_orders'=>0,
+        'declined_orders'=>0, 'refunded_orders'=>0, 'unverified_orders'=>0,
+        'tickets'=>0, 'fee_cop'=>0, 'fee_vat_cop'=>0,
+        'withheld_cop'=>0, 'payout_cop'=>0, 'difference_cop'=>0,
+        'expenses_cop'=>null, 'profit_cop'=>null,
+        'settlement_status'=>'unverified', 'capacity'=>null, 'checkins'=>null,
+        'types'=>[], 'transactions'=>[], 'discrepancies'=>[],
+    ];
+}
+
 /** Refunds must be confirmed adjustment records, never inferred from order status. */
 function brvtalFinanceSummarize(array $orders, array $items, array $attempts,
     array $posSales=[], array $refundsByOrder=[], bool $refundEvidence=true,
@@ -78,20 +133,15 @@ function brvtalFinanceSummarize(array $orders, array $items, array $attempts,
     $events = [];
     foreach ($orders as $order) {
         $eventId = (int)$order['event_id'];
-        $summary = $events[$eventId] ?? [
-            'event_id'=>$eventId, 'gross_cop'=>0, 'discount_cop'=>0,
-            'approved_cop'=>0, 'pos_cop'=>0, 'pos_orders'=>0,
-            'refund_cop'=>0, 'refund_in_period_cop'=>0, 'net_after_refunds_cop'=>null,
-            'paid_orders'=>0, 'pending_orders'=>0,
-            'declined_orders'=>0, 'refunded_orders'=>0, 'unverified_orders'=>0,
-            'tickets'=>0, 'fee_cop'=>0, 'fee_vat_cop'=>0,
-            'withheld_cop'=>0, 'payout_cop'=>0, 'difference_cop'=>0,
-            'expenses_cop'=>null, 'profit_cop'=>null,
-            'settlement_status'=>'unverified', 'capacity'=>null, 'checkins'=>null,
-            'types'=>[], 'transactions'=>[],
-        ];
+        $summary = $events[$eventId] ?? brvtalFinanceEmptyEvent($eventId);
         $id = (int)$order['id'];
         $status = (string)$order['status'];
+        if (isset($evidenceByOrder[$id])) {
+            $discrepancy = brvtalFinanceDiscrepancy($order, $evidenceByOrder[$id]);
+            if ($discrepancy !== null) {
+                $summary['discrepancies'][] = $discrepancy;
+            }
+        }
         if ($status === 'refunded') $summary['refunded_orders']++;
         if (in_array($status, ['pending','draft'], true)) $summary['pending_orders']++;
         elseif (in_array($status, ['failed','cancelled','expired'], true)) $summary['declined_orders']++;
@@ -229,9 +279,15 @@ function brvtalFinanceChannelEvidence(PDO $db, array $orders): array
     $ids=array_column($orders,'id');
     $in=implode(',',array_fill(0,count($ids),'?'));
     $schema=brvtalTicketAdminPaymentSchema($db);
-    $stmt=$db->prepare("SELECT id,order_id,provider,provider_transaction_id,status,
-        gross_amount_cop,fee_amount_cop,fee_vat_cop,withheld_amount_cop,net_amount_cop
-        FROM ticket_payment_attempts WHERE order_id IN ($in)");
+    // Same durable attempt/transaction identity used by T18; EXISTS never
+    // multiplies receipts when callbacks repeat. Never expose provider_reference.
+    $verifiedEvent = $schema['wompi_events']
+        ? "EXISTS (SELECT 1 FROM ticket_payment_webhook_events w
+            WHERE w.attempt_id=a.id AND w.provider_transaction_id=a.provider_transaction_id)"
+        : 'FALSE';
+    $stmt=$db->prepare("SELECT a.id,a.order_id,a.provider,a.provider_reference,a.provider_transaction_id,a.status,
+        a.gross_amount_cop,a.fee_amount_cop,a.fee_vat_cop,a.withheld_amount_cop,a.net_amount_cop,
+        $verifiedEvent AS verified_event FROM ticket_payment_attempts a WHERE a.order_id IN ($in)");
     $stmt->execute($ids);
     $attempts=$stmt->fetchAll(PDO::FETCH_ASSOC);
     // Do not erase invalid, incomplete or duplicate POS rows with an inner
@@ -274,7 +330,29 @@ function brvtalFinanceFilterOrders(array $orders, array $byOrder, string $channe
     }));
 }
 
+/** Own one consistent read-only snapshot unless the caller already owns a transaction. */
 function brvtalFinanceReport(PDO $db, ?int $eventId, ?string $from, ?string $to, string $channel): array
+{
+    $ownsTransaction = !$db->inTransaction();
+    if ($ownsTransaction) {
+        $db->exec('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
+        $db->beginTransaction();
+    }
+    try {
+        $result = brvtalFinanceReportSnapshot($db, $eventId, $from, $to, $channel);
+        if ($ownsTransaction) {
+            $db->commit();
+        }
+        return $result;
+    } catch (Throwable $e) {
+        if ($ownsTransaction && $db->inTransaction()) {
+            $db->rollBack();
+        }
+        throw $e;
+    }
+}
+
+function brvtalFinanceReportSnapshot(PDO $db, ?int $eventId, ?string $from, ?string $to, string $channel): array
 {
     $start = $from === null ? null : brvtalFinanceCalendarBound($from, false);
     $end = $to === null ? null : brvtalFinanceCalendarBound($to, true);
@@ -297,7 +375,7 @@ function brvtalFinanceReport(PDO $db, ?int $eventId, ?string $from, ?string $to,
     $stmt=$db->prepare($sql); $stmt->execute($params);
     $orders=$stmt->fetchAll(PDO::FETCH_ASSOC);
     if (count($orders)>5000) throw new LengthException('REPORT_RANGE_TOO_LARGE');
-    if (!$orders) return [];
+    if (!$orders) return brvtalFinanceProfitReport($db,[],$eventId,$from,$to,$channel);
     $ids=array_column($orders,'id');
     $in=implode(',',array_fill(0,count($ids),'?'));
     $stmt=$db->prepare("SELECT order_id,ticket_type_id,quantity,subtotal_cop,ticket_name_snapshot
@@ -330,6 +408,7 @@ function brvtalFinanceReport(PDO $db, ?int $eventId, ?string $from, ?string $to,
     $report=brvtalFinanceSummarize(
         $orders,$items,$evidence['attempts'],$evidence['sales'],
         $refundsByOrder,$refundEvidence,$evidence['by_order']);
+    $report=brvtalFinanceProfitReport($db,$report,$eventId,$from,$to,$channel);
     $eventIds=array_column($report,'event_id');
     $eventIn=implode(',',array_fill(0,count($eventIds),'?'));
     $metadata=[
@@ -349,4 +428,281 @@ function brvtalFinanceReport(PDO $db, ?int $eventId, ?string $from, ?string $to,
         }
     }
     return $report;
+}
+
+
+/** #2192: whole-event projection only, from the same read-only snapshot. */
+function brvtalFinanceProfitDefaults(): array
+{
+    return ['expenses_cop'=>null,'committed_expenses_cop'=>null,'budget_cop'=>null,
+        'budget_variance_cop'=>null,'net_after_fees_cop'=>null,'profit_cop'=>null,
+        'profit_margin_pct'=>null,'break_even_tickets'=>null,'break_even_assumption'=>null,
+        'budget_vs_actual'=>[],'profit_evidence'=>'unavailable'];
+}
+
+function brvtalFinanceSafeSum(array $values): ?int
+{
+    $total=0;
+    foreach ($values as $value) {
+        if (!is_int($value) || $value<0 || $total>PHP_INT_MAX-$value) return null;
+        $total+=$value;
+    }
+    return $total;
+}
+
+function brvtalFinanceProfitMetrics(array $event, array $categories): array
+{
+    $result=brvtalFinanceProfitDefaults();
+    $result['budget_vs_actual']=$categories;
+    $expenses=array_filter($categories,static fn($row)=>$row['has_expenses']);
+    $result['expenses_cop']=$expenses ? brvtalFinanceSafeSum(array_column($expenses,'paid_cop')) : null;
+    $result['committed_expenses_cop']=$expenses ? brvtalFinanceSafeSum(array_column($expenses,'committed_cop')) : null;
+    $result['budget_cop']=$categories ? brvtalFinanceSafeSum(array_column($categories,'budget_cop')) : null;
+    $variance=$categories ? brvtalFinanceSafeSum(array_column($categories,'paid_cop')) : null;
+    if ($result['budget_cop']!==null && $variance!==null) {
+        $result['budget_variance_cop']=$result['budget_cop']-$variance;
+    }
+    $net=$event['net_after_refunds_cop'];
+    $fees=brvtalFinanceSafeSum([$event['fee_cop'],$event['fee_vat_cop']]);
+    if ($event['unverified_orders']!==0 || $event['discrepancies']!==[]
+        || !is_int($net) || $net<0 || $fees===null) {
+        $result['profit_evidence']='incomplete_revenue';
+        return $result;
+    }
+    // Retentions and reported settlement are separate evidence, not a second expense.
+    $net-=$fees;
+    $result['net_after_fees_cop']=$net;
+    if ($result['expenses_cop']===null) {
+        $result['profit_evidence']='missing_expenses';
+        return $result;
+    }
+    $profit=$net-$result['expenses_cop'];
+    if (!is_int($profit)) return $result;
+    $result['profit_cop']=$profit;
+    $result['profit_evidence']='provisional_recorded_ledger';
+    if ($net<=0) return $result;
+    $result['profit_margin_pct']=round(100*($profit/$net),2);
+    $cost=brvtalFinanceSafeSum([$result['expenses_cop'],$result['committed_expenses_cop']]);
+    $tickets=$event['tickets'];
+    if ($cost!==null && is_int($tickets) && $tickets>0 && $cost<=intdiv(PHP_INT_MAX,$tickets)) {
+        $numerator=$cost*$tickets;
+        $result['break_even_tickets']=intdiv($numerator,$net)+(int)($numerator%$net!==0);
+        $result['break_even_assumption']='all recorded paid and committed costs fixed; future net per ticket equals observed average; no additional variable costs';
+    }
+    return $result;
+}
+
+function brvtalFinanceProfitReport(PDO $db, array $report, ?int $eventId,
+    ?string $from, ?string $to, string $channel): array
+{
+    foreach ($report as &$event) {
+        $event=array_replace($event,brvtalFinanceProfitDefaults());
+        $event['profit_evidence']='filtered_scope';
+    }
+    unset($event);
+    // Expense and budget snapshots are event-wide, never allocated to sale-date or channel cohorts.
+    if ($from!==null || $to!==null || $channel!=='all') return $report;
+    foreach ($report as &$event) $event['profit_evidence']='ledger_unavailable';
+    unset($event);
+    $grouped=[];
+    try {
+        foreach (['event_expenses','event_budgets'] as $table) {
+            $expense=$table==='event_expenses';
+            $statuses=$expense ? "'paid','committed'" : "'active'";
+            $filter=$eventId===null?'':' AND e.event_id=?';
+            $q=$db->prepare("SELECT e.event_id,e.category,e.status,COUNT(*) AS n,SUM(e.amount_cop) AS amount
+                FROM $table e WHERE e.status IN ($statuses)$filter
+                AND NOT EXISTS (SELECT 1 FROM $table n WHERE n.supersedes_id=e.id)
+                GROUP BY e.event_id,e.category,e.status LIMIT 90001");
+            $q->execute($eventId===null?[]:[$eventId]);
+            $rows=$q->fetchAll(PDO::FETCH_ASSOC);
+            if (count($rows)>90000) throw new LengthException('REPORT_RANGE_TOO_LARGE');
+            foreach ($rows as $row) {
+                $id=(int)$row['event_id'];
+                $category=$row['category'];
+                $amount=filter_var($row['amount'],FILTER_VALIDATE_INT,['options'=>['min_range'=>0]]);
+                $amount=$amount===false?null:$amount;
+                $data=$grouped[$id][$category]??['category'=>$category,'has_expenses'=>false,
+                    'paid_cop'=>null,'committed_cop'=>null,'budget_cop'=>null];
+                if ($expense) {
+                    if (!$data['has_expenses']) {
+                        $data['paid_cop']=0;
+                        $data['committed_cop']=0;
+                    }
+                    $data['has_expenses']=true;
+                    $data[$row['status']==='paid'?'paid_cop':'committed_cop']=$amount;
+                } else {
+                    $data['budget_cop']=(int)$row['n']===1?$amount:null;
+                }
+                $grouped[$id][$category]=$data;
+            }
+        }
+    } catch (PDOException $e) {
+        if ($e->getCode()!=='42S02') throw $e;
+        return $report; // Missing either ledger is not an empty book.
+    }
+    $byEvent=array_column($report,null,'event_id');
+    foreach ($grouped as $id=>$categories) {
+        if (!isset($byEvent[$id])) {
+            // No COP orders in the full queried event universe; no synthetic sale.
+            $byEvent[$id]=brvtalFinanceEmptyEvent($id);
+            $byEvent[$id]['net_after_refunds_cop']=0;
+        }
+    }
+    if (count($byEvent)>5000) throw new LengthException('REPORT_RANGE_TOO_LARGE');
+    foreach ($byEvent as $id=>&$event) {
+        $categories=$grouped[$id]??[];
+        ksort($categories);
+        foreach ($categories as &$row) {
+            $row['variance_cop']=$row['budget_cop']===null || $row['paid_cop']===null
+                ? null : $row['budget_cop']-$row['paid_cop'];
+        }
+        unset($row);
+        $event=array_replace($event,brvtalFinanceProfitMetrics($event,$categories));
+    }
+    unset($event);
+    ksort($byEvent,SORT_NUMERIC);
+    return array_values($byEvent);
+}
+
+/** Text is neutralized; typed numeric negatives remain legitimate accounting amounts. */
+function brvtalFinanceCsvCell(mixed $value): string
+{
+    if ($value===null) return '';
+    if (is_int($value) || is_float($value)) return (string)$value;
+    $text=(string)$value;
+    return preg_match('/^(?:[\x00-\x20]*[=+\-@]|[\t\r\n])/', $text) ? "'".$text : $text;
+}
+
+/** #2190: internal ledger only; no projection, payment or HTTP side effects. */
+function brvtalFinanceLedgerText(mixed $value, int $max): string
+{
+    if (!is_string($value) || !mb_check_encoding($value, 'UTF-8')
+        || trim($value) === '' || mb_strlen(trim($value), 'UTF-8') > $max
+        || preg_match('/[\x00-\x1f\x7f]/', $value)) {
+        throw new InvalidArgumentException('INVALID_LEDGER_TEXT');
+    }
+    return trim($value);
+}
+
+/** Values are full snapshots, not signed cash movements. A void copies the prior snapshot. */
+function brvtalFinanceLedgerValues(string $kind, array $input): array
+{
+    if (!in_array($kind, ['expense','budget'], true)) {
+        throw new InvalidArgumentException('INVALID_LEDGER_KIND');
+    }
+    $expense = $kind === 'expense';
+    $category = $input['category'] ?? null;
+    $amount = $input['amount_cop'] ?? null;
+    $date = $input['entry_date'] ?? null;
+    $status = $input['status'] ?? null;
+    if (!in_array($category, ['artistas','lugar','produccion','publicidad','logistica','otros'], true)
+        || !is_int($amount) || $amount < ($expense ? 1 : 0)
+        || !is_string($date) || !preg_match('/^[1-9][0-9]{3}-[0-9]{2}-[0-9]{2}$/D', $date)
+        || !in_array($status, $expense ? ['committed','paid'] : ['active'], true)) {
+        throw new InvalidArgumentException('INVALID_LEDGER_VALUES');
+    }
+    brvtalFinanceCalendarBound($date, false);
+    $result = ['category'=>$category,'amount_cop'=>$amount,'entry_date'=>$date,'status'=>$status];
+    if ($expense) {
+        $result['concept'] = brvtalFinanceLedgerText($input['concept'] ?? null, 180);
+    }
+    return $result;
+}
+
+/**
+ * Actor comes from the trusted admin caller, not a public payload.
+ * New revisions and the existing admin audit journal commit atomically.
+ * The event lock serializes budget creation and competing corrections.
+ */
+function brvtalFinanceLedgerWrite(
+    PDO $db,
+    string $kind,
+    int $eventId,
+    int $actorId,
+    string $action,
+    ?int $previousId,
+    array $input,
+    string $reason
+): int {
+    require_once __DIR__ . '/ticketing_staff_permissions.php';
+    if (!in_array($kind, ['expense','budget'], true)
+        || !in_array($action, ['create','adjust','void'], true)
+        || $eventId < 1 || $actorId < 1
+        || ($action === 'create' ? $previousId !== null : ($previousId ?? 0) < 1)
+        || ($action === 'void' && $input !== [])) {
+        throw new InvalidArgumentException('INVALID_LEDGER_ACTION');
+    }
+    $reason = brvtalFinanceLedgerText($reason, 320);
+    $values = $action === 'void' ? [] : brvtalFinanceLedgerValues($kind, $input);
+    $table = $kind === 'expense' ? 'event_expenses' : 'event_budgets';
+    if ($db->inTransaction()) {
+        throw new LogicException('LEDGER_REQUIRES_OWN_TRANSACTION');
+    }
+    $db->beginTransaction();
+    try {
+        $q = $db->prepare('SELECT staff_role FROM admins WHERE id=? AND is_active=1 FOR UPDATE');
+        $q->execute([$actorId]);
+        $role = $q->fetchColumn();
+        if (!is_string($role) || !brvtalTicketingCan($role, 'finance')) {
+            throw new DomainException('LEDGER_FORBIDDEN');
+        }
+        $q = $db->prepare('SELECT id FROM events WHERE id=? FOR UPDATE');
+        $q->execute([$eventId]);
+        if (!$q->fetchColumn()) {
+            throw new DomainException('LEDGER_EVENT_NOT_FOUND');
+        }
+        $old = null;
+        if ($previousId !== null) {
+            $q = $db->prepare("SELECT * FROM $table WHERE id=? AND event_id=? FOR UPDATE");
+            $q->execute([$previousId,$eventId]);
+            $old = $q->fetch(PDO::FETCH_ASSOC);
+            $q = $db->prepare("SELECT id FROM $table WHERE supersedes_id=? FOR UPDATE");
+            $q->execute([$previousId]);
+            if (!$old || $old['status'] === 'void' || $q->fetchColumn()) {
+                throw new DomainException('LEDGER_STALE_REVISION');
+            }
+            if ($action === 'void') {
+                $fields = ['category','amount_cop','entry_date','status','concept'];
+                $values = array_intersect_key($old, array_flip($fields));
+                $values['status'] = 'void';
+            } elseif ($kind === 'budget' && $old['category'] !== $values['category']) {
+                throw new DomainException('LEDGER_BUDGET_CATEGORY_IMMUTABLE');
+            }
+        } elseif ($kind === 'budget') {
+            $q = $db->prepare("SELECT b.id FROM event_budgets b
+                WHERE b.event_id=? AND b.category=? AND b.status='active'
+                AND NOT EXISTS (SELECT 1 FROM event_budgets n WHERE n.supersedes_id=b.id)
+                FOR UPDATE");
+            $q->execute([$eventId,$values['category']]);
+            if ($q->fetchColumn()) {
+                throw new DomainException('LEDGER_BUDGET_EXISTS');
+            }
+        }
+        $columns = ['event_id','category','amount_cop','entry_date','status','supersedes_id'];
+        $params = [$eventId, $values['category'], $values['amount_cop'],
+            $values['entry_date'], $values['status'], $previousId];
+        if ($kind === 'expense') {
+            $columns[] = 'concept';
+            $params[] = $values['concept'];
+        }
+        $q = $db->prepare("INSERT INTO $table (".implode(',', $columns).",created_at_utc) VALUES ("
+            .implode(',', array_fill(0, count($params), '?')).",UTC_TIMESTAMP(6))");
+        $q->execute($params);
+        $id = (int)$db->lastInsertId();
+        // Reuse the existing admin audit treatment; no duplicate identity columns in the ledger.
+        $q = $db->prepare('INSERT INTO admin_activity_log
+            (admin_id,action,resource,resource_id,meta_json,request_id,created_at)
+            VALUES (?,?,?,?,?,?,UTC_TIMESTAMP())');
+        $q->execute([$actorId,$action,$table,$id,
+            json_encode(['reason'=>$reason,'previous_id'=>$previousId], JSON_THROW_ON_ERROR),
+            bin2hex(random_bytes(16))]);
+        $db->commit();
+        return $id;
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        throw $e;
+    }
 }

@@ -36,9 +36,10 @@ Estado: `documented_not_legally_approved` (sin aprobación jurídica).
 | admin_totp_pending | authentication | totp_pending_admin_id, totp_pending_at, totp_pending_email | admin_mfa_challenge | review_required | review_required | ninguno_declarado | session_30d |
 | auth_password_rate_limit | usage | client_key_hash, attempts, blocked_until | auth_abuse_prevention | review_required | review_required | ninguno_declarado | review_required |
 | auth_totp_rate_limit | usage | client_key_hash, attempts, blocked_until | mfa_abuse_prevention | review_required | review_required | ninguno_declarado | review_required |
-| contact_capture | contact | name, email, subject, message, entry_id, form_key, version_number, definition_sha256, idempotency_digest, created_at_utc, purpose_key, notice_version, retention_policy_key, retention_until_utc, state, redacted_at_utc, action_key | contact_capture | review_required | review_required | ninguno_declarado | review_required |
+| contact_capture | contact | name, email, subject, message, entry_id, form_key, version_number, definition_sha256, idempotency_digest, created_at_utc, purpose_key, notice_version, retention_policy_key, retention_until_utc, state, redacted_at_utc, action_key | contact_capture | review_required | review_required | ninguno_declarado | contact_capture_24m |
 | contact_delivery | contact | name, email, subject, message | contact_delivery | review_required | review_required | ninguno_declarado | external_mailbox_review_required |
 | contact_rate_limit | usage | client_key_hash, timestamps | contact_abuse_prevention | review_required | review_required | ninguno_declarado | review_required |
+| form_entry_management | contact | entry_id, revision, workflow_state, action_kind, actor_admin_id, created_at_utc, note_text | form_entry_management | review_required | review_required | ninguno_declarado | review_required |
 | internal_analytics_events | usage | event_name, page_url, referrer, locale, user_agent, created_at | internal_usage_analytics | review_required | review_required | ninguno_declarado | review_required |
 | legacy_admin_activity_ip | usage | ip_address | legacy_admin_activity_audit | review_required | review_required | ninguno_declarado | review_required |
 | privacy_controller_contact | contact | phone | privacy_rights_contact_publication | review_required | review_required | ninguno_declarado | review_required |
@@ -120,9 +121,10 @@ El canal debe contemplar solicitudes de acceso, rectificación/corrección, actu
 | admin_totp_pending | authentication | totp_pending_admin_id, totp_pending_at, totp_pending_email | admin_mfa_challenge | review_required | review_required | ninguno_declarado | session_30d |
 | auth_password_rate_limit | usage | client_key_hash, attempts, blocked_until | auth_abuse_prevention | review_required | review_required | ninguno_declarado | review_required |
 | auth_totp_rate_limit | usage | client_key_hash, attempts, blocked_until | mfa_abuse_prevention | review_required | review_required | ninguno_declarado | review_required |
-| contact_capture | contact | name, email, subject, message, entry_id, form_key, version_number, definition_sha256, idempotency_digest, created_at_utc, purpose_key, notice_version, retention_policy_key, retention_until_utc, state, redacted_at_utc, action_key | contact_capture | review_required | review_required | ninguno_declarado | review_required |
+| contact_capture | contact | name, email, subject, message, entry_id, form_key, version_number, definition_sha256, idempotency_digest, created_at_utc, purpose_key, notice_version, retention_policy_key, retention_until_utc, state, redacted_at_utc, action_key | contact_capture | review_required | review_required | ninguno_declarado | contact_capture_24m |
 | contact_delivery | contact | name, email, subject, message | contact_delivery | review_required | review_required | ninguno_declarado | external_mailbox_review_required |
 | contact_rate_limit | usage | client_key_hash, timestamps | contact_abuse_prevention | review_required | review_required | ninguno_declarado | review_required |
+| form_entry_management | contact | entry_id, revision, workflow_state, action_kind, actor_admin_id, created_at_utc, note_text | form_entry_management | review_required | review_required | ninguno_declarado | review_required |
 | internal_analytics_events | usage | event_name, page_url, referrer, locale, user_agent, created_at | internal_usage_analytics | review_required | review_required | ninguno_declarado | review_required |
 | legacy_admin_activity_ip | usage | ip_address | legacy_admin_activity_audit | review_required | review_required | ninguno_declarado | review_required |
 | privacy_controller_contact | contact | phone | privacy_rights_contact_publication | review_required | review_required | ninguno_declarado | review_required |
@@ -270,7 +272,7 @@ Producto: `pl0n3r/brvtal`
 - Base documentada: `review_required` (revisión jurídica requerida)
 - Consentimiento: `review_required`
 - Proveedores: ninguno_declarado
-- Retención: `review_required`
+- Retención: `contact_capture_24m`
 
 ## contact_delivery
 
@@ -287,6 +289,16 @@ Producto: `pl0n3r/brvtal`
 - Categoría: `usage`
 - Campos de software: `client_key_hash`, `timestamps`
 - Finalidad: `contact_abuse_prevention`
+- Base documentada: `review_required` (revisión jurídica requerida)
+- Consentimiento: `review_required`
+- Proveedores: ninguno_declarado
+- Retención: `review_required`
+
+## form_entry_management
+
+- Categoría: `contact`
+- Campos de software: `entry_id`, `revision`, `workflow_state`, `action_kind`, `actor_admin_id`, `created_at_utc`, `note_text`
+- Finalidad: `form_entry_management`
 - Base documentada: `review_required` (revisión jurídica requerida)
 - Consentimiento: `review_required`
 - Proveedores: ninguno_declarado
@@ -446,9 +458,10 @@ Producto: `pl0n3r/brvtal`
 | admin_totp_pending | authentication | session_30d | review_required |
 | auth_password_rate_limit | usage | review_required | review_required |
 | auth_totp_rate_limit | usage | review_required | review_required |
-| contact_capture | contact | review_required | review_required |
+| contact_capture | contact | contact_capture_24m | review_required |
 | contact_delivery | contact | external_mailbox_review_required | review_required |
 | contact_rate_limit | usage | review_required | review_required |
+| form_entry_management | contact | review_required | review_required |
 | internal_analytics_events | usage | review_required | review_required |
 | legacy_admin_activity_ip | usage | review_required | review_required |
 | privacy_controller_contact | contact | review_required | review_required |
