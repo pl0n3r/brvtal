@@ -225,5 +225,73 @@ class PreliveOperationsRunbookTests(unittest.TestCase):
                     assert_closed_gates(changed)
 
 
+
+    def test_payment_incident_runbook(self):
+        content = DOC.read_text(encoding="utf-8")
+        heading = "## Incidencias de pago (#2196)"
+        self.assertEqual(1, content.count(heading))
+        content = heading + content.split(heading, 1)[1].split(
+            "\n## Go-live de boletería (#2193)", 1
+        )[0]
+        sections = {
+            "Verificación y evidencia común": (
+                "SOPORTE/OPERADOR", "SRE", "QA", "UNKNOWN", "ESCALAR AL OWNER",
+                "GET /v1/transactions/{transaction_id}", "transaction.updated",
+                "firma válida", "journal firmado", "conciliación verificada por API",
+            ),
+            "Pago duplicado (`duplicate_payment`, #2194)": (
+                "mismo ID de transacción", "dos transacciones distintas",
+                "ticket_payment_incidents", "evidencia del journal",
+                "no emitir boletas extra", "No devolver", "OWNER",
+            ),
+            "Reversión y disputa / contracargo": (
+                "APPROVED, DECLINED, VOIDED, ERROR y PENDING",
+                "VOIDED es\n  anulación de tarjeta", "modelo Agregador",
+                "Gateway", "plazo", "dictamen auténtico", "Evitar doble reembolso",
+            ),
+            "Pendiente vencido (`stale_pending`, #2195)": (
+                "48 h", "168 h", "señal operativa", "backoff",
+                "no liberar aforo ante cobro incierto", "APPROVED tardío",
+                "approved_unfulfilled", "OWNER",
+            ),
+            "Decisión y cierre con evidencia": (
+                "evidence_ref", "Sin datos reales", "OWNER deja una decisión específica",
+                "sin aprobación, no ejecutar", "recibo terminal del proveedor",
+                "CERRADO solo con evidencia terminal", "decisión OWNER registrada",
+                "mantener ABIERTO", "SQL directo",
+                "https://docs.wompi.co/docs/colombia/transacciones/",
+                "https://docs.wompi.co/docs/colombia/eventos/",
+                "https://soporte.wompi.co/hc/es-419/articles/360046916653",
+                "https://soporte.wompi.co/hc/es-419/articles/360054848754",
+                "https://soporte.wompi.co/hc/es-419/articles/360020767034",
+            ),
+        }
+
+        def assert_contract(fragment):
+            self.assertEqual(1, fragment.count(heading))
+            intro, *parts = fragment.split("\n### ")
+            for token in ("NO ACTIVAR", "aprueba explícitamente", "no mover dinero"):
+                self.assertIn(token, intro)
+            parsed = {part.split("\n", 1)[0]: part for part in parts}
+            self.assertEqual(len(sections), len(parts))
+            self.assertEqual(set(sections), set(parsed))
+            for name, tokens in sections.items():
+                for token in tokens:
+                    self.assertIn(token, parsed[name], f"{name}: {token}")
+
+        assert_contract(content)
+        for original, unsafe in (
+            ("sin aprobación, no ejecutar", "sin aprobación, ejecutar"),
+            ("CERRADO solo con evidencia terminal", "CERRADO sin evidencia terminal"),
+            ("no emitir boletas extra", "emitir boletas extra"),
+            ("no liberar aforo ante cobro incierto", "liberar aforo ante cobro incierto"),
+            ("### Reversión y disputa / contracargo", "### Reversión"),
+        ):
+            with self.subTest(unsafe=unsafe):
+                changed = content.replace(original, unsafe, 1)
+                self.assertNotEqual(content, changed)
+                with self.assertRaises(AssertionError):
+                    assert_contract(changed)
+
 if __name__ == "__main__":
     unittest.main()

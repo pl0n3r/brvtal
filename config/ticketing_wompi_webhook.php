@@ -268,8 +268,9 @@ function brvtal_wompi_hook_apply(PDO $db, array $signed, array $provider): strin
         if ($attempt['status'] === 'approved' && $row['status'] === 'paid') {
             // Legacy paid rows without proven admission must NOT gain new
             // issuance or administrative-sale notices on callback replays.
-            $outbox = $db->prepare('SELECT 1 FROM ticket_issue_outbox WHERE order_id=? LIMIT 1');
-            $outbox->execute([$orderId]);
+            $outbox = $db->prepare('SELECT 1 FROM ticket_issue_outbox
+                WHERE order_id=? AND payment_attempt_id=? LIMIT 1');
+            $outbox->execute([$orderId,(int)$attempt['id']]);
             if ($outbox->fetchColumn() !== false) {
                 brvtal_wompi_hook_notice($db, $orderId);
             }
@@ -284,6 +285,28 @@ function brvtal_wompi_hook_apply(PDO $db, array $signed, array $provider): strin
         updated_at_utc=UTC_TIMESTAMP(6) WHERE id=?');
     $update->execute([$status,$signed['id'],(int)$attempt['id']]);
     if ($status !== 'approved') return 'accepted';
+    if ($row['status'] === 'paid') {
+        // A distinct confirmed payment is money evidence, not a new admission.
+        // The existing Event/Order mutex serializes competing approvals.
+        $other = $db->prepare("SELECT id FROM ticket_payment_attempts
+            WHERE order_id=? AND id<>? AND status IN ('approved','refunded')
+                AND (provider<>'wompi' OR (provider_transaction_id IS NOT NULL
+                    AND provider_transaction_id<>?))
+            LIMIT 1 FOR UPDATE");
+        $other->execute([$orderId,(int)$attempt['id'],$signed['id']]);
+        if ($other->fetchColumn() !== false) {
+            $evidence = $db->prepare('SELECT id FROM ticket_payment_webhook_events
+                WHERE attempt_id=? AND event_checksum=?');
+            $evidence->execute([(int)$attempt['id'],$signed['_event_checksum']]);
+            $evidenceId = $evidence->fetchColumn();
+            if ($evidenceId === false) throw new RuntimeException('WEBHOOK_EVIDENCE_MISSING');
+            $incident = $db->prepare("INSERT INTO ticket_payment_incidents
+                (attempt_id,evidence_event_id,kind) VALUES (?,?,'duplicate_payment')
+                ON DUPLICATE KEY UPDATE id=id");
+            $incident->execute([(int)$attempt['id'],$evidenceId]);
+        }
+        return 'approved_unfulfilled';
+    }
     // Authentication/journal/attempt are durable even if capacity or incident
     // now forbids fulfillment. This is never a declined payment or refund.
     if (!brvtal_wompi_hook_reserved($db,$orderId,$eventId,$row)) {

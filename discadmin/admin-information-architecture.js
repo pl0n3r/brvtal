@@ -275,7 +275,7 @@
       {key:'ticketing:entries', label:'BOLETAS', tab:'entries'},
       {key:'ticketing:buyers', label:'COMPRADORES', tab:'buyers'},
       {key:'ticketing:door', label:'CONTROL DE ACCESO', tab:'door'},
-      {key:'ticketing:courtesies', label:'CORTESÍAS', soon:true, requires:'entries'},
+      {key:'ticketing:courtesies', label:'CORTESÍAS', tab:'courtesies'},
       {key:'ticketing:promos', label:'PROMOCIONES', tab:'promos'},
       {key:'ticketing:promoters', label:'PROMOTORES', tab:'promoters'},
       {key:'ticketing:finance', label:'FINANZAS', tab:'finance'},

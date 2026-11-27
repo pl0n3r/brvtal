@@ -1,5 +1,7 @@
 <?php
 declare(strict_types=1);
+// @brvtal-ci database
+require_once __DIR__.'/../../config/ticketing_promoters.php';
 require_once __DIR__.'/../../config/ticketing_promos.php';
 function promoAssert(bool $yes,string $message): void {
     if (!$yes) throw new RuntimeException('T23: '.$message);
@@ -249,7 +251,79 @@ if (getenv('BRVTAL_INTEGRATION_TESTS')==='1') {
         (int)$db->query('SELECT COUNT(*) FROM ticket_promo_redemptions')->fetchColumn()===$beforeRedemptions &&
         (int)$db->query('SELECT SUM(uses_count) FROM ticket_promo_rules')->fetchColumn()===$beforeUses,
         'non-synthetic rejection has no persistent side effects');
+
+    // T26: use the existing disposable T23 namespace; no real identities/providers.
+    $db->exec('ALTER TABLE ticket_orders ADD COLUMN currency CHAR(3) NOT NULL DEFAULT "COP"');
+    $db->exec((string)file_get_contents(__DIR__.'/../../database/migration_ticketing_promoters_01.sql'));
+    foreach ([
+        'CREATE TABLE ticket_payment_attempts (id BIGINT UNSIGNED PRIMARY KEY,order_id BIGINT UNSIGNED,provider VARCHAR(24),status VARCHAR(20),gross_amount_cop BIGINT UNSIGNED,provider_reference VARCHAR(190),provider_transaction_id VARCHAR(190))',
+        'CREATE TABLE ticket_payment_webhook_events (attempt_id BIGINT UNSIGNED,provider_transaction_id VARCHAR(190))',
+        'CREATE TABLE ticket_pos_sales (id BIGINT UNSIGNED PRIMARY KEY,order_id BIGINT UNSIGNED,method VARCHAR(24))',
+        'CREATE TABLE ticket_pos_shifts (id BIGINT UNSIGNED PRIMARY KEY)',
+        'CREATE TABLE ticket_courtesy_invites (order_id BIGINT UNSIGNED)',
+        'CREATE TABLE ticket_refunds (id BIGINT UNSIGNED PRIMARY KEY,order_id BIGINT UNSIGNED,event_id INT UNSIGNED,status VARCHAR(20),amount_cop BIGINT UNSIGNED)',
+        'CREATE TABLE ticket_refund_adjustments (refund_id BIGINT UNSIGNED PRIMARY KEY,order_id BIGINT UNSIGNED,event_id INT UNSIGNED,amount_cop BIGINT UNSIGNED)'
+    ] as $ddl) $db->exec($ddl);
+    $p1=brvtalPromoterCreate($db,'SYNTHETIC-A');
+    $p2=brvtalPromoterCreate($db,'SYNTHETIC-B');
+    $codeA=brvtalPromoterCreateCode($db,$p1,'REFCODE-A');
+    $codeB=brvtalPromoterCreateCode($db,$p2,'REFCODE-B');
+    $paused=brvtalPromoterCreateCode($db,$p1,'REFCODE-X');
+    brvtalPromoterDeactivateCode($db,$p1,$paused);
+    $db->exec("INSERT INTO ticket_orders(id,buyer_id,event_id,status,total_cop) VALUES
+        (200,1,1,'draft',20000),(201,2,1,'draft',30000),(202,3,1,'draft',10000),
+        (203,1,1,'draft',5000),(204,2,1,'draft',7000),(205,3,1,'draft',9000),
+        (206,1,1,'draft',8000),(207,2,1,'draft',1000)");
+    $attribute=static function(int $id,array $codes) use ($db):?int {
+        $db->beginTransaction();
+        try { $result=brvtalPromoterAttribute($db,$id,$codes); $db->commit(); return $result; }
+        catch(Throwable $e) { $db->rollBack(); throw $e; }
+    };
+    promoAssert($attribute(200,['REFCODE-B',' refcode-a ','REFCODE-X','bad'])===$codeA,'last valid explicit code');
+    promoAssert($attribute(200,['REFCODE-X'])===$codeA,'invalid new code cannot erase valid previous');
+    promoAssert($attribute(201,['REFCODE-A','REFCODE-B'])===$codeB,'latest valid across sources');
+    promoAssert($attribute(207,['bad','REFCODE-X'])===null,'invalid/disabled not attributed');
+    foreach ([202,203,204,205,206] as $id) $attribute($id,['REFCODE-A']);
+    $db->exec("UPDATE ticket_orders SET status='paid' WHERE id IN (200,201,202,203,204,206)");
+    $db->exec("UPDATE ticket_orders SET status='cancelled' WHERE id=205");
+    $db->exec("UPDATE ticket_orders SET status='refunded' WHERE id=204");
+    $q=$db->prepare("INSERT INTO ticket_payment_attempts VALUES (?,?,'wompi','approved',?, ?, ?)");
+    $event=$db->prepare('INSERT INTO ticket_payment_webhook_events VALUES (?,?)');
+    foreach ([[1,200,20000],[2,201,30000],[3,202,10000],[4,203,5000],[5,203,5000],
+        [6,204,7000],[7,205,9000],[8,206,8000]] as [$attempt,$order,$amount]) {
+        $tx='FIXTURE-'.$attempt;
+        $q->execute([$attempt,$order,$amount,'REF-'.$attempt,$tx]);
+        $event->execute([$attempt,$tx]);
+        if ($attempt===1) $event->execute([$attempt,$tx]); // callback replay is not a sale
+    }
+    $db->exec("INSERT INTO ticket_refunds VALUES (1,202,1,'refunded',3000),(2,206,1,'refunded',8000)");
+    $db->exec('INSERT INTO ticket_refund_adjustments VALUES (1,202,1,3000),(2,206,1,8000)');
+    brvtalPromoterDeactivate($db,$p1);
+    try { $attribute(200,['REFCODE-B']); throw new RuntimeException('paid attribution changed'); }
+    catch (DomainException $e) { promoAssert($e->getMessage()==='ATTRIBUTION_FROZEN','paid snapshot immutable'); }
+    $q->execute([9,207,1000,'REF-9','FIXTURE-9']);
+    try { $attribute(207,['REFCODE-B']); throw new RuntimeException('payment attempt attribution changed'); }
+    catch (DomainException $e) { promoAssert($e->getMessage()==='ATTRIBUTION_FROZEN','payment attempt freezes attribution'); }
+    promoAssert(brvtalPromoterSales($db,$p1)===[
+        ['code'=>'REFCODE-A','paid_orders'=>2,'gross_cop'=>30000,'net_cop'=>27000],
+        ['code'=>'REFCODE-X','paid_orders'=>0,'gross_cop'=>0,'net_cop'=>0]
+    ],'historical aggregate: partial refund, full refund, duplicate approvals, replay, cancellation and no buyer data');
+    promoAssert(brvtalPromoterSales($db,$p2)===[
+        ['code'=>'REFCODE-B','paid_orders'=>1,'gross_cop'=>30000,'net_cop'=>30000]
+    ],'scope cannot include other promoter');
+    try { brvtalPromoterCreateCode($db,$p1,'REFCODE-Y'); throw new RuntimeException('disabled promoter code created'); }
+    catch (DomainException $e) { promoAssert($e->getMessage()==='PROMOTER_UNAVAILABLE','disabled promoter'); }
+    $db->exec('DELETE FROM ticket_refund_adjustments WHERE refund_id=1');
+    try { brvtalPromoterSales($db,$p1); throw new RuntimeException('missing refund treated as zero'); }
+    catch (DomainException $e) { promoAssert($e->getMessage()==='ATTRIBUTION_EVIDENCE_UNAVAILABLE','missing evidence fails closed'); }
+    putenv('BRVTAL_INTEGRATION_TESTS');
+    try {
+        brvtalPromoterSales($db,$p1); throw new RuntimeException('non-synthetic report accepted');
+    } catch (DomainException $e) { promoAssert($e->getMessage()==='PROMOS_NOT_ENABLED','synthetic guard'); }
+    finally { putenv('BRVTAL_INTEGRATION_TESTS=1'); }
 }
+
 echo "T23 promo windows, quotas, lock, snapshots and integer COP OK (synthetic).".PHP_EOL;
 // Run coupon Wompi ledger regression under the same isolated T23 MariaDB matrix.
 require __DIR__.'/ticketing-wompi.php';
+if (getenv('BRVTAL_INTEGRATION_TESTS')==='1') echo "BRVTAL_MARKED_DATABASE_PASS: ticketing-promos.php\n";

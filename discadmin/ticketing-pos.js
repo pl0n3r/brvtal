@@ -77,10 +77,25 @@ export function mount(target) {
   manualRefInput.autocomplete='off';
   const manualRef=field(manualForm,'Referencia del pago','manual_payment_reference',manualRefInput,
     'Obligatoria en transferencias, billeteras y datáfono. No ingreses números de cuenta ni claves.');
+  let receiptConfig=null,receiptConfigMessage='Cargando la configuración del comprobante…';
+  const manualDestination=field(manualForm,'Destino del pago','manual_destination_id',select(),
+    'Selecciona la cuenta receptora o datáfono autorizado. No ingreses datos bancarios.');
+  const destinationField=manualDestination.parentElement;
   const updateManualRef=()=>{
     const required=manualMethod.value!=='cash';
     manualRef.required=required;manualRef.disabled=!required;
     if(!required)manualRef.value='';
+    if(required&&receiptConfig===null)manualStatus.textContent=receiptConfigMessage;
+    const scoped=required&&receiptConfig?.enabled===true;
+    setVisible(destinationField,scoped);
+    manualDestination.required=scoped;manualDestination.disabled=!scoped;
+    const selected=manualDestination.value;
+    const placeholder=el('option','Selecciona el destino');placeholder.value='';
+    const items=scoped?(receiptConfig.destinations[manualMethod.value]||[]):[];
+    manualDestination.replaceChildren(placeholder,...items.map(item=>{
+      const option=el('option',item.alias);option.value=String(item.id);return option;
+    }));
+    if(items.some(item=>String(item.id)===selected))manualDestination.value=selected;
   };manualMethod.addEventListener('change',updateManualRef);updateManualRef();
   const manualConfirmInput=el('input');manualConfirmInput.type='checkbox';
   manualConfirmInput.required=true;
@@ -203,6 +218,10 @@ export function mount(target) {
   manualForm.addEventListener('change',resetManualReview);
   manualRef.addEventListener('input',()=>manualRef.setCustomValidity(''));
   const validManualReference=()=>{
+    if(manualMethod.value!=='cash'&&receiptConfig===null){
+      manualStatus.textContent=receiptConfigMessage;
+      return false;
+    }
     const reference=manualRef.value.trim();
     if(manualMethod.value!=='cash' && (reference.length<4
         || !/^[A-Za-z0-9][A-Za-z0-9 ._/-]*$/.test(reference))){
@@ -218,6 +237,7 @@ export function mount(target) {
     ticket_type_id:manualType.value,quantity:manualQty.value,
     buyer_name:manualName.value.trim(),buyer_email:manualEmail.value.trim(),
     method:manualMethod.value,payment_reference:manualRef.value.trim(),
+    ...(receiptConfig?.enabled===true&&manualMethod.value!=='cash'?{destination_id:manualDestination.value}:{}),
     idempotency_key:manualKey,confirm:manualConfirm.checked
   });
   const renderManualQuote=(q,raw,snapshot)=>{
@@ -232,6 +252,7 @@ export function mount(target) {
       el('p','Válida hasta '+quoteTime.format(new Date(q.expires_at_utc))+' (Bogotá)'),
       el('p','Comprador y destinatario: '+raw.buyer_name+' · '+raw.buyer_email),
       el('p','Medio: '+methodLabel+' · referencia: '+(raw.payment_reference||'no aplica')),
+      ...(raw.destination_id?[el('p','Destino: '+manualDestination.selectedOptions[0]?.textContent)]:[]),
       el('p','Confirma únicamente si el importe coincide con el pago offline verificado.')
     );
     setVisible(manualPreview,true);
@@ -287,6 +308,8 @@ export function mount(target) {
         INVENTORY_SOLD_OUT:'No hay cupo suficiente. No se creó ningún pedido.',
         INVENTORY_NOT_SALEABLE:'El evento o la boleta ya no están disponibles.',
         POS_IDEMPOTENCY_CONFLICT:'La misma solicitud ya se usó con datos diferentes.',
+        POS_RECEIPT_DUPLICATE:'Este comprobante ya se registró en ese destino. No se creó otro pedido. Consulta Pedidos.',
+        POS_RECEIPT_REVIEW_REQUIRED:'Comprobante pendiente de revisión del propietario. No se creó un pedido. Verifica el destino y el historial antes de continuar.',
         POS_TYPE_UNAVAILABLE:'No se encontró la boleta seleccionada.',
         POS_QUOTE_CHANGED:'La tarifa o el cupo cambiaron, o la cotización venció. Revisa una cotización nueva.',
         POS_QUOTE_REQUIRED:'Se necesita una cotización nueva antes de confirmar.',
@@ -430,6 +453,23 @@ export function mount(target) {
     });
   });
   void loadCatalog();
+  void (async()=>{
+    try{
+      const response=await fetch('/api/ticketing/admin-pos.php?receipt_identity=1',{
+        credentials:'same-origin',cache:'no-store'});
+      const payload=await response.json();
+      if(!response.ok||payload.ok!==true||typeof payload.data?.enabled!=='boolean'
+        ||!payload.data.destinations||typeof payload.data.destinations!=='object')throw new Error('NO_RECEIPT_CONFIG');
+      if(!active())return;
+      const wasLoading=manualStatus.textContent===receiptConfigMessage;
+      receiptConfig=payload.data;updateManualRef();
+      if(wasLoading)manualStatus.textContent='Completa y verifica los datos del pago.';
+    }catch{
+      const wasLoading=manualStatus.textContent===receiptConfigMessage;
+      receiptConfigMessage='No se pudo verificar la configuración del comprobante. Recarga y verifica antes de registrar.';
+      if(active()&&wasLoading)manualStatus.textContent=receiptConfigMessage;
+    }
+  })();
   if(!storageAvailable){manualSubmit.disabled=true;
     manualStatus.textContent='No se puede conservar la intención de forma segura. No registres otro pedido.';
   }else if(storedIntent){manualLookup.hidden=false;manualSubmit.disabled=true;void recoverManual();}

@@ -232,7 +232,7 @@ $contactApi = privacy_text('api/contact.php');
 $contactConfig = privacy_text('config/public_contact.php');
 $capture = privacy_treatment($data, 'contact_capture');
 privacy_expect($capture['fields'] === ['name','email','subject','message','entry_id','form_key','version_number','definition_sha256','idempotency_digest','created_at_utc','purpose_key','notice_version','retention_policy_key','retention_until_utc','state','redacted_at_utc','action_key'], 'contact capture fields drifted');
-privacy_expect($capture['basis'] === 'review_required' && $capture['retention'] === 'review_required' && $capture['consent'] === 'review_required' && $capture['providers'] === [], 'capture remains pending legal review');
+privacy_expect($capture['basis'] === 'review_required' && $capture['retention'] === 'contact_capture_24m' && $capture['consent'] === 'review_required' && $capture['providers'] === [], 'capture keeps basis/consent pending; retention is the owner-approved 24 months (#2321)');
 require_once __DIR__ . '/../config/form_entries.php';
 privacy_expect(brvtal_contact_capture_policy([]) === null, 'capture is off by default');
 try {
