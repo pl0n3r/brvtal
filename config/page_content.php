@@ -85,16 +85,20 @@ function brvtal_page_form_resolve(PDO $pdo, string $id, array $captureConfig = [
             static fn(array $field): array => ['label'=>$field['label'],'help'=>$field['help'] ?? '',
                 'options'=>array_column($field['options'] ?? [], 'label')], $fields
         ))];
-        $submit = brvtal_page_form_submit_schema($pdo, $captureConfig, $id, (int)$row['published_version_number']);
-        if ($submit !== null) $preview['submit'] = $submit;
+        $submit = brvtalPageFormSubmitSchema($pdo, $captureConfig, $id, (int)$row['published_version_number']);
+        if ($submit !== null) {
+            $preview['submit'] = $submit;
+        }
         return $preview;
     } catch (Throwable) {
         return null;
     }
 }
-function brvtal_page_form_submit_schema(PDO $pdo, array $config, string $id, int $version): ?array
+function brvtalPageFormSubmitSchema(PDO $pdo, array $config, string $id, int $version): ?array
 {
-    if (!brvtalFormsCaptureEnabled($config)) return null;
+    if (!brvtalFormsCaptureEnabled($config)) {
+        return null;
+    }
     try {
         [$published, , $approved] = brvtalFormsPublished($pdo, $config, $id, $version);
         return ['id'=>$id, 'version'=>$version, 'title'=>$approved['form_title'],

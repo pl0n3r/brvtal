@@ -44,21 +44,22 @@ async function mount(page,root,state) {
 async function capture(page,stage,width){
   if(!process.env.BRVTAL_PUBLIC_FORMS_BASE_ROOT)return;
   mkdirSync('artifacts/forms-2079',{recursive:true});
+  await page.evaluate(()=>{if(document.activeElement instanceof HTMLElement)document.activeElement.blur();window.scrollTo({top:0,behavior:'instant'});});
   for(const ext of ['png','jpg'])await page.screenshot({path:'artifacts/forms-2079/'+stage+'-'+width+'.'+ext,type:ext==='jpg'?'jpeg':'png',
     ...(ext==='jpg'?{quality:65}:{}),fullPage:true,animations:'disabled'});
 }
 for(const width of [390,1440])test('public form durable retry and version '+width,async({page})=>{
-  await page.setViewportSize({width,height:900});const state={version:1,posts:[]};
-  if(process.env.BRVTAL_PUBLIC_FORMS_BASE_ROOT){const before=await page.context().newPage();await before.setViewportSize({width,height:900});
+  await page.setViewportSize({width,height:900});await page.emulateMedia({reducedMotion:'reduce'});const state={version:1,posts:[]};
+  if(process.env.BRVTAL_PUBLIC_FORMS_BASE_ROOT){const before=await page.context().newPage();await before.setViewportSize({width,height:900});await before.emulateMedia({reducedMotion:'reduce'});
     await mount(before,process.env.BRVTAL_PUBLIC_FORMS_BASE_ROOT,state);await expect(before.locator('[data-form-ref="preview"]')).toBeVisible();await capture(before,'before',width);await before.close();}
   await mount(page,process.cwd(),state);const form=page.locator('.public-form');
   await expect(form).toBeVisible();await expect(form.getByRole('button',{name:'Enviar formulario'})).toBeDisabled();
-  await form.getByRole('button',{name:'Cargar desafío'}).click();await form.getByLabel('2 + 3 = ?').fill('5');
+  await form.getByRole('button',{name:'Cargar desafío'}).focus();await page.keyboard.press('Enter');await expect(form.getByLabel('2 + 3 = ?')).toBeFocused();await form.getByLabel('2 + 3 = ?').fill('5');
   await form.getByRole('button',{name:'Enviar formulario'}).click();await expect(form.getByLabel('Mensaje sintético')).toHaveAttribute('aria-invalid','true');
   await expect(form.getByLabel('Mensaje sintético')).toBeFocused();
   await form.getByLabel('Mensaje sintético').fill('<script>fixture</script>');await form.getByLabel('Consentimiento sintético').check();
   await form.getByRole('button',{name:'Enviar formulario'}).click();expect(state.posts).toHaveLength(0);
-  await form.getByLabel('Mensaje sintético').fill('Respuesta ficticia');await capture(page,'after',width);
+  await form.getByLabel('Mensaje sintético').fill('Respuesta ficticia');await expect(form.getByLabel('Mensaje sintético')).toHaveAttribute('aria-invalid','false');await capture(page,'after',width);
   expect(await form.evaluate(n=>n.scrollWidth<=n.clientWidth)).toBeTruthy();
   state.invalid=true;await form.getByRole('button',{name:'Enviar formulario'}).click();await expect(form.getByRole('status')).toContainText('rechazó');
   state.network=true;await form.evaluate(n=>{n.requestSubmit();n.requestSubmit();});await expect(form.getByRole('status')).toContainText('No se confirmó');

@@ -6,6 +6,33 @@
   const checked = f => ['checkbox', 'consent'].includes(f.type);
   const restricted = /[<>]|(?:https?|javascript|data|vbscript|file):|\/\//iu;
   const keyOf = f => JSON.stringify([f.id, f.type, f.label, f.help ?? '', f.max_length ?? null, f.options ?? []]);
+  function inputFor(f) {
+    const tag = ({textarea:'textarea',select:'select'})[f.type] ?? 'input';
+    const input = node(tag);
+    if (tag === 'input') input.type = checked(f) ? 'checkbox' : f.type;
+    if (f.max_length) input.maxLength = f.max_length;
+    if (f.type === 'select') {
+      input.append(new Option('Selecciona una opción', ''));
+      for (const o of f.options) input.append(new Option(o.label, o.value));
+    }
+    return input;
+  }
+  function fieldValue(f, controls) {
+    if (f.type === 'radio') return controls.find(c => c.checked)?.value;
+    return checked(f) ? controls[0].checked : controls[0].value;
+  }
+  function restoreField(f, controls, v) {
+    if (f.type === 'radio') controls.forEach(c => { c.checked = c.value === v; });
+    else if (checked(f)) controls[0].checked = v === true;
+    else controls[0].value = typeof v === 'string' ? v : '';
+  }
+  function validateField(f, controls, error) {
+    const v = fieldValue(f, controls);
+    const invalid = controls.some(c => !c.validity.valid) || (typeof v === 'string' && (restricted.test(v) || (f.required && !v.trim())));
+    error.textContent = invalid ? 'Revisa este campo: completa el valor solicitado sin enlaces ni etiquetas.' : '';
+    controls.forEach(c => c.setAttribute('aria-invalid', String(invalid)));
+    return invalid ? controls[0] : null;
+  }
   function fieldControl(f, prefix) {
     const id = prefix + '-' + f.id, group = node(f.type === 'radio' ? 'fieldset' : 'div');
     const title = f.label + (f.required ? ' *' : '');
@@ -24,30 +51,12 @@
         addControl(input, node('label', option.label), '-' + i);
       }
     } else {
-      const input = node(f.type === 'textarea' ? 'textarea' : f.type === 'select' ? 'select' : 'input');
-      if (input.tagName === 'INPUT') input.type = checked(f) ? 'checkbox' : f.type;
-      if (f.max_length) input.maxLength = f.max_length;
-      if (f.type === 'select') {
-        input.append(new Option('Selecciona una opción', ''));
-        for (const o of f.options) input.append(new Option(o.label, o.value));
-      }
-      addControl(input, node('label', title));
+      addControl(inputFor(f), node('label', title));
     }
     group.className = 'form-field'; group.append(help, error);
-    const value = () => f.type === 'radio' ? controls.find(c => c.checked)?.value : checked(f) ? controls[0].checked : controls[0].value;
-    const restore = v => {
-      if (f.type === 'radio') controls.forEach(c => { c.checked = c.value === v; });
-      else if (checked(f)) controls[0].checked = v === true;
-      else controls[0].value = typeof v === 'string' ? v : '';
-    };
-    function validate() {
-      const v = value();
-      const invalid = controls.some(c => !c.validity.valid) || (typeof v === 'string' && (restricted.test(v) || (f.required && !v.trim())));
-      error.textContent = invalid ? 'Revisa este campo: completa el valor solicitado sin enlaces ni etiquetas.' : '';
-      controls.forEach(c => c.setAttribute('aria-invalid', String(invalid)));
-      return invalid ? controls[0] : null;
-    }
-    return {group, value, restore, validate, field:f};
+    const validate = () => validateField(f, controls, error);
+    controls.forEach(c => c.addEventListener('input', () => { if (error.textContent) validate(); }));
+    return {group, value:() => fieldValue(f,controls), restore:v => restoreField(f,controls,v), validate, field:f};
   }
   async function api(spec, key, post = null) {
     const url = '/api/forms.php?' + new URLSearchParams({public_id:spec.id, version:String(spec.version)});
@@ -61,7 +70,7 @@
   async function newest(spec) {
     const response = await fetch(location.pathname + location.search, {cache:'no-store', credentials:'same-origin',
       redirect:'error', signal:AbortSignal.timeout(15000)});
-    if (!response.ok) throw Error('page');
+    if (!response.ok) throw new Error('page');
     const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
     return Array.from(doc.querySelectorAll('[data-public-form]'), n => JSON.parse(n.dataset.publicForm))
       .find(s => s.id === spec.id);
@@ -71,7 +80,12 @@
     form.className = 'public-form'; form.autocomplete = 'off'; form.method = 'post'; form.noValidate = true;
     const status = node('p', message); status.setAttribute('role','status'); status.tabIndex = -1;
     const controls = spec.fields.map(f => fieldControl(f, prefix));
-    controls.forEach(c => { if (c.field.type !== 'consent' && prior.has(keyOf(c.field))) c.restore(prior.get(keyOf(c.field))); fields.append(c.group); });
+    controls.forEach(c => {
+      if (c.field.type !== 'consent' && prior.has(keyOf(c.field))) {
+        c.restore(prior.get(keyOf(c.field)));
+      }
+      fields.append(c.group);
+    });
     const notice = node('p', spec.notice); notice.className = 'form-notice';
     const captcha = node('input'); captcha.id = prefix+'-challenge'; captcha.inputMode = 'numeric'; captcha.autocomplete = 'off'; captcha.required = true;
     const question = node('label','Respuesta del desafío'); question.htmlFor = captcha.id;
@@ -82,7 +96,10 @@
     form.append(fields, notice, refresh, question, captcha, honey, submit, status);
     root.dataset.publicForm = JSON.stringify(spec);
     root.replaceChildren(node('h2',spec.title),form);
-    function say(text) { status.textContent = text; status.focus(); }
+    function say(text) { status.textContent = text; }
+    form.addEventListener('input', () => {
+      if (status.textContent === 'Revisa los campos marcados.' && !form.querySelector('[aria-invalid="true"]')) say('');
+    });
     function sync() {
       form.setAttribute('aria-busy', String(busy));
       fields.disabled = busy || stopped || frozen !== null; refresh.disabled = busy || stopped;
@@ -110,7 +127,7 @@
           question.textContent = data.data.question; refresh.textContent = 'Renovar desafío'; say('Resuelve el desafío para continuar.');
         } else say(code === 429 ? 'Demasiados intentos. Intenta más tarde.' : 'No se pudo cargar el desafío. Intenta de nuevo.');
       } catch { say('No se pudo conectar. Intenta cargar el desafío de nuevo.'); }
-      finally { busy = false; sync(); }
+      finally { busy = false; sync(); if (token && !stopped) captcha.focus(); }
     }
     function payload() {
       const invalid = controls.map(c => c.validate()).filter(Boolean);
@@ -119,7 +136,7 @@
     }
     async function handleResult(code, data) {
       if (code === 200 && data.ok === true && data.message === 'FORM_RECEIVED') {
-        stopped = true; token = ''; frozen = null; form.replaceChildren(status); say('Formulario recibido. Gracias.'); return;
+        stopped = true; token = ''; frozen = null; form.replaceChildren(status); say('Formulario recibido. Gracias.'); status.focus(); return;
       }
       if (code === 409 && data.error === 'FORM_VERSION_CONFLICT') { await recover(); return; }
       if (code === 409) { stopped = true; say('No se pudo confirmar este intento. No lo envíes de nuevo.'); return; }

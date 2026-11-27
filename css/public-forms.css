@@ -11,3 +11,4 @@
 .public-form .form-error{color:#ff9aa4}.public-form .form-error:empty,.public-form small:empty{display:none}
 .public-form .form-notice{border-block:1px solid #858585;padding-block:12px}
 .public-form [role=status]{overflow-wrap:anywhere}
+.public-form :is(input,textarea,select,button,[role=status]){scroll-margin-block-start:180px}
