@@ -191,10 +191,8 @@ $mesaIntent = ['lines'=>[['ticket_type_id'=>11,'quantity'=>2],['ticket_type_id'=
 $db->exec("UPDATE event_ticket_types SET price=price+10000 WHERE event_id=1");
 $offers = brvtal_public_ticket_checkout_offers($db,1);
 cartAssert(!in_array(12, array_column($offers['offers'] ?? [], 'id'), true), 'last Mesa held: no public capacity');
-$readRows = static function () use ($db): array {
-    return array_map(static fn($table) => $db->query("SELECT * FROM $table ORDER BY id")->fetchAll(),
-        ['ticket_orders','ticket_inventory_holds','ticket_payment_attempts']);
-};
+$readRows = (static fn(): array => array_map(static fn($table) => $db->query("SELECT * FROM $table ORDER BY id")->fetchAll(),
+    ['ticket_orders','ticket_inventory_holds','ticket_payment_attempts']));
 $beforeRead = $readRows();
 $denied = ['state'=>'unverified','replayed'=>false,'can_start_payment'=>false];
 $_SESSION = ['buyer_id'=>7];
