@@ -3,6 +3,7 @@ import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 
 const base = process.env.BRVTAL_FORMS_VISUAL_BASE || '';
+const managementBase = process.env.BRVTAL_FORMS_MANAGEMENT_BASE || '';
 const rootUrl = 'http://127.0.0.1:4173/discadmin/';
 const id = '00000000000000000000000000000001';
 const id2 = '00000000000000000000000000000002';
@@ -10,27 +11,39 @@ const attack = '<img src=x onerror="window.formsXss=true">';
 const formRow = {form_key:'contact',latest_version:2,total:2,new_count:1};
 const item = {entry_id:id,form_key:'contact',version_number:1,state:'received',created_at_utc:'2026-11-20 14:00:00'};
 const read = (path,old=false) => old
-  ? execFileSync('git',['show',base+':'+path],{encoding:'utf8',maxBuffer:4*1024*1024})
+  ? execFileSync('git',['show',(managementBase||base)+':'+path],{encoding:'utf8',maxBuffer:4*1024*1024})
   : readFileSync(path,'utf8');
 
-async function setup(page,{old=false,mode='ok',direct=false}={}) {
+async function setup(page,{old=false,mode='ok',direct=false,manage=false}={}) {
   const core = read('discadmin/index-core.php',old);
   const skin = core.match(/<style>([\s\S]*?)<\/style>/)[1];
   const runtime = core.match(/<script>\s*const API=([\s\S]*?)<\/script>/)[0]
     .replace(/<\?=[\s\S]*?\?>/g,'fixture').replace("let csrf='';let state=","window.csrf='';window.state=");
   const css = ['admin-modules','admin-appearance','admin-shell','admin-information-architecture','admin-design-system']
     .map(name=>read('discadmin/'+name+'.css',old)).join('\n');
-  const calls = []; const control = {mode,calls};
+  const calls = []; const control = {mode,calls,manage,revision:0,workflow:'new',notes:[],error:null};
   await page.route('**/*',async route=>{
     const url = new URL(route.request().url());
     if (url.origin !== new URL(rootUrl).origin) return route.abort();
     if (url.pathname === '/discadmin/') return route.fulfill({contentType:'text/html',body:
       '<!doctype html><html lang="es" data-discadmin-appearance="dark"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>'+skin+css+'</style><div id="app"></div><div id="modal"></div>'+runtime+
-      '<script src="/discadmin/admin-modules.js"></script><script src="/discadmin/admin-shell.js"></script><script src="/discadmin/admin-information-architecture.js"></script><script>state.authed=true;state.section="pages";render();</script></html>'});
-    if (url.pathname === '/discadmin/forms.php' && !old) return route.fulfill({contentType:'text/html',
-      body:read('discadmin/forms.php').split('?>').at(-1)});
+      '<script src="/discadmin/admin-modules.js"></script><script src="/discadmin/admin-shell.js"></script><script src="/discadmin/admin-information-architecture.js"></script><script>window.csrf="fixture-csrf";state.authed=true;state.section="pages";render();</script></html>'});
+    if (url.pathname === '/discadmin/forms.php' && (!old || managementBase)) return route.fulfill({contentType:'text/html',
+      body:read('discadmin/forms.php',old).split('?>').at(-1)});
     if (url.pathname === '/api/admin-forms.php') {
-      const params = Object.fromEntries(url.searchParams); calls.push({method:route.request().method(),params});
+      const params = Object.fromEntries(url.searchParams);
+      const method=route.request().method(), body=method==='POST'?route.request().postDataJSON():null;
+      calls.push({method,params,body,csrf:route.request().headers()['x-csrf-token']});
+      if (method==='POST') {
+        if (!control.manage) return route.fulfill({status:503,json:{ok:false}});
+        if (control.error) return route.fulfill({status:control.error==='EXPORT_LIMIT_EXCEEDED'?422:409,json:{ok:false,error:control.error}});
+        if (body.action==='export') return route.fulfill({contentType:'text/csv; charset=utf-8',
+          headers:{'Content-Disposition':'attachment; filename="forms-responses.csv"'},body:'entry_id,value\r\nfixture,synthetic\r\n'});
+        control.revision++;
+        if (body.action==='transition') control.workflow=body.state;
+        else control.notes.push({note_text:body.note,actor_admin_id:1,created_at_utc:item.created_at_utc});
+        return route.fulfill({json:{ok:true,data:{revision:control.revision,management_state:control.workflow}}});
+      }
       if (control.mode==='denied') return route.fulfill({status:403,json:{ok:false}});
       if (control.mode==='network') return route.abort();
       if (control.mode==='error') return route.fulfill({status:503,json:{ok:false}});
@@ -40,6 +53,10 @@ async function setup(page,{old=false,mode='ok',direct=false}={}) {
           {...item,entry_id:params.entry_id,state:params.entry_id===id2?'redacted':'received',
             notice_version:'privacy-fixture-v1',purpose_key:'contact_capture',retention_until_utc:'2027-11-20 14:00:00',
             fields:[{label:'Mensaje histórico',value:attack}],notifications:[{action_key:'contact_notify',state:'enqueued',created_at_utc:item.created_at_utc}]};
+      data.management_enabled=control.manage;
+      if (params.view==='detail') Object.assign(data,{revision:params.entry_id===id2?null:control.revision,
+        management_state:params.entry_id===id2?null:control.workflow,notes:params.entry_id===id2?[]:control.notes});
+      if (params.view==='list') data.items=data.items.map(row=>({...row,management_state:row.state==='redacted'?null:control.workflow}));
       return route.fulfill({json:{ok:true,data}});
     }
     if (url.pathname==='/discadmin/ticketing.php') return route.fulfill({contentType:'text/html',body:'<section data-admin-module="ticketing"></section>'});
@@ -115,3 +132,74 @@ test('2068 enlace directo: denegado y vacío sin datos',async({page})=>{
   const other=await page.context().newPage(); await setup(other,{mode:'empty',direct:true});
   await expect(other.getByText('No hay resultados.')).toBeVisible(); await other.close();
 });
+
+async function openDetail(page) {
+  const workspace=page.locator('[data-admin-module="forms"]');
+  await workspace.getByRole('button',{name:'Ver respuestas de contact'}).click();
+  await workspace.getByRole('button',{name:'Ver respuesta '+id}).click();
+  await expect(workspace.getByRole('heading',{name:'Detalle de respuesta'})).toBeVisible();
+  return workspace;
+}
+for (const width of [390,1440]) {
+  test('2073 gestión y CSV '+width,async({page})=>{
+    await page.setViewportSize({width,height:900});
+    if (managementBase) {
+      mkdirSync('artifacts/forms-2073',{recursive:true});
+      const before=await page.context().newPage(); await before.setViewportSize({width,height:900});
+      await setup(before,{old:true,direct:true,manage:true});
+      await openDetail(before);
+      await before.screenshot({path:'artifacts/forms-2073/before-'+width+'.png',animations:'disabled',fullPage:true});
+      await before.screenshot({path:'artifacts/forms-2073/before-'+width+'.jpg',type:'jpeg',quality:65,animations:'disabled',fullPage:true});
+      await before.close();
+    }
+    const control=await setup(page,{direct:true,manage:true});
+    const workspace=await openDetail(page);
+    await expect(workspace.getByRole('button',{name:'Cambiar a En gestión'})).toBeVisible();
+    await expect(workspace.getByRole('button',{name:'Cambiar a Resuelta'})).toHaveCount(0);
+    await workspace.getByRole('button',{name:'Cambiar a En gestión'}).click();
+    await expect(workspace.getByRole('status')).toContainText('Estado actualizado');
+    expect(control.calls.filter(c=>c.method==='POST').at(-1)).toMatchObject({csrf:'fixture-csrf',params:{},
+      body:{action:'transition',state:'in_progress',expected_revision:0,form_key:'contact',entry_id:id}});
+    await workspace.getByLabel('Añadir nota interna').fill(attack);
+    await workspace.getByRole('button',{name:'Guardar nota'}).click();
+    await expect(workspace.getByRole('status')).toContainText('Nota guardada');
+    await expect(workspace.getByText(attack,{exact:true})).toHaveCount(2);
+    expect(await page.evaluate(()=>window.formsXss)).toBeUndefined();
+    expect(control.calls.filter(c=>c.method==='POST').at(-1).body).toMatchObject({action:'note',expected_revision:1,note:attack});
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    if (managementBase) {
+      // Observe actual transient notifications until they disappear; don't click moving indices.
+      await expect(page.locator('.brvtal-feedback')).toHaveCount(0,{timeout:10000});
+      await page.evaluate(()=>window.scrollTo(0,0));
+      await page.screenshot({path:'artifacts/forms-2073/after-'+width+'.png',animations:'disabled',fullPage:true});
+      await page.screenshot({path:'artifacts/forms-2073/after-'+width+'.jpg',type:'jpeg',quality:65,animations:'disabled',fullPage:true});
+    }
+    control.error='STALE_REVISION';
+    await workspace.getByRole('button',{name:'Cambiar a Resuelta'}).click();
+    await expect(workspace.getByRole('status')).toContainText('La respuesta cambió');
+    control.error=null;
+    await workspace.getByRole('button',{name:'Volver a respuestas'}).click();
+    await workspace.getByLabel('Gestión').selectOption('in_progress');
+    await workspace.getByLabel('Desde').fill('2026-11-20');
+    await workspace.getByRole('button',{name:'Consultar'}).click();
+    await expect.poll(()=>control.calls.at(-1).params).toMatchObject({management_state:'in_progress',from:'2026-11-20'});
+    await workspace.getByRole('button',{name:'Siguiente'}).click();
+    await workspace.getByRole('button',{name:'Ver respuesta '+id2}).click();
+    await expect(workspace.getByText('Contenido anonimizado.')).toBeVisible();
+    await expect(workspace.getByRole('button',{name:'Guardar nota'})).toHaveCount(0);
+    await workspace.getByRole('button',{name:'Volver a respuestas'}).click();
+    const download=page.waitForEvent('download');
+    await workspace.getByRole('button',{name:'Exportar CSV de los filtros'}).click();
+    expect((await download).suggestedFilename()).toBe('forms-responses.csv');
+    expect(control.calls.filter(c=>c.method==='POST').at(-1)).toMatchObject({csrf:'fixture-csrf',params:{},
+      body:{action:'export',form_key:'contact',management_state:'in_progress',from:'2026-11-20'}});
+    expect(Object.keys(control.calls.filter(c=>c.method==='POST').at(-1).body).sort()).toEqual(['action','form_key','from','management_state']);
+    control.error='EXPORT_LIMIT_EXCEEDED';
+    await workspace.getByRole('button',{name:'Exportar CSV de los filtros'}).click();
+    await expect(workspace.getByRole('status')).toContainText('Acota los filtros');
+    control.error=null; control.manage=false;
+    await workspace.getByRole('button',{name:'Exportar CSV de los filtros'}).click();
+    await expect(workspace.getByRole('status')).toContainText('gestión no está disponible');
+    await expect(workspace.getByRole('button',{name:'Exportar CSV de los filtros'})).toHaveCount(0);
+  });
+}
