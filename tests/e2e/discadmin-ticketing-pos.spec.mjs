@@ -187,14 +187,49 @@ test('AC-01: rol admin con finanzas pero sin settings conserva selectores POS',a
   expect(php).toContain('data-finance-catalog');
 });
 
+function quoteFixture(route,request,override={}){
+  const expiry=Math.floor(Date.now()/1000)+120;
+  const q={channel:'manual',unit_price_cop:25000,amount_cop:25000*Number(request.quantity),
+    source:'stage',stage_code:'preventa',expires_at_utc:new Date(expiry*1000).toISOString().replace('.000Z','Z'),
+    quote_token:expiry+'.'+Number(override.unit_price_cop??25000).toString(16).padStart(63,'0')
+      +Number(request.quantity).toString(16),...override};
+  return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:q})});
+}
+
+// The established POS visual workflow uploads this directory. Preserve its
+// historical four-file contract and keep this issue's evidence separate.
+async function quoteCapture(page,testInfo,phase,width){
+  const png=await page.screenshot({fullPage:true});
+  expect(png.subarray(0,8)).toEqual(Buffer.from([137,80,78,71,13,10,26,10]));
+  expect(png.readUInt32BE(16)).toBe(width);
+  expect(png.readUInt32BE(20)).toBeGreaterThanOrEqual(400);
+  const dir='artifacts/issue-2017/issue-2286';
+  mkdirSync(dir,{recursive:true});
+  const name='2286-'+phase+'-'+width+'.png';
+  writeFileSync(dir+'/'+name,png);
+  await testInfo.attach(name,{body:png,contentType:'image/png'});
+}
+
+async function fillManualQuote(form,quantity='2'){
+  await form.locator('[name="manual_event_id"]').selectOption('6');
+  await form.locator('[name="manual_ticket_type_id"]').selectOption('10');
+  await form.locator('[name="manual_quantity"]').fill(quantity);
+  await form.locator('[name="manual_buyer_name"]').fill('Comprador Ejemplo');
+  await form.locator('[name="manual_buyer_email"]').fill('manual@example.test');
+  await form.locator('[name="manual_method"]').selectOption('nequi');
+  await form.locator('[name="manual_payment_reference"]').fill('REF-2026-001');
+  await form.locator('[name="manual_confirm"]').check();
+}
+
 for (const width of [390,1440]) {
   test('AC-02 pedido offline owner, capturas antes/después '+width+' px',async({page},testInfo)=>{
     await page.setViewportSize({width,height:900});
     const calls=[];
     await setup(page,route=>{
       const request=route.request();
-      calls.push({body:request.postDataJSON(),headers:request.headers()});
-      route.fulfill({contentType:'application/json',body:JSON.stringify({
+      const body=request.postDataJSON();calls.push({body,headers:request.headers()});
+      if(body.action==='manual_quote')return quoteFixture(route,body);
+      return route.fulfill({contentType:'application/json',body:JSON.stringify({
         ok:true,data:{order_id:123,sale_id:44,status:'paid',
           amount_cop:50000,method:'nequi',issuance_queued:true,replayed:false}
       })});
@@ -208,31 +243,60 @@ for (const width of [390,1440]) {
       {body:await page.screenshot({fullPage:true}),contentType:'image/png'});
     await manual.evaluate(el=>{el.style.display='';});
     const form=manual.locator('[data-pos-manual-form]');
-    await form.locator('[name="manual_event_id"]').selectOption('6');
-    await form.locator('[name="manual_ticket_type_id"]').selectOption('10');
-    await form.locator('[name="manual_quantity"]').fill('2');
-    await form.locator('[name="manual_buyer_name"]').fill('Comprador Ejemplo');
-    await form.locator('[name="manual_buyer_email"]').fill('manual@example.test');
-    await form.locator('[name="manual_method"]').selectOption('nequi');
-    await form.locator('[name="manual_payment_reference"]').fill('REF-2026-001');
-    await form.locator('[name="manual_confirm"]').check();
+    await fillManualQuote(form);
+    // Same reviewed form on the exact pre-change source, with synthetic data only.
+    const beforeRef='3556cf05e99db8044ce71acbfcb08ea0776aba0a';
+    const ref=beforeRef+':discadmin/ticketing-pos.js';
+    try{execFileSync('git',['cat-file','-e',ref]);}
+    catch{execFileSync('git',['fetch','--no-tags','--depth=1','origin',beforeRef],{timeout:60000});}
+    const baseline=await page.context().newPage();
+    await baseline.setViewportSize({width,height:900});
+    await setup(baseline,route=>route.abort('failed'),[],true,'api',finance,
+      execFileSync('git',['show',ref],{encoding:'utf8'}));
+    const beforeForm=baseline.locator('[data-pos-manual-form]');
+    await fillManualQuote(beforeForm);
+    await beforeForm.getByRole('button',{name:'Revisar pedido manual'}).click();
+    await expect(beforeForm.locator('[data-pos-manual-preview]')).toContainText('Comprador Ejemplo');
+    await quoteCapture(baseline,testInfo,'before',width);
+    await baseline.close();
     await expect(form.getByRole('button',{name:'Revisar pedido manual'})).toBeEnabled();
     expect(calls).toHaveLength(0);
     await form.getByRole('button',{name:'Revisar pedido manual'}).click();
     await expect(form.locator('[data-pos-manual-preview]')).toContainText('Comprador Ejemplo');
     await expect(form.locator('[data-pos-manual-preview]')).toContainText('REF-2026-001');
-    expect(calls).toHaveLength(0);
+    await expect(form.locator('[data-pos-manual-preview]')).toContainText('Total a registrar: 50.000 COP');
+    await expect(form.locator('[data-pos-manual-preview]')).toContainText('Precio unitario: 25.000 COP');
+    await expect(form.locator('[data-pos-manual-preview]')).toContainText('Etapa Preventa');
+    await expect(form.locator('[data-pos-manual-preview]')).toContainText('Válida hasta');
+    expect(calls).toHaveLength(1);
+    expect(calls[0].body).toEqual({action:'manual_quote',event_id:'6',ticket_type_id:'10',quantity:'2',
+      idempotency_key:expect.stringMatching(/^[a-f0-9]{32}$/)});
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    const summaryBox=await form.locator('[data-pos-manual-preview]').boundingBox();
+    const confirmBox=await form.getByRole('button',{name:'Confirmar y crear pedido'}).boundingBox();
+    expect(summaryBox).not.toBeNull();expect(confirmBox).not.toBeNull();
+    expect(confirmBox.y).toBeGreaterThanOrEqual(summaryBox.y+summaryBox.height);
+    expect(confirmBox.height).toBeGreaterThanOrEqual(44);
+    expect(confirmBox.height).toBeLessThanOrEqual(80);
+    await quoteCapture(page,testInfo,'after',width);
+    writeFileSync('artifacts/issue-2017/issue-2286/manifest-'+width+'.json',JSON.stringify({
+      issue:2286,before_sha:beforeRef,after_head_sha:process.env.ISSUE_2017_PR_HEAD_SHA??null,
+      viewport_width:width,synthetic_fixture:true,source:'actual Playwright Chromium',
+      captures:['2286-before-'+width+'.png','2286-after-'+width+'.png']
+    },null,2));
     await form.getByRole('button',{name:'Confirmar y crear pedido'}).click();
     await expect(manual).toContainText('Pedido #123 creado');
     await expect(manual).toContainText('emisión de QR en cola');
-    expect(calls).toHaveLength(1);
-    expect(calls[0].body).toMatchObject({
+    expect(calls).toHaveLength(2);
+    expect(calls[1].body).toMatchObject({
       action:'manual_order',event_id:'6',ticket_type_id:'10',quantity:'2',
       buyer_name:'Comprador Ejemplo',buyer_email:'manual@example.test',
       method:'nequi',payment_reference:'REF-2026-001',confirm:true
     });
-    expect(calls[0].body.idempotency_key).toMatch(/^[a-f0-9]{32}$/);
-    expect(calls[0].headers['x-csrf-token']).toBe('a'.repeat(64));
+    expect(calls[1].body.idempotency_key).toBe(calls[0].body.idempotency_key);
+    expect(calls[1].body.quote_token).toMatch(/^\d{10}\.[a-f0-9]{64}$/);
+    expect(calls[1].body).not.toHaveProperty('amount_cop');
+    expect(calls[1].headers['x-csrf-token']).toBe('a'.repeat(64));
     await expect(form.getByRole('button',{name:'Confirmar y crear pedido'})).toBeDisabled();
     expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
     await testInfo.attach('manual-created-'+width+'.png',
@@ -243,8 +307,9 @@ for (const width of [390,1440]) {
 test('AC-02 pago no efectivo exige referencia, error de aforo no inventa pedido',async({page})=>{
   const calls=[];
   await setup(page,route=>{
-    calls.push(route.request().postDataJSON());
-    route.fulfill({status:409,contentType:'application/json',
+    const body=route.request().postDataJSON();calls.push(body);
+    if(body.action==='manual_quote')return quoteFixture(route,body);
+    return route.fulfill({status:409,contentType:'application/json',
       body:'{"ok":false,"error":"INVENTORY_SOLD_OUT"}'});
   });
   const form=page.locator('[data-pos-manual-form]');
@@ -260,11 +325,12 @@ test('AC-02 pago no efectivo exige referencia, error de aforo no inventa pedido'
   await form.locator('[name="manual_payment_reference"]').fill('BANCO-00012');
   await form.getByRole('button',{name:'Revisar pedido manual'}).click();
   await expect(form.locator('[data-pos-manual-preview]')).toContainText('BANCO-00012');
-  expect(calls).toHaveLength(0);
+  expect(calls).toHaveLength(1);
   await form.getByRole('button',{name:'Confirmar y crear pedido'}).click();
   await expect(page.locator('[data-pos-manual]')).toContainText('No hay cupo suficiente');
-  expect(calls).toHaveLength(1);
-  await expect(form.getByRole('button',{name:'Confirmar y crear pedido'})).toBeEnabled();
+  expect(calls.map(x=>x.action)).toEqual(['manual_quote','manual_order']);
+  await expect(form.getByRole('button',{name:'Revisar pedido manual'})).toBeEnabled();
+  await expect(form.locator('[data-pos-manual-preview]')).toBeEmpty();
   await expect(page.locator('[data-pos-manual-receipt]')).toBeEmpty();
 });
 
@@ -280,17 +346,18 @@ test('AC-02 servidor rechaza admin sin revelar QR o pedido',async({page})=>{
   await expect(form.locator('[name="manual_payment_reference"]')).toBeDisabled();
   await form.locator('[name="manual_confirm"]').check();
   await form.getByRole('button',{name:'Revisar pedido manual'}).click();
-  await expect(page.locator('[data-pos-manual-preview]')).toContainText('no aplica');
-  await form.getByRole('button',{name:'Confirmar y crear pedido'}).click();
   await expect(page.locator('[data-pos-manual]')).toContainText('Solo el propietario');
+  await expect(page.locator('[data-pos-manual-preview]')).toBeEmpty();
+  await expect(form.getByRole('button',{name:'Confirmar y crear pedido'})).toHaveCount(0);
   await expect(page.locator('[data-pos-manual-receipt]')).toBeEmpty();
 });
 
 test('AC-02 edición posterior al resumen exige una revisión nueva',async({page})=>{
   const calls=[];
   await setup(page,route=>{
-    calls.push(route.request().postDataJSON());
-    route.fulfill({contentType:'application/json',body:JSON.stringify({
+    const body=route.request().postDataJSON();calls.push(body);
+    if(body.action==='manual_quote')return quoteFixture(route,body);
+    return route.fulfill({contentType:'application/json',body:JSON.stringify({
       ok:true,data:{order_id:124,status:'paid',amount_cop:75000,method:'nequi',
         issuance_queued:true,replayed:false}
     })});
@@ -308,13 +375,15 @@ test('AC-02 edición posterior al resumen exige una revisión nueva',async({page
   await form.locator('[name="manual_quantity"]').fill('3');
   await expect(form.locator('[data-pos-manual-preview]')).toBeEmpty();
   await expect(form.getByRole('button',{name:'Revisar pedido manual'})).toBeVisible();
-  expect(calls).toHaveLength(0);
+  expect(calls.map(x=>x.action)).toEqual(['manual_quote']);
   await form.getByRole('button',{name:'Revisar pedido manual'}).click();
   await expect(form.locator('[data-pos-manual-preview]')).toContainText('3 boleta(s)');
   await form.getByRole('button',{name:'Confirmar y crear pedido'}).click();
   await expect(page.locator('[data-pos-manual]')).toContainText('Pedido #124 creado');
-  expect(calls).toHaveLength(1);
-  expect(calls[0].quantity).toBe('3');
+  expect(calls.map(x=>x.action)).toEqual(['manual_quote','manual_quote','manual_order']);
+  expect(calls[2].quantity).toBe('3');
+  expect(calls[2].quote_token).toMatch(/3$/);
+  expect(calls.every(x=>x.idempotency_key===calls[0].idempotency_key)).toBeTruthy();
 });
 
 
@@ -372,6 +441,7 @@ for (const width of [390,1440]) {
     const calls=[];let committed=false,available=false,denied=false;
     const handler=async route=>{
       const request=route.request().postDataJSON();calls.push(request);
+      if(request.action==='manual_quote'){await quoteFixture(route,request);return;}
       if(request.action==='manual_order'){committed=true;await route.abort('failed');return;}
       expect(request.action).toBe('manual_intent');
       if(denied){await route.fulfill({status:403,contentType:'application/json',body:'{"ok":false,"error":"FORBIDDEN"}'});return;}
@@ -402,7 +472,7 @@ for (const width of [390,1440]) {
     await expect(manual).toContainText('No se pudo verificar el recibo');
     await expect(form.getByRole('button',{name:'Confirmar y crear pedido'})).toBeDisabled();
     await testInfo.attach('2124-uncertain-'+width+'.png',{body:await page.screenshot({fullPage:true}),contentType:'image/png'});
-    const intent=calls[0].idempotency_key;
+    const intent=calls.find(x=>x.action==='manual_order').idempotency_key;
     expect(await page.evaluate(()=>sessionStorage.getItem('brvtal.pos.manual.intent.v1'))).toBe(intent);
     denied=true;
     const lookup=manual.getByRole('button',{name:'Consultar recibo pendiente'});
@@ -423,3 +493,96 @@ for (const width of [390,1440]) {
     await testInfo.attach('2124-recovered-'+width+'.png',{body:await page.screenshot({fullPage:true}),contentType:'image/png'});
   });
 }
+
+test('2286 conflicto de tarifa obliga a nueva cotización y clic explícito; replay conserva recibo',async({page})=>{
+  const calls=[];let quotes=0,orders=0;
+  await setup(page,route=>{
+    const body=route.request().postDataJSON();calls.push(body);
+    if(body.action==='manual_quote'){
+      quotes++;
+      return quoteFixture(route,body,quotes===1?{}:{unit_price_cop:30000,amount_cop:60000,stage_code:'general'});
+    }
+    expect(body.action).toBe('manual_order');orders++;
+    if(orders===1)return route.fulfill({status:409,contentType:'application/json',
+      body:'{"ok":false,"error":"POS_QUOTE_CHANGED"}'});
+    return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:{
+      order_id:125,status:'paid',amount_cop:50000,method:'nequi',replayed:true,issuance:'issued'}})});
+  });
+  const form=page.locator('[data-pos-manual-form]');
+  await fillManualQuote(form);
+  await form.getByRole('button',{name:'Revisar pedido manual'}).click();
+  await expect(form.locator('[data-pos-manual-preview]')).toContainText('50.000 COP');
+  await form.getByRole('button',{name:'Confirmar y crear pedido'}).click();
+  await expect(page.locator('[data-pos-manual]')).toContainText('Revisa una cotización nueva');
+  await expect(form.locator('[data-pos-manual-preview]')).toBeEmpty();
+  expect(calls.map(x=>x.action)).toEqual(['manual_quote','manual_order']);
+  await form.getByRole('button',{name:'Revisar pedido manual'}).click();
+  await expect(form.locator('[data-pos-manual-preview]')).toContainText('60.000 COP');
+  await expect(form.locator('[data-pos-manual-preview]')).toContainText('Etapa General');
+  expect(orders).toBe(1);
+  await form.getByRole('button',{name:'Confirmar y crear pedido'}).click();
+  await expect(page.locator('[data-pos-manual]')).toContainText('Pedido #125 recuperado');
+  await expect(page.locator('[data-pos-manual-receipt]')).toContainText('50000 COP');
+  await expect(form.locator('[data-pos-manual-preview]')).toBeEmpty();
+  expect(calls[1].quote_token).not.toBe(calls[3].quote_token);
+  expect(calls.map(x=>x.action)).toEqual(['manual_quote','manual_order','manual_quote','manual_order']);
+  expect(calls.every(x=>x.idempotency_key===calls[0].idempotency_key)).toBeTruthy();
+});
+
+test('2286 cotización vencida antes del clic nunca envía manual_order',async({page})=>{
+  const calls=[];
+  await setup(page,route=>{
+    const body=route.request().postDataJSON();calls.push(body);
+    expect(body.action).toBe('manual_quote');
+    return quoteFixture(route,body);
+  });
+  const form=page.locator('[data-pos-manual-form]');
+  await fillManualQuote(form);
+  await form.getByRole('button',{name:'Revisar pedido manual'}).click();
+  await expect(form.getByRole('button',{name:'Confirmar y crear pedido'})).toBeVisible();
+  await page.clock.setFixedTime(new Date(Date.now()+180000));
+  await form.getByRole('button',{name:'Confirmar y crear pedido'}).click();
+  await expect(page.locator('[data-pos-manual]')).toContainText('La cotización venció');
+  await expect(form.locator('[data-pos-manual-preview]')).toBeEmpty();
+  expect(calls.map(x=>x.action)).toEqual(['manual_quote']);
+});
+
+test('2286 respuesta de cotización tardía no confirma datos editados',async({page})=>{
+  let release,received=false;
+  const delayed=new Promise(resolve=>{release=resolve;});
+  await setup(page,async route=>{
+    const body=route.request().postDataJSON();expect(body.action).toBe('manual_quote');
+    received=true;await delayed;return quoteFixture(route,body);
+  });
+  const form=page.locator('[data-pos-manual-form]');
+  await fillManualQuote(form);
+  await form.getByRole('button',{name:'Revisar pedido manual'}).click();
+  await expect.poll(()=>received).toBeTruthy();
+  await form.locator('[name="manual_quantity"]').fill('3');
+  release();
+  await expect(page.locator('[data-pos-manual]')).toContainText('Los datos cambiaron');
+  await expect(form.locator('[data-pos-manual-preview]')).toBeEmpty();
+  await expect(form.getByRole('button',{name:'Revisar pedido manual'})).toBeEnabled();
+});
+
+test('2286 respuesta inválida no habilita confirmación; tarifa base explícita',async({page})=>{
+  const calls=[];
+  const responses=[{amount_cop:1},{quote_token:''},{source:'door'},
+    {source:'base',stage_code:null}];
+  await setup(page,route=>{
+    const body=route.request().postDataJSON();calls.push(body.action);
+    expect(body.action).toBe('manual_quote');
+    return quoteFixture(route,body,responses.shift());
+  });
+  const form=page.locator('[data-pos-manual-form]');
+  await fillManualQuote(form);
+  for(let i=0;i<3;i++){
+    await form.getByRole('button',{name:'Revisar pedido manual'}).click();
+    await expect(page.locator('[data-pos-manual]')).toContainText('No hay cotización válida');
+    await expect(form.locator('[data-pos-manual-preview]')).toBeEmpty();
+    await expect(form.getByRole('button',{name:'Confirmar y crear pedido'})).toHaveCount(0);
+  }
+  await form.getByRole('button',{name:'Revisar pedido manual'}).click();
+  await expect(form.locator('[data-pos-manual-preview]')).toContainText('Precio base');
+  expect(calls).toEqual(Array(4).fill('manual_quote'));
+});

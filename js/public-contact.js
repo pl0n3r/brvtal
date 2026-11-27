@@ -298,6 +298,20 @@
     first?.focus?.();
   }
 
+  // One random intent per message attempt (#2321): retries of the same content reuse
+  // it so the server never stores a message twice; editing starts a new intent.
+  const contactIntents = new WeakMap();
+  function contactIntentKey(form) {
+    let key = contactIntents.get(form);
+    if (!key) {
+      const bytes = new Uint8Array(16);
+      crypto.getRandomValues(bytes);
+      key = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+      contactIntents.set(form, key);
+    }
+    return key;
+  }
+
   async function submitContact(event) {
     event.preventDefault();
     const form = event.currentTarget;
@@ -311,11 +325,12 @@
       const response = await fetch(endpoint, {
         method:'POST',
         credentials:'same-origin',
-        headers:{'Content-Type':'application/json','Accept':'application/json'},
+        headers:{'Content-Type':'application/json','Accept':'application/json','Idempotency-Key':contactIntentKey(form)},
         body:JSON.stringify(payload)
       });
       const data = await response.json().catch(() => ({}));
       if (response.ok && data.ok !== false) {
+        contactIntents.delete(form);
         form.reset();
         setStatus(form, 'status.sent', 'success');
         await loadChallenge(form);
@@ -332,6 +347,7 @@
         setStatus(form, 'status.rate_limited', 'error', {seconds});
         return;
       }
+      if (response.status === 409) contactIntents.delete(form);
       setStatus(form, 'status.channel_unavailable', 'error');
     } catch (_) {
       // Expected fetch/parse failures are represented only by localized UI state.
@@ -358,6 +374,7 @@
     if (form && !form.dataset.bound) {
       form.dataset.bound = '1';
       form.addEventListener('submit', submitContact);
+      form.addEventListener('input', () => contactIntents.delete(form));
       loadChallenge(form).catch(() => setStatus(form, 'status.captcha_unavailable', 'error'));
     }
 

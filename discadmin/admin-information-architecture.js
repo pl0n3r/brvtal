@@ -44,9 +44,9 @@
   const ROUTE_PARAM = 'module';
   const routeSections = new Set([
     'dashboard','events','artists','releases','sets','blog','pages','media','seo','hero-slider',
-    'theme','settings','security','system','backups','activity','ticketing'
+    'theme','settings','security','system','backups','activity','ticketing','forms'
   ]);
-  const dynamicModuleSections = new Set(['media','releases','blog','seo']);
+  const dynamicModuleSections = new Set(['media','releases','blog','seo','forms']);
   const normalize = value => String(value || '').trim().toUpperCase().replace(/\s+/g, ' ');
   const exactNavLabelKeys = new Map([
     ['DASHBOARD', 'dashboard'],
@@ -292,7 +292,8 @@
       {key:'media', label:'MULTIMEDIA', route:'media'},
       {key:'hero-slider', label:'BANNERS', route:'hero-slider'},
       {key:'theme', label:'APARIENCIA', route:'theme'},
-      {key:'seo', label:'SEO', route:'seo'}
+      {key:'seo', label:'SEO', route:'seo'},
+      {key:'forms', label:'FORMULARIOS', route:'forms'}
     ]},
     {key:'settings', label:'CONFIGURACIÓN', children:[
       {key:'settings:general', label:'GENERAL', route:'settings', settings:'general'},

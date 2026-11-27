@@ -71,6 +71,7 @@ $expectedIds = [
     'contact_capture',
     'contact_delivery',
     'contact_rate_limit',
+    'form_entry_management',
     'internal_analytics_events',
     'legacy_admin_activity_ip',
     'privacy_controller_contact',
@@ -231,7 +232,7 @@ $contactApi = privacy_text('api/contact.php');
 $contactConfig = privacy_text('config/public_contact.php');
 $capture = privacy_treatment($data, 'contact_capture');
 privacy_expect($capture['fields'] === ['name','email','subject','message','entry_id','form_key','version_number','definition_sha256','idempotency_digest','created_at_utc','purpose_key','notice_version','retention_policy_key','retention_until_utc','state','redacted_at_utc','action_key'], 'contact capture fields drifted');
-privacy_expect($capture['basis'] === 'review_required' && $capture['retention'] === 'review_required' && $capture['consent'] === 'review_required' && $capture['providers'] === [], 'capture remains pending legal review');
+privacy_expect($capture['basis'] === 'review_required' && $capture['retention'] === 'contact_capture_24m' && $capture['consent'] === 'review_required' && $capture['providers'] === [], 'capture keeps basis/consent pending; retention is the owner-approved 24 months (#2321)');
 require_once __DIR__ . '/../config/form_entries.php';
 privacy_expect(brvtal_contact_capture_policy([]) === null, 'capture is off by default');
 try {
@@ -242,6 +243,12 @@ try {
 }
 privacy_expect(str_contains($contactApi, 'brvtal_contact_capture_policy($config) !== null') && str_contains($contactApi, 'brvtal_contact_capture(db()'), 'database capture requires explicit policy gate');
 privacy_expect(str_contains($contactConfig, 'return @mail('), 'contact flow must still use host mail transport without inventing a provider');
+
+$management = privacy_treatment($data, 'form_entry_management');
+privacy_expect($management['fields'] === ['entry_id', 'revision', 'workflow_state', 'action_kind', 'actor_admin_id', 'created_at_utc', 'note_text'], 'form management metadata and internal notes must be documented');
+privacy_expect($management['category'] === 'contact' && $management['purpose'] === 'form_entry_management'
+    && $management['basis'] === 'review_required' && $management['retention'] === 'review_required'
+    && $management['consent'] === 'review_required' && $management['providers'] === [], 'form management remains legally unapproved');
 
 $contactRate = privacy_treatment($data, 'contact_rate_limit');
 privacy_expect($contactRate['fields'] === ['client_key_hash','timestamps'], 'contact rate limit must document hash and timestamps only');

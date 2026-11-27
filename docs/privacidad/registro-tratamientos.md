@@ -122,7 +122,7 @@ Producto: `pl0n3r/brvtal`
 - Base documentada: `review_required` (revisión jurídica requerida)
 - Consentimiento: `review_required`
 - Proveedores: ninguno_declarado
-- Retención: `review_required`
+- Retención: `contact_capture_24m`
 
 ## contact_delivery
 
@@ -139,6 +139,16 @@ Producto: `pl0n3r/brvtal`
 - Categoría: `usage`
 - Campos de software: `client_key_hash`, `timestamps`
 - Finalidad: `contact_abuse_prevention`
+- Base documentada: `review_required` (revisión jurídica requerida)
+- Consentimiento: `review_required`
+- Proveedores: ninguno_declarado
+- Retención: `review_required`
+
+## form_entry_management
+
+- Categoría: `contact`
+- Campos de software: `entry_id`, `revision`, `workflow_state`, `action_kind`, `actor_admin_id`, `created_at_utc`, `note_text`
+- Finalidad: `form_entry_management`
 - Base documentada: `review_required` (revisión jurídica requerida)
 - Consentimiento: `review_required`
 - Proveedores: ninguno_declarado

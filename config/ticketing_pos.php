@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/ticketing_staff_permissions.php';
 require_once __DIR__ . '/ticketing_admin_actions.php';
 require_once __DIR__ . '/ticketing_inventory.php';
+require_once __DIR__ . '/ticketing_stages.php';
 require_once __DIR__ . '/ticketing_issue.php';
 
 /** T24: only authorized financial staff in a disposable integration database. */
@@ -18,12 +19,13 @@ function brvtalPosInt(mixed $value, int $min = 1, int $max = 1000000000): int {
     }
     return (int)$value;
 }
-/** Exact action shapes, no client-provided amount, buyer, provider proof or event status. */
+/** Exact action shapes; only manual orders accept an evidenced received amount. */
 function brvtalPosInput(array $raw): array {
     $shape = [
         'open'=>['action','event_id','opening_cash_cop'],
         'shift_status'=>['action','event_id'],
         'manual_intent'=>['action','idempotency_key'],
+        'manual_quote'=>['action','event_id','ticket_type_id','quantity','idempotency_key'],
         'manual_order'=>['action','event_id','ticket_type_id','quantity','buyer_name',
             'buyer_email','method','payment_reference','idempotency_key','confirm'],
         'prepare'=>['action','shift_id','ticket_type_id','quantity','method','idempotency_key'],
@@ -36,11 +38,15 @@ function brvtalPosInput(array $raw): array {
     $keys=array_keys($raw); sort($keys);
     $expected=$shape[$action];
     if ($action==='confirm' && array_key_exists('buyer_email',$raw)) $expected[]='buyer_email';
+    if ($action==='manual_order' && array_key_exists('quote_token',$raw)) $expected[]='quote_token';
+    if ($action==='manual_order' && array_key_exists('received_amount_cop',$raw)) {
+        $expected=array_merge($expected,['received_amount_cop','received_reason','received_reference']);
+    }
     sort($expected);
     if ($keys!==$expected) throw new InvalidArgumentException('POS_INVALID_FIELDS');
     $result=['action'=>$action];
     foreach (['event_id','shift_id','ticket_type_id','quantity','sale_id'] as $name) {
-        if (isset($raw[$name])) $result[$name]=brvtalPosInt($raw[$name],1,$name==='quantity'?10:1000000000);
+        if (array_key_exists($name,$raw)) $result[$name]=brvtalPosInt($raw[$name],1,$name==='quantity'?10:1000000000);
     }
     foreach (['opening_cash_cop','closing_cash_cop'] as $name) {
         if (isset($raw[$name])) $result[$name]=brvtalPosInt($raw[$name],0,1000000000);
@@ -57,7 +63,7 @@ function brvtalPosInput(array $raw): array {
         $result['method']=$raw['method'];
         $result['idempotency_key']=$raw['idempotency_key'];
     }
-    if ($action==='manual_intent') {
+    if (in_array($action,['manual_intent','manual_quote'],true)) {
         $key=$raw['idempotency_key'];
         if (!is_string($key) || !preg_match('/^[A-Za-z0-9_-]{20,64}$/D', $key)) {
             throw new InvalidArgumentException('POS_INVALID_MANUAL_INTENT');
@@ -88,10 +94,32 @@ function brvtalPosInput(array $raw): array {
         $result+=['buyer_name'=>$name,'buyer_email'=>strtolower($email),
             'method'=>$method,'payment_reference'=>$reference,
             'idempotency_key'=>$key,'confirm'=>true];
+        if (array_key_exists('received_amount_cop',$raw)) {
+            // Zero is a separate courtesy flow. Preserve the existing integer-COP
+            // unit × quantity invariant rather than silently rounding a receipt.
+            $received=brvtalPosInt($raw['received_amount_cop']);
+            $reason=$raw['received_reason'];
+            $evidence=$raw['received_reference'];
+            if ($received % $result['quantity']!==0
+                || !is_string($reason) || strlen(trim($reason))<3 || strlen($reason)>80
+                || preg_match('//u',$reason)!==1 || preg_match('/[\x00-\x1f\x7f|]/',$reason)
+                || !is_string($evidence)
+                || !preg_match('/^[A-Za-z0-9][A-Za-z0-9 ._\/-]{3,63}$/D',$evidence)) {
+                throw new InvalidArgumentException('POS_INVALID_RECEIVED_EVIDENCE');
+            }
+            $result+=['received_amount_cop'=>$received,'received_reason'=>trim($reason),
+                'received_reference'=>$evidence];
+        }
+        if (array_key_exists('quote_token',$raw)) {
+            if (!is_string($raw['quote_token']) || !preg_match('/^[0-9]{10}[.][a-f0-9]{64}$/D',$raw['quote_token'])) {
+                throw new InvalidArgumentException('POS_INVALID_QUOTE');
+            }
+            $result['quote_token']=$raw['quote_token'];
+        }
     }
     if ($action==='confirm' || $action==='cancel') {
         if (!is_string($raw['confirmation_token'])
-            || !preg_match('/^[a-f0-9]{48}$/D',$raw['confirmation_token'])) {
+            || !preg_match('/^(?:[a-f0-9]{48}|[a-f0-9]{112})$/D',$raw['confirmation_token'])) {
             throw new InvalidArgumentException('POS_INVALID_CONFIRMATION');
         }
         $result['confirmation_token']=$raw['confirmation_token'];
@@ -110,9 +138,9 @@ function brvtalPosInput(array $raw): array {
     }
     return $result;
 }
-function brvtalPosRun(PDO $db, int $actor, string $role, array $raw): array {
+function brvtalPosRun(PDO $db, int $actor, string $role, array $raw, ?string $quoteKey=null): array {
     $input=brvtalPosInput($raw);
-    $manual=in_array($input['action'], ['manual_order', 'manual_intent'], true);
+    $manual=in_array($input['action'], ['manual_order', 'manual_intent', 'manual_quote'], true);
     $isOwner=in_array(strtolower(trim($role)),
         ['superadmin','root','owner','platform_owner'],true);
     if ($actor<1 || ($manual ? !$isOwner : !brvtalPosCan($role))) {
@@ -134,7 +162,8 @@ function brvtalPosRun(PDO $db, int $actor, string $role, array $raw): array {
     try {
         $result=match($input['action']) {
             'open'=>brvtalPosOpen($db,$actor,$input),
-            'manual_order'=>brvtalPosManualOrder($db,$actor,$input),
+            'manual_quote'=>brvtalPosManualQuote($db,$actor,$input,$quoteKey),
+            'manual_order'=>brvtalPosManualOrder($db,$actor,$input,$quoteKey),
             'prepare'=>brvtalPosPrepare($db,$actor,$input),
             'confirm'=>brvtalPosConfirm($db,$actor,$input),
             'cancel'=>brvtalPosCancel($db,$actor,$input),
@@ -227,46 +256,129 @@ function brvtalPosOpen(PDO $db,int $actor,array $i): array {
     $insert->execute([$i['event_id'],$actor,$i['opening_cash_cop']]);
     return ['shift_id'=>(int)$db->lastInsertId(),'status'=>'open','cash_cop'=>$i['opening_cash_cop']];
 }
+/** Event first: all inventory and stage decisions share the T05 mutex. */
+function brvtalPosEventLock(PDO $db,int $event): array {
+    $q=$db->prepare('SELECT e.id,e.status,e.event_date,e.published_at,l.capacity
+        FROM events e LEFT JOIN ticket_inventory_events l ON l.event_id=e.id
+        WHERE e.id=? FOR UPDATE');
+    $q->execute([$event]);
+    $row=$q->fetch(PDO::FETCH_ASSOC);
+    if (!$row) throw new DomainException('POS_EVENT_UNAVAILABLE');
+    return $row;
+}
+function brvtalPosChannelQuote(PDO $db,int $event,int $type,int $quantity,string $channel): array {
+    if (!$db->inTransaction()) throw new LogicException('POS_TRANSACTION_REQUIRED');
+    $e=brvtalPosEventLock($db,$event);
+    $q=$db->prepare('SELECT t.name,t.price,t.door_price_cop,t.currency,t.status,t.available_from,
+        t.available_until,l.capacity FROM event_ticket_types t
+        LEFT JOIN ticket_inventory_types l ON l.ticket_type_id=t.id AND l.event_id=t.event_id
+        WHERE t.id=? AND t.event_id=? FOR UPDATE');
+    $q->execute([$type,$event]);$t=$q->fetch(PDO::FETCH_ASSOC);
+    if (!$t) throw new DomainException('POS_TYPE_UNAVAILABLE');
+    $q=$db->prepare('SELECT code,price_cop,cumulative_capacity,opens_at_local,closes_at_local
+        FROM ticket_type_stages WHERE event_id=? AND ticket_type_id=? FOR UPDATE');
+    $q->execute([$event,$type]);$stages=$q->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($stages as &$stage) {
+        $stage['price_cop']=(int)$stage['price_cop'];
+        $stage['cumulative_capacity']=(int)$stage['cumulative_capacity'];
+    }
+    unset($stage);
+    $clock=brvtal_ticket_inventory_now();
+    if (!brvtal_ticket_inventory_saleable($e,$t,$clock)) throw new DomainException('INVENTORY_NOT_SALEABLE');
+    if ($e['capacity']===null || $t['capacity']===null) throw new DomainException('INVENTORY_NOT_CONFIGURED');
+    if (getenv('BRVTAL_TICKET_REFUNDS_POLICY_ENABLED')==='1') {
+        $q=$db->prepare('SELECT 1 FROM ticket_refund_event_decisions WHERE event_id=? LIMIT 1');
+        $q->execute([$event]);
+        if ($q->fetchColumn()) throw new DomainException('INVENTORY_NOT_SALEABLE');
+    }
+    $utc=$clock->format('Y-m-d H:i:s.u');
+    $used=array_sum(brvtal_ticket_inventory_usage($db,$event,$type,$utc));
+    $eventFree=max(0,(int)$e['capacity']-array_sum(brvtal_ticket_inventory_usage($db,$event,0,$utc)));
+    $typeFree=max(0,(int)$t['capacity']-$used);
+    $free=min($eventFree,$typeFree);
+    if ($free<$quantity) throw new DomainException('INVENTORY_SOLD_OUT');
+    $base=is_string($t['price'])&&preg_match('/^[0-9]{1,9}[.]00$/D',$t['price'])?(int)$t['price']:null;
+    $door=$t['door_price_cop']===null?null:(int)$t['door_price_cop'];
+    $quote=brvtalTicketChannelQuote($channel,$stages,$base,$door,$used,$quantity,$free,$clock);
+    $stageFree=$typeFree;
+    foreach ($stages as $stage) {
+        if ($stage['code']===$quote['code']) $stageFree=$stage['cumulative_capacity']-$used;
+    }
+    return $quote+['event_free'=>$eventFree,'type_free'=>$typeFree,'stage_free'=>$stageFree,
+        'name'=>$t['name']];
+}
+function brvtalPosQuoteFingerprint(int $actor,string $channel,int $event,int $type,int $quantity,
+    string $intent,array $q): string {
+    return hash('sha256',json_encode([$actor,$channel,$event,$type,$quantity,$intent,
+        $q['unit_price_cop'],$q['subtotal_cop'],$q['source'],$q['code'],
+        $q['event_free'],$q['type_free'],$q['stage_free']],JSON_THROW_ON_ERROR));
+}
+function brvtalPosQuoteProof(?string $key,int $expiry,string $fingerprint): string {
+    if ($key===null || strlen($key)!==32) throw new DomainException('POS_QUOTE_REQUIRED');
+    return $expiry.'.'.hash_hmac('sha256','brvtal:pos:manual:v1:'.$expiry.':'.$fingerprint,$key);
+}
+function brvtalPosManualQuote(PDO $db,int $actor,array $i,?string $key): array {
+    $q=$db->prepare('SELECT id FROM admins WHERE id=? AND is_active=1 FOR UPDATE');
+    $q->execute([$actor]);
+    if ($q->fetchColumn()===false) throw new DomainException('FORBIDDEN');
+    $quote=brvtalPosChannelQuote($db,$i['event_id'],$i['ticket_type_id'],$i['quantity'],'manual');
+    $intent=hash('sha256','manual-order:'.$actor.':'.$i['idempotency_key']);
+    $fingerprint=brvtalPosQuoteFingerprint($actor,'manual',$i['event_id'],$i['ticket_type_id'],$i['quantity'],$intent,$quote);
+    $expiry=time()+120;
+    return ['channel'=>'manual','unit_price_cop'=>$quote['unit_price_cop'],'amount_cop'=>$quote['subtotal_cop'],
+        'source'=>$quote['source'],'stage_code'=>$quote['code'],'expires_at_utc'=>gmdate('Y-m-d\TH:i:s\Z',$expiry),
+        'quote_token'=>brvtalPosQuoteProof($key,$expiry,$fingerprint)];
+}
+function brvtalPosQuoteRecheck(PDO $db,int $event,int $type,int $quantity,string $channel): array {
+    try {return brvtalPosChannelQuote($db,$event,$type,$quantity,$channel);}
+    catch (DomainException) {throw new DomainException('POS_QUOTE_CHANGED');}
+}
+
 function brvtalPosPrepare(PDO $db,int $actor,array $i): array {
+    $lookup=$db->prepare('SELECT event_id FROM ticket_pos_shifts WHERE id=? AND operator_admin_id=?');
+    $lookup->execute([$i['shift_id'],$actor]);$event=$lookup->fetchColumn();
+    if ($event===false) throw new DomainException('POS_SHIFT_UNAVAILABLE');
+    brvtalPosEventLock($db,(int)$event);
     $shift=brvtalPosShift($db,$actor,$i['shift_id']);
     if ($i['method']==='wompi_qr') throw new DomainException('POS_PROVIDER_PROOF_REQUIRED');
     if ($i['method']==='transfer') throw new DomainException('POS_TRANSFER_RULES_REQUIRED');
-    $type=$db->prepare('SELECT id,event_id,name,price,currency,status FROM event_ticket_types WHERE id=? AND event_id=?');
-    $type->execute([$i['ticket_type_id'],(int)$shift['event_id']]);
-    $row=$type->fetch(PDO::FETCH_ASSOC);
-    if (!$row || $row['status']!=='active' || $row['currency']!=='COP'
-        || !is_string($row['price']) || !preg_match('/^[0-9]{1,9}\.00$/D',$row['price'])) {
-        throw new DomainException('POS_TYPE_UNAVAILABLE');
-    }
-    $unit=(int)$row['price']; $amount=$unit*$i['quantity'];
-    if ($unit<1 || $amount>1000000000) throw new DomainException('POS_AMOUNT_INVALID');
     $key=hash('sha256',$actor.':'.$i['idempotency_key']);
     $digest=hash('sha256',json_encode([$i['shift_id'],$i['ticket_type_id'],$i['quantity'],$i['method']],JSON_THROW_ON_ERROR));
-    $check=$db->prepare('SELECT id,request_hash,status FROM ticket_pos_sales WHERE request_key_hash=? FOR UPDATE');
+    $check=$db->prepare('SELECT id,request_hash,status,amount_cop FROM ticket_pos_sales WHERE request_key_hash=? FOR UPDATE');
     $check->execute([$key]); $old=$check->fetch(PDO::FETCH_ASSOC);
     if ($old) {
         if (!hash_equals((string)$old['request_hash'],$digest)) throw new DomainException('POS_IDEMPOTENCY_CONFLICT');
-        return ['sale_id'=>(int)$old['id'],'status'=>$old['status'],'replayed'=>true,'confirmation_token'=>null];
+        return ['sale_id'=>(int)$old['id'],'status'=>$old['status'],'amount_cop'=>(int)$old['amount_cop'],
+            'replayed'=>true,'confirmation_token'=>null];
     }
-    $token=bin2hex(random_bytes(24));
+    $quote=brvtalPosChannelQuote($db,(int)$shift['event_id'],$i['ticket_type_id'],$i['quantity'],'door');
+    $unit=$quote['unit_price_cop'];$amount=$quote['subtotal_cop'];
+    $fingerprint=brvtalPosQuoteFingerprint($actor,'door',(int)$shift['event_id'],$i['ticket_type_id'],$i['quantity'],$key,$quote);
+    $token=bin2hex(random_bytes(24)).$fingerprint;
     $ins=$db->prepare("INSERT INTO ticket_pos_sales
         (shift_id,event_id,operator_admin_id,ticket_type_id,quantity,unit_price_cop,amount_cop,method,
-          request_key_hash,request_hash,confirmation_hash,expires_at_utc)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 120 SECOND))");
+          request_key_hash,request_hash,confirmation_hash,expires_at_utc,quote_source,quote_stage_code,quote_channel)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 120 SECOND),?,?,'door')");
     $ins->execute([$i['shift_id'],(int)$shift['event_id'],$actor,$i['ticket_type_id'],$i['quantity'],
-        $unit,$amount,$i['method'],$key,$digest,hash('sha256',$token)]);
+        $unit,$amount,$i['method'],$key,$digest,hash('sha256',$token),$quote['source'],$quote['code']]);
     return ['sale_id'=>(int)$db->lastInsertId(),'amount_cop'=>$amount,'method'=>$i['method'],
-        'status'=>'prepared','confirmation_token'=>$token,'replayed'=>false];
+        'status'=>'prepared','confirmation_token'=>$token,'replayed'=>false,
+        'unit_price_cop'=>$unit,'source'=>$quote['source'],'stage_code'=>$quote['code']];
 }
-function brvtalPosSale(PDO $db,int $actor,array $i): array {
-    $q=$db->prepare('SELECT shift_id FROM ticket_pos_sales WHERE id=?');
-    $q->execute([$i['sale_id']]); $shift=$q->fetchColumn();
-    if ($shift===false) throw new DomainException('POS_SALE_UNAVAILABLE');
-    brvtalPosShift($db,$actor,(int)$shift);
+function brvtalPosSale(PDO $db,int $actor,array $i,bool $allowPaid=false): array {
+    $q=$db->prepare('SELECT shift_id,event_id,operator_admin_id FROM ticket_pos_sales WHERE id=?');
+    $q->execute([$i['sale_id']]);$lookup=$q->fetch(PDO::FETCH_ASSOC);
+    if (!$lookup) throw new DomainException('POS_SALE_UNAVAILABLE');
+    if ((int)$lookup['operator_admin_id']!==$actor) throw new DomainException('POS_SHIFT_UNAVAILABLE');
+    brvtalPosEventLock($db,(int)$lookup['event_id']);
+    $shift=brvtalPosShift($db,$actor,(int)$lookup['shift_id'],!$allowPaid);
     $q=$db->prepare('SELECT * FROM ticket_pos_sales WHERE id=? AND operator_admin_id=? FOR UPDATE');
-    $q->execute([$i['sale_id'],$actor]); $row=$q->fetch(PDO::FETCH_ASSOC);
-    if (!$row || $row['status']!=='prepared'
-        || !hash_equals((string)$row['confirmation_hash'],hash('sha256',$i['confirmation_token']))
+    $q->execute([$i['sale_id'],$actor]);$row=$q->fetch(PDO::FETCH_ASSOC);
+    if (!$row || !hash_equals((string)$row['confirmation_hash'],hash('sha256',$i['confirmation_token']))) {
+        throw new DomainException('POS_SALE_UNAVAILABLE');
+    }
+    if ($allowPaid && $row['status']==='paid') return $row;
+    if ($shift['status']!=='open' || $row['status']!=='prepared'
         || (string)$row['expires_at_utc']<=gmdate('Y-m-d H:i:s')) {
         throw new DomainException('POS_SALE_UNAVAILABLE');
     }
@@ -279,8 +391,23 @@ function brvtalPosCancel(PDO $db,int $actor,array $i): array {
     return ['sale_id'=>(int)$row['id'],'status'=>'cancelled','tickets'=>[]];
 }
 function brvtalPosConfirm(PDO $db,int $actor,array $i): array {
-    $row=brvtalPosSale($db,$actor,$i);
+    $row=brvtalPosSale($db,$actor,$i,true);
     if ($row['method']!=='cash') throw new DomainException('POS_PROVIDER_PROOF_REQUIRED');
+    if ($row['status']==='paid') {
+        if (!$row['order_id']) throw new DomainException('POS_SALE_UNAVAILABLE');
+        // The receipt is immutable; never mint/reveal QR credentials again on replay.
+        return ['sale_id'=>(int)$row['id'],'receipt'=>'POS-'.(int)$row['id'],'status'=>'paid',
+            'amount_cop'=>(int)$row['amount_cop'],'channel'=>'door_cash','order_id'=>(int)$row['order_id'],
+            'tickets'=>[],'replayed'=>true];
+    }
+    $quote=brvtalPosQuoteRecheck($db,(int)$row['event_id'],(int)$row['ticket_type_id'],(int)$row['quantity'],'door');
+    $fingerprint=brvtalPosQuoteFingerprint($actor,'door',(int)$row['event_id'],(int)$row['ticket_type_id'],
+        (int)$row['quantity'],$row['request_key_hash'],$quote);
+    if ((string)$row['expires_at_utc']<=gmdate('Y-m-d H:i:s') || strlen($i['confirmation_token'])!==112
+        || !hash_equals($fingerprint,substr($i['confirmation_token'],48))
+        || $row['quote_channel']!=='door' || $row['quote_source']!==$quote['source']
+        || $row['quote_stage_code']!==$quote['code'] || (int)$row['unit_price_cop']!==$quote['unit_price_cop']
+        || (int)$row['amount_cop']!==$quote['subtotal_cop']) throw new DomainException('POS_QUOTE_CHANGED');
     // A separate POS evidence row, never a forged Wompi approval or payout.
     // No marketing consent is inferred. The address is used only for the
     // transactional QR delivery after a trusted cash/terminal confirmation.
@@ -364,47 +491,55 @@ function brvtalPosClose(PDO $db,int $actor,array $i): array {
  * credentials and queues the transactional buyer email after commit.
  * Never fabricate a Wompi attempt or call an external payment provider.
  */
-function brvtalPosManualOrder(PDO $db,int $actor,array $i): array {
+function brvtalPosManualOrder(PDO $db,int $actor,array $i,?string $quoteKey): array {
     // Serialize requests from the same owner, including concurrent retries.
     $lock=$db->prepare('SELECT id FROM admins WHERE id=? AND is_active=1 FOR UPDATE');
     $lock->execute([$actor]);
     if ($lock->fetchColumn()===false) throw new DomainException('FORBIDDEN');
 
     $key=hash('sha256','manual-order:'.$actor.':'.$i['idempotency_key']);
-    $digest=hash('sha256',json_encode([
+    $request=[
         $i['event_id'],$i['ticket_type_id'],$i['quantity'],$i['buyer_name'],
         $i['buyer_email'],$i['method'],$i['payment_reference']
-    ],JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE));
-    $old=$db->prepare('SELECT id,status FROM ticket_orders WHERE checkout_key_hash=? FOR UPDATE');
+    ];
+    // Keep pre-existing order digests byte-for-byte compatible.
+    if (isset($i['received_amount_cop'])) {
+        $request[]=[$i['received_amount_cop'],$i['received_reason'],$i['received_reference']];
+    }
+    $digest=hash('sha256',json_encode($request,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE));
+    brvtalPosEventLock($db,$i['event_id']);
+    $old=$db->prepare('SELECT id,status,total_cop FROM ticket_orders WHERE checkout_key_hash=? FOR UPDATE');
     $old->execute([$key]);
     $prior=$old->fetch(PDO::FETCH_ASSOC);
     if ($prior) {
         $q=$db->prepare('SELECT s.id,s.amount_cop,n.note_text FROM ticket_pos_sales s
             JOIN ticket_order_notes n ON n.order_id=s.order_id AND n.actor_admin_id=s.operator_admin_id
-            WHERE s.order_id=? AND s.operator_admin_id=?
+            JOIN ticket_order_items i ON i.order_id=s.order_id AND i.event_id=s.event_id
+                AND i.ticket_type_id=s.ticket_type_id AND i.quantity=s.quantity
+                AND i.unit_price_cop=s.unit_price_cop AND i.subtotal_cop=s.amount_cop
+            WHERE s.order_id=? AND s.operator_admin_id=? AND s.status=\'paid\'
               AND n.note_text LIKE ? LIMIT 1 FOR UPDATE');
         $q->execute([(int)$prior['id'],$actor,'%|'.$digest]);
         $receipt=$q->fetch(PDO::FETCH_ASSOC);
-        if (!$receipt || !str_ends_with((string)$receipt['note_text'],'|'.$digest)) {
+        if (!$receipt || (int)$receipt['amount_cop']!==(int)$prior['total_cop']
+            || !str_ends_with((string)$receipt['note_text'],'|'.$digest)) {
             throw new DomainException('POS_IDEMPOTENCY_CONFLICT');
         }
-        return ['order_id'=>(int)$prior['id'],'status'=>$prior['status'],
-            'amount_cop'=>(int)$receipt['amount_cop'],'issuance_queued'=>true,
+        return ['order_id'=>(int)$prior['id'],'sale_id'=>(int)$receipt['id'],'status'=>$prior['status'],
+            'amount_cop'=>(int)$receipt['amount_cop'],'method'=>$i['method'],'issuance_queued'=>true,
             'replayed'=>true];
     }
 
-    $type=$db->prepare('SELECT id,event_id,name,price,currency,status
-        FROM event_ticket_types WHERE id=? AND event_id=?');
-    $type->execute([$i['ticket_type_id'],$i['event_id']]);
-    $ticket=$type->fetch(PDO::FETCH_ASSOC);
-    if (!$ticket || $ticket['status']!=='active' || $ticket['currency']!=='COP'
-        || !is_string($ticket['price'])
-        || !preg_match('/^[0-9]{1,9}\.00$/D',$ticket['price'])) {
-        throw new DomainException('POS_TYPE_UNAVAILABLE');
+    if (!isset($i['quote_token'])) throw new DomainException('POS_QUOTE_REQUIRED');
+    $expiry=(int)substr($i['quote_token'],0,10);
+    if ($expiry<=time() || $expiry>time()+120) throw new DomainException('POS_QUOTE_CHANGED');
+    $quote=brvtalPosQuoteRecheck($db,$i['event_id'],$i['ticket_type_id'],$i['quantity'],'manual');
+    $fingerprint=brvtalPosQuoteFingerprint($actor,'manual',$i['event_id'],$i['ticket_type_id'],$i['quantity'],$key,$quote);
+    if ($expiry<=time() || !hash_equals(brvtalPosQuoteProof($quoteKey,$expiry,$fingerprint),$i['quote_token'])) {
+        throw new DomainException('POS_QUOTE_CHANGED');
     }
-    $unit=(int)$ticket['price'];
-    $amount=$unit*$i['quantity'];
-    if ($unit<1 || $amount>1000000000) throw new DomainException('POS_AMOUNT_INVALID');
+    $amount=$i['received_amount_cop']??$quote['subtotal_cop'];
+    $unit=isset($i['received_amount_cop'])?intdiv($amount,$i['quantity']):$quote['unit_price_cop'];
 
     // Never infer marketing consent from an offline ticket sale.
     $buyer=$db->prepare('INSERT INTO ticket_buyers(public_id,email,full_name,status)
@@ -420,7 +555,7 @@ function brvtalPosManualOrder(PDO $db,int $actor,array $i): array {
     $db->prepare("INSERT INTO ticket_order_items
         (order_id,event_id,ticket_type_id,ticket_name_snapshot,quantity,unit_price_cop,subtotal_cop,currency)
         VALUES (?,?,?,?,?,?,?,'COP')")
-        ->execute([$orderId,$i['event_id'],$i['ticket_type_id'],$ticket['name'],
+        ->execute([$orderId,$i['event_id'],$i['ticket_type_id'],$quote['name'],
             $i['quantity'],$unit,$amount]);
 
     // Inventory holds lock the Event row and revalidate saleability/aforo.
@@ -442,17 +577,25 @@ function brvtalPosManualOrder(PDO $db,int $actor,array $i): array {
     $db->prepare("INSERT INTO ticket_pos_sales
         (shift_id,event_id,operator_admin_id,ticket_type_id,order_id,
          quantity,unit_price_cop,amount_cop,method,status,request_key_hash,
-         request_hash,confirmation_hash,expires_at_utc,completed_at_utc)
-        VALUES (?,?,?,?,?,?,?,?,?,'paid',?,?,?,DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 120 SECOND),UTC_TIMESTAMP(6))")
+         request_hash,confirmation_hash,expires_at_utc,completed_at_utc,quote_source,quote_stage_code,quote_channel)
+        VALUES (?,?,?,?,?,?,?,?,?,'paid',?,?,?,DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 120 SECOND),UTC_TIMESTAMP(6),?,?,'manual')")
         ->execute([$shiftId,$i['event_id'],$actor,$i['ticket_type_id'],$orderId,
             $i['quantity'],$unit,$amount,$posMethod,hash('sha256','pos:'.$key),
-            $digest,hash('sha256',random_bytes(24))]);
+            $digest,hash('sha256',random_bytes(24)),$quote['source'],$quote['code']]);
     $saleId=(int)$db->lastInsertId();
     // Exact method, bank reference and request digest are durable auditable
     // owner evidence, separate from Wompi and without QR secrets.
     $db->prepare('INSERT INTO ticket_order_notes(order_id,actor_admin_id,note_text)
         VALUES (?,?,?)')->execute([$orderId,$actor,
             'manual-payment|'.$i['method'].'|'.$i['payment_reference'].'|'.$digest]);
+    if (isset($i['received_amount_cop'])) {
+        // Separate immutable evidence preserves legacy payment verification and
+        // records both the binding tariff and the actual received amount.
+        $db->prepare('INSERT INTO ticket_order_notes(order_id,actor_admin_id,note_text)
+            VALUES (?,?,?)')->execute([$orderId,$actor,
+                'manual-received|'.$digest.'|'.$quote['subtotal_cop'].'|'.$amount.'|'.
+                $i['received_reference'].'|'.$i['received_reason']]);
+    }
 
     brvtal_ticket_pos_enqueue($db,$orderId);
     return ['order_id'=>$orderId,'sale_id'=>$saleId,'status'=>'paid',

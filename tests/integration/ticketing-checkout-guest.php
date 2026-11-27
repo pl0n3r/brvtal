@@ -101,7 +101,7 @@ foreach ([
         buyer_id BIGINT UNSIGNED NOT NULL,session_hash CHAR(64) NOT NULL UNIQUE,
         issued_epoch BIGINT UNSIGNED NOT NULL,expires_at_utc DATETIME(6) NOT NULL,
         revoked_at_utc DATETIME(6) NULL) ENGINE=InnoDB",
-    "CREATE TABLE events (id INT UNSIGNED PRIMARY KEY,status VARCHAR(32),event_date DATETIME,published_at DATETIME,title VARCHAR(180),venue VARCHAR(180))",
+    "CREATE TABLE events (id INT UNSIGNED PRIMARY KEY,status VARCHAR(32),event_date DATETIME,published_at DATETIME,title VARCHAR(180),venue VARCHAR(180),slug VARCHAR(180) DEFAULT 'fixture-event')",
     "CREATE TABLE event_ticket_types (id INT UNSIGNED PRIMARY KEY,event_id INT UNSIGNED,name VARCHAR(120) NOT NULL,
         price INT UNSIGNED NOT NULL,sort_order INT NOT NULL DEFAULT 0,status VARCHAR(32),currency VARCHAR(3),
         available_from DATETIME,available_until DATETIME)",
@@ -510,7 +510,7 @@ guestAssert($memberCookie !== $guestCookie, 'independent verified and guest cook
 // Copy only reviewed source files, never local config, storage, or credentials.
 $source = dirname(__DIR__, 2);
 $fixtureRoot = $httpDirectory . '/site';
-foreach (['/config', '/api/ticketing', '/storage', '/templates/ticketing'] as $directory) {
+foreach (['/config', '/api/ticketing', '/storage', '/templates/ticketing', '/buyer', '/js'] as $directory) {
     guestAssert(mkdir($fixtureRoot . $directory, 0700, true), 'create private fixture subtree');
 }
 $fixtureSources = [
@@ -530,6 +530,7 @@ $fixtureSources = [
     'config/buyer_auth_mail_templates.php', 'config/ticketing_staff_permissions.php',
     'config/ticketing_mail_templates.php', 'config/ticketing_mail_mode.php',
     'templates/ticketing/transactional.php', 'api/ticketing/order-status.php',
+    'buyer/purchase.php', 'js/public-order-status.js',
 ];
 foreach ($fixtureSources as $relative) {
     $input = $source . '/' . $relative;
@@ -551,13 +552,37 @@ $prefix = '<?php define("BRVTAL_SENTRY_TESTING", true); '
     . '$GLOBALS["brvtalSentryTestLogFile"] = ' . var_export($httpDirectory . '/fixture.log', true) . '; '
     . 'require ' . var_export($fixtureRoot . '/config/bootstrap.php', true) . '; '
     . 'require ' . var_export($fixtureRoot . '/config/public_ticket_checkout.php', true) . ';';
-$routerCode = <<<'PHP'
+$routerCode = <<<'PHP_WRAP'
 if ($_SERVER['REQUEST_URI'] === '/ready') {
     http_response_code(204);
     exit;
 }
 // Loopback-only fixture models HTTPS termination; never trust a client header.
 $_SERVER['HTTPS'] = 'on';
+$path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+// Only the test process controls this private fixture file, not HTTP inputs.
+$policy = __DIR__ . '/status-budget-policy';
+if (is_file($policy)) {
+    $limit = (int)file_get_contents($policy);
+    $GLOBALS['config']['ticketing']['status_rate_limit'] =
+        ['window_seconds'=>10,'origin_limit'=>$limit,'global_limit'=>$limit*2];
+}
+if ($path === '/api/ticketing/order-status.php') {
+    if (is_file(__DIR__ . '/status-db-off')) $GLOBALS['config']['db']['name'] .= '_absent';
+    require __DIR__ . '/site/api/ticketing/order-status.php';
+    exit;
+}
+if ($path === '/js/public-order-status.js') {
+    header('Content-Type: text/javascript');
+    readfile(__DIR__ . '/site/js/public-order-status.js');
+    exit;
+}
+if (preg_match('~^/compra/[a-f0-9]{32}$~D', (string)$path)) {
+    header("Content-Security-Policy: default-src 'self'; connect-src 'self'");
+    require __DIR__ . '/site/buyer/purchase.php';
+    exit;
+}
+if ($path !== '/') { http_response_code(404); exit; }
 $settings = $GLOBALS['config']['db'];
 $probe = new class(sprintf('mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4',
     $settings['host'], $settings['port'], $settings['name']), $settings['user'], $settings['pass'],
@@ -569,7 +594,7 @@ $probe = new class(sprintf('mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4',
     }
 };
 brvtal_public_ticket_checkout_http($probe, 1);
-PHP;
+PHP_WRAP;
 guestAssert(file_put_contents($router, $prefix . "\n" . $routerCode) !== false, 'write HTTP handler router');
 chmod($router, 0600);
 $socket = stream_socket_server('tcp://127.0.0.1:0', $errno, $errstr);
@@ -597,12 +622,12 @@ try {
         usleep(100000);
     }
     guestAssert($ready, 'HTTP fixture ready');
-    $send = static function (array $query, ?string $cookie = null) use ($url): array {
+    $send = static function (array $query, ?string $cookie = null, string $path = '/', bool $details = false) use ($url): array {
         $headers = ['Connection: close', 'X-BRVTAL-Ticket-Checkout: status'];
         if ($cookie !== null) $headers[] = 'Cookie: BRVTAL_BUYER=' . $cookie;
         $context = stream_context_create(['http'=>['method'=>'GET','ignore_errors'=>true,
             'timeout'=>5,'header'=>implode("\r\n", $headers)]]);
-        $response = fopen($url . '/?' . http_build_query($query), 'rb', false, $context);
+        $response = fopen($url . $path . '?' . http_build_query($query), 'rb', false, $context);
         guestAssert(is_resource($response), 'HTTP response stream');
         try {
             $received = stream_get_meta_data($response)['wrapper_data'] ?? [];
@@ -613,13 +638,21 @@ try {
         guestAssert(is_array($received), 'HTTP response headers');
         preg_match('~^HTTP/\S+ ([0-9]{3})~', (string)($received[0] ?? ''), $status);
         $normalized = array_map(strtolower(...), $received);
-        guestAssert(in_array('cache-control: private, no-store', $normalized, true),
-            'HTTP private no-store header');
+        guestAssert(in_array($path === '/' ? 'cache-control: private, no-store' : 'cache-control: no-store, private',
+            $normalized, true), 'HTTP private no-store header');
         guestAssert(in_array('referrer-policy: no-referrer', $normalized, true),
             'HTTP no-referrer header');
         guestAssert(is_string($body), 'HTTP JSON body');
-        return [(int)($status[1] ?? 0), json_decode($body, true, 512, JSON_THROW_ON_ERROR),
+        $result = [(int)($status[1] ?? 0), json_decode($body, true, 512, JSON_THROW_ON_ERROR),
             in_array('x-fixture-reconcile: yes', $normalized, true)];
+        if ($details) {
+            $retry = 0;
+            foreach ($normalized as $header) {
+                if (preg_match('/^retry-after: ([1-9][0-9]*)$/D', $header, $match)) $retry = (int)$match[1];
+            }
+            $result[] = $retry;
+        }
+        return $result;
     };
     $approved = [200, ['ok'=>true,'state'=>'approved'], false];
     $denied = [200, ['ok'=>true,'state'=>'unverified'], false];
@@ -640,6 +673,106 @@ try {
     guestAssert($send(['order_id'=>$paidOrder], $guestCookie) === $signedOut, 'HTTP expired grant session denied');
     guestAssert($send(['order_id'=>$otherGuestOrder], $guestCookie) === $signedOut,
         'HTTP expired session never reconciles pending order');
+
+    // #2219: retain #2113 baseline and exercise real budgeted endpoints.
+    if (!function_exists('brvtalTicketStatusRequireBudget')) {
+        echo "BRVTAL #2219 budget implementation absent; no budget evidence.\n";
+    } else {
+        guestAssert(function_exists('brvtalTicketStatusBudget'), 'complete budget contract');
+        $budgetFile = $fixtureRoot . '/storage/rate_limits/ticket-status.json';
+        $policyFile = $httpDirectory . '/status-budget-policy';
+        $resetBudget = static function (int $limit) use ($budgetFile,$policyFile): void {
+            if (is_file($budgetFile)) guestAssert(unlink($budgetFile), 'reset isolated status budget');
+            guestAssert(file_put_contents($policyFile,(string)$limit) !== false,'set synthetic budget');
+        };
+        $db->prepare("INSERT INTO ticket_payment_attempts(order_id,provider,provider_reference,idempotency_key_hash,
+            gross_amount_cop,status,updated_at_utc) VALUES (?,'wompi',?,SHA2('status-budget-fixture',256),
+            30000,'pending',UTC_TIMESTAMP(6)-INTERVAL 2 MINUTE)")
+            ->execute([$otherGuestOrder,'BW7-'.$otherGuestOrder.'-CARD-'.str_repeat('a',24)]);
+        $snapshot = static fn(): array => [
+            $db->query('SELECT * FROM ticket_orders ORDER BY id')->fetchAll(),
+            $db->query('SELECT * FROM ticket_payment_attempts ORDER BY id')->fetchAll(),
+            $db->query('SELECT * FROM ticket_inventory_holds ORDER BY id')->fetchAll(),
+            $db->query('SELECT * FROM ticket_issue_outbox ORDER BY id')->fetchAll(),
+        ];
+        $before = $snapshot();
+        $resetBudget(2);
+        guestAssert($send(['order_token'=>$otherGuestToken],null,'/',true) ===
+            [200,['ok'=>true,'state'=>'pending'],true,0], 'allowed checkout pending reaches lookup');
+        guestAssert($send(['order_id'=>$existingOrder],$memberCookie,'/',true) ===
+            [200,['ok'=>true,'state'=>'approved'],false,0], 'allowed authenticated checkout');
+        $limited = static fn(array $response): bool => $response[0] === 429
+            && $response[1] === ['ok'=>false,'error'=>'RATE_LIMITED'] && !$response[2]
+            && $response[3] >= 1 && $response[3] <= 10;
+        foreach ([['order_token'=>$otherGuestToken],['order_token'=>str_repeat('0',32)],
+            ['order_id'=>$existingOrder],['order_id'=>999999]] as $query) {
+            foreach ([null,$guestCookie,$memberCookie] as $cookie) {
+                guestAssert($limited($send($query,$cookie,'/',true)), 'checkout limit before token or session lookup');
+            }
+        }
+        $orderPath = '/api/ticketing/order-status.php';
+        $order = $send(['t'=>$otherGuestToken],null,$orderPath,true);
+        guestAssert($order[0] === 200 && $order[1]['order']['state'] === 'pending'
+            && $order[1]['order']['order_number'] === $otherGuestOrder, 'real order confirmation allowed');
+        guestAssert($send(['t'=>str_repeat('0',32)],null,$orderPath,true)[0] === 404,'allowed unknown token');
+        $dbOff = $httpDirectory . '/status-db-off';
+        guestAssert(file_put_contents($dbOff,'1') !== false, 'disable only fixture order DB lookup');
+        foreach ([$otherGuestToken,str_repeat('0',32),'bad-token'] as $candidate) {
+            foreach ([null,$guestCookie,$memberCookie] as $cookie) {
+                guestAssert($limited($send(['t'=>$candidate],$cookie,$orderPath,true)), 'order limit even without DB');
+            }
+        }
+        $resetBudget(2);
+        guestAssert($send(['t'=>$otherGuestToken],null,$orderPath,true)[0] === 503,
+            'control: allowed order fails when fixture DB unavailable');
+        guestAssert(unlink($dbOff),'restore fixture DB');
+        guestAssert(file_put_contents($budgetFile,'invalid-json') !== false,'corrupt only fixture budget');
+        foreach ([['/', ['order_token'=>$otherGuestToken]],[$orderPath,['t'=>$otherGuestToken]]] as [$path,$query]) {
+            guestAssert($send($query,null,$path,true) === [503,['ok'=>false,'error'=>'ORDER_UNAVAILABLE'],false,60],
+                'both budget stores fail closed without reconciliation');
+        }
+        if (getenv('BRVTAL_STATUS_REAL_BROWSER') === '1') {
+            $resetBudget(1);
+            // Real JS and PHP responses, no interception of allowed traffic.
+            $browserScript = <<<'JS'
+import assert from 'node:assert/strict';
+import { chromium } from '@playwright/test';
+const [base,token] = process.argv.slice(2);
+const browser = await chromium.launch();
+try {
+  const page = await browser.newPage();
+  await page.route('**/*', route => new URL(route.request().url()).origin === base ? route.continue() : route.abort());
+  await page.addInitScript(() => { window.BRVTAL_ORDER_POLL_MS = 150; });
+  const sent = [];
+  const path = '/api/ticketing/order-status.php';
+  page.on('request', req => { if (new URL(req.url()).pathname === path) sent.push(performance.now()); });
+  let limit = null;
+  page.on('response', res => {
+    if (new URL(res.url()).pathname === path && res.status() === 429 && limit === null) {
+      limit = { at:performance.now(), seconds:Number(res.headers()['retry-after']) };
+    }
+  });
+  await page.goto(base+'/compra/'+token);
+  await page.waitForFunction(() => document.querySelector('#purchase-detail')?.textContent.includes('Volveremos a consultar'));
+  assert.equal(await page.locator('#purchase-state').getAttribute('data-state'),'pending');
+  assert.equal(sent.length,2);
+  assert.ok(limit && Number.isInteger(limit.seconds) && limit.seconds>=1 && limit.seconds<=10);
+  const resumed = await page.waitForResponse(res => new URL(res.url()).pathname===path && res.status()===200,{timeout:15000});
+  assert.equal((await resumed.json()).order.state,'pending');
+  assert.ok(sent.length>=3 && sent[2]-limit.at>=limit.seconds*1000-100);
+} finally { await browser.close(); }
+JS;
+            $browser = proc_open(['node','--input-type=module','-',$url,$otherGuestToken],
+                [0=>['pipe','r'],1=>['file','/dev/null','a'],2=>['file','/dev/null','a']],$browserPipes,$source);
+            guestAssert(is_resource($browser),'launch real Chromium client');
+            fwrite($browserPipes[0],$browserScript);
+            fclose($browserPipes[0]);
+            guestAssert(proc_close($browser) === 0,'real client preserves pending and waits server Retry-After');
+            echo "BRVTAL #2219 HTTP browser Retry-After passed.\n";
+        }
+        guestAssert($snapshot() === $before,'budget and transport never mutate payment, hold or issuance');
+        echo "BRVTAL #2219 HTTP budget contract passed.\n";
+    }
 } finally {
     proc_terminate($process);
     proc_close($process);
