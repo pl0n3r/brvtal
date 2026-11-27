@@ -565,6 +565,93 @@ function brvtalMigrationProofSpecifications(): array
             'column-type:ticket_entry_credentials.token_encrypted=varbinary(96)',
         ];
     }
+    return brvtalMigrationLoadProofFiles($specifications, __DIR__ . '/../database');
+}
+
+/** Validate the existing probe grammar before any schema query is attempted. */
+function brvtalMigrationValidateFileRequirements(mixed $requirements): array
+{
+    if (!is_array($requirements) || !array_is_list($requirements)
+        || $requirements === [] || count($requirements) > 200) {
+        throw new RuntimeException('MIGRATION_SCHEMA_PROOF_FILE_INVALID');
+    }
+    $id = '[A-Za-z0-9_]+';
+    $qualified = $id . '[.]' . $id;
+    $patterns = [
+        '/^(?:table|trigger):' . $id . '$/D',
+        '/^(?:column|index|check-constraint|column-nullable|column-unsigned-nullable|column-unsigned-bigint-nullable):' . $qualified . '$/D',
+        '/^unique-index:' . $qualified . '=' . $id . '(?:,' . $id . ')*$/D',
+        '/^column-not-null-default:' . $qualified . '=' . $id . '$/D',
+        "/^column-type:" . $qualified . "=[A-Za-z0-9_(),'.-]+$/D",
+        '/^fk-reference:' . $qualified . '=' . $id . ':' . $qualified . '$/D',
+        '/^trigger-body:' . $id . '=[A-Za-z0-9_.]+$/D',
+    ];
+    foreach ($requirements as $requirement) {
+        if (!is_string($requirement) || strlen($requirement) > 180) {
+            throw new RuntimeException('MIGRATION_SCHEMA_PROOF_FILE_INVALID');
+        }
+        $valid = false;
+        foreach ($patterns as $pattern) {
+            if (preg_match($pattern, $requirement) === 1) {
+                $valid = true;
+                break;
+            }
+        }
+        if (!$valid) {
+            throw new RuntimeException('MIGRATION_SCHEMA_PROOF_FILE_INVALID');
+        }
+    }
+    if (count(array_unique($requirements)) !== count($requirements)) {
+        throw new RuntimeException('MIGRATION_SCHEMA_PROOF_FILE_INVALID');
+    }
+    return $requirements;
+}
+
+/** $databaseDirectory is trusted repository code, or an isolated test fixture. Never request input. */
+function brvtalMigrationLoadProofFiles(array $specifications, string $databaseDirectory): array
+{
+    if (!is_dir($databaseDirectory) || is_link($databaseDirectory)) {
+        throw new RuntimeException('MIGRATION_SCHEMA_PROOF_DIRECTORY_INVALID');
+    }
+    $directory = $databaseDirectory . '/proofs';
+    if (is_link($directory)) {
+        throw new RuntimeException('MIGRATION_SCHEMA_PROOF_DIRECTORY_INVALID');
+    }
+    if (!file_exists($directory)) {
+        return $specifications;
+    }
+    if (!is_dir($directory) || !is_readable($directory)) {
+        throw new RuntimeException('MIGRATION_SCHEMA_PROOF_DIRECTORY_INVALID');
+    }
+    $files = scandir($directory, SCANDIR_SORT_ASCENDING);
+    if ($files === false) {
+        throw new RuntimeException('MIGRATION_SCHEMA_PROOF_DIRECTORY_INVALID');
+    }
+    foreach ($files as $file) {
+        if (in_array($file, ['.', '..', 'README.md'], true)) {
+            continue;
+        }
+        $path = $directory . '/' . $file;
+        if (preg_match('/^(migration_[a-z0-9_]+[.]sql)[.]php$/D', $file, $match) !== 1
+            || !is_file($path) || is_link($path) || !is_readable($path)) {
+            throw new RuntimeException('MIGRATION_SCHEMA_PROOF_FILE_INVALID');
+        }
+        $name = $match[1];
+        if (array_key_exists($name, $specifications)) {
+            throw new RuntimeException('MIGRATION_SCHEMA_PROOF_DUPLICATE:' . $name);
+        }
+        $sql = $databaseDirectory . '/' . $name;
+        if (!is_file($sql) || is_link($sql)) {
+            throw new RuntimeException('MIGRATION_SCHEMA_PROOF_ORPHAN:' . $name);
+        }
+        // These are versioned PHP files, not user-provided configuration. Isolate include scope.
+        try {
+            $requirements = (static fn(string $path): mixed => require $path)($path);
+        } catch (Throwable) {
+            throw new RuntimeException('MIGRATION_SCHEMA_PROOF_FILE_INVALID');
+        }
+        $specifications[$name] = brvtalMigrationValidateFileRequirements($requirements);
+    }
     return $specifications;
 }
 
