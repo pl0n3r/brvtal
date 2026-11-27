@@ -1,9 +1,17 @@
+import { test } from 'node:test';
 import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 
 // Called only inside the existing checkout scenario, after account QR retrieval.
-export async function checkinIssued({ check, db, request, qr, ticketId, armDoorRace }) {
+export async function checkinIssued(args) {
+  // A genuine awaited subtest: failure propagates to the mandatory parent checkout test.
+  await test('T31 real issued QR at door: mobile, concurrent audit and negatives', async () => {
+    await runCheckin(args);
+  });
+}
+
+async function runCheckin({ check, db, request, qr, ticketId, armDoorRace }) {
   check(process.env.BRVTAL_T31_ISOLATED === '1' && /^brvtal_test_t31_[a-f0-9]{12}$/.test(process.env.DB_NAME), 'door fixture isolation');
   check(/^[a-f0-9]{32}$/.test(ticketId), 'issued entry identity');
   const start = execFileSync('php', ['-r', 'echo (new DateTimeImmutable("now",new DateTimeZone("America/Bogota")))->modify("-5 minutes")->format("Y-m-d H:i:s");'], { encoding: 'utf8' }).trim();
