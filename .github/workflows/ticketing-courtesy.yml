@@ -11,6 +11,7 @@ on:
       - config/bootstrap.php
       - config/rate_limit_store.php
       - config/public_abuse_guard.php
+      - config/public_visibility.php
       - config/public_contact.php
       - config/password_rate_limit.php
       - api/ticketing/*courtesy*.php
