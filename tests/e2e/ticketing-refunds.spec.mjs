@@ -166,7 +166,8 @@ test('T21 dueño registra reembolso ya hecho en Wompi, sin llamar a su API',asyn
         ok:true,data:{id:7,status:'refunded'}})});
     }
     return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,can_decide:true,events:[],data:[
-      {id:7,event_title:'Evento de prueba',amount_cop:3000,status:dispatched?'refunded':'approved'}
+      {id:7,event_title:'Evento de prueba',amount_cop:3000,status:dispatched?'refunded':'approved',
+        payment_evidence:{channel:'wompi',state:'verified'},wompi_payment_ref:dispatched?null:'trx_test_94',can_manual_confirm:!dispatched}
     ]})});
   });
   await page.goto(endpoint);
@@ -177,40 +178,70 @@ test('T21 dueño registra reembolso ya hecho en Wompi, sin llamar a su API',asyn
   await expect(region.getByText(/Registrada y anulada/)).toBeVisible();
 });
 
+const refundCases=[
+  {id:1,event_title:'Evento Wompi',amount_cop:35000,status:'approved',
+    payment_evidence:{channel:'wompi',state:'verified'},wompi_payment_ref:'trx_test_94',can_manual_confirm:true},
+  {id:2,event_title:'Evento taquilla',amount_cop:25000,status:'approved',
+    payment_evidence:{channel:'pos',state:'registered_offline'},wompi_payment_ref:null,can_manual_confirm:false},
+  {id:3,event_title:'Evento discrepante',amount_cop:40000,status:'manual_pending',
+    payment_evidence:{channel:'conflict',state:'discrepancy'},wompi_payment_ref:null,can_manual_confirm:false},
+  {id:4,event_title:'Evento sin evidencia',amount_cop:30000,status:'approved',
+    payment_evidence:{channel:'unknown',state:'unavailable'},wompi_payment_ref:null,can_manual_confirm:false}
+];
+async function visualRefunds(page,source,rows=refundCases,owner=true,code=200){
+  const endpoint='http://127.0.0.1:4173/discadmin/refunds-visual.html';
+  await page.unrouteAll({behavior:'wait'});
+  await page.route(endpoint,r=>r.fulfill({contentType:'text/html',
+    body:'<!doctype html><html lang="es"><meta name="viewport" content="width=device-width,initial-scale=1">'
+      +'<body style="background:#050505;color:#fff;font:14px system-ui;padding:16px">'
+      +'<div id="refund-panel"></div><script type="module">'
+      +'import {mount} from "/discadmin/ticketing-refunds.js";mount(document.getElementById("refund-panel"),"csrf-synthetic");'
+      +'</script></body></html>'}));
+  await page.route('**/discadmin/ticketing-refunds.js',r=>r.fulfill({
+    contentType:'text/javascript',body:readFileSync(join(source,'discadmin/ticketing-refunds.js'),'utf8')}));
+  await page.route('**/api/ticketing/admin-refunds.php',r=>r.fulfill({status:code,
+    contentType:'application/json',body:JSON.stringify({ok:code===200,can_decide:owner,events:[],data:rows})}));
+  await page.goto(endpoint);
+  await page.addStyleTag({content:readFileSync(join(source,'discadmin/ticketing.css'),'utf8')});
+  return page.getByRole('region',{name:'Gestión de devoluciones'});
+}
 for (const width of [390,1440]) {
-  test('AC-01 Devoluciones antes/después a '+width+' px',async({page},testInfo)=>{
+  test('AC-04 Devoluciones antes/después a '+width+' px',async({page},testInfo)=>{
     await page.setViewportSize({width,height:900});
-    await page.route('**/discadmin/refunds-before.html',r=>r.fulfill({
-      contentType:'text/html',body:'<!doctype html><html lang="es"><meta name="viewport" content="width=device-width,initial-scale=1">'
-        +'<body style="background:#050505;color:#fff;font:14px system-ui">'
-        +'<h2>Devoluciones · entorno de pruebas</h2><p>Solicitudes sintéticas cargadas</p>'
-        +'<button>Procesar reembolso sandbox</button></body></html>'}));
-    await page.goto('https://www.brvtal.com.co/discadmin/refunds-before.html');
-    await testInfo.attach('devoluciones-antes-'+width+'.png',{
-      body:await page.screenshot({fullPage:true}),contentType:'image/png'});
-    const endpoint='https://www.brvtal.com.co/discadmin/refunds-after.html';
-    const module=readFileSync('discadmin/ticketing-refunds.js','utf8');
-    const css=readFileSync('discadmin/ticketing.css','utf8');
-    await page.route(endpoint,r=>r.fulfill({contentType:'text/html',
-      body:'<html lang="es"><meta name="viewport" content="width=device-width,initial-scale=1">'
-        +'<body style="background:#050505;color:#fff;font:14px system-ui;padding:16px">'
-        +'<div id="refund-panel"></div><script type="module">'
-        +'import {mount} from "/discadmin/ticketing-refunds.js";mount(document.getElementById("refund-panel"),"csrf-synthetic");'
-        +'</script></body></html>'}));
-    await page.route('**/discadmin/ticketing-refunds.js',r=>r.fulfill({
-      contentType:'text/javascript',body:module}));
-    await page.route('**/api/ticketing/admin-refunds.php',r=>r.fulfill({
-      contentType:'application/json',body:JSON.stringify({ok:true,can_decide:true,events:[],data:[
-        {id:7,event_title:'Evento de prueba',amount_cop:35000,status:'approved'}]})}));
-    await page.goto(endpoint);
-    await page.addStyleTag({content:css});
-    const region=page.getByRole('region',{name:'Gestión de devoluciones'});
-    await expect(region).toBeVisible();
-    await expect(region.locator('article.tk-step')).toHaveCount(1);
-    await expect(region).toContainText('Aprobada');
-    await expect(region).not.toContainText(/sintético|pruebas|UTC/i);
+    const baseline=process.env.BRVTAL_REFUND_BASE_DIR;
+    if(baseline){
+      const before=await visualRefunds(page,baseline);
+      await expect(before.locator('article.tk-step')).toHaveCount(refundCases.length);
+      const path=testInfo.outputPath('devoluciones-antes-'+width+'.png');
+      await page.screenshot({path,fullPage:true});
+      await testInfo.attach('devoluciones-antes-'+width+'.png',{path,contentType:'image/png'});
+    }else testInfo.annotations.push({type:'evidence',description:'Baseline checkout not supplied; before capture not certified.'});
+    const region=await visualRefunds(page,process.cwd());
+    await expect(region.locator('article.tk-step')).toHaveCount(refundCases.length);
+    await expect(region.getByText('Medio original: Wompi acreditado')).toBeVisible();
+    await expect(region.getByText('Medio original: POS / pago offline acreditado')).toBeVisible();
+    await expect(region.getByText('Evidencia de pago discrepante')).toBeVisible();
+    await expect(region.getByText('Evidencia de pago no verificable')).toBeVisible();
+    const confirm=region.getByRole('button',{name:'Confirmar reembolso hecho en Wompi'});
+    await expect(confirm).toHaveCount(1);
+    await region.getByLabel('Referencia del reembolso de Wompi').focus();
+    await page.keyboard.press('Tab');
+    await expect(confirm).toBeFocused();
     expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
-    await testInfo.attach('devoluciones-despues-'+width+'.png',{
-      body:await page.screenshot({fullPage:true}),contentType:'image/png'});
+    const path=testInfo.outputPath('devoluciones-despues-'+width+'.png');
+    await page.screenshot({path,fullPage:true});
+    await testInfo.attach('devoluciones-despues-'+width+'.png',{path,contentType:'image/png'});
   });
 }
+test('AC-02 devolución: consulta, vacío, permiso y error',async({page})=>{
+  let region=await visualRefunds(page,process.cwd(),refundCases,false);
+  await expect(region.locator('article.tk-step')).toHaveCount(4);
+  await expect(region.getByRole('button',{name:/Confirmar reembolso|Aprobar|Rechazar/})).toHaveCount(0);
+  region=await visualRefunds(page,process.cwd(),[]);
+  await expect(region.getByText('Aún no hay solicitudes.')).toBeVisible();
+  region=await visualRefunds(page,process.cwd(),[],false,403);
+  await expect(region.getByText('No tienes permiso para consultar devoluciones.')).toBeVisible();
+  await expect(region.locator('article')).toHaveCount(0);
+  region=await visualRefunds(page,process.cwd(),[],false,503);
+  await expect(region.getByText('No se pudieron consultar las devoluciones.')).toBeVisible();
+});

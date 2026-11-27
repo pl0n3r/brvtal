@@ -539,6 +539,85 @@ try {
         t21((int)$pdo->query('SELECT COUNT(*) FROM ticket_refund_audit')->fetchColumn()
             ===$auditBefore+1,
             'HTTP rejected POST and replay cause no extra database audit');
+
+        // #2125: real staff GET using the canonical session and isolated evidence tables.
+        $pdo->exec("ALTER TABLE admins ADD is_active TINYINT NOT NULL DEFAULT 1,
+            ADD credential_epoch INT NOT NULL DEFAULT 1, ADD staff_role VARCHAR(24) NOT NULL DEFAULT 'door'");
+        $pdo->exec("UPDATE admins SET staff_role='superadmin' WHERE id=7");
+        $pdo->exec("UPDATE admins SET staff_role='admin' WHERE id=8");
+        $pdo->exec("INSERT INTO admins(id) VALUES (9)");
+        $pdo->exec("ALTER TABLE ticket_payment_attempts ADD provider_reference VARCHAR(190) NULL");
+        $pdo->exec("UPDATE ticket_payment_attempts SET provider_reference=provider_transaction_id");
+        $pdo->exec("ALTER TABLE ticket_order_items ADD event_id INT NOT NULL DEFAULT 0,
+            ADD ticket_type_id INT NOT NULL DEFAULT 0, ADD quantity INT NOT NULL DEFAULT 1,
+            ADD subtotal_cop BIGINT NOT NULL DEFAULT 0");
+        $pdo->exec("UPDATE ticket_order_items SET event_id=2,ticket_type_id=10,subtotal_cop=3000 WHERE id=106");
+        $pdo->exec("CREATE TABLE ticket_pos_shifts (id INT PRIMARY KEY,event_id INT,operator_admin_id INT)");
+        $pdo->exec("CREATE TABLE ticket_pos_sales (order_id INT PRIMARY KEY,method VARCHAR(24),
+            operator_admin_id INT,shift_id INT,event_id INT,amount_cop BIGINT,ticket_type_id INT,
+            quantity INT,unit_price_cop BIGINT,status VARCHAR(24),completed_at_utc DATETIME)");
+        $pdo->exec("INSERT INTO ticket_pos_shifts VALUES (1,2,7)");
+        $pdo->exec("INSERT INTO ticket_pos_sales VALUES (95,'cash',7,1,2,3000,10,1,3000,'paid',UTC_TIMESTAMP())");
+        $pdo->exec("INSERT INTO ticket_payment_attempts VALUES (603,94,'wompi','trx_test_94','approved',2000,'ref94')");
+        $pdo->exec("INSERT INTO ticket_payment_webhook_events VALUES (603,'trx_test_94','APPROVED')");
+        $ids=[(int)$allowed['id'],(int)$ungrantedRefund['id'],(int)$foreignRefund['id']];
+        $pdo->exec("UPDATE ticket_refunds SET status='approved' WHERE id IN (".implode(',',$ids).")");
+        $adminGet=static function(?int $admin)use($temporary,$httpPort):array{
+            $headers='Connection: close';
+            if($admin!==null){
+                $sid=bin2hex(random_bytes(16));
+                $session=['admin_id'=>$admin,'credential_epoch'=>1,'csrf'=>str_repeat('a',64),
+                    'issued_at'=>time(),'last_activity'=>time()];
+                $serialized='';
+                foreach($session as $key=>$value)$serialized.=$key.'|'.serialize($value);
+                $sessionFile=$temporary.'/sess_'.$sid;
+                t21(file_put_contents($sessionFile,$serialized)!==false,'synthetic admin session');
+                chmod($sessionFile,0600);
+                $headers.="\r\nCookie: BRVTAL_ADMIN=".$sid;
+            }
+            $response=@file_get_contents('http://127.0.0.1:'.$httpPort.'/api/ticketing/admin-refunds.php',
+                false,stream_context_create(['http'=>['ignore_errors'=>true,'header'=>$headers,'timeout'=>8]]));
+            preg_match('~^HTTP/\S+ ([0-9]{3})~',(string)($http_response_header[0]??''),$m);
+            return [(int)($m[1]??0),is_string($response)?json_decode($response,true):null];
+        };
+        $readOnlySnapshot=static function()use($pdo,$snapshot):array{
+            return [$snapshot(),$pdo->query('SELECT * FROM ticket_orders ORDER BY id')->fetchAll(),
+                $pdo->query('SELECT * FROM ticket_entry_credentials ORDER BY entry_id')->fetchAll(),
+                $pdo->query('SELECT * FROM ticket_payment_attempts ORDER BY id')->fetchAll(),
+                $pdo->query('SELECT * FROM ticket_pos_sales ORDER BY order_id')->fetchAll()];
+        };
+        $beforeGet=$readOnlySnapshot();
+        [$code,$body]=$adminGet(7);
+        t21($code===200&&$body['can_decide']===true,'real owner GET');
+        $rows=array_column($body['data'],null,'id');
+        t21($rows[$ids[0]]['payment_evidence']['state']==='verified'
+            &&$rows[$ids[0]]['wompi_payment_ref']==='trx_test_94'
+            &&$rows[$ids[0]]['can_manual_confirm']===true,'owner sees unique Wompi proof');
+        t21($rows[$ids[1]]['payment_evidence']['state']==='registered_offline'
+            &&$rows[$ids[1]]['can_manual_confirm']===false,'POS is not Wompi');
+        t21($rows[$ids[2]]['payment_evidence']['reason']==='paid_without_proof'
+            &&$rows[$ids[2]]['can_manual_confirm']===false,'missing payment proof');
+        t21(!isset($rows[$ids[0]]['order_id'],$rows[$ids[0]]['buyer_id'])
+            &&!array_key_exists('total_cop',$rows[$ids[0]]),'only necessary refund fields');
+        [$code,$finance]=$adminGet(8);
+        $financeRows=array_column($finance['data']??[],null,'id');
+        t21($code===200&&$finance['can_decide']===false
+            &&$financeRows[$ids[0]]['payment_evidence']['state']==='verified'
+            &&$financeRows[$ids[0]]['wompi_payment_ref']===null
+            &&$financeRows[$ids[0]]['can_manual_confirm']===false,'finance read only without reference');
+        t21($adminGet(9)[0]===403&&$adminGet(null)[0]===401,'GET permissions remain restricted');
+        t21($beforeGet===$readOnlySnapshot(),'GET leaves payments, refunds, credentials and POS unchanged');
+        $pdo->exec("INSERT INTO ticket_payment_attempts VALUES (604,94,'wompi','trx_duplicate','refunded',2000,'ref94b')");
+        $pdo->exec("INSERT INTO ticket_payment_webhook_events VALUES (604,'trx_duplicate','APPROVED')");
+        $beforeGet=$readOnlySnapshot();
+        [$code,$body]=$adminGet(7); $rows=array_column($body['data']??[],null,'id');
+        t21($code===200&&$rows[$ids[0]]['payment_evidence']['reason']==='duplicate_wompi'
+            &&$rows[$ids[0]]['wompi_payment_ref']===null
+            &&$rows[$ids[0]]['can_manual_confirm']===false,'never choose among multiple signed attempts');
+        t21($beforeGet===$readOnlySnapshot(),'conflict GET does not mutate ledger');
+        $pdo->exec("DELETE FROM ticket_payment_webhook_events WHERE attempt_id IN (603,604)");
+        $pdo->exec("DELETE FROM ticket_payment_attempts WHERE id IN (603,604)");
+        $pdo->exec("UPDATE ticket_refunds SET status='requested' WHERE id IN (".implode(',',$ids).")");
     } finally {
         if(is_resource($serverProcess)){proc_terminate($serverProcess);proc_close($serverProcess);}
         foreach(glob($temporary.'/*')?:[] as $file){if(is_file($file))unlink($file);}
@@ -570,7 +649,7 @@ try {
         $refs=[];
         foreach ($prices as $i=>$price) {
             $entry=$orderId*10+$i; $entryRef=sprintf('%032x',$entry);
-            $pdo->prepare('INSERT INTO ticket_order_items VALUES (?,?,?)')->execute([$entry,$orderId,$price]);
+            $pdo->prepare('INSERT INTO ticket_order_items(id,order_id,unit_price_cop) VALUES (?,?,?)')->execute([$entry,$orderId,$price]);
             $pdo->prepare("INSERT INTO ticket_entries(id,public_id,order_item_id,status)
                 VALUES (?,UNHEX(?),?,'issued')")->execute([$entry,$entryRef,$entry]);
             $refs[]=$entryRef;
