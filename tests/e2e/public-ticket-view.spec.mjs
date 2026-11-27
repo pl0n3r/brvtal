@@ -20,7 +20,7 @@ const evidence = join(root, 'visual-evidence');
 
 async function setup(browserPage) {
   const requests = [];
-  browserPage.on('request', request => requests.push(request.url()));
+  browserPage.on('request', request => requests.push([request.url(), request.postData(), ...Object.values(request.headers())].join('\n')));
   await browserPage.route('**/*', route => {
     const url = new URL(route.request().url());
     if (url.pathname === '/mi-cuenta/boleta') {
@@ -61,6 +61,44 @@ for (const [label, size] of [['390', { width: 390, height: 844 }], ['1440', { wi
     const scrollWidth = await browserPage.evaluate(() => document.documentElement.scrollWidth);
     expect(scrollWidth).toBeLessThanOrEqual(size.width);
     await capture(browserPage, testInfo, `ticket-view-despues-${label}`);
+    const button = browserPage.getByRole('button', { name: 'Descargar pase (PDF)' });
+    await expect(button).toBeEnabled();
+    await expect(browserPage.locator('#ticket-print-help')).toContainText('Guardar como PDF');
+    const source = await qr.getAttribute('src');
+    await browserPage.evaluate(() => {
+      window.__printCalls = 0;
+      window.print = () => { window.__printCalls += 1; };
+    });
+    await button.click();
+    await button.focus();
+    await button.press('Enter');
+    expect(await browserPage.evaluate(() => window.__printCalls)).toBe(2);
+    await browserPage.emulateMedia({ media: 'print' });
+    await expect(qr).toBeVisible();
+    await expect(qr).toHaveAttribute('src', source);
+    await expect(browserPage.locator('.ticket-print-brand')).toBeVisible();
+    await expect(browserPage.locator('.ticket-print-private')).toBeVisible();
+    await expect(browserPage.locator('.access-topbar')).toBeHidden();
+    await expect(browserPage.locator('.access-footer')).toBeHidden();
+    await expect(button).toBeHidden();
+    await expect(browserPage.locator('body')).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+    await expect(browserPage.locator('.ticket-title').first()).toHaveCSS('color', 'rgb(0, 0, 0)');
+    const printed = await qr.boundingBox();
+    expect(printed.width).toBeCloseTo(65 * 96 / 25.4, 0);
+    expect(printed.height).toBeCloseTo(65 * 96 / 25.4, 0);
+    await capture(browserPage, testInfo, `ticket-view-print-${label}`);
+    const pdf = await browserPage.pdf({ format: 'A4', displayHeaderFooter: false });
+    expect(pdf.toString('latin1').match(/\/Type\s*\/Page\b/g) || []).toHaveLength(1);
+    await browserPage.emulateMedia({ media: 'screen' });
+    await browserPage.evaluate(() => {
+      location.hash = 'invalid';
+      document.getElementById('ticket-print').click();
+    });
+    await expect(browserPage.locator('#ticket-error')).toBeVisible();
+    await expect(browserPage.locator('#ticket-print')).toBeDisabled();
+    await expect(browserPage.locator('#ticket-ref')).toHaveText('');
+    expect(await browserPage.evaluate(() => window.__printCalls)).toBe(2);
+    for (const request of requests) expect(request).not.toContain(token);
   });
 }
 
@@ -70,9 +108,11 @@ test('an incomplete link explains how to recover', async ({ page: browserPage },
   await browserPage.goto(`${base}/mi-cuenta/boleta#BRVTAL:T1:${id}:corto`);
   await expect(browserPage.locator('#ticket-error')).toBeVisible();
   await expect(browserPage.locator('#ticket-pass')).toBeHidden();
+  await expect(browserPage.locator('#ticket-print')).toBeDisabled();
   await expect(browserPage.getByRole('link', { name: 'Ir a Mi cuenta' })).toHaveAttribute('href', '/mi-cuenta');
   await capture(browserPage, testInfo, 'ticket-view-error-390');
   // A later valid fragment (e.g. the next ticket link) re-renders without reload.
   await browserPage.evaluate(value => { location.hash = value; }, payload);
   await expect(browserPage.locator('#ticket-pass')).toBeVisible();
+  await expect(browserPage.locator('#ticket-print')).toBeEnabled();
 });

@@ -2,6 +2,7 @@
 set -euo pipefail
 umask 077
 if [[ "${1:-}" != --inside ]]; then
+  [[ $# == 0 ]] || exit 1
   [[ "${GITHUB_ACTIONS:-}" == true || "${BRVTAL_T31_FIXTURE_LOCAL:-}" == 1 ]] || exit 1
   command -v docker >/dev/null && docker info >/dev/null
   scratch="$(mktemp -d)"
@@ -11,28 +12,58 @@ if [[ "${1:-}" != --inside ]]; then
   mkdir "$scratch/source"
   git archive HEAD config api database ops templates partials scripts index.php tests/e2e | tar -x -C "$scratch/source"
   [[ ! -e "$scratch/source/config/config.php" ]] || exit 1
+  promo_path=tests/e2e/ticketing-promos-real-stack.spec.mjs
+  tracked_promo="$(git ls-tree --name-only HEAD -- "$promo_path")"
+  scenarios=(checkout)
+  if [[ -n "$tracked_promo" ]]; then
+    [[ "$tracked_promo" == "$promo_path" && -f "$scratch/source/$promo_path" && ! -L "$scratch/source/$promo_path" ]] || exit 1
+    scenarios+=(promo)
+  else
+    echo 'T31_PROMO_STACK_NOT_PRESENT: no promo evidence'
+  fi
   cat > "$scratch/Dockerfile" <<'DOCKERFILE'
 FROM php:8.5-cli-bookworm
 RUN apt-get update && apt-get install -y --no-install-recommends mariadb-server mariadb-client nodejs openssl libcurl4-openssl-dev libonig-dev ca-certificates \
     && docker-php-ext-install curl pdo_mysql mbstring && rm -rf /var/lib/apt/lists/*
 DOCKERFILE
   docker build --pull -q -t "$image" "$scratch" >/dev/null
-  docker run --rm --network none --read-only --security-opt no-new-privileges \
-    --pids-limit 192 --memory 1536m --cpus 2 \
-    --add-host sandbox.wompi.co:127.0.0.1 \
-    --mount "type=bind,source=$scratch/source,target=/source,readonly" \
-    --tmpfs /tmp:rw,exec,mode=1777 --tmpfs /fixture:rw,mode=0700 \
-    -e HTTPS_PROXY= -e HTTP_PROXY= -e ALL_PROXY= -e NO_PROXY='*' \
-    -e https_proxy= -e http_proxy= -e all_proxy= -e no_proxy='*' \
-    -e BRVTAL_T31_ISOLATED=1 "$image" bash /source/tests/e2e/run-ticketing-real-stack.sh --inside
+  for scenario in "${scenarios[@]}"; do
+    docker run --rm --network none --read-only --security-opt no-new-privileges \
+      --pids-limit 192 --memory 1536m --cpus 2 \
+      --add-host sandbox.wompi.co:127.0.0.1 \
+      --mount "type=bind,source=$scratch/source,target=/source,readonly" \
+      --tmpfs /tmp:rw,exec,mode=1777 --tmpfs /fixture:rw,mode=0700 \
+      -e HTTPS_PROXY= -e HTTP_PROXY= -e ALL_PROXY= -e NO_PROXY='*' \
+      -e https_proxy= -e http_proxy= -e all_proxy= -e no_proxy='*' \
+      -e BRVTAL_T31_ISOLATED=1 "$image" bash /source/tests/e2e/run-ticketing-real-stack.sh --inside "$scenario"
+  done
+  echo 'T31_CHECKOUT_STACK_PASS: HTTP checkout, signed payment, MariaDB, worker, mail, account and negative cases'
   exit 0
 fi
 # No external DB parameters are accepted. Validate isolation before any DB connection.
+[[ $# == 2 && "$1" == --inside ]] || exit 1
+case "$2" in
+  checkout)
+    spec=tests/e2e/ticketing-checkout-real-stack.spec.mjs
+    test_name='T31 real checkout, payment, issuance, mail and buyer isolation'
+    ;;
+  promo)
+    spec=tests/e2e/ticketing-promos-real-stack.spec.mjs
+    test_name='T31 real promo checkout net payment and idempotent issuance'
+    ;;
+  *) exit 1 ;;
+esac
 [[ "${BRVTAL_T31_ISOLATED:-}" == 1 && -f /.dockerenv && -d /source && -d /fixture ]] || exit 1
 [[ "$(ls /sys/class/net)" == lo ]] || exit 1
 if awk 'NR>1 && $2=="00000000" {found=1} END {exit !found}' /proc/net/route; then exit 1; fi
 export DB_NAME="brvtal_test_t31_$(openssl rand -hex 6)"
 [[ "$DB_NAME" =~ ^brvtal_test_t31_[a-f0-9]{12}$ ]] || exit 1
+# Never inherit the synthetic promo switch from the host.
+unset BRVTAL_INTEGRATION_TESTS
+if [[ "$2" == promo ]]; then
+  export BRVTAL_INTEGRATION_TESTS=1
+fi
+[[ -f "/source/$spec" && ! -L "/source/$spec" ]] || exit 1
 cp -a /source /tmp/app
 cd /tmp/app
 mkdir -p storage/logs storage/rate_limits storage/buyer_rate_limits /tmp/sessions /tmp/db
@@ -135,7 +166,14 @@ php -d curl.cainfo=/fixture/ca.pem -d session.save_path=/tmp/sessions -S 127.0.0
 php_pid=$!
 node tests/e2e/wompi-provider-fixture.mjs >/fixture/provider.log 2>&1 &
 provider_pid=$!
-node --test --test-reporter=tap tests/e2e/ticketing-checkout-real-stack.spec.mjs | tee /fixture/test.tap
-# A file with zero registered tests can exit zero: require the named scenario.
-grep -Fxq 'ok 1 - T31 real checkout, payment, issuance, mail and buyer isolation' /fixture/test.tap
-echo 'T31_CHECKOUT_STACK_PASS: HTTP checkout, signed payment, MariaDB, worker, mail, account and negative cases'
+# Keep raw TAP and stderr inside the disposable container (no QR or cookies in CI).
+if ! node --test --test-reporter=tap "$spec" >/fixture/test.tap 2>&1; then
+  echo "T31_SCENARIO_FAILED: $2" >&2
+  exit 1
+fi
+# A file with zero registered tests, or a skipped test, can exit zero.
+if ! grep -Fxq "ok 1 - $test_name" /fixture/test.tap; then
+  echo "T31_SCENARIO_RECEIPT_MISSING: $2" >&2
+  exit 1
+fi
+echo "T31_SCENARIO_PASS: $2"
