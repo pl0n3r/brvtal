@@ -665,7 +665,7 @@ test('2100 configuración sin permiso impide confirmar comprobante no efectivo',
 for(const width of [390,1440]){
   test('2317 owner administra destinos, refresca venta manual y captura '+width+' px',async({page},testInfo)=>{
     await page.setViewportSize({width,height:900});
-    const baselineSha2317='f4682d7f89099ada2910b86aa574b434e6742f3b';
+    const baselineSha2317='85f1af31f4ec89e2bd35e1e33e528b7d86268ece';
     const ref=baselineSha2317+':discadmin/ticketing-pos.js';
     try{execFileSync('git',['cat-file','-e',ref]);}
     catch{execFileSync('git',['fetch','--no-tags','--depth=1','origin',baselineSha2317],{timeout:60000});}

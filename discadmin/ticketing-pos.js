@@ -525,7 +525,7 @@ export function mount(target) {
         destinationStatus.textContent='Solo el propietario puede gestionar cuentas y datáfonos.';return;
       }
       const payload=await response.json();
-      if(!response.ok||payload.ok!==true||!validDestinationRows(payload.data?.destinations))throw Error('UNAVAILABLE');
+      if(!response.ok||payload.ok!==true||!validDestinationRows(payload.data?.destinations))throw new Error('UNAVAILABLE');
       destinationRows=payload.data.destinations;
       destinationStatus.textContent=message||'Selecciona un medio para consultar sus destinos activos.';
     }catch{
@@ -538,6 +538,11 @@ export function mount(target) {
       if(active())destinationControls(destinationRows!==null);
     }
   }
+  function destinationErrorNotice(error){
+    if(error.message==='POS_DESTINATION_DUPLICATE')return 'Ese alias ya existe para este medio. Elige otro.';
+    if(error.message==='INVALID_PAYLOAD')return 'Revisa el alias: usa un nombre corto y hasta cuatro dígitos.';
+    return 'No se pudo confirmar el cambio. Consulta la lista antes de intentarlo de nuevo.';
+  }
   async function changeDestination(input,message){
     if(destinationPending||busy||!active()||destinationRows===null)return;
     destinationPending=true;destinationControls(true);
@@ -548,9 +553,7 @@ export function mount(target) {
       if(!active())return;
       if(input.action==='create')alias.value='';
     }catch(error){
-      notice=error.message==='POS_DESTINATION_DUPLICATE'?'Ese alias ya existe para este medio. Elige otro.'
-        :error.message==='INVALID_PAYLOAD'?'Revisa el alias: usa un nombre corto y hasta cuatro dígitos.'
-        :'No se pudo confirmar el cambio. Consulta la lista antes de intentarlo de nuevo.';
+      notice=destinationErrorNotice(error);
     }finally{
       destinationPending=false;
       if(active()){
