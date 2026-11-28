@@ -36,6 +36,7 @@
 | form_public_rate_limit | usage | client_key_hash, timestamps, public_id | versioned_public_form_abuse_prevention | review_required | review_required | ninguno_declarado | review_required |
 | internal_analytics_events | usage | event_name, page_url, referrer, locale, user_agent, created_at | internal_usage_analytics | review_required | review_required | ninguno_declarado | review_required |
 | legacy_admin_activity_ip | usage | ip_address | legacy_admin_activity_audit | review_required | review_required | ninguno_declarado | review_required |
+| marketing_consent | contact | id, email, consent_version, origin, granted_at_utc, revoked_at_utc, unsubscribe_hash, active_slot | versioned_voluntary_marketing_consent_and_revocation | review_required | review_required | ninguno_declarado | review_required |
 | privacy_controller_contact | contact | phone | privacy_rights_contact_publication | review_required | review_required | ninguno_declarado | review_required |
 | public_gtm_measurement | usage | event_name, page_type, content_type, content_slug, content_title, section, action, destination, media_type, control, source, status, filter_type, relation_type, platform, result_state, content_id, position, depth | public_usage_measurement | review_required | review_required | google_analytics | review_required |
 | sentry_php_error_telemetry | usage | event_id, timestamp, platform, level, environment, release, php_version, sapi, release_sha, exception_type, stack_frame | php_runtime_error_monitoring | review_required | review_required | sentry | review_required |

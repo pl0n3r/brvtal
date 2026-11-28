@@ -194,6 +194,16 @@ Producto: `pl0n3r/brvtal`
 - Proveedores: ninguno_declarado
 - Retención: `review_required`
 
+## marketing_consent
+
+- Categoría: `contact`
+- Campos de software: `id`, `email`, `consent_version`, `origin`, `granted_at_utc`, `revoked_at_utc`, `unsubscribe_hash`, `active_slot`
+- Finalidad: `versioned_voluntary_marketing_consent_and_revocation`
+- Base documentada: `review_required` (revisión jurídica requerida)
+- Consentimiento: `review_required`
+- Proveedores: ninguno_declarado
+- Retención: `review_required`
+
 ## privacy_controller_contact
 
 - Categoría: `contact`

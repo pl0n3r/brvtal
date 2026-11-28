@@ -288,6 +288,25 @@
       "providers": []
     },
     {
+      "id": "marketing_consent",
+      "category": "contact",
+      "fields": [
+        "id",
+        "email",
+        "consent_version",
+        "origin",
+        "granted_at_utc",
+        "revoked_at_utc",
+        "unsubscribe_hash",
+        "active_slot"
+      ],
+      "purpose": "versioned_voluntary_marketing_consent_and_revocation",
+      "basis": "review_required",
+      "retention": "review_required",
+      "consent": "review_required",
+      "providers": []
+    },
+    {
       "id": "privacy_controller_contact",
       "category": "contact",
       "fields": [
