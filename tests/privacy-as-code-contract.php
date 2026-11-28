@@ -76,6 +76,7 @@ $expectedIds = [
     'form_public_rate_limit',
     'internal_analytics_events',
     'legacy_admin_activity_ip',
+    'marketing_consent',
     'privacy_controller_contact',
     'public_gtm_measurement',
     'sentry_php_error_telemetry',
@@ -97,6 +98,12 @@ foreach ($data['treatments'] as $row) {
     privacy_expect(($row['consent'] ?? null) === 'review_required', $row['id'] . ' consent must stay pending legal review');
 }
 
+$marketing = privacy_treatment($data, 'marketing_consent');
+privacy_expect($marketing['category'] === 'contact'
+    && $marketing['purpose'] === 'versioned_voluntary_marketing_consent_and_revocation'
+    && $marketing['fields'] === ['id','email','consent_version','origin','granted_at_utc','revoked_at_utc','unsubscribe_hash','active_slot']
+    && $marketing['providers'] === [] && $marketing['retention'] === 'review_required',
+    'marketing consent is distinct, hash-only and legally unapproved');
 $controllerPhone = privacy_treatment($data, 'privacy_controller_contact');
 privacy_expect($controllerPhone['category'] === 'contact' && $controllerPhone['fields'] === ['phone'], 'controller phone must be mapped to its actual contact treatment');
 privacy_expect($controllerPhone['purpose'] === 'privacy_rights_contact_publication' && $controllerPhone['retention'] === 'review_required' && $controllerPhone['providers'] === [], 'public legal contact cannot inherit staff/mail delivery treatment or presume approved retention');
