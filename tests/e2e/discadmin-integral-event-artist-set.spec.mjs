@@ -77,6 +77,58 @@ test('AC-03: modal de lineup es usable con teclado y guardado visible a 390/1440
   }
 });
 
+// restoreSession sets authed before awaiting go('dashboard'). The IA wrapper
+// commits that navigation afterwards and retires any legacy modal still open.
+// Wait for its actual commit, not merely the authentication flag.
+async function openCommittedLineup(page, eventId) {
+  await page.evaluate(() => {
+    const modal = document.getElementById('modal');
+    const records = [];
+    const snapshot = () => {
+      const nav = window.BRVTALAdminIA?.navigationDiagnostics();
+      return {open: modal.classList.contains('open'), visible: getComputedStyle(modal).display !== 'none',
+        navigation: nav?.status, section: window.state?.section,
+        focusInModal: modal.contains(document.activeElement)};
+    };
+    records.push({phase: 'start', ...snapshot()});
+    const observer = new MutationObserver(changes => {
+      for (const change of changes) {
+        if (records.length < 40) records.push({phase: 'class', wasOpen:
+          (change.oldValue || '').split(/\s+/).includes('open'), ...snapshot()});
+      }
+    });
+    observer.observe(modal, {attributes: true, attributeFilter: ['class'], attributeOldValue: true});
+    window.__integralModalTrace = {records, snapshot, stop: () => observer.disconnect()};
+  });
+  await page.waitForFunction(() => {
+    const nav = window.BRVTALAdminIA?.navigationDiagnostics();
+    return window.state?.authed && nav?.status === 'committed' &&
+      nav.requested === 'dashboard' && nav.currentSection === 'dashboard' &&
+      nav.route === 'dashboard' && window.state.section === 'dashboard';
+  }, null, {timeout: 10000});
+  await page.evaluate(async id => {
+    const trace = window.__integralModalTrace;
+    trace.records.push({phase: 'navigation-committed', ...trace.snapshot()});
+    await openLineup(id);
+    trace.records.push({phase: 'lineup-opened', ...trace.snapshot()});
+  }, eventId);
+  await expect(page.locator('#modal')).toHaveClass(/\bopen\b/);
+  await expect(page.locator('#lineupArtistSearch')).toBeVisible();
+}
+
+async function recordModalTrace(page, width, phase) {
+  const trace = await page.evaluate(() => {
+    const trace = window.__integralModalTrace;
+    if (!trace) return [];
+    trace.stop();
+    const records = [...trace.records, {phase: 'end', ...trace.snapshot()}];
+    delete window.__integralModalTrace;
+    return records;
+  });
+  // Only bounded booleans and navigation state; no URLs, payloads or credentials.
+  if (trace.length) console.log('LINEUP_MODAL_TRACE', JSON.stringify({width, phase, trace}));
+}
+
 function dbAudit(eventId, otherEventId, artistId, setId) {
   const env = process.env;
   const name = env.BRVTAL_TEST_DB_NAME || '';
@@ -142,8 +194,7 @@ if (base && password) {
           expect(await noCsrf.json()).toMatchObject({error: 'CSRF'});
 
           await page.goto(base + '/discadmin/', {waitUntil: 'domcontentloaded'});
-          await page.waitForFunction(() => Boolean(window.state?.authed), null, {timeout: 10000});
-          await page.evaluate(async id => { await openLineup(id); }, eventId);
+          await openCommittedLineup(page, eventId);
           await expect(page.locator('#lineupArtistSearch')).toBeVisible();
           const memberId = await page.evaluate(() => Number(
             state.artists.find(artist => artist.name === 'PL0N3R SMOKE')?.id
@@ -191,9 +242,10 @@ if (base && password) {
             '/api/index.php/events/' + events[1] + '/lineup')).json()).data;
           expect(otherLineup).toEqual([]);
 
+          await expect(page.locator('#modal')).not.toHaveClass(/\bopen\b/);
+          await recordModalTrace(page, width, 'saved');
           await page.reload({waitUntil: 'domcontentloaded'});
-          await page.waitForFunction(() => Boolean(window.state?.authed), null, {timeout: 10000});
-          await page.evaluate(async id => { await openLineup(id); }, eventId);
+          await openCommittedLineup(page, eventId);
           expect(await page.locator('#lineupCurrent .lineitem').evaluateAll(
             rows => rows.map(row => Number(row.dataset.id))
           )).toEqual([memberId, artistId]);
@@ -220,6 +272,9 @@ if (base && password) {
           )).toEqual([memberId, artistId]);
           await expect(page.locator('#lineupCurrent .lineitem[data-id="' + artistId + '"] input.role'))
             .toHaveValue('External guest');
+
+          await expect(page.locator('#lineupArtistSearch')).toBeVisible();
+          await recordModalTrace(page, width, 'reloaded');
 
           // Persist Set through the real admin API, then reopen its actual editor.
           const createSet = await page.request.post(base + '/api/index.php/sets',
@@ -266,6 +321,7 @@ if (base && password) {
           expect(publicBody).not.toContain(setTitle);
           for (const eventTitle of eventTitles) expect(publicBody).not.toContain(eventTitle);
         } finally {
+          await recordModalTrace(page, width, 'cleanup').catch(() => {});
           if (setId) await page.request.delete(base + '/api/index.php/sets/' + setId, {headers}).catch(() => {});
           for (const eventId of events.reverse()) {
             await page.request.delete(base + '/api/index.php/events/' + eventId, {headers}).catch(() => {});
