@@ -52,6 +52,7 @@ $catalogJson=json_encode(['ok'=>true,'events'=>$catalog],
   <div class="tk-actions" role="group" aria-label="Vistas de Finanzas">
     <button class="tk-button" type="button" data-finance-summary aria-pressed="true" aria-controls="tk-finance-summary">Resumen</button>
     <button class="tk-button" type="button" data-finance-expenses aria-pressed="false" aria-controls="tk-finance-ledger">Gastos</button>
+    <button class="tk-button" type="button" data-finance-settlements aria-pressed="false" aria-controls="tk-finance-settlements">Conciliación</button>
   </div>
   <div id="tk-finance-summary">
   <p class="ticketing-empty">Consulta ingresos y operaciones por evento. Los abonos, comisiones y gastos aún no tienen conciliación acreditada.</p>
@@ -117,6 +118,24 @@ $catalogJson=json_encode(['ok'=>true,'events'=>$catalog],
             <button class="tk-button" type="button" data-ledger-void hidden>Anular registro</button></div>
         </fieldset>
       </form>
+    </template>
+  </section>
+  <section id="tk-finance-settlements" hidden aria-labelledby="tk-settlements-title"
+    data-settlement-csrf="<?= htmlspecialchars(brvtal_admin_csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
+    <template data-settlement-template>
+    <h3 id="tk-settlements-title">Conciliación de abonos</h3>
+    <p>Importa un reporte CSV de prueba (máximo 1 MB). No uses datos reales. Los estados se calculan por referencia de transacción entre todos los abonos activos; no acreditan saldo bancario.</p>
+    <form data-settlement-form class="tk-form">
+      <fieldset class="tk-step" disabled>
+        <legend>Importar liquidación sintética</legend>
+        <div class="tk-field"><label for="tk-settlement-file">Archivo CSV</label>
+          <input id="tk-settlement-file" name="file" type="file" accept=".csv,text/csv" required></div>
+        <div class="tk-actions"><button class="tk-button is-primary" type="submit">Importar archivo</button></div>
+      </fieldset>
+    </form>
+    <div class="tk-actions"><button class="tk-button" type="button" data-settlement-refresh>Actualizar abonos</button></div>
+    <p class="tk-status" role="status" aria-live="polite" data-settlement-status></p>
+    <div data-settlement-results></div>
     </template>
   </section>
 </section>

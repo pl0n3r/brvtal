@@ -7,6 +7,7 @@ const ERRORS = {
   INVENTORY_COURTESY_BELOW_USAGE: 'El cupo de cortesías no puede ser menor que las cortesías consumidas.',
   INVENTORY_TYPE_NOT_IN_EVENT: 'Una boleta ya no pertenece a este evento. Vuelve a abrir el editor.',
   INVENTORY_INVALID_INPUT: 'Usa números enteros entre 0 y 100.000.',
+  INVENTORY_INVALID_PURCHASE_LIMIT: 'Usa límites enteros positivos o vacíos: mínimo ≤ máximo y ninguno por encima del aforo correspondiente.',
   INVENTORY_INVALID_DOOR_PRICE: 'Usa un precio entero entre 1 y 10.000.000 COP, o déjalo vacío.',
   INVENTORY_EVENT_NOT_FOUND: 'El evento ya no existe.',
   FORBIDDEN: 'Solo un superadmin puede editar el cupo.',
@@ -86,6 +87,13 @@ function renderSale(status, data) {
   return new Map((Array.isArray(sale?.types) ? sale.types : []).map(row => [row.ticket_type_id, row]));
 }
 
+const optionalLimit = field => field.value === '' ? null : field.valueAsNumber;
+const validLimit = (value, capacity) => value === null || (Number.isSafeInteger(value) && value >= 1 && value <= capacity);
+function limitInput(id, label, value, helpId) {
+  return el('input', { id, type: 'number', min: 1, max: 100000, step: 1, inputmode: 'numeric',
+    value: value ?? '', placeholder: 'Sin límite', 'aria-label': label, 'aria-describedby': helpId });
+}
+
 function createTypeRow(type, inputs, saleByType) {
   const inputId = 'ticket-inventory-type-' + type.ticket_type_id;
   const input = el('input', { id: inputId, type: 'number', min: 0, max: 100000, step: 1, inputmode: 'numeric',
@@ -100,7 +108,10 @@ function createTypeRow(type, inputs, saleByType) {
     'aria-describedby': doorId + '-help ' + doorId + '-format' });
   const doorHelp = el('small', { id: doorId + '-help', text: 'Si lo dejas vacío, la puerta cobra la etapa vigente' });
   const doorFormat = el('small', { id: doorId + '-format' });
-  inputs.set(type.ticket_type_id, { input, courtesy, door });
+  const limitHelpId = inputId + '-limit-help';
+  const min = limitInput(inputId + '-min', `Mínimo por pedido de ${type.name || 'Boleta'}`, type.min_per_order, limitHelpId);
+  const max = limitInput(inputId + '-max', `Máximo por pedido de ${type.name || 'Boleta'}`, type.max_per_order, limitHelpId);
+  inputs.set(type.ticket_type_id, { input, courtesy, door, min, max });
   const usage = [`Vendidas ${number.format(type.sold)}`, `Reservadas ${number.format(type.held)}`];
   const courtesyUsage = `Cortesías: presupuesto ${number.format(type.courtesy_capacity)} · consumidas ${number.format(type.courtesy_used)} · saldo ${number.format(Math.max(0, type.courtesy_capacity - type.courtesy_used))}`;
   const sale = el('span', { class: 'ticket-inventory-state' });
@@ -108,6 +119,8 @@ function createTypeRow(type, inputs, saleByType) {
   const original = input.value;
   const originalCourtesy = courtesy.value;
   const originalDoor = door.value;
+  const originalMin = min.value;
+  const originalMax = max.value;
   const refresh = () => {
     doorFormat.textContent = validDoorPrice(door.valueAsNumber) ? `${number.format(door.valueAsNumber)} COP` : '';
     if (input.value !== original || courtesy.value !== originalCourtesy) {
@@ -117,6 +130,11 @@ function createTypeRow(type, inputs, saleByType) {
     }
     if (door.value !== originalDoor || door.validity.badInput) {
       sale.textContent = 'Precio sin guardar';
+      sale.classList.remove('is-open');
+      return;
+    }
+    if (min.value !== originalMin || max.value !== originalMax || min.validity.badInput || max.validity.badInput) {
+      sale.textContent = 'Límites sin guardar';
       sale.classList.remove('is-open');
       return;
     }
@@ -134,6 +152,8 @@ function createTypeRow(type, inputs, saleByType) {
   input.addEventListener('input', refresh);
   courtesy.addEventListener('input', refresh);
   door.addEventListener('input', refresh);
+  min.addEventListener('input', refresh);
+  max.addEventListener('input', refresh);
   refresh();
   return el('li', { class: 'ticket-inventory-row', 'data-ticket-type': type.ticket_type_id },
     el('div', { class: 'ticket-inventory-name' },
@@ -141,7 +161,10 @@ function createTypeRow(type, inputs, saleByType) {
       el('small', { text: usage.join(' · ') }), el('small', { text: courtesyUsage })),
     el('div', { class: 'ticket-inventory-name' }, input,
       el('label', { for: courtesyId, text: 'Cupo de cortesías' }), courtesy,
-      el('label', { for: doorId, text: 'Precio en puerta (opcional)' }), door, doorHelp, doorFormat), sale);
+      el('label', { for: doorId, text: 'Precio en puerta (opcional)' }), door, doorHelp, doorFormat,
+      el('label', { for: min.id, text: 'Mínimo por pedido' }), min,
+      el('label', { for: max.id, text: 'Máximo por pedido' }), max,
+      el('small', { id: limitHelpId, text: 'Vacío = sin límite adicional' })), sale);
 }
 
 function renderTypes(status, data, saleByType) {
@@ -157,8 +180,8 @@ function renderTypes(status, data, saleByType) {
   return inputs;
 }
 
-function bindSave(host, section, status, id, totalInput, inputs) {
-  const save = el('button', { type: 'button', class: 'btn red', text: 'Guardar cupo y precio' });
+function bindSave(host, section, status, id, totalInput, buyerLimit, inputs) {
+  const save = el('button', { type: 'button', class: 'btn red', text: 'Guardar cupo, precio y límites' });
   section.append(el('div', { class: 'ticket-inventory-actions' }, save));
   const whole = value => value === '' ? 0 : Number(value);
   save.addEventListener('click', async () => {
@@ -166,17 +189,28 @@ function bindSave(host, section, status, id, totalInput, inputs) {
       status.textContent = ERRORS.INVENTORY_INVALID_DOOR_PRICE;
       return;
     }
-    const body = { capacity: whole(totalInput.value), types: [...inputs].map(([typeId, fields]) => ({
+    const body = { capacity: whole(totalInput.value), max_per_buyer: optionalLimit(buyerLimit), types: [...inputs].map(([typeId, fields]) => ({
       ticket_type_id: typeId, capacity: whole(fields.input.value),
       courtesy_capacity: fields.courtesy.value === '' ? Number.NaN : Number(fields.courtesy.value),
-      door_price_cop: fields.door.value === '' ? null : fields.door.valueAsNumber })) };
+      door_price_cop: fields.door.value === '' ? null : fields.door.valueAsNumber,
+      min_per_order: optionalLimit(fields.min), max_per_order: optionalLimit(fields.max) })) };
     const values = [body.capacity, ...body.types.flatMap(row => [row.capacity, row.courtesy_capacity])];
     if (!values.every(value => Number.isSafeInteger(value) && value >= 0 && value <= 100000)) {
       status.textContent = ERRORS.INVENTORY_INVALID_INPUT;
       return;
     }
+    if (buyerLimit.validity.badInput || !validLimit(body.max_per_buyer, body.capacity)
+      || [...inputs.values()].some(({ min, max }) => min.validity.badInput || max.validity.badInput)
+      || body.types.some(row => {
+        const cap = Math.min(body.capacity, row.capacity);
+        return !validLimit(row.min_per_order, cap) || !validLimit(row.max_per_order, cap)
+          || (row.min_per_order !== null && row.max_per_order !== null && row.min_per_order > row.max_per_order);
+      })) {
+      status.textContent = ERRORS.INVENTORY_INVALID_PURCHASE_LIMIT;
+      return;
+    }
     save.disabled = true;
-    status.textContent = 'Guardando cupo y precio…';
+    status.textContent = 'Guardando cupo, precio y límites…';
     try {
       const confirmed = await request(id, body);
       if (!section.isConnected) return;
@@ -218,7 +252,7 @@ export async function mount(host, { eventId, snapshot = null, saved = false } = 
     return;
   }
   if (!section.isConnected) return;
-  status.textContent = saved ? 'Cupo y precio guardados.' : '';
+  status.textContent = saved ? 'Cupo, precio y límites guardados.' : '';
 
   const saleByType = renderSale(status, data);
 
@@ -228,7 +262,13 @@ export async function mount(host, { eventId, snapshot = null, saved = false } = 
     el('label', { for: 'ticket-inventory-total', text: 'Aforo total del evento' }), totalInput,
     el('small', { text: `En uso: ${number.format(data.used)}` }));
   status.before(total);
+  const buyerLimit = limitInput('ticket-inventory-buyer-limit', 'Máximo por comprador del evento',
+    data.max_per_buyer, 'ticket-inventory-buyer-help');
+  status.before(el('div', { class: 'ticket-inventory-total' },
+    el('label', { for: buyerLimit.id, text: 'Máximo por comprador del evento' }), buyerLimit,
+    el('small', { id: 'ticket-inventory-buyer-help', text: 'Vacío = sin límite adicional' })));
+  buyerLimit.addEventListener('input', () => { status.textContent = 'Límite por comprador sin guardar.'; });
 
   const inputs = renderTypes(status, data, saleByType);
-  bindSave(host, section, status, id, totalInput, inputs);
+  bindSave(host, section, status, id, totalInput, buyerLimit, inputs);
 }

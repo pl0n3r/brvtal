@@ -257,7 +257,7 @@ function brvtalPublicEntityArtistCardFraming(PDO $pdo, array $related): array
     return $related;
 }
 
-function brvtal_public_page_data(PDO $pdo, array $entity): array
+function brvtal_public_page_data(PDO $pdo, array $entity, array $captureConfig = []): array
 {
     brvtal_page_query_degraded(false);
     $id = (int)$entity['id'];
@@ -379,7 +379,7 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
         $raw = $detail['content_json'] ?? '';
         $data['entity']['description'] = brvtal_page_content_plain_text($raw);
         $data['record']['body_html'] = brvtal_page_content_html($raw,
-            static fn(string $id): ?array => brvtal_page_form_resolve($pdo, $id));
+            static fn(string $id): ?array => brvtal_page_form_resolve($pdo, $id, $captureConfig));
     }
 
     if (in_array($type, ['events','artists','sets','releases'], true)) {
@@ -817,6 +817,9 @@ JS;
         $eventStylesheet .= '<link rel="stylesheet" href="/css/public-ticket-checkout.css">';
     }
     $checkoutScript = $isEvent ? '<script src="/js/public-ticket-checkout.js" defer></script>' : '';
+    $formAssets = str_contains($statementBody, 'data-public-form=');
+    $formStyle = $formAssets ? '<link rel="stylesheet" href="/css/public-forms.css">' : '';
+    $formScript = $formAssets ? '<script src="/js/public-forms.js" defer></script>' : '';
     $eventPalette = brvtalPublicEventPalette((string)($entity['accent'] ?? ''));
     $bodyClass = $isEvent ? 'entity-page entity-page--event entity-page--event-' . $recordState . ' cromo-page' : 'entity-page cromo-page';
     $bodyAttributes = 'class="' . $escape($bodyClass) . '"';
@@ -952,6 +955,7 @@ JS;
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/public-entity.css">
   {$eventStylesheet}
+  {$formStyle}
   <link rel="stylesheet" href="/css/public-cromo.css">
   <link rel="stylesheet" href="/css/public-cromo-pages.css">
 </head>
@@ -979,6 +983,7 @@ JS;
   {$purchaseScript}
   {$navHeightScript}
   {$checkoutScript}
+  {$formScript}
   <script src="/js/public-cromo.js" defer></script>
   <script src="/js/public-cromo-sound.js" defer></script>
   <script src="/js/public-cromo-pages.js" defer></script>

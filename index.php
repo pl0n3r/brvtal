@@ -244,7 +244,8 @@ $seo = brvtalPublicApplyLocalizedSeo($seo, $route);
 $analytics = brvtal_public_analytics_markup(brvtal_public_gtm_id(db()), brvtalDeploymentCacheKey());
 if ($entity) {
     try {
-        $page = brvtal_public_page_data(db(), $entity);
+        $captureConfig = $GLOBALS['config'] ?? [];
+        $page = brvtal_public_page_data(db(), $entity, is_array($captureConfig) ? $captureConfig : []);
     } catch (Throwable $e) {
         if (function_exists('brvtal_log')) {
             brvtal_log('PUBLIC_ENTITY_DATA_ERROR', 'Essential canonical entity data failed to load', [
@@ -269,8 +270,13 @@ if ($entity) {
         header('X-Robots-Tag: noindex, follow');
         header('X-BRVTAL-Data-State: degraded');
         header('Cache-Control: no-store');
+    } elseif (str_contains((string)($page['record']['body_html'] ?? ''), 'data-form-ref=')) {
+        header('Cache-Control: no-store');
     } else {
         header('Cache-Control: public, max-age=60, stale-while-revalidate=300');
+    }
+    if (str_contains((string)($page['record']['body_html'] ?? ''), 'data-public-form=')) {
+        $analytics = '';
     }
     $entityHtml = brvtalPublicEntityDocument(
         db(),

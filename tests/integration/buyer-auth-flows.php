@@ -355,6 +355,54 @@ buyerAuthAssert((int)$db->query('SELECT COUNT(*) FROM ticket_buyers')->fetchColu
     && (int)$db->query('SELECT COUNT(*) FROM ticket_mail_outbox')->fetchColumn() === 0,
     'privacy rejection atomically rolls back buyer, token and outbox');
 $GLOBALS['config']['ticketing']['mail']['privacy_approved'] = '1';
+// #2205: independent marketing ledger; no mail, provider or real addresses.
+require_once __DIR__ . '/../../config/marketing_consent.php';
+$db->exec((string)file_get_contents(__DIR__ . '/../../database/migration_marketing_consent_01.sql'));
+$marketingEmail = 'buyer@example.test';
+buyerAuthAssert(!brvtalMarketingConsentContactable($db,$marketingEmail), 'no opt-in by default');
+try {
+    brvtalMarketingConsentGrant($db,$marketingEmail,'v1','registration',false);
+    buyerAuthAssert(false,'unchecked consent rejected');
+} catch (InvalidArgumentException $e) {
+    buyerAuthAssert($e->getMessage() === 'MARKETING_CONSENT_INVALID','explicit consent required');
+}
+$marketingToken = brvtalMarketingConsentGrant($db,' BUYER@EXAMPLE.TEST ','v1','registration',true);
+$marketingRow = $db->query('SELECT * FROM marketing_consents')->fetch();
+buyerAuthAssert($marketingRow['email'] === $marketingEmail && $marketingRow['consent_version'] === 'v1'
+    && $marketingRow['origin'] === 'registration' && $marketingRow['granted_at_utc'] !== null
+    && $marketingRow['unsubscribe_hash'] === hash('sha256',$marketingToken)
+    && $marketingRow['unsubscribe_hash'] !== $marketingToken, 'normalized, versioned, hash-only evidence');
+buyerAuthAssert(brvtalMarketingConsentContactable($db,$marketingEmail), 'explicit consent contactable');
+$marketingPeer = new PDO("mysql:host={$host};port={$port};dbname={$dbName};charset=utf8mb4",$user,$pass,$options);
+try {
+    brvtalMarketingConsentGrant($marketingPeer,$marketingEmail,'v2','account',true);
+    buyerAuthAssert(false,'second connection cannot create active duplicate');
+} catch (PDOException $e) {
+    buyerAuthAssert($e->getCode() === '23000','duplicate constrained by database');
+}
+buyerAuthAssert(!brvtalMarketingConsentRevoke($db,'invalid')
+    && !brvtalMarketingConsentRevoke($db,str_repeat('0',64)), 'invalid and unknown tokens rejected');
+buyerAuthAssert(brvtalMarketingConsentRevoke($marketingPeer,$marketingToken)
+    && !brvtalMarketingConsentContactable($db,$marketingEmail), 'revocation visible immediately across connections');
+$marketingNew = brvtalMarketingConsentGrant($db,$marketingEmail,'v2','account',true);
+buyerAuthAssert($marketingNew !== $marketingToken && brvtalMarketingConsentRevoke($db,$marketingToken)
+    && brvtalMarketingConsentContactable($marketingPeer,$marketingEmail), 'old token cannot revoke new explicit grant');
+buyerAuthAssert(brvtalMarketingConsentRevoke($db,$marketingNew)
+    && !brvtalMarketingConsentContactable($db,$marketingEmail), 'new grant independently revoked');
+buyerAuthAssert((int)$db->query("SELECT COUNT(*) FROM marketing_consents WHERE revoked_at_utc IS NOT NULL")->fetchColumn() === 2
+    && (int)$db->query('SELECT COUNT(*) FROM ticket_mail_outbox')->fetchColumn() === 0, 'historical evidence retained and no mail generated');
+putenv('BRVTAL_INTEGRATION_TESTS=0');
+buyerAuthAssert(!brvtalMarketingConsentContactable($db,$marketingEmail)
+    && !brvtalMarketingConsentRevoke($db,$marketingNew), 'activation remains disabled');
+try {
+    brvtalMarketingConsentGrant($db,$marketingEmail,'v3','account',true);
+    buyerAuthAssert(false,'disabled grant rejected');
+} catch (DomainException $e) {
+    buyerAuthAssert($e->getMessage() === 'MARKETING_CONSENT_DISABLED','disabled grant fails closed');
+}
+putenv('BRVTAL_INTEGRATION_TESTS=1');
+// Existing registration, verification and transactional outbox tests below use
+// the same opted-out address and remain independent of marketing.
 $a = brvtalBuyerAuthRegister($db, array_diff_key($input, ['password'=>true]));
 // Use private synthetic mode for the rest of the multi-mail test suite.
 $GLOBALS['config']['ticketing']['mail']['testing'] = '1';

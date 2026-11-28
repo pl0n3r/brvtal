@@ -1,0 +1,148 @@
+name: Issue 2109 synthetic finance evidence
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/issue-2109-visual-evidence.yml'
+      - 'tests/e2e/discadmin-ticketing-finance.spec.mjs'
+      - 'api/ticketing/admin-finances.php'
+      - 'discadmin/ticketing-finance.js'
+permissions:
+  contents: read
+jobs:
+  evidence:
+    name: finance-2109-evidence
+    if: >-
+      github.repository == 'pl0n3r/brvtal' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.head_ref == 'work/issue-2109'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      mariadb:
+        image: ghcr.io/mariadb/mariadb:11.4.13-noble@sha256:3cff57293253c640483e8a19ce506cf68bf8e4529385e64aeec700c02038e7ed
+        env:
+          MARIADB_ROOT_PASSWORD: brvtal_root
+          MARIADB_DATABASE: brvtal_test_finance_2109
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s --health-timeout=3s --health-retries=15
+    env:
+      TARGET_HEAD: ${{ github.event.pull_request.head.sha }}
+      TARGET_BASE: ${{ github.event.pull_request.base.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
+        with:
+          php-version: '8.5'
+          extensions: pdo_mysql, mbstring
+          coverage: none
+      - name: Install browser dependencies
+        run: |
+          npm install --ignore-scripts --no-save --package-lock=false --no-audit --no-fund @playwright/test@1.63.0
+          npx --no-install playwright install --with-deps chromium
+      - name: Validate exact source and synthetic HTTP fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          [[ "$GITHUB_ACTIONS" == true && "$TARGET_HEAD" =~ ^[a-f0-9]{40}$ && "$TARGET_BASE" =~ ^[a-f0-9]{40}$ ]]
+          [[ "$(git rev-parse HEAD)" == "$TARGET_HEAD" && ! -e config/config.php && ! -L config/config.php ]]
+          git merge-base --is-ancestor "$TARGET_BASE" "$TARGET_HEAD"
+          python3 scripts/ci_self_audit.py
+          DB_NAME=brvtal_test_finance_2109
+          db_cli=$(command -v mariadb || command -v mysql)
+          db=("$db_cli" --no-defaults --protocol=TCP -h127.0.0.1 -P3306 -uroot -pbrvtal_root)
+          cleanup() {
+            [[ -z "$php_pid" ]] || kill "$php_pid" 2>/dev/null || true
+            rm -f config/config.php
+          }
+          php_pid=''
+          trap cleanup EXIT
+          sed -e "s/^CREATE DATABASE IF NOT EXISTS brvtal /CREATE DATABASE IF NOT EXISTS $DB_NAME /" \
+              -e "s/^USE brvtal;/USE $DB_NAME;/" database/schema.sql | "${db[@]}"
+          for migration in content_core_01 releases_01 seo_01 integration_secrets_01 totp_foundation admin_activity_01 ticketing_orders_01 ticketing_reservations_01 ticketing_entries_01 ticketing_webhook_01 ticketing_pos_01 ticketing_pos_02 ticketing_pos_03 ticketing_order_notes_01 ticketing_courtesy_01 ticketing_finance_expenses_01; do
+            "${db[@]}" "$DB_NAME" < "database/migration_$migration.sql"
+          done
+          mkdir -p storage/logs storage/rate_limits "$RUNNER_TEMP/finance-sessions"
+          cat > config/config.php <<'PHP'
+          <?php
+          return [
+            'app'=>['name'=>'BRVTAL','base_url'=>'http://127.0.0.1:4174','timezone'=>'America/Bogota','debug'=>false],
+            'db'=>['host'=>'127.0.0.1','port'=>3306,'name'=>'brvtal_test_finance_2109','user'=>'root','pass'=>'brvtal_root','charset'=>'utf8mb4'],
+            'security'=>['session_name'=>'BRVTAL_ADMIN_FINANCE_CI','csrf_key'=>str_repeat('c',32),'encryption_key'=>str_repeat('e',32)],
+          ];
+          PHP
+          php <<'PHP'
+          <?php
+          require 'config/bootstrap.php';
+          $pdo=db();
+          $q=$pdo->prepare('INSERT INTO admins(id,email,password_hash,name,staff_role,is_active) VALUES(?,?,?,?,?,1)');
+          foreach ([6101=>'admin',6102=>'door'] as $id=>$role) {
+              $q->execute([$id,$role.'-2109@example.test',password_hash('brvtal-fixture-2109',PASSWORD_DEFAULT),'Fixture '.$role,$role]);
+          }
+          $pdo->exec("INSERT INTO events(id,title,slug,status) VALUES(6109,'Evento sintético','finance-2109','draft')");
+          $pdo->exec("INSERT INTO event_ticket_types(id,event_id,name,price,currency,status) VALUES(6109,6109,'General',20000,'COP','active')");
+          $pdo->exec("INSERT INTO ticket_buyers(id,public_id,status) VALUES(6109,RANDOM_BYTES(16),'guest')");
+          $order=$pdo->prepare("INSERT INTO ticket_orders(id,public_id,buyer_id,event_id,checkout_key_hash,status,total_cop) VALUES(?,RANDOM_BYTES(16),6109,6109,?,'paid',?)");
+          $line=$pdo->prepare("INSERT INTO ticket_order_items(order_id,event_id,ticket_type_id,ticket_name_snapshot,quantity,unit_price_cop,subtotal_cop) VALUES(?,6109,6109,'General',1,?,?)");
+          foreach ([61091=>20000,61092=>15000,61093=>30000,61094=>10000] as $id=>$amount){
+            $order->execute([$id,hash('sha256','order-'.$id),$amount]);
+            $line->execute([$id,$amount,$amount]);
+          }
+          $attempt=$pdo->prepare("INSERT INTO ticket_payment_attempts(order_id,provider,provider_reference,provider_transaction_id,idempotency_key_hash,status,gross_amount_cop) VALUES(?,'wompi',?,?,?,?,?)");
+          $journal=$pdo->prepare("INSERT INTO ticket_payment_webhook_events(attempt_id,provider_transaction_id,event_checksum,signed_status,event_timestamp) VALUES(?,?,?,'APPROVED',1)");
+          foreach ([[61091,'W-61091-A','approved',20000],[61091,'W-61091-B','approved',20000],[61092,'W-61092','pending',15000],[61094,'W-61094','approved',10000]] as [$id,$tx,$status,$amount]){
+            $attempt->execute([$id,'REF-'.$tx,$tx,hash('sha256',$tx),$status,$amount]);
+            $attemptId=$pdo->lastInsertId();
+            if($status==='approved'){
+              $journal->execute([$attemptId,$tx,hash('sha256','journal-'.$tx)]);
+              if($tx==='W-61091-A')$journal->execute([$attemptId,$tx,hash('sha256','replay-'.$tx)]);
+            }
+          }
+          $pdo->exec("INSERT INTO ticket_pos_shifts(id,event_id,operator_admin_id,opening_cash_cop) VALUES(6109,6109,6101,0)");
+          $sale=$pdo->prepare("INSERT INTO ticket_pos_sales(shift_id,event_id,operator_admin_id,ticket_type_id,order_id,quantity,unit_price_cop,amount_cop,method,status,request_key_hash,request_hash,confirmation_hash,expires_at_utc,completed_at_utc) VALUES(6109,6109,6101,6109,?,1,?,?,'cash','paid',?,?,?,UTC_TIMESTAMP(6),UTC_TIMESTAMP(6))");
+          foreach ([61091=>20000,61092=>15000,61093=>30000] as $id=>$amount){
+            $sale->execute([$id,$amount,$amount,hash('sha256','request-'.$id),hash('sha256','payload-'.$id),hash('sha256','confirm-'.$id)]);
+          }
+          PHP
+          export BRVTAL_TEST_DB_NAME="$DB_NAME" BRVTAL_MAIL_TESTING=1
+          export BRVTAL_MAIL_CAPTURE_FILE="$RUNNER_TEMP/finance-mail.json"
+          export BRVTAL_TICKET_WOMPI_MODE=disabled BRVTAL_TICKET_MAIL_MODE=mock
+          php -d session.save_path="$RUNNER_TEMP/finance-sessions" -S 127.0.0.1:4174 -t . > "$RUNNER_TEMP/finance-php.log" 2>&1 &
+          php_pid=$!
+          for _ in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:4174/api/index.php/auth >/dev/null; then break; fi
+            sleep 0.25
+          done
+          curl -fsS http://127.0.0.1:4174/api/index.php/auth >/dev/null
+          export BRVTAL_FINANCE_2109_HTTP=1 BASELINE_SHA="$TARGET_BASE"
+          npx --no-install playwright test tests/e2e/discadmin-ticketing-finance.spec.mjs --project=chromium --workers=1 --reporter=list
+          python3 - <<'PY'
+          import hashlib, json, os, struct
+          from pathlib import Path
+          root=Path('artifacts/issue-2109')
+          evidence=[]
+          for width in (390,1440):
+              for phase in ('before','after'):
+                  path=root/f'{phase}-{width}.png'
+                  data=path.read_bytes()
+                  assert data[:8]==b'\x89PNG\r\n\x1a\n'
+                  w,h=struct.unpack('>II',data[16:24])
+                  assert w==width and h>=400
+                  evidence.append(dict(name=path.name,width=w,height=h,sha256=hashlib.sha256(data).hexdigest()))
+          (root/'manifest.json').write_text(json.dumps(dict(issue=2109,head=os.environ['TARGET_HEAD'],base=os.environ['TARGET_BASE'],run=os.environ['GITHUB_RUN_ID'],screenshots=evidence),indent=2)+'\n')
+          PY
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: issue-2109-evidence-${{ github.event.pull_request.head.sha }}-${{ github.run_id }}
+          path: artifacts/issue-2109/
+          if-no-files-found: error
+          retention-days: 14

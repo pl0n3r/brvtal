@@ -7,6 +7,7 @@ import { execFile, execFileSync } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import { readFileSync, writeFileSync, renameSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 import { checkinIssued } from './ticketing-checkin-real-stack.mjs';
 
 const check = (condition, label) => assert.ok(Boolean(condition), label);
@@ -19,9 +20,24 @@ const worker = () => JSON.parse(execFileSync('php', ['-d', 'curl.cainfo=/fixture
 async function run() {
   check(process.env.BRVTAL_T31_ISOLATED === '1' && /^brvtal_test_t31_[a-f0-9]{12}$/.test(process.env.DB_NAME), 'disposable fixture required');
   const ca = readFileSync('/fixture/ca.pem');
+  let dropPrepare = false, droppedOrder = null;
   const forward = (req, res) => {
     const upstream = http.request({ host: '127.0.0.1', port: 8080, path: req.url, method: req.method,
       headers: { ...req.headers, host: 'localhost', 'x-fixture-tls': '1' } }, reply => {
+      // Fault injection at the TLS transport boundary, only after PHP returns.
+      if (dropPrepare && req.method === 'POST' && req.url === '/events/t31-fixture'
+          && req.headers['x-brvtal-ticket-checkout'] === 'prepare') {
+        dropPrepare = false;
+        let raw = '';
+        reply.setEncoding('utf8');
+        reply.on('data', chunk => { raw += chunk; });
+        reply.on('end', () => {
+          try { droppedOrder = {status:reply.statusCode,body:JSON.parse(raw)}; }
+          catch { droppedOrder = {status:reply.statusCode,body:null}; }
+          res.destroy();
+        });
+        return;
+      }
       res.writeHead(reply.statusCode, reply.headers);
       reply.pipe(res);
     });
@@ -97,7 +113,49 @@ async function run() {
     const event = '/index.php?type=events&slug=t31-fixture';
     const prepare = (session, key) => request(event, session, { lines: [{ ticket_type_id: 1, quantity: 1 }], method: 'CARD', idempotency_key: key },
       { 'X-CSRF-Token': session.csrf, 'X-Brvtal-Ticket-Checkout': 'prepare' });
-    const order = await prepare(buyer, 't31-checkout-fixture-001');
+    // The browser starts the actual checkout; PHP commits before the TLS response is lost.
+    const { chromium } = createRequire(import.meta.url)('/opt/t31-browser/node_modules/playwright-core');
+    const browser = await chromium.launch({ executablePath:'/usr/bin/chromium', headless:true, args:['--disable-dev-shm-usage','--disable-background-networking'] });
+    const origin = 'https://127.0.0.1:4444';
+    let order;
+    try {
+      const context = await browser.newContext({ viewport:{width:390,height:844} });
+      check(buyer.cookie.startsWith('BRVTAL_BUYER='),'buyer cookie established by real login');
+      await context.addCookies([{name:'BRVTAL_BUYER',value:buyer.cookie.slice('BRVTAL_BUYER='.length),domain:'127.0.0.1',path:'/',secure:true,httpOnly:true,sameSite:'Strict'}]);
+      await context.route('**/*', route => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
+      const page = await context.newPage();
+      await page.addInitScript(() => { window.WidgetCheckout = function(config) { this.open = () => { window.fixturePayment = {amount:config.amountInCents,reference:config.reference}; }; }; });
+      check((await page.goto(origin+'/events/t31-fixture',{waitUntil:'domcontentloaded'})).status()===200,'real event page on trusted TLS');
+      await page.locator('[data-cart-type="1"] [data-cart-step="1"]').click();
+      dropPrepare = true;
+      await page.locator('[data-cart-pay]').click();
+      await page.waitForFunction(() => document.querySelector('#ticket-checkout-status')?.textContent.includes('No fue posible'));
+      order = droppedOrder;
+      check(order?.status===200 && order.body?.ok && db('SELECT COUNT(*) FROM ticket_orders')==='1','commit before browser lost response');
+      const saved = await page.evaluate(() => JSON.parse(sessionStorage.getItem('brvtal-checkout:'+location.pathname)));
+      check(typeof saved?.intent==='string' && !saved.order_token && saved.method==='CARD' && saved.lines?.[0]?.quantity===1,'original intent survived transport loss');
+      db('UPDATE event_ticket_types SET price=789 WHERE id=1');
+      await page.reload({waitUntil:'domcontentloaded'});
+      check(await page.locator('[data-cart-pay]').count()===0,'public catalog exhausted after hold');
+      // This direct browser snapshot is independent of the UI recovery introduced by #2112.
+      const input = {lines:saved.lines,method:saved.method,idempotency_key:saved.intent};
+      const snapshot = await page.evaluate(async input => {
+        const auth = await fetch('/api/buyer/auth.php').then(r => r.json());
+        const r = await fetch(location.pathname,{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':auth.csrf,'X-BRVTAL-TICKET-CHECKOUT':'snapshot'},body:JSON.stringify(input)});
+        return {status:r.status,body:await r.json()};
+      }, input);
+      check(snapshot.status===200 && snapshot.body.state==='reserved' && snapshot.body.snapshot?.order_token===order.body.order_token &&
+        snapshot.body.snapshot?.total_cop===456 && snapshot.body.snapshot?.method==='CARD' && snapshot.body.snapshot?.lines?.[0]?.quantity===1 &&
+        snapshot.body.can_start_payment===false,'server frozen snapshot after reload and price change');
+      const foreign = await request(event,other,input,{'X-CSRF-Token':other.csrf,'X-Brvtal-Ticket-Checkout':'snapshot'});
+      check(foreign.status===200 && foreign.body.state==='unverified' && !foreign.body.snapshot,'foreign buyer has no snapshot');
+      const replay = await prepare(buyer,saved.intent);
+      check(replay.status===200 && replay.body.order_id===order.body.order_id && replay.body.order_token===order.body.order_token &&
+        replay.body.checkout.reference===order.body.checkout.reference && replay.body.checkout.amount_in_cents===45600,'immutable replay reference and amount');
+      check(db('SELECT COUNT(*) FROM ticket_orders')==='1' && db('SELECT COUNT(*) FROM ticket_inventory_holds')==='1' &&
+        db('SELECT COUNT(*) FROM ticket_payment_attempts')==='1' && !await page.evaluate(()=>window.fixturePayment),'no second order hold attempt or provider launch');
+      console.log('T31_RESERVATION_RECOVERY_STACK_PASS: real browser, lost response, immutable snapshot and single attempt');
+    } finally { await browser.close(); }
     check(order.status === 200 && order.body.ok, 'public HTTP checkout');
     const { order_id: id, order_token: token, checkout } = order.body;
     check(Number.isSafeInteger(id) && id > 0 && /^[a-f0-9]{32}$/.test(token) && checkout.amount_in_cents === 45600 &&
