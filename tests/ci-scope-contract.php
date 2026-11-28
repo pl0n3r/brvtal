@@ -172,6 +172,11 @@ foreach (['pull_request', 'push'] as $event) {
     ci_scope_expect_flags(ci_scope_run([...$providerFixturePaths, 'docs/ticketing/T31-provider-fixture.md'], $event), [
         'run_realstack' => 'true', 'run_browser' => 'false', 'deploy_bound' => 'false',
     ], "Wompi fixture union {$event}");
+    ci_scope_expect_flags(ci_scope_run(['tests/e2e/discadmin-integral-event-artist-set.spec.mjs'], $event), [
+        'full' => 'false', 'run_db' => 'false', 'run_browser' => 'true',
+        'run_realstack' => 'true', 'run_webkit' => 'false', 'run_recovery' => 'false',
+        'run_php' => 'false', 'run_js' => 'true', 'deploy_bound' => 'false',
+    ], "integral lineup fixture {$event}");
     $browser = 'tests/e2e/public-concept05-media-placeholders.spec.mjs';
     ci_scope_expect_flags(ci_scope_run([$browser], $event), [
         'run_realstack' => 'false', 'run_browser' => 'true', 'deploy_bound' => 'false',
