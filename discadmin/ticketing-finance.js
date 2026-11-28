@@ -152,6 +152,83 @@ function mountLedger(root, live) {
   return load;
 }
 
+const settlementLabels = {pending:'Por conciliar',partial:'Parcial',reconciled:'Conciliado',discrepancy:'Discrepancia'};
+const settlementMoney = value => value == null ? 'Sin dato' : peso.format(BigInt(value));
+function mountSettlements(root, live) {
+  root.append(root.querySelector('[data-settlement-template]').content.cloneNode(true));
+  const form=root.querySelector('form'), fields=form.querySelector('fieldset');
+  const file=form.elements.file, refresh=root.querySelector('[data-settlement-refresh]');
+  const status=root.querySelector('[data-settlement-status]'), results=root.querySelector('[data-settlement-results]');
+  let busy=false, enabled=false;
+  function setBusy(value) {
+    busy=value; fields.disabled=value||!enabled; refresh.disabled=value;
+    results.setAttribute('aria-busy',String(value));
+  }
+  async function request(options={}) {
+    const res=await fetch(ledgerEndpoint+'?settlements=1',{credentials:'same-origin',cache:'no-store',...options});
+    if (!res.ok) {
+      const messages={403:'Sin permiso para conciliar.',419:'La sesión venció. Vuelve a entrar.',
+        423:'La conciliación sintética no está habilitada.',409:'El reporte ya fue importado.',
+        413:'El archivo supera 1 MB.',422:'El archivo no cumple el formato CSV de prueba.'};
+      throw new Error(messages[res.status]||'No se pudo completar la consulta.');
+    }
+    const data=await res.json();
+    if (!data.ok) throw new Error('No se pudo completar la consulta.');
+    return data;
+  }
+  function render(payouts) {
+    results.replaceChildren();
+    if (!payouts.length) {results.append(make('p','No hay abonos importados. Selecciona un CSV de prueba.'));return;}
+    for (const payout of payouts) {
+      const states=[...new Set(payout.lines.map(line=>settlementLabels[line.status]||'Sin dato'))];
+      const count=payout.lines.length;
+      const details=make('details'), label=make('summary','Abono '+payout.reference+' · '+count
+        +(count===1?' línea':' líneas')+' · '+states.join(' / '));
+      label.style.overflowWrap='anywhere';details.append(label);
+      const table=make('table');table.className='tk-table';
+      const headers=['Línea / transacción','Estado de referencia','Bruto','Comisión','IVA','Retención','Ajuste','Acreditado','Diferencia global'];
+      const head=table.createTHead().insertRow();
+      for (const name of headers) {const th=make('th',name);th.scope='col';head.append(th);}
+      const body=table.createTBody();
+      for (const line of payout.lines) {
+        const tr=body.insertRow();
+        const values=[line.line_reference+' / '+line.transaction_reference,settlementLabels[line.status]||'Sin dato',
+          ...['gross_cop','fee_cop','fee_vat_cop','withheld_cop','adjustment_cop','credited_cop','difference_cop'].map(key=>settlementMoney(line[key]))];
+        values.forEach((value,i)=>{const td=tr.insertCell();td.dataset.label=headers[i];td.textContent=value;td.style.overflowWrap='anywhere';});
+      }
+      const wrap=make('div');wrap.className='tk-table-wrap';wrap.append(table);details.append(wrap);results.append(details);
+    }
+  }
+  async function load() {
+    if (busy||!live()) return;
+    enabled=false;setBusy(true);results.replaceChildren();status.textContent='Consultando abonos…';
+    try {
+      const data=await request();
+      if (!live()) return;
+      render(data.payouts);enabled=true;status.textContent='Abonos actualizados. Diferencias por referencia, no por línea.';
+    } catch (error) {if(live()) status.textContent=error.message;}
+    finally {setBusy(false);}
+  }
+  form.addEventListener('submit',async e=>{
+    e.preventDefault();
+    if(busy||!enabled||!live()||!file.files.length)return;
+    const selected=file.files[0];
+    if(selected.size>1048576){status.textContent='El archivo supera 1 MB.';return;}
+    setBusy(true);status.textContent='Importando archivo…';
+    let message='Reporte importado.';
+    try {
+      await request({method:'POST',headers:{'Content-Type':'text/csv','X-CSRF-Token':root.dataset.settlementCsrf},body:selected});
+      form.reset();
+    } catch(error){message=error.message+' Verifica los abonos antes de repetir.';}
+    finally{setBusy(false);}
+    if(!live())return;
+    await load();
+    if(enabled&&live())status.textContent=message;
+  });
+  refresh.addEventListener('click',()=>void load());
+  return load;
+}
+
 export async function mount(panel) {
   const live = () => panel.isConnected &&
     panel.closest('[data-admin-module="ticketing"]')?.querySelector('[data-ticketing-tab="finance"]')?.getAttribute('aria-selected') === 'true';
@@ -175,14 +252,23 @@ export async function mount(panel) {
     const ledger=panel.querySelector('#tk-finance-ledger'), summary=panel.querySelector('#tk-finance-summary');
     const ledgerButton=panel.querySelector('[data-finance-expenses]'), summaryButton=panel.querySelector('[data-finance-summary]');
     if (ledger&&summary&&ledgerButton&&summaryButton) {
-      let loadLedger;
-      function selectLedger(open) {
-        ledger.hidden=!open;summary.hidden=open;
-        ledgerButton.setAttribute('aria-pressed',String(open));summaryButton.setAttribute('aria-pressed',String(!open));
-        if (open&&!loadLedger) {loadLedger=mountLedger(ledger,()=>live()&&ledger.isConnected);void loadLedger();}
+      const settlements=panel.querySelector('#tk-finance-settlements');
+      const settlementButton=panel.querySelector('[data-finance-settlements]');
+      let loadLedger,loadSettlements;
+      function selectView(view) {
+        ledger.hidden=view!=='ledger';summary.hidden=view!=='summary';
+        ledgerButton.setAttribute('aria-pressed',String(view==='ledger'));
+        summaryButton.setAttribute('aria-pressed',String(view==='summary'));
+        if(settlements&&settlementButton){
+          settlements.hidden=view!=='settlements';
+          settlementButton.setAttribute('aria-pressed',String(view==='settlements'));
+        }
+        if(view==='ledger'&&!loadLedger){loadLedger=mountLedger(ledger,()=>live()&&ledger.isConnected);void loadLedger();}
+        if(view==='settlements'&&!loadSettlements&&settlements){loadSettlements=mountSettlements(settlements,()=>live()&&settlements.isConnected);void loadSettlements();}
       }
-      ledgerButton.addEventListener('click',()=>selectLedger(true));
-      summaryButton.addEventListener('click',()=>selectLedger(false));
+      ledgerButton.addEventListener('click',()=>selectView('ledger'));
+      summaryButton.addEventListener('click',()=>selectView('summary'));
+      settlementButton?.addEventListener('click',()=>selectView('settlements'));
     }
     let catalog=[], reportEvents=[], lastRequest=0;
     const params=()=>new URLSearchParams(new FormData(form));
