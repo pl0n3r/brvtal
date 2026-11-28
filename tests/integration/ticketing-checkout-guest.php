@@ -121,7 +121,7 @@ foreach ([
         ticket_type_id INT UNSIGNED,quantity INT,kind VARCHAR(20),status VARCHAR(20),expires_at_utc DATETIME(6),
         UNIQUE KEY uq_hold(order_id,ticket_type_id))",
     "CREATE TABLE ticket_payment_attempts (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,order_id BIGINT UNSIGNED,provider VARCHAR(24),
-        provider_reference VARCHAR(190),idempotency_key_hash CHAR(64),gross_amount_cop BIGINT UNSIGNED,status VARCHAR(20),
+        provider_reference VARCHAR(190),provider_transaction_id VARCHAR(190) NULL,idempotency_key_hash CHAR(64),gross_amount_cop BIGINT UNSIGNED,status VARCHAR(20),
         updated_at_utc DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6))",
 ] as $ddl) $db->exec($ddl);
 foreach (['BRVTAL_TICKET_WOMPI_MODE=mock','BRVTAL_TICKET_WOMPI_TESTING=1','BRVTAL_TICKET_WOMPI_PUBLIC_KEY=pub_test_guest_fixture',
@@ -337,6 +337,95 @@ guestAssert(count($guestOrders) === 1 && (int)$guestOrders[0]['order_number'] ==
     && $guestOrders[0]['venue'] === 'Lugar sintético' && $guestOrders[0]['event_title'] === 'Noche de prueba',
     'guest account metadata remains limited to its paid grant');
 
+// #2052: exercise the account projection on disposable rows, then restore the fixture.
+foreach ([
+    'CREATE TABLE ticket_pos_shifts (id BIGINT PRIMARY KEY,event_id INT,operator_admin_id INT)',
+    'CREATE TABLE ticket_pos_sales (id BIGINT PRIMARY KEY,shift_id BIGINT,event_id INT,operator_admin_id INT,ticket_type_id INT,order_id BIGINT,quantity INT,unit_price_cop BIGINT,amount_cop BIGINT,method VARCHAR(20),status VARCHAR(20),completed_at_utc DATETIME)',
+    'CREATE TABLE ticket_payment_webhook_events (id BIGINT PRIMARY KEY,attempt_id BIGINT,provider_transaction_id VARCHAR(190))',
+] as $ddl) $db->exec($ddl);
+$db->beginTransaction();
+try {
+    $_SESSION = ['buyer_id'=>$memberId];
+    $createOrder = static function(string $status, int $total, string $key) use ($db,$memberId): int {
+        $db->prepare("INSERT INTO ticket_orders(event_id,buyer_id,status,public_id,checkout_key_hash,currency,total_cop)
+            VALUES(1,?,?,RANDOM_BYTES(16),SHA2(?,256),'COP',?)")->execute([$memberId,$status,$key,$total]);
+        return (int)$db->lastInsertId();
+    };
+    $createLine = static function(int $order,int $type,int $quantity,string $name,int $unit) use ($db): int {
+        $db->prepare("INSERT INTO ticket_order_items(order_id,event_id,ticket_type_id,quantity,ticket_name_snapshot,unit_price_cop,subtotal_cop,currency)
+            VALUES(?,1,?,?,?,?,?,'COP')")->execute([$order,$type,$quantity,$name,$unit,$quantity*$unit]);
+        return (int)$db->lastInsertId();
+    };
+    $wompi = $createOrder('paid',70000,'account-wompi-2052');
+    $general = $createLine($wompi,10,2,'General',25000);
+    $vip = $createLine($wompi,11,1,'VIP',20000);
+    $createEntry = static function(int $line,int $type,int $unit,string $status) use ($db): int {
+        $db->prepare("INSERT INTO ticket_entries(order_item_id,public_id,status,unit_number,event_id,ticket_type_id)
+            VALUES(?,RANDOM_BYTES(16),?,?,1,?)")->execute([$line,$status,$unit,$type]);
+        return (int)$db->lastInsertId();
+    };
+    $issued = $createEntry($general,10,1,'issued');
+    $revoked = $createEntry($general,10,2,'revoked');
+    $db->exec("INSERT INTO ticket_entry_credentials(entry_id,status,version,token_hash,token_encrypted)
+        VALUES($issued,'active',1,RANDOM_BYTES(32),RANDOM_BYTES(61)),
+        ($revoked,'revoked',1,RANDOM_BYTES(32),RANDOM_BYTES(61))");
+    $db->exec("INSERT INTO ticket_payment_attempts(order_id,provider,provider_reference,provider_transaction_id,gross_amount_cop,status)
+        VALUES($wompi,'wompi','BW7-fixture','tx-account-2052',70000,'approved')");
+    $attempt = (int)$db->lastInsertId();
+    $db->exec("INSERT INTO ticket_payment_webhook_events VALUES(1,$attempt,'tx-account-2052')");
+    $db->exec("INSERT INTO ticket_payment_attempts(order_id,provider,gross_amount_cop,status)
+        VALUES($wompi,'wompi',70000,'declined')");
+    $pos = $createOrder('paid',25000,'account-pos-2052');
+    $createLine($pos,10,1,'General',25000);
+    $db->exec("INSERT INTO ticket_pos_shifts VALUES(1,1,12)");
+    $db->exec("INSERT INTO ticket_pos_sales VALUES(1,1,1,12,10,$pos,1,25000,25000,'cash','paid',UTC_TIMESTAMP())");
+    $pending = $createOrder('pending',75000,'account-pending-2052');
+    $createLine($pending,10,3,'General',25000);
+    $read = static fn(): array => array_column(brvtalBuyerAccountOrders($db,$memberId,$filters)['orders'],null,'order_number');
+    $projection = $read();
+    $order = $projection[$wompi];
+    guestAssert($order['total_cop']===70000 && $order['payment_channel']==='wompi' && $order['payment_status']==='verified',
+        'signed payment proof survives later declined attempt and retains financial total');
+    guestAssert(array_column($order['items'],'quantity')===[1,1,1] && array_column($order['items'],'name')===['General','General','VIP']
+        && array_column($order['items'],'status')===['issued','revoked','pending']
+        && count(array_unique(array_column(array_slice($order['items'],0,2),'ticket_id')))===2,
+        'partial issuance keeps one row per entry and the residual unissued line');
+    guestAssert($order['items'][0]['qr_stored'] && !$order['items'][1]['qr_stored']
+        && !$order['items'][1]['qr_requires_original_token'] && $order['items'][2]['ticket_id']===null
+        && !$order['items'][2]['qr_requires_original_token'], 'revoked and unissued entries cannot recover QR');
+    guestAssert($projection[$pos]['payment_channel']==='pos' && $projection[$pos]['payment_status']==='registered_offline',
+        'valid POS payment requires no Wompi attempt');
+    guestAssert($projection[$pending]['payment_status']==='no_payment' && count($projection[$pending]['items'])===1
+        && $projection[$pending]['items'][0]['quantity']===3 && $projection[$pending]['items'][0]['ticket_id']===null,
+        'unissued pending order preserves purchased quantity without fabricated tickets');
+    guestAssert(array_intersect(array_keys($order), ['payment_evidence','reason','provider_transaction_id']) === []
+        && !isset($projection[$paidOrder]), 'no internal proof or foreign order exposed');
+    $createEntry($vip,11,1,'issued');
+    $fullyIssued = $read()[$wompi]['items'];
+    guestAssert(array_column($fullyIssued,'quantity')===[1,1,1]
+        && !in_array(null,array_column($fullyIssued,'ticket_id'),true), 'complete issuance has exactly three individual tickets');
+    $partial = $createOrder('paid',75000,'account-partial-2052');
+    $partialLine = $createLine($partial,10,3,'General',25000);
+    $createEntry($partialLine,10,1,'issued');
+    $createEntry($partialLine,10,2,'issued');
+    $partialItems = $read()[$partial]['items'];
+    guestAssert(array_column($partialItems,'quantity')===[1,1,1]
+        && array_column($partialItems,'status')===['issued','issued','pending']
+        && is_string($partialItems[0]['ticket_id']) && is_string($partialItems[1]['ticket_id'])
+        && $partialItems[0]['ticket_id']!==$partialItems[1]['ticket_id']
+        && $partialItems[2]['ticket_id']===null && !$partialItems[2]['qr_stored']
+        && !$partialItems[2]['qr_requires_original_token'],
+        'partially issued item retains exactly one residual unit without QR');
+    $_SESSION = $guestState;
+    guestAssert(array_column(brvtalBuyerAccountOrders($db,$guestId,$filters)['orders'],'order_number')===[$paidOrder],
+        'guest grant cannot access verified buyer purchases');
+} finally {
+    $db->rollBack();
+    $_SESSION = $guestState;
+    foreach (['ticket_payment_webhook_events','ticket_pos_sales','ticket_pos_shifts'] as $table) $db->exec("DROP TABLE $table");
+}
+// The remaining HTTP tests still need to change session cookies; do not emit output yet.
+
 // Exercise the actual checkout HTTP handler, session epoch revalidation and
 // JSON response over loopback, not a simulated HTTP response or live provider.
 $guestCookie = session_id();
@@ -521,7 +610,7 @@ $fixtureSources = [
     'config/public_contact.php', 'config/rate_limit_store.php', 'config/public_visibility.php',
     'config/ticketing_inventory.php', 'config/ticketing_wompi_client.php',
     'config/ticketing_stages.php', 'config/ticketing_waitlist.php', 'config/ticketing_promos.php',
-    'config/buyer_account.php', 'config/buyer_auth.php', 'config/password_rate_limit.php',
+    'config/buyer_account.php', 'config/ticketing_admin_orders.php', 'config/buyer_auth.php', 'config/password_rate_limit.php',
     'config/ticketing_issue.php', 'config/ticketing_wompi_reconcile.php',
     'config/ticketing_wompi_webhook.php', 'config/ticketing_event_incident_policy.php',
     'config/ticketing_mail_outbox.php', 'config/ticketing_resend.php',

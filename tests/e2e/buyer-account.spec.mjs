@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 
 test.use({locale:'es-CO',timezoneId:'America/Bogota'});
 
@@ -10,14 +12,14 @@ const config = readFileSync(join(root, 'config/buyer_account.php'), 'utf8');
 const api = readFileSync(join(root, 'api/buyer/account.php'), 'utf8');
 const url = 'http://127.0.0.1:4173/buyer/index.php';
 const base = { public_id:'0123456789abcdef0123456789abcdef', event_title:'Noche sintética', event_date:'2026-12-12 21:00:00', venue:'Club sintético', currency:'COP', total_cop:25000, created_at_utc:'2026-11-01 21:00:00' };
-const paid = { ...base, order_number:77, status:'paid', payment_status:'approved', items:[
+const paid = { ...base, order_number:77, status:'paid', payment_channel:'wompi', payment_status:'verified', items:[
   {name:'General',quantity:1,ticket_id:'abcdefabcdefabcdefabcdefabcdefab',status:'issued',qr_requires_original_token:true},
   {name:'General',quantity:1,ticket_id:'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',status:'used',qr_requires_original_token:true},
   {name:'General',quantity:1,ticket_id:'cccccccccccccccccccccccccccccccc',status:'revoked',qr_requires_original_token:false},
 ]};
-async function fakeAccount(page, rows, qrStatus=200) {
+async function fakeAccount(page, rows, qrStatus=200, markup=html) {
   const requests = [];
-  await page.route(url, route=>route.fulfill({ contentType:'text/html', body:html }));
+  await page.route(url, route=>route.fulfill({ contentType:'text/html', body:markup }));
   await page.route('**/api/buyer/auth.php', route=>route.fulfill({ contentType:'application/json', body:JSON.stringify({ok:true,authenticated:true,csrf:'fake-csrf'}) }));
   await page.route('**/api/buyer/account.php**', route=>{
     requests.push({method:route.request().method(),url:route.request().url(),headers:route.request().headers(),data:route.request().postDataJSON?.()});
@@ -60,8 +62,9 @@ test('mobile: empty orders and filters are clear and do not reveal a QR', async 
 
 test('desktop: pending, expired, used, revoked, paid and secure scannable PNG download', async ({page}) => {
   await page.setViewportSize({width:1280,height:900});
-  const calls=await fakeAccount(page,[paid,{...base,public_id:'p',status:'pending',payment_status:'pending',items:[]},
-    {...base,public_id:'e',status:'expired',payment_status:'declined',items:[]}]);
+  const calls=await fakeAccount(page,[paid,{...base,public_id:'p',status:'pending',payment_channel:'none',payment_status:'no_payment',items:[]},
+    {...base,public_id:'e',status:'expired',payment_channel:'none',payment_status:'no_payment',items:[]},
+    {...base,public_id:'f',status:'failed',payment_channel:'none',payment_status:'no_payment',items:[]}]);
   await page.goto(url);
   await expect(page.getByText('Noche sintética').first()).toBeVisible();
   await expect(page.getByText('Pago pendiente').first()).toBeVisible();
@@ -364,3 +367,89 @@ test('#2188 courtesy-only pagination, filtering and empty state',async ({page})=
   expect(queries.some(q=>q.get('event_id')==='91'&&q.get('page')==='0')).toBe(true);
   await expect(page.locator('#qr-output')).toBeHidden();
 });
+
+
+// #2052: same synthetic purchase, pre-fix markup and corrected projection.
+// Preserve synthetic captures in the downloadable job log: the existing
+// Chromium artifact exporter does not include these account attachments.
+// Do not emit screenshots from other branches or authenticated production.
+function logAccount2052Capture(stage, width, png) {
+  if (process.env.GITHUB_ACTIONS !== 'true' || process.env.GITHUB_HEAD_REF !== 'work/issue-2052') return;
+  if (png.readUInt32BE(16) !== width || png.length > 2 * 1024 * 1024) {
+    throw new Error('Unexpected account evidence dimensions or size');
+  }
+  const sha = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+  const hash = createHash('sha256').update(png).digest('hex');
+  const chunks = png.toString('base64').match(/.{1,960}/g);
+  console.log(`ACCOUNT2052-PNG ${sha} ${stage} ${width} ${png.readUInt32BE(20)} ${hash} ${chunks.length}`);
+  chunks.forEach((chunk, i) => console.log(`ACCOUNT2052-DATA ${stage} ${width} ${i} ${chunk}`));
+}
+const account2052Baseline = '3f76c15678e0d6c31271406eff5ff1ba66d6c9b2';
+async function routeAccount2052Styles(page, baseline = false) {
+  const asset = path => baseline
+    ? execFileSync('git', ['show', account2052Baseline + ':' + path])
+    : readFileSync(join(root, path));
+  await page.route(/\/css\/buyer-(?:access|account)\.css(?:\?.*)?$/, route =>
+    route.fulfill({contentType:'text/css',body:asset(new URL(route.request().url()).pathname.slice(1))}));
+  await page.route('**/assets/fonts/BrokenGlass.ttf', route =>
+    route.fulfill({contentType:'font/ttf',body:asset('assets/fonts/BrokenGlass.ttf')}));
+}
+async function assertAccount2052Styles(page) {
+  await expect(page.locator('body')).toHaveCSS('background-color','rgb(5, 5, 5)');
+  await expect(page.locator('.account-layout')).toHaveCSS('display','grid');
+  expect(await page.evaluate(async () => (await document.fonts.load('24px "Broken Glass"')).length)).toBeGreaterThan(0);
+  await page.evaluate(() => document.fonts.ready);
+}
+for(const width of [390,1440]){
+  test(`account quantities and channel evidence at ${width}px`,async ({page,browser},testInfo)=>{
+    const partial={...paid,order_number:77,items:[
+      paid.items[0],paid.items[2],{name:'VIP',quantity:1,ticket_id:null,status:'pending',qr_requires_original_token:false}
+    ]};
+    const offline={...base,order_number:78,status:'paid',payment_channel:'pos',payment_status:'registered_offline',items:[]};
+    const pending={...base,order_number:79,status:'pending',payment_channel:'none',payment_status:'no_payment',
+      items:[{name:'General',quantity:3,ticket_id:null,status:'pending',qr_requires_original_token:false}]};
+    const uncertain={...base,order_number:80,status:'paid',payment_channel:'unknown',payment_status:'unavailable',items:[]};
+    let beforePng;
+    if(process.env.GITHUB_HEAD_REF==='work/issue-2052'){
+      const before=await browser.newPage({viewport:{width,height:900},locale:'es-CO',timezoneId:'America/Bogota'});
+      try{
+        const baseline=execFileSync('git',['show',account2052Baseline + ':buyer/index.php'],{encoding:'utf8'});
+        const old={...partial,payment_status:'declined',items:partial.items.map((item,i)=>({...item,quantity:i<2?2:1}))};
+        await routeAccount2052Styles(before, true);
+        await fakeAccount(before,[old,{...offline,payment_status:null},{...pending,payment_status:'pending'},{...uncertain,payment_status:null}],200,baseline);
+        await before.goto(url);
+        await assertAccount2052Styles(before);
+        await expect(before.getByText('Cantidad: 2 · Entrada: Disponible')).toBeVisible();
+        beforePng = await before.screenshot({fullPage:true,animations:'disabled'});
+        await testInfo.attach('account-2052-before-'+width,{body:beforePng,contentType:'image/png'});
+      }finally{await before.close();}
+    }
+    await page.setViewportSize({width,height:900});
+    await routeAccount2052Styles(page);
+    await fakeAccount(page,[partial,offline,pending,uncertain]);
+    await page.goto(url);
+    await assertAccount2052Styles(page);
+    const orders=page.locator('#orders .account-order');
+    await expect(orders).toHaveCount(4);
+    await expect(orders.nth(0)).toContainText('Wompi verificado');
+    await expect(orders.nth(0).locator('.ticket')).toHaveCount(3);
+    await expect(orders.nth(0).getByText('Cantidad: 1 · Entrada: Disponible')).toBeVisible();
+    await expect(orders.nth(0).getByText('Cantidad: 1 · Entrada: Revocada')).toBeVisible();
+    await expect(orders.nth(0).getByText('Cantidad: 1 · Entrada: Sin emitir')).toBeVisible();
+    await expect(orders.nth(1)).toContainText('Registrado en punto de venta');
+    await expect(orders.nth(2)).toContainText('Sin pago confirmado');
+    await expect(orders.nth(2)).toContainText('Cantidad: 3 · Entrada: Sin emitir');
+    await expect(orders.nth(3)).toContainText('Evidencia no disponible');
+    await expect(page.getByRole('button',{name:'Ver QR'})).toHaveCount(1);
+    await expect(page.getByRole('button',{name:'Descargar pase (PDF)'})).toHaveCount(1);
+    await page.getByRole('button',{name:'Ver QR'}).focus();
+    await expect(page.getByRole('button',{name:'Ver QR'})).toBeFocused();
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    const afterPng = await page.screenshot({fullPage:true,animations:'disabled'});
+    await testInfo.attach('account-2052-after-'+width,{body:afterPng,contentType:'image/png'});
+    if (beforePng) {
+      logAccount2052Capture('before', width, beforePng);
+      logAccount2052Capture('after', width, afterPng);
+    }
+  });
+}

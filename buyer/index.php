@@ -182,6 +182,13 @@
 
   const statuses={draft:'Borrador',pending:'Pago pendiente',paid:'Pagado',approved:'Aprobado',failed:'Rechazado',declined:'Rechazado',error:'Error',created:'Iniciado',cancelled:'Cancelado',expired:'Expirado',refunded:'Reembolsado',issued:'Disponible',used:'Usada',revoked:'Revocada'};
 
+  function paymentLabel(order){
+    if(order.payment_channel==='wompi'&&order.payment_status==='verified')return 'Wompi verificado';
+    if(order.payment_channel==='pos'&&order.payment_status==='registered_offline')return 'Registrado en punto de venta';
+    if(order.payment_status==='no_payment')return 'Sin pago confirmado';
+    if(order.payment_status==='discrepancy')return 'Estado por confirmar';
+    return 'Evidencia no disponible';
+  }
   const refundsApi='/api/buyer/refunds.php';
   const refundStates={requested:'Solicitada',approved:'Aprobada',processing:'En proceso',manual_pending:'Pendiente manual',
     refunded:'Reembolsada',rejected:'Rechazada',failed:'Fallida'};
@@ -257,10 +264,10 @@
   function showQr(id, stored=false, context=null, onlyStored=false){resetQr();ticket=id;passContext=context;storedOnly=onlyStored;qr.hidden=false;if(stored){$('qr-form').hidden=true;qr.setAttribute('tabindex','-1');qr.focus();loadQr(true);}else $('token').focus();}
   function card(order){
     const box=el('article'),title=el('h2',order.event_title||'Evento');box.className='account-order';box.append(title,
-      el('p',(order.order_number?'Pedido #'+order.order_number+' · ':'')+(statuses[order.status]||order.status)+' · Pago: '+(statuses[order.payment_status]||order.payment_status||'Sin intento')),
+      el('p',(order.order_number?'Pedido #'+order.order_number+' · ':'')+(statuses[order.status]||order.status)+' · Pago: '+paymentLabel(order)),
       el('small','Comprado el '+purchaseDate(order.created_at_utc)+' · '+money(order.total_cop)));
     for(const item of order.items||[]){
-      const line=el('div');line.className='ticket';line.append(el('strong',item.name),el('p','Cantidad: '+item.quantity+' · Entrada: '+(statuses[item.status]||item.status)));
+      const line=el('div');line.className='ticket';line.append(el('strong',item.name),el('p','Cantidad: '+item.quantity+' · Entrada: '+(item.ticket_id?(statuses[item.status]||'Estado por confirmar'):'Sin emitir')));
       if(order.status==='paid'&&item.status==='issued'&&item.credential_active!==false&&item.qr_requires_original_token&&item.ticket_id){
         const button=el('button','Ver QR');button.type='button';button.addEventListener('click',()=>showQr(item.ticket_id,item.qr_stored===true));
         const print=el('button','Descargar pase (PDF)');print.type='button';print.className='account-secondary';
